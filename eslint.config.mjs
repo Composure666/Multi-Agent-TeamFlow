@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "dist-electron/**",
+    ".agenthub-data/**",
     ".tmp/**",
     ".pnpm-store/**",
     ".understand-anything/**",

@@ -30,6 +30,7 @@ interface AccumulatingToolCall {
 
 /** 防止单条 user message 塞太多图片（token 爆炸 + provider 通常有上限） */
 const MAX_IMAGES_PER_MESSAGE = 5
+export const CUSTOM_AGENT_MAX_TURNS = 32
 
 export class CustomAgentAdapter implements AgentPlatformAdapter {
   readonly name = 'custom' as const
@@ -75,7 +76,6 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
       { role: 'user', content: userContent },
     ]
 
-    const MAX_TURNS = 8
     let turn = 0
     // 跨 turn 累加 token 用量；run 结束前 yield run.usage 给 AgentRunner 落库
     const runUsage = {
@@ -86,7 +86,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
       lastInputTokens: 0,
     }
 
-    while (turn < MAX_TURNS) {
+    while (turn < CUSTOM_AGENT_MAX_TURNS) {
       if (signal.aborted) return
       turn++
 

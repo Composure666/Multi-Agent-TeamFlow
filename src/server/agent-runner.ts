@@ -35,12 +35,15 @@ import {
   type FileWriteConflict,
   type RunFileWrites,
 } from './dispatch-file-writes'
+import { renderExistingArtifactsContext } from './dispatch-artifact-context'
 import {
   clearRunToolEvidence,
   getRunToolEvidence,
   recordRunCommand,
   type RunToolEvidence,
 } from './dispatch-run-evidence'
+import { formatDispatchProgressMessage } from './dispatch-progress-message'
+import { evaluateWorkspaceEvidence } from './dispatch-workspace-evidence'
 import {
   buildReplanContext,
   buildReviseContext,
@@ -56,9 +59,9 @@ import {
   type ReplanTaskView,
 } from './dispatch-plan'
 import { eventBus } from './event-bus'
-import { newArtifactId, newRunId } from './ids'
+import { newArtifactId, newMessageId, newRunId } from './ids'
 import { pendingDispatchPlans, type PlanReviewOutcome } from './pending-dispatch-plans'
-import { buildProjectFiles } from './project-artifact'
+import { buildProjectFiles, buildProjectFilesFromTargetPaths } from './project-artifact'
 import { getAppSettings } from './settings-service'
 import {
   evaluateTaskResultReport,
@@ -563,7 +566,7 @@ async function executeOrchestratorRun(
   )
   // Aggregate 阶段不再带 plan_tasks / ask_user，避免重复拆解或在最终总结前再次打断用户。
   const aggregateToolNames = agent.toolNames.filter(
-    (n) => n !== 'plan_tasks' && n !== ASK_USER_TOOL_NAME,
+    (n) => ['read_artifact', 'read_attachment'].includes(n),
   )
 
   const aggStream = agentRegistry
@@ -609,6 +612,7 @@ async function runPlanStage(
   resolvedExternalTasks: readonly DispatchPlanItem[] = [],
 ): Promise<{ plan: DispatchPlanItem[] | null; planRun: RunExecutionResult }> {
   const planSystemPrompt = buildOrchestratorPlanPrompt(agent.systemPrompt, otherAgents, workspace)
+  const existingArtifactsContext = await buildExistingArtifactsPlanContext(args.conversationId)
   const planToolNames = ensureIncludes(
     ensureIncludes(
       agent.toolNames.filter((name) => ORCHESTRATOR_PLAN_ALLOWED_TOOLS.has(name)),
@@ -618,8 +622,8 @@ async function runPlanStage(
   )
   // 补救轮：把上一轮结果摘要拼到 prompt 前，原始请求仍保留供 Orchestrator 参考
   const effectivePrompt = replanContext
-    ? `${replanContext}\n\n<original_request>\n${userPrompt}\n</original_request>`
-    : userPrompt
+    ? `${existingArtifactsContext}\n\n${replanContext}\n\n<original_request>\n${userPrompt}\n</original_request>`
+    : `${existingArtifactsContext}\n\n<user_request>\n${userPrompt}\n</user_request>`
 
   const aggregateRun = emptyRunExecutionResult()
   let prompt = effectivePrompt
@@ -669,6 +673,21 @@ async function runPlanStage(
   }
 
   throw new Error(lastValidationError ?? 'Invalid dispatch plan')
+}
+
+async function buildExistingArtifactsPlanContext(conversationId: string): Promise<string> {
+  const artifacts = await db.query.artifacts.findMany({
+    where: eq(schema.artifacts.conversationId, conversationId),
+    orderBy: [desc(schema.artifacts.createdAt)],
+  })
+  return renderExistingArtifactsContext(
+    artifacts.slice(0, 20).map((artifact) => ({
+      id: artifact.id,
+      type: artifact.type,
+      title: artifact.title,
+      createdByAgentId: artifact.createdByAgentId,
+    })),
+  )
 }
 
 /** mergedResults + plan → 重规划视图（供 shouldReplan / buildReplanContext，纯数据，不泄露内部类型）。 */
@@ -945,12 +964,28 @@ async function runChildTask(
       }
 
       if (currentEvaluation.result.status === 'complete') {
+        const workspaceEvaluation = evaluateWorkspaceEvidence(task, getEffectiveCwd(ctx.workspace))
+        if (!workspaceEvaluation.ok) {
+          currentEvaluation = {
+            ...currentEvaluation,
+            result: {
+              ...currentEvaluation.result,
+              status: 'failed',
+              error: workspaceEvaluation.error,
+            },
+          }
+        }
+      }
+
+      if (currentEvaluation.result.status === 'complete') {
         const projectArtifactId = await maybeCreateProjectArtifact({
           evidence: aggregateEvidence,
           conversationId: ctx.conversationId,
           agentId: task.agentId,
           taskId: task.id,
           result: currentEvaluation.result,
+          task,
+          workspace: ctx.workspace,
         })
         const resultWithProject = bindProjectExpectedOutput(
           task,
@@ -977,10 +1012,14 @@ async function runChildTask(
         currentEvaluation.result.status === 'aborted' ||
         currentEvaluation.result.taskReport?.status === 'blocked'
       ) {
+        await publishDispatchProgressMessage(ctx, task, currentEvaluation.result, attempt, 'blocked')
         publishDispatchEnd(ctx, task.id, currentEvaluation.result)
         return mergeAttemptAggregate(currentEvaluation.result, aggregate)
       }
 
+      if (attempt < MAX_CHILD_TASK_ATTEMPTS) {
+        await publishDispatchProgressMessage(ctx, task, currentEvaluation.result, attempt, 'retry')
+      }
       continuationContext = buildTaskContinuationContext(
         task,
         currentEvaluation,
@@ -1001,6 +1040,7 @@ async function runChildTask(
           : `Task "${task.id}" did not satisfy completion gates after ${MAX_CHILD_TASK_ATTEMPTS} attempt(s). Last error: ${result.error ?? 'unknown error'}`,
       runIds: [...attemptRunIds],
     }
+    await publishDispatchProgressMessage(ctx, task, exhausted, MAX_CHILD_TASK_ATTEMPTS, 'failed')
     publishDispatchEnd(ctx, task.id, exhausted)
 
     return mergeAttemptAggregate(exhausted, aggregate)
@@ -1015,13 +1055,18 @@ async function maybeCreateProjectArtifact(args: {
   agentId: string
   taskId?: string
   result: { artifactIds: string[] }
+  task?: DispatchPlanItem
+  workspace?: WorkspaceRow
 }): Promise<string | null> {
-  if (args.evidence.fileWrites.length === 0) return null
-  const workspace = await db.query.workspaces.findFirst({
+  const workspace = args.workspace ?? await db.query.workspaces.findFirst({
     where: eq(schema.workspaces.conversationId, args.conversationId),
   })
   if (!workspace) return null
-  const files = buildProjectFiles(args.evidence.fileWrites, getEffectiveCwd(workspace))
+  const workspaceRoot = getEffectiveCwd(workspace)
+  let files = buildProjectFiles(args.evidence.fileWrites, workspaceRoot)
+  if (files.length === 0 && args.task) {
+    files = buildProjectFilesFromTargetPaths(args.task.targetPaths ?? [], workspaceRoot)
+  }
   if (files.length === 0) return null
 
   const agent = await db.query.agents.findFirst({ where: eq(schema.agents.id, args.agentId) })
@@ -1997,6 +2042,61 @@ function publish(event: StreamEvent): void {
   eventBus.publish(event)
 }
 
+async function publishDispatchProgressMessage(
+  ctx: DagContext,
+  task: DispatchPlanItem,
+  result: DispatchTaskResult,
+  attempt: number,
+  phase: 'retry' | 'failed' | 'blocked',
+): Promise<void> {
+  const now = Date.now()
+  const messageId = newMessageId()
+  const reason = result.error ?? result.taskReport?.summary ?? 'unknown reason'
+  const content = formatDispatchProgressMessage({
+    taskId: task.id,
+    attempt,
+    maxAttempts: MAX_CHILD_TASK_ATTEMPTS,
+    phase,
+    reason,
+  })
+  const parts: MessagePart[] = [{ type: 'text', content }]
+
+  await db.insert(schema.messages).values({
+    id: messageId,
+    conversationId: ctx.conversationId,
+    role: 'agent',
+    agentId: task.agentId,
+    parts,
+    status: 'complete',
+    mentionedAgentIds: [],
+    runId: ctx.parentRunId,
+    createdAt: now,
+  })
+  await db
+    .update(schema.conversations)
+    .set({ updatedAt: now })
+    .where(eq(schema.conversations.id, ctx.conversationId))
+
+  publish({
+    type: 'message.added',
+    conversationId: ctx.conversationId,
+    timestamp: now,
+    message: {
+      id: messageId,
+      conversationId: ctx.conversationId,
+      role: 'agent',
+      agentId: task.agentId,
+      parts,
+      status: 'complete',
+      parentMessageId: null,
+      mentionedAgentIds: [],
+      runId: ctx.parentRunId,
+      usage: null,
+      createdAt: now,
+    },
+  })
+}
+
 // ─── Adapter 输入构造 ─────────────────────────────────────
 async function buildAdapterInput(
   args: RunArgs,
@@ -2416,6 +2516,7 @@ function buildOrchestratorPlanPrompt(
 function buildOrchestratorAggregatePrompt(baseSystemPrompt: string): string {
   return [
     baseSystemPrompt,
+    'Aggregate stage is read-only summary only. Do not inspect workspace files, run shell commands, or call fs_list/fs_read/bash; trust task_results and AgentHub validation.',
     '',
     '## 当前阶段',
     '你处于「聚合阶段」。所有子任务已执行完成（含成功与失败），结果在 user 消息中以 XML 给出。',

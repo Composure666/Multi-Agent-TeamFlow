@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import JSZip from 'jszip'
@@ -23,6 +23,53 @@ export function buildProjectFiles(
   }
   return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path))
 }
+
+export function buildProjectFilesFromTargetPaths(
+  targetPaths: readonly string[],
+  workspaceRoot: string,
+): ProjectFile[] {
+  const byPath = new Map<string, ProjectFile>()
+  for (const targetPath of targetPaths) {
+    const absoluteTarget = path.resolve(workspaceRoot, targetPath)
+    if (!isPathWithin(absoluteTarget, workspaceRoot) || !existsSync(absoluteTarget)) continue
+    collectProjectFiles(absoluteTarget, workspaceRoot, byPath)
+  }
+  return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path))
+}
+
+function collectProjectFiles(
+  absolutePath: string,
+  workspaceRoot: string,
+  out: Map<string, ProjectFile>,
+): void {
+  let stat: ReturnType<typeof statSync>
+  try {
+    stat = statSync(absolutePath)
+  } catch {
+    return
+  }
+  if (stat.isFile()) {
+    const rel = toRel(absolutePath, workspaceRoot)
+    if (rel) out.set(rel, { path: rel, sizeBytes: stat.size })
+    return
+  }
+  if (!stat.isDirectory()) return
+  for (const entry of readdirSync(absolutePath, { withFileTypes: true })) {
+    if (entry.isDirectory() && EXCLUDED_PROJECT_SCAN_DIRS.has(entry.name)) continue
+    collectProjectFiles(path.join(absolutePath, entry.name), workspaceRoot, out)
+  }
+}
+
+const EXCLUDED_PROJECT_SCAN_DIRS = new Set([
+  '.agenthub',
+  '.git',
+  '.next',
+  'build',
+  'dist',
+  'node_modules',
+  'out',
+  'target',
+])
 
 function toRel(abs: string, root: string): string | null {
   const rel = path.relative(root, abs)

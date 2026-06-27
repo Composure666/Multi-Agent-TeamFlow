@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import type { WorkspaceRow } from '@/db/schema'
 
-import { listDirInWorkspace } from './fs-service'
+import { listDirInWorkspace, writeFileInWorkspace } from './fs-service'
 
 const roots: string[] = []
 
@@ -54,5 +54,18 @@ describe('listDirInWorkspace', () => {
     expect(() => listDirInWorkspace(workspace, '..')).toThrow(
       'Path ".." is outside workspace',
     )
+  })
+})
+
+describe('writeFileInWorkspace', () => {
+  it('ignores generated dependency directories when enforcing sandbox quota', () => {
+    const workspace = makeWorkspace()
+    const packageDir = path.join(workspace.rootPath, 'frontend', 'node_modules', 'pkg')
+    mkdirSync(packageDir, { recursive: true })
+    for (let i = 0; i < 1005; i++) {
+      writeFileSync(path.join(packageDir, `file-${i}.js`), 'export {}\n')
+    }
+
+    expect(() => writeFileInWorkspace(workspace, 'frontend/src/App.jsx', 'export default function App() {}\n')).not.toThrow()
   })
 })

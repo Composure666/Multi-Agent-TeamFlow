@@ -30,6 +30,16 @@ export const MAX_READ_CHARS = 50_000
 export const MAX_WRITE_BYTES = 100 * 1024 // 100 KB
 export const SANDBOX_TOTAL_BYTES = 100 * 1024 * 1024 // 100 MB
 export const SANDBOX_TOTAL_FILES = 1000
+const SANDBOX_QUOTA_IGNORED_DIRS = new Set([
+  '.next',
+  '.vite',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+  'out',
+  'target',
+])
 
 export async function getWorkspaceForConversation(
   conversationId: string,
@@ -208,6 +218,7 @@ function scanWorkspaceUsage(rootPath: string): { bytes: number; files: number } 
     for (const e of entries) {
       const full = path.join(dir, e.name)
       if (e.isDirectory()) {
+        if (SANDBOX_QUOTA_IGNORED_DIRS.has(e.name)) continue
         stack.push(full)
       } else if (e.isFile()) {
         try {

@@ -5,7 +5,11 @@ import path from 'node:path'
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 
-import { buildProjectFiles, zipProjectFromWorkspace } from './project-artifact'
+import {
+  buildProjectFiles,
+  buildProjectFilesFromTargetPaths,
+  zipProjectFromWorkspace,
+} from './project-artifact'
 
 const root = path.resolve('/ws/proj')
 function fw(rel: string, bytes?: number) {
@@ -35,6 +39,55 @@ describe('buildProjectFiles', () => {
 
   it('returns empty for no writes (so no project artifact is produced)', () => {
     expect(buildProjectFiles([], root)).toEqual([])
+  })
+})
+
+describe('buildProjectFilesFromTargetPaths', () => {
+  it('scans existing workspace target paths when direct write evidence is unavailable', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'agenthub-project-targets-'))
+    try {
+      mkdirSync(path.join(dir, 'backend/src/main/java/com/tourism/controller'), { recursive: true })
+      writeFileSync(path.join(dir, 'backend/src/main/java/com/tourism/controller/AuthController.java'), 'class AuthController {}\n')
+      writeFileSync(path.join(dir, 'backend/src/main/java/com/tourism/controller/OrderController.java'), 'class OrderController {}\n')
+
+      expect(
+        buildProjectFilesFromTargetPaths([
+          'backend/src/main/java/com/tourism/controller/',
+          '../outside',
+        ], dir),
+      ).toEqual([
+        {
+          path: 'backend/src/main/java/com/tourism/controller/AuthController.java',
+          sizeBytes: 24,
+        },
+        {
+          path: 'backend/src/main/java/com/tourism/controller/OrderController.java',
+          sizeBytes: 25,
+        },
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('excludes dependency and build output directories from scanned project artifacts', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'agenthub-project-excludes-'))
+    try {
+      mkdirSync(path.join(dir, 'frontend/src'), { recursive: true })
+      mkdirSync(path.join(dir, 'frontend/node_modules/pkg'), { recursive: true })
+      mkdirSync(path.join(dir, 'frontend/dist/assets'), { recursive: true })
+      mkdirSync(path.join(dir, 'frontend/.git/hooks'), { recursive: true })
+      writeFileSync(path.join(dir, 'frontend/src/App.tsx'), 'export function App() { return null }\n')
+      writeFileSync(path.join(dir, 'frontend/node_modules/pkg/index.js'), 'module.exports = {}\n')
+      writeFileSync(path.join(dir, 'frontend/dist/assets/app.js'), 'compiled\n')
+      writeFileSync(path.join(dir, 'frontend/.git/config'), 'git config\n')
+
+      expect(buildProjectFilesFromTargetPaths(['frontend/'], dir)).toEqual([
+        { path: 'frontend/src/App.tsx', sizeBytes: 38 },
+      ])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 
