@@ -33,6 +33,7 @@ AgentHub 是一个 local-first 的多 Agent 协作工作空间，把 AI 协作�
   - [产物与部署预览](#产物与部署预览)
 - [技术栈](#技术栈)
 - [环境要求](#环境要求)
+- [安装指南](./INSTALL.md)
 - [快速开始](#快速开始)
 - [桌面应用](#桌面应用)
   - [指定 Electron 构建平台](#指定-electron-构建平台)
@@ -147,6 +148,12 @@ Next.js 锁定在 `16.2.6`。如果你要改动框架层的行为，先读 `node
 
 - 用 Claude Code 适配器走 OAuth 时需要 Claude Code 登录
 - Anthropic、OpenAI、DeepSeek、火山方舟，或自定义 OpenAI 兼容 provider 的 API key
+
+---
+
+## 安装指南
+
+完整的中文安装与启动步骤见 [INSTALL.md](./INSTALL.md)。
 
 ---
 

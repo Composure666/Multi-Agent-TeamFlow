@@ -33,6 +33,7 @@ Instead of treating every agent run as an isolated terminal transcript, AgentHub
   - [Artifacts and deployment previews](#artifacts-and-deployment-previews)
 - [Tech Stack](#tech-stack)
 - [Requirements](#requirements)
+- [Installation Guide](./INSTALL.md)
 - [Quick Start](#quick-start)
 - [Desktop App](#desktop-app)
   - [Specify Electron build platform](#specify-electron-build-platform)
@@ -147,6 +148,12 @@ Optional provider setup:
 
 - Claude Code login for Claude Code adapter OAuth usage
 - API keys for Anthropic, OpenAI, DeepSeek, Volcano Ark, or custom OpenAI-compatible providers
+
+---
+
+## Installation Guide
+
+For a step-by-step Chinese installation guide, see [INSTALL.md](./INSTALL.md).
 
 ---
 
