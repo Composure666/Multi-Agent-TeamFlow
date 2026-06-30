@@ -353,11 +353,35 @@ export async function rejectPendingDispatchPlan(
   )
 }
 
-export async function fetchMessages(conversationId: string): Promise<MessageRow[]> {
-  const { messages } = await json<{ messages: MessageRow[] }>(
-    fetch(`/api/conversations/${conversationId}/messages`),
+export interface MessagePage {
+  messages: MessageRow[]
+  hasMore: boolean
+  nextBefore: number | null
+}
+
+export async function fetchMessagePage(
+  conversationId: string,
+  opts: { limit?: number; before?: number } = {},
+): Promise<MessagePage> {
+  const params = new URLSearchParams()
+  if (opts.limit) params.set('limit', String(opts.limit))
+  if (opts.before) params.set('before', String(opts.before))
+  const qs = params.toString()
+  return json<MessagePage>(
+    fetch(`/api/conversations/${conversationId}/messages${qs ? `?${qs}` : ''}`),
   )
-  return messages
+}
+
+export async function fetchMessages(conversationId: string): Promise<MessageRow[]> {
+  const pageSize = 200
+  const all: MessageRow[] = []
+  let before: number | undefined
+  for (;;) {
+    const page = await fetchMessagePage(conversationId, { limit: pageSize, before })
+    all.unshift(...page.messages)
+    if (!page.hasMore || page.nextBefore === null) return all
+    before = page.nextBefore
+  }
 }
 
 // ─── Search ──────────────────────────────────────

@@ -1612,6 +1612,8 @@ async function consumeStream(
   onToolCall?: (event: ToolCallEvent) => ToolCallControl,
 ): Promise<RunExecutionResult> {
   const partsBuffer = new Map<string, MessagePart[]>()
+  const dirtyMessageIds = new Set<string>()
+  let lastDeltaFlushAt = 0
   const artifactIds: string[] = []
   const outputMessageIds: string[] = []
   const outputArtifacts: Record<string, string> = {}
@@ -1624,7 +1626,11 @@ async function consumeStream(
     if (event.type === 'message.start') currentMessageId = event.messageId
     if (event.type === 'tool.call') toolNameByCallId.set(event.callId, event.toolName)
 
-    await persistEvent(event, partsBuffer, runId, agentId, outputMessageIds, artifactIds)
+    await persistEvent(event, partsBuffer, dirtyMessageIds, runId, agentId, outputMessageIds, artifactIds)
+    if (event.type === 'part.delta' && Date.now() - lastDeltaFlushAt >= 500) {
+      await flushDirtyMessageParts(partsBuffer, dirtyMessageIds)
+      lastDeltaFlushAt = Date.now()
+    }
     publish(event)
 
     if (event.type === 'artifact.create') {
@@ -1644,6 +1650,7 @@ async function consumeStream(
         .update(schema.messages)
         .set({ parts })
         .where(eq(schema.messages.id, currentMessageId))
+      dirtyMessageIds.delete(currentMessageId)
 
       publish({
         type: 'part.start',
@@ -1661,7 +1668,9 @@ async function consumeStream(
       const deployPart: MessagePart = { type: 'deploy_status', deployment: event.deployment }
       parts.push(deployPart)
       partsBuffer.set(event.messageId, parts)
-      await db.update(schema.messages).set({ parts }).where(eq(schema.messages.id, event.messageId))
+      dirtyMessageIds.add(event.messageId)
+      await flushDirtyMessageParts(partsBuffer, dirtyMessageIds, event.messageId)
+      dirtyMessageIds.delete(event.messageId)
 
       publish({
         type: 'part.start',
@@ -1696,7 +1705,15 @@ async function consumeStream(
             result: control.result,
             isError: control.isError ?? false,
           }
-          await persistEvent(resultEvent, partsBuffer, runId, agentId, outputMessageIds, artifactIds)
+          await persistEvent(
+            resultEvent,
+            partsBuffer,
+            dirtyMessageIds,
+            runId,
+            agentId,
+            outputMessageIds,
+            artifactIds,
+          )
           publish(resultEvent)
         }
 
@@ -1706,7 +1723,15 @@ async function consumeStream(
           timestamp: Date.now(),
           messageId: event.messageId,
         }
-        await persistEvent(endEvent, partsBuffer, runId, agentId, outputMessageIds, artifactIds)
+        await persistEvent(
+          endEvent,
+          partsBuffer,
+          dirtyMessageIds,
+          runId,
+          agentId,
+          outputMessageIds,
+          artifactIds,
+        )
         publish(endEvent)
         currentMessageId = null
         break
@@ -1714,6 +1739,7 @@ async function consumeStream(
     }
   }
 
+  await flushDirtyMessageParts(partsBuffer, dirtyMessageIds)
   return { artifactIds, outputMessageIds, outputArtifacts, ...(taskReport ? { taskReport } : {}) }
 }
 
@@ -1728,6 +1754,7 @@ function readArtifactHandoffResult(result: unknown): { artifactId: string; outpu
 async function persistEvent(
   event: StreamEvent,
   partsBuffer: Map<string, MessagePart[]>,
+  dirtyMessageIds: Set<string>,
   runId: string,
   agentId: string,
   outputMessageIds: string[],
@@ -1771,7 +1798,8 @@ async function persistEvent(
       const parts = partsBuffer.get(event.messageId) ?? []
       parts[event.partIndex] = event.part
       partsBuffer.set(event.messageId, parts)
-      await db.update(schema.messages).set({ parts }).where(eq(schema.messages.id, event.messageId))
+      dirtyMessageIds.add(event.messageId)
+      await flushDirtyMessageParts(partsBuffer, dirtyMessageIds, event.messageId)
       return
     }
     case 'part.delta': {
@@ -1783,10 +1811,11 @@ async function persistEvent(
       else if (event.delta.type === 'thinking.append' && part.type === 'thinking')
         part.content += event.delta.text
       else if (event.delta.type === 'code.append' && part.type === 'code') part.content += event.delta.text
-      await db.update(schema.messages).set({ parts }).where(eq(schema.messages.id, event.messageId))
+      dirtyMessageIds.add(event.messageId)
       return
     }
     case 'tool.call': {
+      await flushDirtyMessageParts(partsBuffer, dirtyMessageIds, event.messageId)
       const parts = partsBuffer.get(event.messageId) ?? []
       parts.push({
         type: 'tool_use',
@@ -1799,6 +1828,7 @@ async function persistEvent(
       return
     }
     case 'tool.result': {
+      await flushDirtyMessageParts(partsBuffer, dirtyMessageIds, event.messageId)
       const parts = partsBuffer.get(event.messageId) ?? []
       parts.push({
         type: 'tool_result',
@@ -1811,10 +1841,8 @@ async function persistEvent(
       return
     }
     case 'message.end': {
-      await db
-        .update(schema.messages)
-        .set({ status: 'complete' })
-        .where(eq(schema.messages.id, event.messageId))
+      await flushDirtyMessageParts(partsBuffer, dirtyMessageIds, event.messageId)
+      await db.update(schema.messages).set({ status: 'complete' }).where(eq(schema.messages.id, event.messageId))
       partsBuffer.delete(event.messageId)
       return
     }
@@ -1828,7 +1856,26 @@ async function persistEvent(
 }
 
 // ─── DB / 事件辅助 ─────────────────────────────────────────
+async function flushDirtyMessageParts(
+  partsBuffer: Map<string, MessagePart[]>,
+  dirtyMessageIds: Set<string>,
+  messageId?: string,
+): Promise<void> {
+  const ids = messageId ? [messageId] : Array.from(dirtyMessageIds)
+  for (const id of ids) {
+    if (!dirtyMessageIds.has(id)) continue
+    const parts = partsBuffer.get(id)
+    if (!parts) {
+      dirtyMessageIds.delete(id)
+      continue
+    }
+    await db.update(schema.messages).set({ parts }).where(eq(schema.messages.id, id))
+    dirtyMessageIds.delete(id)
+  }
+}
+
 async function insertRun(runId: string, args: RunArgs, agentId: string) {
+
   await db.insert(schema.agentRuns).values({
     id: runId,
     conversationId: args.conversationId,

@@ -2,19 +2,16 @@
 
 import { useEffect } from 'react'
 
+import { StreamEventBuffer } from '@/components/stream-event-buffer'
 import type { StreamEvent } from '@/shared/types'
 import { useAppStore } from '@/stores/app-store'
 
-/**
- * StreamProvider — 全局唯一 SSE 连接，把 /api/stream 推过来的事件
- * 转发到 Zustand store。详见 specs/02-stream-events.md §SSE 编码。
- *
- * 在 layout.tsx 中挂载一次。React StrictMode 在 dev 下会双 mount，
- * 这里用 module 级 ref 防止重复连接。
- */
-
 let activeSource: EventSource | null = null
+let activeBuffer: StreamEventBuffer | null = null
+let flushTimer: ReturnType<typeof setTimeout> | null = null
 let refCount = 0
+
+const STREAM_FLUSH_MS = 60
 
 export function StreamProvider({ children }: { children: React.ReactNode }) {
   const applyEvent = useAppStore((s) => s.applyEvent)
@@ -24,6 +21,7 @@ export function StreamProvider({ children }: { children: React.ReactNode }) {
     refCount++
 
     if (!activeSource) {
+      activeBuffer = new StreamEventBuffer(applyEvent)
       activeSource = new EventSource('/api/stream')
 
       activeSource.onopen = () => {
@@ -31,7 +29,7 @@ export function StreamProvider({ children }: { children: React.ReactNode }) {
       }
 
       activeSource.onerror = () => {
-        // EventSource 会自动重连，无需我们做事
+        flushBufferedEvents()
         setStreamConnected(false)
       }
 
@@ -50,16 +48,18 @@ export function StreamProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        applyEvent(parsed as StreamEvent)
+        activeBuffer?.push(parsed as StreamEvent)
+        scheduleBufferedFlush()
       }
     }
 
     return () => {
       refCount--
-      // 全部组件都卸载时关闭，避免 dev 模式 StrictMode 双 mount 反复断开
       if (refCount <= 0) {
         activeSource?.close()
+        flushBufferedEvents()
         activeSource = null
+        activeBuffer = null
         refCount = 0
         setStreamConnected(false)
       }
@@ -67,4 +67,20 @@ export function StreamProvider({ children }: { children: React.ReactNode }) {
   }, [applyEvent, setStreamConnected])
 
   return <>{children}</>
+}
+
+function scheduleBufferedFlush(): void {
+  if (flushTimer) return
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    activeBuffer?.flush()
+  }, STREAM_FLUSH_MS)
+}
+
+function flushBufferedEvents(): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  activeBuffer?.flush()
 }

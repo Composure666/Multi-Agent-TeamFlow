@@ -329,11 +329,24 @@ function hasLaterSuccessfulCommand(
     .slice(failedIndex + 1)
     .some(
       (command) =>
-        commandsMatch(failed.command, command.command) &&
+        commandEvidenceMatches(failed, command) &&
         !command.isError &&
         !command.timedOut &&
         command.exitCode === 0,
     )
+}
+
+function commandEvidenceMatches(
+  expected: RunToolEvidence['commands'][number],
+  actual: RunToolEvidence['commands'][number],
+): boolean {
+  return commandsMatch(expected.command, actual.command) && cwdMatches(expected.cwd, actual.cwd)
+}
+
+function cwdMatches(expected: string, actual: string): boolean {
+  const e = normalizePath(expected)
+  const a = normalizePath(actual)
+  return e === a || e.endsWith(`/${a}`) || a.endsWith(`/${e}`)
 }
 
 function pathsMatch(expected: string, actual: string): boolean {
@@ -345,7 +358,7 @@ function pathsMatch(expected: string, actual: string): boolean {
 function commandsMatch(expected: string, actual: string): boolean {
   const e = normalizeCommand(expected)
   const a = normalizeCommand(actual)
-  return a === e || a.includes(e)
+  return a === e || a.includes(e) || normalizedPackageScript(e) === normalizedPackageScript(a)
 }
 
 function normalizePath(value: string): string {
@@ -353,7 +366,17 @@ function normalizePath(value: string): string {
 }
 
 function normalizeCommand(value: string): string {
-  return value.trim().replace(/\s+/g, ' ')
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\s+2>\s*&1\s*$/i, '')
+    .replace(/\s+1>\s*&2\s*$/i, '')
+    .replace(/\s+>\s*\$null\s*$/i, '')
+}
+
+function normalizedPackageScript(command: string): string {
+  const match = /^(?:pnpm|npm|yarn|bun)(?:\.cmd)?\s+(?:run\s+)?([\w:-]+)(?:\s|$)/i.exec(command)
+  return match ? `package:${match[1].toLowerCase()}` : command
 }
 
 const VERIFICATION_COMMAND_PATTERNS = [

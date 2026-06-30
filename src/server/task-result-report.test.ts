@@ -265,6 +265,38 @@ describe('evaluateTaskResultReport', () => {
     ).toEqual({ ok: true })
   })
 
+  it('accepts when a Windows stderr-redirected build is followed by an equivalent successful build', () => {
+    expect(
+      evaluateTaskResultReport(
+        task({ requiredCommands: [{ command: 'npm run build', cwd: 'frontend' }] }),
+        {
+          status: 'complete',
+          summary: 'Build now passes.',
+          commandsRun: [{ command: 'npm run build', exitCode: 0, cwd: 'frontend' }],
+        },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'npm run build 2>&1',
+              cwd: 'E:/repo/frontend',
+              exitCode: 1,
+              timedOut: false,
+              isError: false,
+            },
+            {
+              command: 'npm run build',
+              cwd: 'E:/repo/frontend',
+              exitCode: 0,
+              timedOut: false,
+              isError: false,
+            },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
   it('does not let an earlier automatic prepare failure block later successful verification', () => {
     expect(
       evaluateTaskResultReport(
@@ -304,6 +336,40 @@ describe('evaluateTaskResultReport', () => {
         },
       ),
     ).toEqual({ ok: true })
+  })
+
+  it('does not clear a failed command with a later success from a different cwd', () => {
+    expect(
+      evaluateTaskResultReport(
+        task(),
+        {
+          status: 'complete',
+          summary: 'Backend build passes.',
+        },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'npm run build 2>&1',
+              cwd: 'E:/repo/frontend',
+              exitCode: 1,
+              timedOut: false,
+              isError: false,
+            },
+            {
+              command: 'npm run build',
+              cwd: 'E:/repo/backend',
+              exitCode: 0,
+              timedOut: false,
+              isError: false,
+            },
+          ],
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: 'Task "t1" has failed command evidence: npm run build 2>&1 (exit 1)',
+    })
   })
 
   it('fails code tasks without successful runnable verification command evidence', () => {

@@ -2,7 +2,7 @@ import { accessSync, constants, mkdirSync, statSync } from 'node:fs'
 import { rm as fsRm } from 'node:fs/promises'
 import path from 'node:path'
 
-import { and, desc, eq, gt, gte, inArray } from 'drizzle-orm'
+import { and, desc, eq, gt, gte, inArray, lt } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type { ConversationWithMeta, MessageRow } from '@/db/schema'
@@ -257,9 +257,34 @@ export async function toggleArchiveConversation(
 }
 
 // ─── 列出会话消息 ────────────────────────────────────────
-export async function listMessages(conversationId: string) {
+export interface ListMessagesOptions {
+  limit?: number
+  before?: number
+}
+
+export async function listMessages(
+  conversationId: string,
+  options: ListMessagesOptions = {},
+): Promise<MessageRow[]> {
+  const where =
+    typeof options.before === 'number'
+      ? and(
+          eq(schema.messages.conversationId, conversationId),
+          lt(schema.messages.createdAt, options.before),
+        )
+      : eq(schema.messages.conversationId, conversationId)
+
+  if (typeof options.limit === 'number') {
+    const rows = await db.query.messages.findMany({
+      where,
+      orderBy: [desc(schema.messages.createdAt)],
+      limit: options.limit,
+    })
+    return rows.reverse()
+  }
+
   return db.query.messages.findMany({
-    where: eq(schema.messages.conversationId, conversationId),
+    where,
     orderBy: [schema.messages.createdAt],
   })
 }

@@ -1,15 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 
 import { MessageItem } from '@/components/message-item'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { MessageRow } from '@/db/schema'
-import { fetchMessages } from '@/lib/api'
+import { fetchMessagePage } from '@/lib/api'
 import { useAppStore, useMessagesForConversation } from '@/stores/app-store'
 
 const STICKY_BOTTOM_THRESHOLD_PX = 120
 const STREAM_SCROLL_THROTTLE_MS = 80
+const MESSAGE_PAGE_SIZE = 50
 
 export function MessageList({ conversationId }: { conversationId: string }) {
   const messages = useMessagesForConversation(conversationId)
@@ -29,6 +32,9 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   const lastMessagePartCount = lastMessage?.parts.length ?? 0
   const lastMessageContentLength = getMessageContentLength(lastMessage)
   const hasMessages = messages.length > 0
+  const [hasMore, setHasMore] = useState(false)
+  const [nextBefore, setNextBefore] = useState<number | null>(null)
+  const [loadingOlder, setLoadingOlder] = useState(false)
 
   const cancelScheduledScroll = useCallback(() => {
     if (scrollTimerRef.current !== null) {
@@ -67,6 +73,9 @@ export function MessageList({ conversationId }: { conversationId: string }) {
     stickToBottomRef.current = true
     initialScrolledConvRef.current = null
     lastMessageIdRef.current = null
+    setHasMore(false)
+    setNextBefore(null)
+    setLoadingOlder(false)
     cancelScheduledScroll()
     return cancelScheduledScroll
   }, [cancelScheduledScroll, conversationId])
@@ -89,9 +98,12 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   useEffect(() => {
     if (messageIdsByConv) return
     let cancelled = false
-    fetchMessages(conversationId)
-      .then((list) => {
-        if (!cancelled) setMessagesForConversation(conversationId, list)
+    fetchMessagePage(conversationId, { limit: MESSAGE_PAGE_SIZE })
+      .then((page) => {
+        if (cancelled) return
+        setMessagesForConversation(conversationId, page.messages)
+        setHasMore(page.hasMore)
+        setNextBefore(page.nextBefore)
       })
       .catch((err) => {
         console.error('[MessageList] fetch failed', err)
@@ -100,6 +112,28 @@ export function MessageList({ conversationId }: { conversationId: string }) {
       cancelled = true
     }
   }, [conversationId, messageIdsByConv, setMessagesForConversation])
+
+  useEffect(() => {
+    if (!messageIdsByConv || nextBefore !== null || messages.length === 0) return
+    setHasMore(messages.length >= MESSAGE_PAGE_SIZE)
+    setNextBefore(messages[0]?.createdAt ?? null)
+  }, [messageIdsByConv, messages, nextBefore])
+
+  const loadOlderMessages = useCallback(async () => {
+    const before = nextBefore ?? messages[0]?.createdAt
+    if (!before || loadingOlder || !hasMore) return
+    setLoadingOlder(true)
+    try {
+      const page = await fetchMessagePage(conversationId, { limit: MESSAGE_PAGE_SIZE, before })
+      setMessagesForConversation(conversationId, mergeMessages(page.messages, messages))
+      setHasMore(page.hasMore)
+      setNextBefore(page.nextBefore)
+    } catch (err) {
+      console.error('[MessageList] load older failed', err)
+    } finally {
+      setLoadingOlder(false)
+    }
+  }, [conversationId, hasMore, loadingOlder, messages, nextBefore, setMessagesForConversation])
 
   useLayoutEffect(() => {
     if (messages.length === 0) return
@@ -143,12 +177,33 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   return (
     <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
       <div className="space-y-4 p-4">
+        {hasMore && (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loadingOlder}
+              onClick={() => void loadOlderMessages()}
+            >
+              {loadingOlder && <Loader2 className="size-3.5 animate-spin" />}
+              加载更早消息
+            </Button>
+          </div>
+        )}
         {messages.map((m) => (
           <MessageItem key={m.id} message={m} />
         ))}
       </div>
     </ScrollArea>
   )
+}
+
+function mergeMessages(older: MessageRow[], current: MessageRow[]): MessageRow[] {
+  const byId = new Map<string, MessageRow>()
+  for (const message of older) byId.set(message.id, message)
+  for (const message of current) byId.set(message.id, message)
+  return Array.from(byId.values()).sort((a, b) => a.createdAt - b.createdAt)
 }
 
 function isNearBottom(el: HTMLElement): boolean {

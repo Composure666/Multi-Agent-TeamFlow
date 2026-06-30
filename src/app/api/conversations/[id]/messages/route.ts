@@ -3,6 +3,14 @@ import { z } from 'zod'
 
 import { clearConversationHistory, listMessages, sendMessage } from '@/server/conversation-service'
 
+const DEFAULT_MESSAGE_PAGE_SIZE = 50
+const MAX_MESSAGE_PAGE_SIZE = 200
+
+const MessagesQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(MAX_MESSAGE_PAGE_SIZE).default(DEFAULT_MESSAGE_PAGE_SIZE),
+  before: z.coerce.number().int().positive().optional(),
+})
+
 interface RouteContext {
   params: Promise<{ id: string }>
 }
@@ -19,10 +27,22 @@ const SendBody = z
     { message: '必须提供 content 或 attachmentIds 之一' },
   )
 
-export async function GET(_req: NextRequest, ctx: RouteContext) {
+export async function GET(req: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params
-  const messages = await listMessages(id)
-  return NextResponse.json({ messages })
+  const parsed = MessagesQuery.safeParse(Object.fromEntries(req.nextUrl.searchParams))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid query', issues: parsed.error.issues }, { status: 400 })
+  }
+
+  const { limit, before } = parsed.data
+  const rows = await listMessages(id, { limit: limit + 1, before })
+  const hasMore = rows.length > limit
+  const messages = hasMore ? rows.slice(rows.length - limit) : rows
+  return NextResponse.json({
+    messages,
+    hasMore,
+    nextBefore: messages[0]?.createdAt ?? null,
+  })
 }
 
 export async function POST(req: NextRequest, ctx: RouteContext) {
