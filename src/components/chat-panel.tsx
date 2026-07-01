@@ -193,7 +193,7 @@ export function ChatPanel() {
 
       {/* Tab bar：仅在有打开的文件 / diff 时显示（避免单 chat tab 时浪费空间） */}
       {openFiles.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b bg-card/50 px-2 py-1 text-xs">
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-3 py-1.5 text-xs">
           <TabButton
             label="对话"
             active={activeTab === 'chat'}
@@ -326,12 +326,12 @@ function TabButton({
     <div
       title={tooltip}
       className={cn(
-        'group flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 transition',
+        'group flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 transition',
         active
           ? highlight
-            ? 'border-[#3370FF]/40 bg-[#3370FF]/5 text-foreground shadow-sm'
-            : 'border-primary/30 bg-background shadow-sm'
-          : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
+            ? 'border-[#3370FF]/30 bg-[#3370FF]/5 text-slate-900 shadow-sm'
+            : 'border-slate-200 bg-white text-slate-900 shadow-sm'
+          : 'border-transparent text-slate-500 hover:bg-white hover:text-slate-900',
       )}
     >
       {icon}
@@ -345,7 +345,7 @@ function TabButton({
             e.stopPropagation()
             onClose()
           }}
-          className="rounded p-0.5 opacity-50 transition hover:bg-accent hover:opacity-100"
+          className="rounded p-0.5 opacity-50 transition hover:bg-slate-100 hover:opacity-100"
           title="关闭"
         >
           <X className="size-3" />

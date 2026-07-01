@@ -257,7 +257,6 @@ function WorkbenchNav({ view, onViewChange }: { view: WorkbenchView; onViewChang
 
 function NewTaskView({ onOpenConversations }: { onOpenConversations: () => void }) {
   const agents = useAgentList()
-  const conversations = useConversationList().filter((conversation) => !conversation.archived).slice(0, 5)
   const defaultAgent = agents[0]
   const [selectedAgentId, setSelectedAgentId] = useState<string>('')
   const [content, setContent] = useState('')
@@ -265,9 +264,7 @@ function NewTaskView({ onOpenConversations }: { onOpenConversations: () => void 
   const [approvalMode, setApprovalMode] = useState<'auto' | 'review'>('review')
   const [uploading, setUploading] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [leftWidth, setLeftWidth] = useState(288)
-  const [rightWidth, setRightWidth] = useState(320)
-  const [collapsed, setCollapsed] = useState({ templates: false, recent: true, agents: false })
+  const [scenarioTab, setScenarioTab] = useState(scenarioTabs[0])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const upsertConversation = useAppStore((s) => s.upsertConversation)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
@@ -287,33 +284,6 @@ function NewTaskView({ onOpenConversations }: { onOpenConversations: () => void 
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-  }
-
-  const startResize = (side: 'left' | 'right', event: React.PointerEvent<HTMLDivElement>) => {
-    const startX = event.clientX
-    const startLeft = leftWidth
-    const startRight = rightWidth
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      const delta = moveEvent.clientX - startX
-      if (side === 'left') {
-        setLeftWidth(Math.min(380, Math.max(220, startLeft + delta)))
-      } else {
-        setRightWidth(Math.min(420, Math.max(248, startRight - delta)))
-      }
-    }
-
-    const onPointerUp = () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onPointerUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp)
   }
 
   const submit = async () => {
@@ -360,310 +330,191 @@ function NewTaskView({ onOpenConversations }: { onOpenConversations: () => void 
   }
 
   return (
-    <div className="h-full min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,#eef4ff_0,#f5f7fb_42%,#f8fafc_100%)] p-4">
-      <div className="flex h-full min-w-0 gap-3">
-        <aside
-          className="hidden shrink-0 overflow-hidden rounded-3xl border border-white/70 bg-white/85 shadow-sm shadow-slate-200/70 backdrop-blur transition-[width] duration-200 ease-out xl:block"
-          style={{ width: leftWidth }}
-        >
-          <div className="border-b border-slate-100 px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">任务入口</div>
-                <div className="mt-1 text-xs text-slate-500">模板和最近会话仅保留在新建任务页</div>
-              </div>
-              <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] text-[#3370ff]">可拖拽</span>
-            </div>
-          </div>
-          <ScrollArea className="h-[calc(100%-57px)]">
-            <div className="space-y-3 p-3">
-              <NewTaskPanel
-                title="快捷任务"
-                count={quickTasks.length}
-                collapsed={collapsed.templates}
-                onToggle={() => setCollapsed((value) => ({ ...value, templates: !value.templates }))}
-              >
-                <div className="grid gap-2">
-                  {quickTasks.map((task) => (
-                    <button
-                      key={task}
-                      type="button"
-                      onClick={() => setContent(task)}
-                      className="group rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
-                    >
-                      <div className="text-xs font-medium text-slate-800 group-hover:text-[#3370ff]">{task}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">一键填入任务输入框</div>
-                    </button>
-                  ))}
-                </div>
-              </NewTaskPanel>
-
-              <NewTaskPanel
-                title="最近对话"
-                count={conversations.length}
-                collapsed={collapsed.recent}
-                onToggle={() => setCollapsed((value) => ({ ...value, recent: !value.recent }))}
-              >
-                <div className="space-y-2">
-                  {conversations.map((conversation) => (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveConversation(conversation.id)
-                        onOpenConversations()
-                      }}
-                      className="w-full rounded-2xl border border-transparent bg-slate-50 px-3 py-2 text-left transition duration-200 hover:border-blue-200 hover:bg-blue-50"
-                    >
-                      <div className="truncate text-xs font-medium text-slate-800">{conversation.title}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">{conversation.mode === 'single' ? '单聊' : '群聊'}</div>
-                    </button>
-                  ))}
-                  {conversations.length === 0 && <div className="rounded-2xl bg-slate-50 px-3 py-5 text-center text-xs text-slate-500">暂无最近对话</div>}
-                </div>
-              </NewTaskPanel>
-            </div>
-          </ScrollArea>
-        </aside>
-
-        <NewTaskResizeHandle onPointerDown={(event) => startResize('left', event)} />
-
-        <section className="min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/70 bg-white/90 shadow-sm shadow-slate-200/80 backdrop-blur">
-          <div className="flex h-full flex-col">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-[#3370ff]">
-                    <Sparkles className="size-3" />
-                    新建任务
-                  </div>
-                  <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">今天要完成什么？</h1>
-                  <p className="mt-1 text-xs text-slate-500">按参考图重做的首页入口；创建后仍进入原对话组件和消息流。</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <NewTaskStat label="Agent" value={String(agents.length)} />
-                  <NewTaskStat label="附件" value={String(pendingFiles.length)} />
-                  <NewTaskStat label="模式" value={approvalMode === 'auto' ? 'Auto' : 'Review'} />
-                </div>
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
-              <div className="mx-auto flex max-w-4xl flex-col gap-3">
-                <section className="rounded-[26px] border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                  <Textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        void submit()
-                      }
-                    }}
-                    placeholder="描述任务目标、输入约束或粘贴上下文，AgentHub 会创建会话并沿用原消息流。"
-                    className="min-h-36 resize-none border-0 bg-transparent px-2 text-base shadow-none focus-visible:ring-0"
-                  />
-                  <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-1 pt-3">
-                    <select
-                      value={activeAgentId}
-                      onChange={(e) => setSelectedAgentId(e.target.value)}
-                      className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-blue-300"
-                    >
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>{agent.name}</option>
-                      ))}
-                    </select>
-                    <Button variant="outline" size="sm" className="rounded-xl border-slate-200 text-xs">沙箱工作区</Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setApprovalMode((mode) => (mode === 'review' ? 'auto' : 'review'))}
-                      className={cn(
-                        'rounded-xl border-slate-200 text-xs transition-all duration-200',
-                        approvalMode === 'auto' && 'border-blue-200 bg-blue-50 text-[#3370ff]',
-                      )}
-                    >
-                      {approvalMode === 'auto' ? 'Auto 模式' : 'Review 模式'}
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      title="附件上传"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="rounded-xl border-slate-200 transition hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]"
-                    >
-                      <Paperclip className="size-4" />
-                    </Button>
-                    <Button onClick={() => void submit()} disabled={!content.trim() || !activeAgentId || sending} className="ml-auto rounded-xl bg-[#3370ff] px-5 text-white shadow-sm shadow-blue-100 transition duration-200 hover:-translate-y-0.5 hover:bg-[#2563eb]">
-                      <Send className="mr-2 size-4" />
-                      {sending || uploading ? '发送中' : '发送'}
-                    </Button>
-                  </div>
-                  {pendingFiles.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2 px-1 transition-all duration-200">
-                      {pendingFiles.map((file) => (
-                        <span key={`${file.name}-${file.lastModified}`} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 shadow-sm">
-                          <Paperclip className="size-3" />
-                          {file.name}
-                          <button
-                            type="button"
-                            onClick={() => setPendingFiles((list) => list.filter((item) => item !== file))}
-                            className="text-slate-400 transition hover:text-slate-700"
-                          >
-                            <X className="size-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </section>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  <NewTaskFeatureCard title="拆解任务" description="把目标拆成步骤、约束和验收点" />
-                  <NewTaskFeatureCard title="协作执行" description="选择 Agent 后直接创建真实会话" />
-                  <NewTaskFeatureCard title="产物沉淀" description="继续沿用产物预览与版本管理" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <NewTaskResizeHandle onPointerDown={(event) => startResize('right', event)} />
-
-        <aside
-          className="hidden shrink-0 overflow-hidden rounded-3xl border border-white/70 bg-white/85 shadow-sm shadow-slate-200/70 backdrop-blur transition-[width] duration-200 ease-out lg:block"
-          style={{ width: rightWidth }}
-        >
-          <div className="border-b border-slate-100 px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Agent 推荐</div>
-                <div className="mt-1 text-xs text-slate-500">低频辅助区，可收起和拖拽</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCollapsed((value) => ({ ...value, agents: !value.agents }))}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-blue-200 hover:text-[#3370ff]"
-              >
-                {collapsed.agents ? '展开' : '收起'}
-              </button>
-            </div>
-          </div>
-          <div className={cn('overflow-hidden transition-all duration-300 ease-out', collapsed.agents ? 'max-h-0 opacity-0' : 'max-h-[calc(100vh-120px)] opacity-100')}>
-            <ScrollArea className="h-[calc(100vh-104px)]">
-              <div className="space-y-3 p-3">
-                {activeAgent && (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-3">
-                    <div className="text-[11px] font-medium text-[#3370ff]">当前 Agent</div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <AgentAvatar agent={activeAgent} size="sm" />
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold text-slate-900">{activeAgent.name}</div>
-                        <div className="truncate text-[11px] text-slate-500">{activeAgent.modelId || activeAgent.adapterName}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {agents.slice(0, 6).map((agent) => (
-                  <button
-                    key={agent.id}
-                    type="button"
-                    onClick={() => setSelectedAgentId(agent.id)}
-                    className={cn(
-                      'w-full rounded-2xl border p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-sm',
-                      activeAgentId === agent.id ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-200',
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <AgentAvatar agent={agent} size="sm" />
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold text-slate-900">{agent.name}</div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">{agent.adapterName}</div>
-                      </div>
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-slate-500">{agent.description || '可配置的协作 Agent'}</p>
-                  </button>
-                ))}
-                {agents.length === 0 && <div className="rounded-2xl bg-slate-50 px-3 py-8 text-center text-xs text-slate-500">暂无可用 Agent</div>}
-              </div>
-            </ScrollArea>
-          </div>
-        </aside>
-      </div>
-    </div>
-  )
-}
-
-function NewTaskResizeHandle({ onPointerDown }: { onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void }) {
-  return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      onPointerDown={onPointerDown}
-      className="group hidden w-2 shrink-0 cursor-col-resize items-center justify-center rounded-full transition hover:bg-blue-50 lg:flex"
-    >
-      <div className="h-12 w-1 rounded-full bg-slate-200 transition group-hover:bg-blue-300" />
-    </div>
-  )
-}
-
-function NewTaskPanel({
-  title,
-  count,
-  collapsed,
-  onToggle,
-  children,
-}: {
-  title: string
-  count: number
-  collapsed: boolean
-  onToggle: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-semibold text-slate-900">{title}</div>
-          <div className="mt-0.5 text-[11px] text-slate-500">{count} 项</div>
-        </div>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-500 transition hover:border-blue-200 hover:text-[#3370ff]"
-        >
-          {collapsed ? '展开' : '收起'}
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
+      {/* 顶部激励栏 */}
+      <div className="flex shrink-0 items-center justify-end border-b border-slate-100 px-6 py-2">
+        <button type="button" className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#3370ff] transition hover:bg-blue-100">
+          <Sparkles className="size-3" />
+          来成长计划赚积分
         </button>
       </div>
-      <div className={cn('overflow-hidden transition-all duration-300 ease-out', collapsed ? 'mt-0 max-h-0 opacity-0' : 'mt-3 max-h-96 opacity-100')}>
-        {children}
+
+      {/* 主内容区 - 垂直流式布局 */}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto max-w-4xl px-6 py-8">
+          {/* Hero Section */}
+          <div className="mb-8">
+            <h1 className="text-[32px] font-bold tracking-tight text-slate-950">
+              AgentHub - 你的多 Agent 协作工作台
+            </h1>
+
+            {/* 一级场景切换 Tabs */}
+            <div className="mt-5 flex items-center gap-2">
+              {scenarioTabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setScenarioTab(tab)}
+                  className={cn(
+                    'rounded-full px-4 py-2 text-sm font-medium transition',
+                    scenarioTab === tab
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* 二级快捷入口 Chips */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {quickTasks.map((task) => (
+                <button
+                  key={task}
+                  type="button"
+                  onClick={() => setContent(task)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                >
+                  <span className="flex size-6 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                    <Sparkles className="size-3.5" />
+                  </span>
+                  {task}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 核心交互输入框 */}
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void submit()
+                }
+              }}
+              placeholder="今天想让 AgentHub 帮你完成什么？"
+              className="min-h-[140px] resize-none border-0 bg-transparent px-5 pt-5 text-base shadow-none placeholder:text-slate-400 focus-visible:ring-0"
+            />
+
+            {/* 附件列表 */}
+            {pendingFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-5 pb-3">
+                {pendingFiles.map((file) => (
+                  <span key={`${file.name}-${file.lastModified}`} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+                    <Paperclip className="size-3" />
+                    {file.name}
+                    <button
+                      type="button"
+                      onClick={() => setPendingFiles((list) => list.filter((item) => item !== file))}
+                      className="text-slate-400 transition hover:text-slate-700"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* 工具栏 */}
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3">
+              <select
+                value={activeAgentId}
+                onChange={(e) => setSelectedAgentId(e.target.value)}
+                className="h-8 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs text-slate-700 outline-none transition focus:border-blue-300 focus:bg-white"
+              >
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setApprovalMode((mode) => (mode === 'review' ? 'auto' : 'review'))}
+                className={cn(
+                  'h-8 rounded-lg border-slate-200 text-xs transition-all',
+                  approvalMode === 'auto' && 'border-blue-200 bg-blue-50 text-[#3370ff]',
+                )}
+              >
+                {approvalMode === 'auto' ? '自动' : 'Review'}
+              </Button>
+
+              <Button variant="outline" size="sm" className="h-8 rounded-lg border-slate-200 text-xs">
+                技能
+              </Button>
+
+              <Button variant="outline" size="sm" className="h-8 rounded-lg border-slate-200 text-xs">
+                连应用
+              </Button>
+
+              <Button variant="outline" size="sm" className="h-8 rounded-lg border-slate-200 text-xs">
+                默认权限
+              </Button>
+
+              {/* 右侧操作区 */}
+              <div className="ml-auto flex items-center gap-1.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="附件上传"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <Paperclip className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="语音输入"
+                  className="rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <Mic className="size-4" />
+                </Button>
+                <Button
+                  onClick={() => void submit()}
+                  disabled={!content.trim() || !activeAgentId || sending}
+                  className="ml-1 h-9 rounded-xl bg-[#3370ff] px-5 text-sm text-white shadow-sm shadow-blue-100 transition hover:bg-[#2563eb]"
+                >
+                  <Send className="mr-1.5 size-4" />
+                  {sending || uploading ? '发送中' : '发送'}
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          {/* 底部状态栏 */}
+          <div className="mt-3 flex flex-wrap items-center gap-3 px-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              本地沙箱 · 运行中
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
+              {approvalMode === 'review' ? 'Review 保护 enabled' : 'Auto 模式 · 直接生效'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
+              选择工作空间
+            </span>
+            {activeAgent && (
+              <span className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[#3370ff]">
+                <AgentAvatar agent={activeAgent} size="xs" />
+                {activeAgent.name}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
-    </section>
-  )
-}
-
-function NewTaskStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-16 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-      <div className="text-[10px] text-slate-400">{label}</div>
-      <div className="mt-1 truncate font-semibold text-slate-800">{value}</div>
     </div>
-  )
-}
-
-function NewTaskFeatureCard({ title, description }: { title: string; description: string }) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
-      <div className="text-sm font-semibold text-slate-900">{title}</div>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-    </article>
   )
 }
 
