@@ -772,7 +772,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <div className="relative shrink-0 border-t bg-background p-3">
+    <div className="relative shrink-0 border-t border-slate-100 bg-white p-4">
       {/* 引用预览 */}
       {replyMessage && (
         <div className="mb-2">
@@ -912,8 +912,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
       {/* @ Mention popup */}
       {trigger && filtered.length > 0 && (
-        <div className="absolute bottom-full left-3 right-3 mb-2 max-h-60 overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
-          <div className="px-2 py-1 text-[10px] text-muted-foreground">
+        <div className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <div className="px-3 py-2 text-[10px] text-slate-500">
             选择 Agent · ↑↓ 切换 · Enter 确认 · Esc 取消
           </div>
           {filtered.map((a, i) => (
@@ -927,8 +927,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
               }}
               onMouseEnter={() => setHighlight(i)}
               className={cn(
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition',
-                i === highlight && 'bg-accent',
+                'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition',
+                i === highlight && 'bg-slate-50',
               )}
             >
               <AgentAvatar agent={a} size="xs" />
