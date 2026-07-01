@@ -90,15 +90,15 @@ export function ChatPanel() {
 
   if (!conv) {
     return (
-      <main className="flex min-w-0 flex-1 items-center justify-center bg-background">
+      <main className="flex min-w-0 flex-1 items-center justify-center bg-transparent">
         <div className="flex max-w-sm flex-col items-center gap-4 px-6 text-center">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-muted">
-            <MessagesSquare className="size-7 text-muted-foreground" />
+          <div className="flex size-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <MessagesSquare className="size-7" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg font-semibold">开始你的多 Agent 协作</h2>
-            <p className="text-sm leading-6 text-muted-foreground">
-              从左侧选择一个会话继续聊天，或点击「+ 新建对话」选择一个或多个 Agent 开始
+            <h2 className="text-lg font-semibold text-slate-900">开始你的多 Agent 协作</h2>
+            <p className="text-sm leading-6 text-slate-500">
+              从左侧选择一个会话继续聊天，或点击「+ 新建任务」选择一个或多个 Agent 开始
             </p>
           </div>
         </div>
@@ -109,9 +109,9 @@ export function ChatPanel() {
   const participantAgents = conv.agentIds.map((id) => agents[id]).filter(Boolean)
 
   return (
-    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <header className="flex shrink-0 items-center gap-3 overflow-hidden border-b px-3 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+      <header className="flex shrink-0 items-center gap-3 overflow-hidden border-b border-slate-100 px-5 py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
           {/* 移动端汉堡按钮：打开 sidebar 抽屉 */}
           <Button
             size="icon-sm"
@@ -125,29 +125,30 @@ export function ChatPanel() {
           <ParticipantStack agents={participantAgents} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="min-w-0 truncate text-sm font-medium">{conv.title}</span>
+              <span className="min-w-0 truncate text-[15px] font-semibold text-slate-900">{conv.title}</span>
               {conv.workspaceMode === 'local' && conv.workspaceBoundPath && (
                 <span
                   title={`本地工作目录：${conv.workspaceBoundPath}`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300"
+                  className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
                 >
                   <AlertTriangle className="size-2.5" />
                   本地
                 </span>
               )}
             </div>
-            <div className="truncate text-xs text-muted-foreground">
+            <div className="mt-0.5 truncate text-xs text-slate-500">
               {conv.mode === 'single' ? '单聊' : '群聊'} · {participantAgents.length} 位 Agent
             </div>
           </div>
         </div>
-        <div className="flex min-w-0 max-w-[65%] shrink-0 items-center gap-1 overflow-x-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-0 shrink-0 items-center gap-1.5">
           {/* 右侧面板切换（文件树 / 产物预览，互斥）。点同一个再关掉。 */}
           <Button
             size="icon-sm"
             variant={fileExplorerOpen ? 'default' : 'ghost'}
             onClick={() => setFileExplorerOpen(!fileExplorerOpen)}
-            title={fileExplorerOpen ? '关闭文件树' : '打开文件树'}
+            title={fileExplorerOpen ? '关闭工作区' : '打开工作区'}
+            className={cn('rounded-lg transition', fileExplorerOpen ? 'bg-blue-50 text-[#3370ff] hover:bg-blue-100' : 'text-slate-500 hover:bg-slate-100')}
           >
             <FolderTree className="size-4" />
           </Button>
@@ -156,6 +157,7 @@ export function ChatPanel() {
             variant={artifactsOpen || previewArtifactId ? 'default' : 'ghost'}
             onClick={() => setArtifactsOpen(true)}
             title="本会话产物库"
+            className={cn('rounded-lg transition', artifactsOpen || previewArtifactId ? 'bg-blue-50 text-[#3370ff] hover:bg-blue-100' : 'text-slate-500 hover:bg-slate-100')}
           >
             <Layers className="size-4" />
           </Button>
@@ -164,22 +166,25 @@ export function ChatPanel() {
             variant="ghost"
             onClick={() => setFilesOpen(true)}
             title="会话文件库"
+            className="rounded-lg text-slate-500 transition hover:bg-slate-100"
           >
             <FolderOpen className="size-4" />
           </Button>
+          <div className="mx-1 h-4 w-px bg-slate-200"></div>
           <ConversationOutline conversationId={conv.id} />
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={() => setAddOpen(true)}
             title="添加 Agent"
+            className="rounded-lg text-slate-500 transition hover:bg-slate-100"
           >
             <UserPlus className="size-4" />
           </Button>
           <UsageBadge conversationId={conv.id} />
-          <Badge variant={streamConnected ? 'default' : 'outline'} className="gap-1 px-1.5 text-[11px]">
+          <Badge variant={streamConnected ? 'default' : 'outline'} className={cn('ml-1 gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors', streamConnected ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-slate-50 text-slate-500')}>
             <span
-              className={`size-1.5 rounded-full ${streamConnected ? 'bg-green-500' : 'bg-zinc-400'}`}
+              className={cn('size-1.5 rounded-full', streamConnected ? 'bg-emerald-500' : 'bg-slate-300')}
             />
             {streamConnected ? '已连接' : '断开'}
           </Badge>
