@@ -23,7 +23,6 @@ import {
   Mic,
   MoreHorizontal,
   Newspaper,
-  Palette,
   Paperclip,
   PlayCircle,
   Plus,
@@ -50,6 +49,7 @@ import { FileExplorerPanel } from '@/components/file-explorer-panel'
 import { MessageHighlightLayer } from '@/components/message-highlight-layer'
 import { SelectionPopover } from '@/components/selection-popover'
 import { SettingsDialog } from '@/components/settings-dialog'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -74,21 +74,6 @@ import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList } from '@/stores/app-store'
 
 type WorkbenchView = 'new-task' | 'conversations' | 'agents' | 'artifacts' | 'automation' | 'analytics'
-
-const THEME_ACCENTS = {
-  blue: {
-    primary: '#3370ff',
-    hover: '#2563eb',
-    soft: '#eff6ff',
-    border: '#bfdbfe',
-  },
-  violet: {
-    primary: '#7c3aed',
-    hover: '#6d28d9',
-    soft: '#f5f3ff',
-    border: '#ddd6fe',
-  },
-} as const
 
 const navItems: Array<{ id: WorkbenchView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'new-task', label: '新建任务', icon: Plus },
@@ -182,8 +167,8 @@ const AUTOMATION_TASK_PRESETS: AutomationTaskPreset[] = [
     latestRun: '今日 08:30',
     status: '已启用',
     icon: Newspaper,
-    iconWrapClassName: 'bg-blue-50',
-    iconClassName: 'text-[#3370ff]',
+    iconWrapClassName: 'bg-slate-100',
+    iconClassName: 'text-slate-600',
   },
   {
     id: 'daily-english-words',
@@ -232,9 +217,9 @@ const AUTOMATION_TASK_PRESETS: AutomationTaskPreset[] = [
 ]
 
 const ANALYTICS_KPIS: AnalyticsKpi[] = [
-  { label: '任务总数', value: '5', caption: '已配置自动化任务', icon: Workflow, toneClassName: 'bg-blue-50 text-[#3370ff]' },
-  { label: '今日运行次数', value: '18', caption: '较昨日 +4 次', icon: PlayCircle, toneClassName: 'bg-emerald-50 text-emerald-600' },
-  { label: '成功率', value: '96.8%', caption: '近 7 天稳定运行', icon: CheckCircle2, toneClassName: 'bg-violet-50 text-violet-600' },
+  { label: '任务总数', value: '5', caption: '已配置自动化任务', icon: Workflow, toneClassName: 'bg-slate-100 text-slate-600' },
+  { label: '今日运行次数', value: '18', caption: '较昨日 +4 次', icon: PlayCircle, toneClassName: 'bg-slate-100 text-slate-600' },
+  { label: '成功率', value: '96.8%', caption: '近 7 天稳定运行', icon: CheckCircle2, toneClassName: 'bg-slate-100 text-slate-600' },
   { label: '失败次数', value: '2', caption: '需复查输入源', icon: CircleAlert, toneClassName: 'bg-rose-50 text-rose-600' },
 ]
 
@@ -249,10 +234,10 @@ const ANALYTICS_TREND: AnalyticsTrendPoint[] = [
 ]
 
 const ANALYTICS_DISTRIBUTION: AnalyticsDistributionItem[] = [
-  { label: '内容推送', value: 42, className: 'bg-blue-500' },
-  { label: '学习提醒', value: 24, className: 'bg-emerald-500' },
-  { label: '项目报告', value: 20, className: 'bg-violet-500' },
-  { label: '兴趣推荐', value: 14, className: 'bg-orange-500' },
+  { label: '内容推送', value: 42, className: 'bg-[var(--agenthub-accent,#2F5FD0)]' },
+  { label: '学习提醒', value: 24, className: 'bg-slate-500' },
+  { label: '项目报告', value: 20, className: 'bg-slate-400' },
+  { label: '兴趣推荐', value: 14, className: 'bg-slate-300' },
 ]
 
 const ANALYTICS_RECENT_RUNS: AnalyticsRunRecord[] = [
@@ -638,8 +623,8 @@ const FEATURED_SCENARIOS: FeaturedScenario[] = [
     agentPresetIds: ['workbuddy-prd-writer', 'workbuddy-design-assistant', 'workbuddy-prototype-builder', 'workbuddy-copywriter'],
     prompt: '请围绕一个新产品功能协作：先收集并整理产品需求，再设计页面结构和交互流程，最后输出可落地的原型方案与关键文案。',
     icon: Sparkles,
-    iconWrapClassName: 'bg-violet-50',
-    iconClassName: 'text-violet-600',
+    iconWrapClassName: 'bg-slate-100',
+    iconClassName: 'text-slate-600',
   },
   {
     id: 'scenario-code-review',
@@ -649,8 +634,8 @@ const FEATURED_SCENARIOS: FeaturedScenario[] = [
     agentPresetIds: ['workbuddy-explore', 'workbuddy-plan', 'workbuddy-debugger', 'workbuddy-code-reviewer'],
     prompt: '请协作完成一个代码需求：先理解现有实现和影响范围，再拆解实施步骤，完成后定位潜在问题并给出审查结论。',
     icon: CheckCircle2,
-    iconWrapClassName: 'bg-emerald-50',
-    iconClassName: 'text-emerald-600',
+    iconWrapClassName: 'bg-slate-100',
+    iconClassName: 'text-slate-600',
   },
   {
     id: 'scenario-docs-ppt',
@@ -660,8 +645,8 @@ const FEATURED_SCENARIOS: FeaturedScenario[] = [
     agentPresetIds: ['workbuddy-prd-writer', 'workbuddy-report-writer', 'workbuddy-meeting-summarizer', 'workbuddy-copywriter'],
     prompt: '请根据资料协作生成一套交付材料：先整理结构化文档，再提炼汇报重点，最后形成适合演示的 PPT 大纲和页面文案。',
     icon: FileText,
-    iconWrapClassName: 'bg-orange-50',
-    iconClassName: 'text-orange-600',
+    iconWrapClassName: 'bg-slate-100',
+    iconClassName: 'text-slate-600',
   },
   {
     id: 'scenario-agent-orchestration',
@@ -671,8 +656,8 @@ const FEATURED_SCENARIOS: FeaturedScenario[] = [
     agentPresetIds: ['workbuddy-expert-manager', 'workbuddy-plan', 'workbuddy-prompt-enhancer', 'workbuddy-skill-creator'],
     prompt: '请为一个复杂任务设计多 Agent 协作流程：选择合适角色、拆解执行顺序、定义交付物，并汇总每个 Agent 的职责边界。',
     icon: Workflow,
-    iconWrapClassName: 'bg-blue-50',
-    iconClassName: 'text-blue-600',
+    iconWrapClassName: 'bg-slate-100',
+    iconClassName: 'text-slate-600',
   },
   {
     id: 'scenario-local-project',
@@ -682,8 +667,8 @@ const FEATURED_SCENARIOS: FeaturedScenario[] = [
     agentPresetIds: ['workbuddy-explore', 'workbuddy-plan', 'workbuddy-test-engineer', 'workbuddy-deploy-assistant'],
     prompt: '请围绕当前本地项目仓库协作：先理解项目结构和关键模块，再规划修改方案，补充测试检查，并给出部署或回归注意事项。',
     icon: Boxes,
-    iconWrapClassName: 'bg-cyan-50',
-    iconClassName: 'text-cyan-600',
+    iconWrapClassName: 'bg-slate-100',
+    iconClassName: 'text-slate-600',
   },
 ]
 
@@ -721,7 +706,7 @@ export function AppWorkbench() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 text-slate-950">
+    <div className="flex h-screen overflow-hidden bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} />}
@@ -744,22 +729,23 @@ export function AppWorkbench() {
 
 function MobileWorkbenchTopBar({ currentLabel, onOpen }: { currentLabel: string; onOpen: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 md:hidden">
+    <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-white/10 dark:bg-neutral-900 md:hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex size-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 active:bg-slate-200"
+        className="flex size-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
         title="打开菜单"
       >
         <Menu className="size-5 stroke-[2.2]" />
       </button>
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--agenthub-accent,#3370ff)] text-white shadow-sm shadow-blue-200">
-        <Sparkles className="size-4" />
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
+        <Sparkles className="size-3.5" />
       </div>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-semibold text-slate-900">AgentHub</div>
-        <div className="truncate text-xs text-slate-500">{currentLabel}</div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">AgentHub</div>
+        <div className="truncate text-xs text-slate-500 dark:text-slate-400">{currentLabel}</div>
       </div>
+      <ThemeToggle className="size-8 rounded-lg text-slate-500 dark:text-slate-400" />
     </div>
   )
 }
@@ -792,24 +778,24 @@ function MobileWorkbenchDrawer({
       )}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col bg-white shadow-2xl transition-transform duration-200 md:hidden',
+          'fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col border-r border-slate-200 bg-white shadow-lg transition-transform duration-200 dark:border-white/10 dark:bg-neutral-900 md:hidden',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-white/10">
           <button type="button" onClick={() => onViewChange('new-task')} className="flex min-w-0 items-center gap-3 text-left">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--agenthub-accent,#3370ff)] text-white shadow-sm shadow-blue-200">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
               <Sparkles className="size-4" />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-950">AgentHub</div>
-              <div className="truncate text-xs text-slate-500">个人多 Agent 工作区</div>
+              <div className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">AgentHub</div>
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">个人多 Agent 工作区</div>
             </div>
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="flex size-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200"
+            className="flex size-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100 dark:active:bg-neutral-700"
             title="关闭菜单"
           >
             <X className="size-4 stroke-[2.2]" />
@@ -817,22 +803,20 @@ function MobileWorkbenchDrawer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-          <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-900">
-              <CheckCircle2 className="size-3.5 text-emerald-500" />
+          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-neutral-950/40">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-900 dark:text-slate-100">
+              <CheckCircle2 className="size-3.5 text-emerald-500 dark:text-emerald-300" />
               个人工作区
             </div>
-            <p className="mt-1 text-[11px] leading-5 text-slate-500">管理本地会话、Agent、产物与自动化任务。</p>
+            <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">管理本地会话、Agent、产物与自动化任务。</p>
           </div>
 
           <button
             type="button"
             onClick={() => onViewChange('new-task')}
             className={cn(
-              'mb-3 flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-left text-sm font-medium transition active:scale-[0.99]',
-              view === 'new-task'
-                ? 'bg-[var(--agenthub-accent-soft,#eff6ff)] text-[var(--agenthub-accent,#3370ff)]'
-                : 'border border-[var(--agenthub-accent-border,#bfdbfe)] bg-[var(--agenthub-accent-soft,#eff6ff)] text-[var(--agenthub-accent,#3370ff)] hover:border-[var(--agenthub-accent,#3370ff)]',
+              'mb-3 flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.99] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800',
+              view === 'new-task' && 'border-[var(--agenthub-accent,#2F5FD0)] text-[var(--agenthub-accent,#2F5FD0)]',
             )}
           >
             <Plus className="size-5" />
@@ -849,22 +833,21 @@ function MobileWorkbenchDrawer({
                   type="button"
                   onClick={() => onViewChange(item.id)}
                   className={cn(
-                    'flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition active:scale-[0.99]',
+                    'relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition active:scale-[0.99]',
                     active
-                      ? 'bg-[var(--agenthub-accent-soft,#eff6ff)] font-semibold text-[var(--agenthub-accent,#3370ff)]'
-                      : 'text-slate-600 hover:bg-slate-100 active:bg-slate-200',
+                      ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-6 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
+                      : 'text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:active:bg-neutral-700',
                   )}
                 >
                   <Icon className="size-5 stroke-[2.1]" />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {active && <span className="size-1.5 rounded-full bg-[var(--agenthub-accent,#3370ff)]" />}
                 </button>
               )
             })}
           </nav>
         </div>
 
-        <div className="space-y-2 border-t border-slate-100 p-3">
+        <div className="space-y-2 border-t border-slate-100 p-3 dark:border-white/10">
           {accountOpen && (
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} />
           )}
@@ -873,13 +856,13 @@ function MobileWorkbenchDrawer({
             type="button"
             onClick={() => setAccountOpen((expanded) => !expanded)}
             aria-expanded={accountOpen}
-            className="flex min-h-12 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2.5 text-left transition hover:border-blue-200 hover:bg-blue-50/60 active:bg-blue-100"
+            className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
           >
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-xs font-medium text-slate-900">Agenter</span>
-                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-[#3370ff]">个人</span>
+                <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">个人</span>
               </div>
               <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
@@ -934,17 +917,17 @@ function UserAccountOverview({
   const topConversations = usage.data?.topConversations.slice(0, 3) ?? []
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/70">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-xs font-semibold text-slate-900">个人账户</div>
-          <div className="mt-0.5 truncate text-[11px] text-slate-500">本地单用户 · 用量概览</div>
+          <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">个人账户</div>
+          <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
         </div>
-        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600">已连接</span>
+        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">已连接</span>
       </div>
 
       {usage.loading && !usage.data ? (
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-5 text-center text-xs text-slate-500">加载用量数据...</div>
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-5 text-center text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">加载用量数据...</div>
       ) : usage.error ? (
         <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
           <div className="line-clamp-2">{usage.error}</div>
@@ -976,7 +959,7 @@ function UserAccountOverview({
                   key={conversation.id}
                   type="button"
                   onClick={() => setActiveConversation(conversation.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-xs transition hover:bg-blue-50 hover:text-[#3370ff]"
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-xs transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
                   title={`更新时间 ${new Date(conversation.updatedAt).toLocaleString('zh-CN')}`}
                 >
                   <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
@@ -990,7 +973,7 @@ function UserAccountOverview({
           )}
 
           {usage.data.allTime.runs === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">还没有用量数据，和 Agent 对话后会显示在这里。</div>
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">还没有用量数据，和 Agent 对话后会显示在这里。</div>
           )}
         </div>
       ) : null}
@@ -1000,7 +983,7 @@ function UserAccountOverview({
           type="button"
           onClick={onReload}
           disabled={usage.loading}
-          className="flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff] disabled:opacity-50"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
         >
           <BarChart3 className="size-3.5" />
           {usage.loading ? '刷新中' : '刷新'}
@@ -1008,7 +991,7 @@ function UserAccountOverview({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
         >
           <Settings className="size-3.5" />
           设置
@@ -1022,13 +1005,13 @@ function UsageBarRow({ label, value, runs, max }: { label: string; value: number
   const pct = max > 0 ? (value * 100) / max : 0
 
   return (
-    <div className="space-y-1 rounded-xl bg-slate-50 px-2.5 py-2">
+    <div className="space-y-1 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-neutral-950/40">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="min-w-0 flex-1 truncate font-mono text-slate-600">{label}</span>
-        <span className="shrink-0 font-mono text-[11px] text-slate-400">{formatTok(value)} · {runs}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-slate-600 dark:text-slate-300">{label}</span>
+        <span className="shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">{formatTok(value)} · {runs}</span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-[#3370ff]/70 transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-neutral-800">
+        <div className="h-full rounded-full bg-[var(--agenthub-accent,#2F5FD0)] transition-all" style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
@@ -1050,28 +1033,11 @@ function WorkbenchNav({
   onOpenSettings: () => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
-  const [themeAccent, setThemeAccent] = useState<'blue' | 'violet'>('blue')
   const [accountOpen, setAccountOpen] = useState(false)
   const usage = useUsageSummary(accountOpen && !collapsed)
 
-  const applyThemeAccent = (accent: keyof typeof THEME_ACCENTS) => {
-    const theme = THEME_ACCENTS[accent]
-    document.documentElement.style.setProperty('--agenthub-accent', theme.primary)
-    document.documentElement.style.setProperty('--agenthub-accent-hover', theme.hover)
-    document.documentElement.style.setProperty('--agenthub-accent-soft', theme.soft)
-    document.documentElement.style.setProperty('--agenthub-accent-border', theme.border)
-  }
-
-  useEffect(() => {
-    applyThemeAccent(themeAccent)
-  }, [themeAccent])
-
-  const toggleThemeAccent = () => {
-    setThemeAccent((accent) => (accent === 'blue' ? 'violet' : 'blue'))
-  }
-
   return (
-    <aside className={cn('hidden shrink-0 flex-col border-r border-slate-200 bg-white/95 px-3 py-4 shadow-sm transition-[width] duration-200 md:flex', collapsed ? 'w-[96px]' : view === 'conversations' ? 'w-[300px]' : 'w-[248px]')}>
+    <aside className={cn('hidden shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', collapsed ? 'w-[88px]' : view === 'conversations' ? 'w-[288px]' : 'w-[236px]')}>
       <div className={cn('mb-3 flex items-center gap-2 px-2', collapsed && 'flex-col px-0')}>
         <button
           type="button"
@@ -1079,44 +1045,32 @@ function WorkbenchNav({
           className={cn('flex min-w-0 items-center gap-2 text-left', collapsed ? 'w-full flex-col justify-center' : 'flex-1')}
           title={collapsed ? 'AgentHub' : undefined}
         >
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--agenthub-accent,#3370ff)] text-white shadow-sm shadow-blue-200">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
             <Sparkles className="size-4" />
           </div>
-          {collapsed && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900">AgentHub</span>}
+          {collapsed && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">AgentHub</span>}
           {!collapsed && (
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-tight">AgentHub</div>
-              <div className="truncate text-[11px] text-slate-500">Multi-Agent Workspace</div>
+              <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">AgentHub</div>
+              <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">Multi-Agent Workspace</div>
             </div>
           )}
         </button>
         {!collapsed && (
           <div className="flex shrink-0 items-center gap-1">
+            <ThemeToggle className="size-8 rounded-lg text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-100" />
             <button
               type="button"
               onClick={onOpenSettings}
-              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
               title="设置"
             >
               <Settings className="size-4 stroke-[2.2]" />
             </button>
             <button
               type="button"
-              onClick={toggleThemeAccent}
-              className={cn(
-                'flex size-8 items-center justify-center rounded-lg transition',
-                themeAccent === 'violet'
-                  ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700',
-              )}
-              title={themeAccent === 'blue' ? '切换为紫色主题' : '切换为蓝色主题'}
-            >
-              <Palette className="size-4 stroke-[2.2]" />
-            </button>
-            <button
-              type="button"
               onClick={() => setCollapsed(true)}
-              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
               title="收起侧边栏"
             >
               <Menu className="size-4 stroke-[2.2]" />
@@ -1139,13 +1093,13 @@ function WorkbenchNav({
         type="button"
         onClick={() => onViewChange('new-task')}
         className={cn(
-          'mb-2 flex h-10 items-center justify-center gap-2 rounded-xl border border-[var(--agenthub-accent-border,#bfdbfe)] bg-[var(--agenthub-accent-soft,#eff6ff)] px-3 text-sm font-medium text-[var(--agenthub-accent,#3370ff)] transition hover:border-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-soft,#eff6ff)]',
+          'mb-2 flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
           collapsed && 'px-0',
         )}
       >
         <Plus className="size-4" />
         {!collapsed && <span className="min-w-0 flex-1 text-left">新建任务</span>}
-        {!collapsed && <span className="ml-auto text-[10px] font-normal text-[color:var(--agenthub-accent,#3370ff)] opacity-70">Ctrl + N</span>}
+        {!collapsed && <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl + N</span>}
       </button>
 
       <nav className="space-y-1">
@@ -1159,11 +1113,11 @@ function WorkbenchNav({
               onClick={() => onViewChange(item.id)}
               title={collapsed ? item.label : undefined}
               className={cn(
-                'relative flex h-10 w-full items-center gap-2 rounded-lg px-3 text-sm transition',
+                'relative flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm transition',
                 collapsed && 'justify-center px-0',
                 active
-                  ? 'bg-[var(--agenthub-accent-soft,#eff6ff)] font-semibold text-[var(--agenthub-accent,#3370ff)] shadow-sm shadow-blue-100/60 before:absolute before:left-0 before:top-2 before:h-6 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#3370ff)]'
-                  : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                  ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
+                  : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
               )}
             >
               <Icon className={cn('size-4 shrink-0 stroke-[2.2]', active && 'stroke-[2.5]')} />
@@ -1174,7 +1128,7 @@ function WorkbenchNav({
       </nav>
 
       {!collapsed && view === 'conversations' && (
-        <div className="mt-2 min-h-0 flex-1 overflow-hidden border-t border-slate-100 pt-3">
+        <div className="mt-2 min-h-0 flex-1 overflow-hidden border-t border-slate-100 pt-3 dark:border-white/10">
           <ConversationListPanel variant="embedded" />
         </div>
       )}
@@ -1188,7 +1142,7 @@ function WorkbenchNav({
           type="button"
           onClick={() => collapsed ? setCollapsed(false) : setAccountOpen((open) => !open)}
           aria-expanded={accountOpen && !collapsed}
-          className={cn('w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-sm', collapsed && 'px-2')}
+          className={cn('w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', collapsed && 'px-2')}
           title={collapsed ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
         >
           <div className={cn('flex items-center gap-2', collapsed && 'justify-center')}>
@@ -1197,9 +1151,9 @@ function WorkbenchNav({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <div className="truncate text-xs font-medium">Agenter</div>
-                  <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-[#3370ff]">个人</span>
+                  <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">个人</span>
                 </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                   <span className="size-1.5 rounded-full bg-emerald-500" />
                   本地模式
                 </div>
@@ -1310,10 +1264,10 @@ function NewTaskView({
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-gray-50">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
       {/* 顶部激励栏 */}
-      <header className="flex shrink-0 items-center justify-end px-8 py-4">
-        <button type="button" className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3.5 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100">
+      <header className="flex shrink-0 items-center justify-end px-6 py-3">
+        <button type="button" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">
           <Sparkles className="size-3" />
           来成长计划赚积分
         </button>
@@ -1321,25 +1275,25 @@ function NewTaskView({
 
       {/* 主内容区 - 内容整体下移，垂直居中显示 */}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
-        <div className="mx-auto w-full max-w-5xl px-8 pb-16">
+        <div className="mx-auto w-full max-w-5xl px-6 pb-12">
           {/* Hero Section - 标题 + 右侧机器人吉祥物 */}
-          <div className="mb-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="mb-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>
-              <h1 className="text-[36px] font-bold leading-tight tracking-tight text-slate-950">
+              <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-slate-950">
                 AgentHub - 你的多 Agent 协作工作台
               </h1>
 
               {/* 一级场景切换 Tabs */}
-              <div className="mt-6 flex flex-wrap items-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-1.5">
                 {scenarioTabs.map((tab) => (
                   <button
                     key={tab}
                     type="button"
                     onClick={() => setScenarioTab(tab)}
                     className={cn(
-                      'rounded-full px-5 py-2 text-sm font-medium transition',
+                      'rounded-md px-3 py-1.5 text-sm font-medium transition',
                       scenarioTab === tab
-                        ? 'bg-slate-900 text-white shadow-sm'
+                        ? 'bg-slate-900 text-white'
                         : 'bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800',
                     )}
                   >
@@ -1349,15 +1303,15 @@ function NewTaskView({
               </div>
 
               {/* 二级快捷入口 Chips */}
-              <div className="mt-4 flex flex-wrap gap-3">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {quickTasks.map((task) => (
                   <button
                     key={task}
                     type="button"
                     onClick={() => setContent(task)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:text-[#3370ff] hover:shadow-md"
+                    className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
                   >
-                    <span className="flex size-6 items-center justify-center rounded-lg bg-blue-50 text-[#3370ff]">
+                    <span className="flex size-5 items-center justify-center rounded bg-slate-100 text-slate-500">
                       <Sparkles className="size-3.5" />
                     </span>
                     {task}
@@ -1369,14 +1323,14 @@ function NewTaskView({
             {/* 3D 机器人吉祥物（占位符） */}
             <div className="hidden shrink-0 lg:flex lg:items-center lg:justify-center">
               <div className="relative flex size-44 items-center justify-center">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 blur-2xl opacity-70" />
-                <div className="relative flex size-40 items-center justify-center rounded-[36%] bg-gradient-to-br from-white to-blue-50 shadow-xl shadow-blue-200/50">
-                  <div className="text-6xl">🤖</div>
+                <div className="absolute inset-0 rounded-full bg-slate-200 blur-xl opacity-50" />
+                <div className="relative flex size-36 items-center justify-center rounded-[28%] border border-slate-200 bg-white shadow-sm">
+                  <div className="text-5xl">🤖</div>
                 </div>
-                <div className="absolute -right-2 -top-1 flex size-8 animate-pulse items-center justify-center rounded-full bg-yellow-300 text-lg shadow-md">
+                <div className="absolute -right-2 -top-1 flex size-7 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-base text-amber-700">
                   ✨
                 </div>
-                <div className="absolute -left-3 bottom-4 flex size-7 items-center justify-center rounded-full bg-pink-200 text-sm shadow-md">
+                <div className="absolute -left-3 bottom-4 flex size-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs text-slate-600">
                   💬
                 </div>
               </div>
@@ -1384,9 +1338,9 @@ function NewTaskView({
           </div>
 
           {/* 核心交互输入框 - 悬浮白色大卡片（输入 + 工具栏合并在一个阴影卡片中） */}
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)]">
             {draftTask && (
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#3370ff]">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
                 <Sparkles className="size-3" />
                 已载入精选场景：{draftTask.sourceScenarioTitle}
               </div>
@@ -1402,12 +1356,12 @@ function NewTaskView({
                 }
               }}
               placeholder="今天想让 AgentHub 帮你完成什么？"
-              className="min-h-[120px] resize-none border-0 bg-transparent px-6 pb-2 pt-5 text-base shadow-none placeholder:text-slate-400 focus-visible:ring-0"
+              className="min-h-[108px] resize-none border-0 bg-transparent px-5 pb-2 pt-4 text-[15px] shadow-none placeholder:text-slate-400 focus-visible:ring-0"
             />
 
             {/* 附件列表 */}
             {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-6 pb-3">
+              <div className="flex flex-wrap gap-2 px-5 pb-3">
                 {pendingFiles.map((file) => (
                   <span key={`${file.name}-${file.lastModified}`} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                     <Paperclip className="size-3" />
@@ -1425,14 +1379,14 @@ function NewTaskView({
             )}
 
             {/* 中间浅灰分割线 */}
-            <div className="mx-6 h-px bg-slate-100" />
+            <div className="mx-5 h-px bg-slate-100" />
 
             {/* 下半部：参数配置栏 */}
-            <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
               <select
                 value={activeAgentIds[0] ?? ''}
                 onChange={(e) => setSelectedAgentIds(e.target.value ? [e.target.value] : [])}
-                className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none transition focus:border-blue-300"
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none transition focus:border-[var(--agenthub-accent)]"
               >
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>{getAgentDisplayName(agent)}</option>
@@ -1445,7 +1399,7 @@ function NewTaskView({
                 onClick={() => setApprovalMode((mode) => (mode === 'review' ? 'auto' : 'review'))}
                 className={cn(
                   'h-8 rounded-lg border-slate-200 text-xs font-medium transition-all',
-                  approvalMode === 'auto' && 'border-blue-200 bg-blue-50 text-[#3370ff]',
+                  approvalMode === 'auto' && 'border-slate-300 bg-slate-100 text-slate-900',
                 )}
               >
                 {approvalMode === 'auto' ? '自动' : 'Review'}
@@ -1516,7 +1470,7 @@ function NewTaskView({
                   onClick={() => void submit()}
                   disabled={!content.trim() || activeAgentIds.length === 0 || sending || uploading}
                   size="icon"
-                  className="ml-1 size-9 rounded-xl bg-[#3370ff] text-white shadow-md shadow-blue-200 transition hover:bg-[#2563eb] disabled:opacity-50"
+                  className="ml-1 size-8 rounded-md bg-[var(--agenthub-accent,#2F5FD0)] text-white transition hover:bg-[var(--agenthub-accent-hover,#244FB3)] disabled:opacity-50"
                   title={uploading ? '上传中' : '发送'}
                 >
                   <Send className="size-4" />
@@ -1542,7 +1496,7 @@ function NewTaskView({
             {activeAgents.length > 0 && (
               <>
                 <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1.5 rounded-md px-1 text-[#3370ff]">
+                <span className="inline-flex items-center gap-1.5 rounded-md px-1 text-[var(--agenthub-accent)]">
                   <AgentAvatar agent={activeAgents[0]} size="xs" />
                   {activeAgents.length === 1 ? getAgentDisplayName(activeAgents[0]) : `${getAgentDisplayName(activeAgents[0])} 等 ${activeAgents.length} 位 Agent`}
                 </span>
@@ -1589,7 +1543,7 @@ function ResizeHandle({ onDrag }: { onDrag: (deltaX: number) => void }) {
       aria-label="调整右侧栏宽度"
       title="拖拽调整右侧栏宽度"
     >
-      <span className="my-3 w-1 rounded-full bg-transparent transition group-hover:bg-blue-200 group-active:bg-blue-300" />
+      <span className="my-3 w-1 rounded-full bg-transparent transition group-hover:bg-[var(--agenthub-accent-border)] group-active:bg-[var(--agenthub-accent)]" />
     </button>
   )
 }
@@ -1653,7 +1607,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
           </div>
           {variant === 'standalone' && (
             <div className="flex shrink-0 items-center gap-1">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-[#3370ff]">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
                 <MessageSquare className="size-4" />
               </div>
             </div>
@@ -1661,7 +1615,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
         </div>
         <div className="relative mt-3">
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" className="h-9 rounded-lg border-0 bg-slate-100 pl-9 text-xs shadow-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-blue-100" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" className="h-9 rounded-lg border-0 bg-slate-100 pl-9 text-xs shadow-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)]" />
         </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
@@ -1677,11 +1631,11 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                 className={cn(
                   'flex h-14 w-full items-center gap-2 rounded-lg px-2 text-left transition',
                   activeId === conversation.id
-                    ? 'bg-blue-50 text-slate-950'
+                    ? 'bg-[var(--agenthub-accent-soft)] text-slate-950'
                     : 'text-slate-700 hover:bg-slate-100',
                 )}
               >
-                <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-white text-[#3370ff]' : 'bg-slate-100 text-slate-500')}>
+                <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-white text-[var(--agenthub-accent)]' : 'bg-slate-100 text-slate-500')}>
                   {isGroup ? <Grid2X2 className="size-3.5" /> : <MessageCircle className="size-3.5" />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1823,16 +1777,16 @@ function AgentWorkspace({
   }
 
   return (
-    <div className="flex h-full min-w-0 gap-4 p-4 xl:p-6">
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
-        <div className="shrink-0 border-b border-slate-100 p-4 xl:p-5">
+    <div className="flex h-full min-w-0 gap-3 p-4 xl:p-5">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)]">
+        <div className="shrink-0 border-b border-slate-200 p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Agent 库</h1>
+              <h1 className="text-xl font-semibold tracking-tight">Agent 库</h1>
               <p className="mt-1 text-sm text-slate-500">发现、配置和复用你的协作 Agent</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setFormOpen(true)} className="rounded-lg bg-[#3370ff] hover:bg-[#2563eb]">
+              <Button onClick={() => setFormOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
                 <Plus className="mr-2 size-4" />
                 创建 Agent
               </Button>
@@ -1840,8 +1794,8 @@ function AgentWorkspace({
                 variant="outline"
                 onClick={() => setAgentView((view) => (view === 'mine' ? 'featured' : 'mine'))}
                 className={cn(
-                  'rounded-lg border-slate-200',
-                  agentView === 'mine' && 'border-blue-200 bg-blue-50 text-[#3370ff] hover:bg-blue-50',
+                  'rounded-md border-slate-200',
+                  agentView === 'mine' && 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-100',
                 )}
               >
                 {agentView === 'mine' ? '精选 Agent' : '我的 Agent'}
@@ -1854,13 +1808,13 @@ function AgentWorkspace({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={agentView === 'mine' ? '搜索我的 Agent、模型或能力' : '搜索精选 Agent、预设或能力'}
-              className="h-10 rounded-xl border-slate-200 pl-10"
+              className="h-9 rounded-md border-slate-200 bg-slate-50 pl-10"
             />
           </div>
           {agentView === 'featured' && (
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {featuredCategories.map((item) => (
-                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs transition', tab === item ? 'border-blue-200 bg-blue-50 text-[#3370ff]' : 'border-slate-200 text-slate-500 hover:text-slate-900')}>
+                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs transition', tab === item ? 'border-slate-300 bg-slate-100 text-slate-900' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-900')}>
                   {item}
                 </button>
               ))}
@@ -1872,7 +1826,7 @@ function AgentWorkspace({
                 <h2 className="text-sm font-semibold text-slate-900">精选场景</h2>
                 <p className="mt-1 text-xs text-slate-500">一键组合 Agent，快速载入任务提示词</p>
               </div>
-              <div className="grid grid-cols-2 gap-3 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
                 {FEATURED_SCENARIOS.map((scenario) => (
                   <ScenarioCard
                     key={scenario.id}
@@ -1890,7 +1844,7 @@ function AgentWorkspace({
         </div>
 
         <ScrollArea className="min-h-0 flex-1" viewportRef={listViewportRef}>
-          <div className="space-y-5 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] xl:p-5 xl:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+          <div className="space-y-4 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
             {agentView === 'featured' ? (
               <section>
                 <div className="mb-3 flex items-center justify-between">
@@ -1899,7 +1853,7 @@ function AgentWorkspace({
                     <p className="mt-1 text-xs text-slate-500">选择一个预设 Agent，直接开始对话</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                   {filteredPresets.map((preset) => {
                     return (
                       <ResourcePresetCard
@@ -1923,7 +1877,7 @@ function AgentWorkspace({
                   </div>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">{filteredAgents.length} 个</span>
                 </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                   {filteredAgents.map((agent) => (
                     <AgentCard key={agent.id} agent={agent} selected={selectedAgent?.id === agent.id} onSelect={() => setSelectedAgentId(agent.id)} onStart={() => void startConversation(agent)} />
                   ))}
@@ -2006,13 +1960,13 @@ function ScenarioCard({ scenario, onStart }: { scenario: FeaturedScenario; onSta
     <button
       type="button"
       onClick={onStart}
-      className="flex min-h-[120px] w-full flex-col rounded-xl border border-[#E5E7EB] bg-white p-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+      className="flex min-h-[92px] w-full flex-col rounded-lg border border-slate-200 bg-white p-3 text-left transition duration-200 hover:border-slate-300 hover:bg-slate-50"
     >
-      <span className={cn('flex size-9 items-center justify-center rounded-full', scenario.iconWrapClassName)}>
-        <Icon className={cn('size-5', scenario.iconClassName)} />
+      <span className={cn('flex size-7 items-center justify-center rounded-md', scenario.iconWrapClassName)}>
+        <Icon className={cn('size-4', scenario.iconClassName)} />
       </span>
-      <div className="mt-3 text-sm font-semibold leading-5 text-slate-950">{scenario.title}</div>
-      <div className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">{scenario.description}</div>
+      <div className="mt-2 truncate text-sm font-semibold leading-5 text-slate-950">{scenario.title}</div>
+      <div className="mt-1 line-clamp-1 text-xs leading-5 text-slate-500">{scenario.description}</div>
     </button>
   )
 }
@@ -2034,12 +1988,12 @@ function ResourcePresetCard({
     <article
       onClick={onSelect}
       className={cn(
-        'group flex min-h-[220px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md',
-        selected ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200',
+        'group relative flex min-h-[190px] cursor-pointer flex-col rounded-lg border bg-white p-3.5 transition duration-200 hover:border-slate-300 hover:bg-slate-50',
+        selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)]' : 'border-slate-200',
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white text-xl shadow-sm ring-1 ring-slate-200 transition duration-200 group-hover:scale-105 group-hover:shadow-md">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg transition duration-200">
           <span aria-hidden="true">{preset.avatar}</span>
         </div>
         <div className="min-w-0 flex-1">
@@ -2047,18 +2001,21 @@ function ResourcePresetCard({
             <h3 className={cn('line-clamp-2 flex-1 text-[15px] font-semibold leading-5 text-slate-950', getPresetDisplayName(preset).length > 22 && 'text-sm leading-5')}>
               {getPresetDisplayName(preset)}
             </h3>
-            <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-medium text-[#3370ff] ring-1 ring-blue-100">{preset.category}</span>
+            <span className="shrink-0 rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{preset.category}</span>
           </div>
           <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{preset.description}</p>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {preset.capabilities.map((capability) => (
-          <span key={capability} className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 ring-1 ring-blue-100 transition hover:bg-blue-100 hover:text-blue-800">
+        {preset.capabilities.slice(0, 2).map((capability) => (
+          <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600">
             {capability}
           </span>
         ))}
+        {preset.capabilities.length > 2 && (
+          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400">+{preset.capabilities.length - 2}</span>
+        )}
       </div>
 
       <div className="mt-auto pt-4">
@@ -2069,7 +2026,8 @@ function ResourcePresetCard({
             e.stopPropagation()
             onStart()
           }}
-          className="h-8 w-full rounded-xl bg-[#3370ff] text-xs transition hover:bg-[#2563eb] disabled:opacity-60"
+          variant="outline"
+          className="h-8 w-full rounded-md border-slate-300 bg-white text-xs text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
         >
           {starting ? '创建对话中' : '开始对话'}
         </Button>
@@ -2083,46 +2041,49 @@ function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset })
 
   if (!preset) {
     return (
-      <aside className="hidden w-[360px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 xl:block">
+      <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个精选 Agent 查看详情</div>
       </aside>
     )
   }
 
   return (
-    <aside className="hidden w-[360px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 xl:block">
+    <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
       <div className="flex h-full flex-col">
-        <div className="border-b border-slate-100 p-5">
+        <div className="border-b border-slate-200 p-4">
           <div className="flex items-start gap-3">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 text-2xl shadow-sm ring-1 ring-blue-100/70 transition duration-200 hover:scale-105">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xl">
               {preset.avatar}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950">{getPresetDisplayName(preset)}</h2>
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-[#3370ff]">精选</span>
+                <h2 className="truncate text-base font-semibold tracking-tight text-slate-950">{getPresetDisplayName(preset)}</h2>
+                <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">精选</span>
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {preset.capabilities.map((capability) => (
-              <span key={capability} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-blue-50 hover:text-[#3370ff]">{capability}</span>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {preset.capabilities.slice(0, 2).map((capability) => (
+              <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600">{capability}</span>
             ))}
+            {preset.capabilities.length > 2 && (
+              <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400">+{preset.capabilities.length - 2}</span>
+            )}
           </div>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-4 p-5 text-sm">
+          <div className="space-y-3 p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 transition duration-200 hover:border-blue-200 hover:bg-blue-50">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#3370ff] shadow-sm">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
                       <Check className="size-4" />
                     </div>
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-[#3370ff]">{preset.modelId}</div>
+                      <div className="truncate text-xs font-medium text-[var(--agenthub-accent)]">{preset.modelId}</div>
                       <div className="mt-0.5 text-[10px] text-slate-500">自定义模型 · WorkBuddy preset</div>
                     </div>
                   </div>
@@ -2136,7 +2097,7 @@ function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset })
                 <div className={cn('text-xs leading-5 text-slate-600 transition-all duration-200', !promptOpen && 'line-clamp-4')}>
                   {preset.systemPrompt}
                 </div>
-                <button type="button" onClick={() => setPromptOpen((open) => !open)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#3370ff] transition hover:text-[#2563eb]">
+                <button type="button" onClick={() => setPromptOpen((open) => !open)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--agenthub-accent)] transition hover:text-[var(--agenthub-accent-hover)]">
                   {promptOpen ? '收起' : '查看更多'}
                   <ChevronDown className={cn('size-3 transition-transform duration-200', promptOpen && 'rotate-180')} />
                 </button>
@@ -2167,7 +2128,7 @@ function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset })
 
 function AgentCard({ agent, selected, onSelect, onStart }: { agent: AgentRow; selected: boolean; onSelect: () => void; onStart: () => void }) {
   return (
-    <article onClick={onSelect} className={cn('cursor-pointer rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md', selected ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200')}>
+    <article onClick={onSelect} className={cn('relative cursor-pointer rounded-lg border bg-white p-3.5 transition hover:border-slate-300 hover:bg-slate-50', selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)]' : 'border-slate-200')}>
       <div className="flex items-start gap-3">
         <AgentAvatar agent={agent} size="lg" />
         <div className="min-w-0 flex-1">
@@ -2179,15 +2140,16 @@ function AgentCard({ agent, selected, onSelect, onStart }: { agent: AgentRow; se
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
-        {[agent.adapterName, agent.isOrchestrator ? '编排' : '执行', agent.modelId ? '模型配置' : '默认模型'].map((tag) => (
-          <span key={tag} className="rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-600">{tag}</span>
+        {[agent.adapterName, agent.isOrchestrator ? '编排' : '执行'].map((tag) => (
+          <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600">{tag}</span>
         ))}
+        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-400">+1</span>
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
         <div className="truncate font-mono text-[11px] text-slate-500">{agent.modelId || 'default model'}</div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); onSelect() }}>详情</Button>
-          <Button size="sm" className="h-8 rounded-lg bg-[#3370ff] text-xs hover:bg-[#2563eb]" onClick={(e) => { e.stopPropagation(); onStart() }}>开始对话</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md text-xs" onClick={(e) => { e.stopPropagation(); onSelect() }}>详情</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50" onClick={(e) => { e.stopPropagation(); onStart() }}>开始对话</Button>
         </div>
       </div>
     </article>
@@ -2199,16 +2161,16 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
 
   if (!agent) {
     return (
-      <aside className="hidden w-[360px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 xl:block">
+      <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个 Agent 查看详情</div>
       </aside>
     )
   }
 
   return (
-    <aside className="hidden w-[360px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 xl:block">
+    <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
       <div className="flex h-full flex-col">
-        <div className="border-b border-slate-100 p-5">
+        <div className="border-b border-slate-200 p-4">
           <div className="flex items-start gap-3">
             <div className="transition duration-200 hover:scale-105">
               <AgentAvatar agent={agent} size="lg" />
@@ -2216,32 +2178,32 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950">{getAgentDisplayName(agent)}</h2>
-                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-[#3370ff]">{agent.isBuiltin ? '内置' : '自定义'}</span>
+                <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">{agent.isBuiltin ? '内置' : '自定义'}</span>
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">{agent.description || '可配置的协作 Agent'}</p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-1.5">
             {agent.capabilities.map((capability) => (
-              <span key={capability} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-blue-50 hover:text-[#3370ff]">{capability}</span>
+              <span key={capability} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">{capability}</span>
             ))}
           </div>
-          <Button onClick={() => onStart(agent)} className="mt-4 w-full rounded-xl bg-[#3370ff] shadow-sm shadow-blue-100 transition hover:-translate-y-0.5 hover:bg-[#2563eb] hover:shadow-md">
+          <Button onClick={() => onStart(agent)} className="mt-4 w-full rounded-xl bg-[var(--agenthub-accent)] shadow-sm shadow-none transition hover:-translate-y-0.5 hover:bg-[var(--agenthub-accent-hover)] hover:shadow-md">
             开始对话
           </Button>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-4 p-5 text-sm">
+          <div className="space-y-3 p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3 transition duration-200 hover:border-blue-200 hover:bg-blue-50">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#3370ff] shadow-sm">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
                       <Check className="size-4" />
                     </div>
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-[#3370ff]">{agent.modelId || 'default model'}</div>
+                      <div className="truncate text-xs font-medium text-[var(--agenthub-accent)]">{agent.modelId || 'default model'}</div>
                       <div className="mt-0.5 text-[10px] text-slate-500">{agent.adapterName} · {agent.modelProvider ?? '默认 provider'}</div>
                     </div>
                   </div>
@@ -2255,7 +2217,7 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
                 <div className={cn('text-xs leading-5 text-slate-600 transition-all duration-200', !promptOpen && 'line-clamp-4')}>
                   {agent.systemPrompt || '未配置系统提示'}
                 </div>
-                <button type="button" onClick={() => setPromptOpen((open) => !open)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#3370ff] transition hover:text-[#2563eb]">
+                <button type="button" onClick={() => setPromptOpen((open) => !open)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--agenthub-accent)] transition hover:text-[var(--agenthub-accent-hover)]">
                   {promptOpen ? '收起' : '查看更多'}
                   <ChevronDown className={cn('size-3 transition-transform duration-200', promptOpen && 'rotate-180')} />
                 </button>
@@ -2331,23 +2293,23 @@ function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () =>
   }
 
   return (
-    <div className={cn('flex h-full min-w-0 gap-4', previewOpen ? 'p-4 xl:p-5' : 'p-6')}>
+    <div className={cn('flex h-full min-w-0 gap-4 bg-[var(--agenthub-surface-muted)]', previewOpen ? 'p-4 xl:p-5' : 'p-4 xl:p-5')}>
       {!previewOpen && (
-        <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
-          <div className="shrink-0 border-b border-slate-100 p-4 xl:p-5">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
+          <div className="shrink-0 border-b border-slate-100 p-4 dark:border-white/10 xl:p-5">
             <div className="flex flex-nowrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">产物库</h1>
-                <p className="mt-1 truncate text-sm text-slate-500">集中管理文档、原型、PPT、图片、项目和历史版本</p>
+                <h1 className="truncate text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">产物库</h1>
+                <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">集中管理文档、原型、PPT、图片、项目和历史版本</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]">批量管理</Button>
-                <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]">导出</Button>
+                <Button variant="outline" className="h-8 rounded-lg px-3 text-xs">批量管理</Button>
+                <Button variant="outline" className="h-8 rounded-lg px-3 text-xs">导出</Button>
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
-                  className={cn('size-9 rounded-xl border-slate-200 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]', viewMode === 'grid' && 'border-blue-200 bg-blue-50 text-[#3370ff]')}
+                  className={cn('size-8 rounded-lg text-slate-500 dark:text-slate-400', viewMode === 'grid' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
                   title={viewMode === 'grid' ? '切换列表视图' : '切换网格视图'}
                 >
                   <Grid2X2 className="size-4" />
@@ -2355,14 +2317,14 @@ function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () =>
               </div>
             </div>
 
-            <div className="relative mt-5">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索产物、版本或来源会话" className="h-10 w-full rounded-xl border-slate-200 bg-slate-50 pl-10 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-blue-100" />
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索产物、版本或来源会话" className="h-9 w-full rounded-lg border-slate-200 bg-slate-50 pl-10 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-ring/20 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-100 dark:placeholder:text-slate-500" />
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {artifactTabs.map((item) => (
-                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-blue-200 bg-blue-50 text-[#3370ff]' : 'border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]')}>{item}</button>
+                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-400 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100')}>{item}</button>
               ))}
             </div>
 
@@ -2375,11 +2337,11 @@ function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () =>
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
-            <div className={cn('p-4 xl:p-5', viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4' : 'space-y-2')}>
-              {loading ? <div className="text-sm text-slate-500">加载中…</div> : filteredGroups.map((group) => (
+            <div className={cn('p-4 xl:p-5', viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3' : 'space-y-2')}>
+              {loading ? <div className="text-sm text-slate-500 dark:text-slate-400">加载中…</div> : filteredGroups.map((group) => (
                 <ArtifactCard key={group.rootId} item={group.latest} versions={group.versions.length} selected={selected?.id === group.latest.id} compact={viewMode === 'list'} onSelect={() => setSelectedId(group.latest.id)} onPreview={() => void openPreview(group.latest.id)} onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }} />
               ))}
-              {!loading && filteredGroups.length === 0 && <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500">暂无匹配产物</div>}
+              {!loading && filteredGroups.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">暂无匹配产物</div>}
             </div>
           </ScrollArea>
         </section>
@@ -2392,9 +2354,9 @@ function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () =>
 
 function LibraryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition duration-200 hover:border-blue-100 hover:bg-blue-50/60">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 truncate text-lg font-semibold text-slate-900">{value}</div>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
+      <div className="text-[11px] text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 truncate text-base font-semibold text-slate-900 dark:text-slate-50">{value}</div>
     </div>
   )
 }
@@ -2405,23 +2367,23 @@ function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, 
       <article
         onClick={onSelect}
         className={cn(
-          'grid cursor-pointer grid-cols-[44px_minmax(0,1.5fr)_minmax(150px,0.9fr)_120px_176px] items-center gap-4 rounded-2xl border bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md',
-          selected ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200',
+          'relative grid cursor-pointer grid-cols-[44px_minmax(0,1.5fr)_minmax(150px,0.9fr)_120px_176px] items-center gap-4 rounded-lg border bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
+          selected ? 'border-[var(--agenthub-accent-border)] before:absolute before:left-0 before:top-2 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
         )}
       >
-        <div className="flex size-10 items-center justify-center rounded-2xl bg-blue-50 text-[#3370ff]"><FileText className="size-5" /></div>
+        <div className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300"><FileText className="size-4" /></div>
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-slate-950">{item.title}</h3>
-          <div className="mt-1 truncate text-xs text-slate-500">v{item.version} · {item.type} · {versions} 个版本</div>
+          <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{item.title}</h3>
+          <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">v{item.version} · {item.type} · {versions} 个版本</div>
         </div>
-        <div className="min-w-0 text-xs text-slate-500">
+        <div className="min-w-0 text-xs text-slate-500 dark:text-slate-400">
           <div className="truncate">{item.conversationTitle ?? '未命名会话'}</div>
-          <div className="mt-1 truncate">{item.createdByAgentId ?? 'Agent'}</div>
+          <div className="mt-1 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">{item.createdByAgentId ?? 'Agent'}</div>
         </div>
-        <div className="truncate text-xs text-slate-500">{formatTime(item.createdAt)}</div>
+        <div className="truncate text-xs text-slate-500 dark:text-slate-400">{formatTime(item.createdAt)}</div>
         <div className="flex justify-end gap-2">
-          <Button size="sm" className="h-8 rounded-lg bg-[#3370ff] px-3 text-xs hover:bg-[#2563eb]" onClick={(e) => { e.stopPropagation(); onPreview() }}>预览</Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-lg border-slate-200 px-3 text-xs hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]" onClick={(e) => { e.stopPropagation(); onOpenConversation() }}>打开会话</Button>
+          <Button size="sm" className="h-8 rounded-lg px-3 text-xs" onClick={(e) => { e.stopPropagation(); onPreview() }}>预览</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={(e) => { e.stopPropagation(); onOpenConversation() }}>打开会话</Button>
         </div>
       </article>
     )
@@ -2431,28 +2393,28 @@ function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, 
     <article
       onClick={onSelect}
       className={cn(
-        'flex min-h-[260px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md',
-        selected ? 'border-blue-300 ring-2 ring-blue-50' : 'border-slate-200',
+        'relative flex min-h-[236px] cursor-pointer flex-col rounded-lg border bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
+        selected ? 'border-[var(--agenthub-accent-border)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
       )}
     >
       <div className="flex min-w-0 items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-[#3370ff]"><FileText className="size-5" /></div>
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300"><FileText className="size-4" /></div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-slate-950">{item.title}</h3>
-          <div className="mt-1 truncate text-xs text-slate-500">v{item.version} · {item.type} · {versions} 个版本</div>
+          <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{item.title}</h3>
+          <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">v{item.version} · {item.type} · {versions} 个版本</div>
         </div>
-        <MoreHorizontal className="size-4 shrink-0 text-slate-400" />
+        <MoreHorizontal className="size-4 shrink-0 text-slate-400 dark:text-slate-500" />
       </div>
 
-      <div className="mt-4 space-y-2 text-xs text-slate-500">
-        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400">来源对话</span><span className="truncate">{item.conversationTitle ?? '未命名会话'}</span></div>
-        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400">创建者</span><span className="truncate">{item.createdByAgentId ?? 'Agent'}</span></div>
-        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400">更新时间</span><span className="truncate">{formatTime(item.createdAt)}</span></div>
+      <div className="mt-4 space-y-2 text-xs text-slate-500 dark:text-slate-400">
+        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">来源对话</span><span className="truncate">{item.conversationTitle ?? '未命名会话'}</span></div>
+        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">创建者</span><span className="truncate font-mono text-[11px]">{item.createdByAgentId ?? 'Agent'}</span></div>
+        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">更新时间</span><span className="truncate">{formatTime(item.createdAt)}</span></div>
       </div>
 
-      <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-4">
-        <Button size="sm" className="h-9 rounded-xl bg-[#3370ff] text-xs hover:bg-[#2563eb]" onClick={(e) => { e.stopPropagation(); onPreview() }}>预览</Button>
-        <Button size="sm" variant="outline" className="h-9 rounded-xl border-slate-200 text-xs hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]" onClick={(e) => { e.stopPropagation(); onOpenConversation() }}>打开会话</Button>
+      <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 dark:border-white/10">
+        <Button size="sm" className="h-8 rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); onPreview() }}>预览</Button>
+        <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); onOpenConversation() }}>打开会话</Button>
       </div>
     </article>
   )
@@ -2460,32 +2422,32 @@ function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, 
 
 function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation }: { item?: ArtifactListItem; previewOpen: boolean; onPreview: (id: string) => void; onOpenConversation: (conversationId: string) => void }) {
   return (
-    <aside className={cn('hidden shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 xl:block', previewOpen ? 'w-[360px] 2xl:w-[380px]' : 'w-[360px]')}>
+    <aside className={cn('hidden shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900 xl:block', previewOpen ? 'w-[360px] 2xl:w-[380px]' : 'w-[360px]')}>
       {item ? (
         <div className="flex h-full flex-col">
-          <div className="border-b border-slate-100 p-5">
+          <div className="border-b border-slate-200 p-4 dark:border-white/10">
             <div className="flex items-start gap-3">
-              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 text-[#3370ff] shadow-sm ring-1 ring-blue-100/70 transition duration-200 hover:scale-105">
-                <FileText className="size-7" />
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-neutral-800 dark:text-slate-300 dark:ring-white/10">
+                <FileText className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950">{item.title}</h2>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-[#3370ff]">产物</span>
+                  <h2 className="truncate text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">{item.title}</h2>
+                  <span className="rounded-md border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">产物</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-slate-500">{item.conversationTitle ?? '未命名会话'}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{item.conversationTitle ?? '未命名会话'}</p>
               </div>
             </div>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-blue-50 hover:text-[#3370ff]">{item.type}</span>
-              <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs text-green-700">v{item.version}</span>
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-[#3370ff]">可预览</span>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">{item.type}</span>
+              <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">v{item.version}</span>
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">可预览</span>
             </div>
           </div>
           <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-4 p-5 text-sm">
+            <div className="space-y-3 p-4 text-sm">
               <DetailSection icon={<SlidersHorizontal className="size-4" />} title="元数据" aside={<SavedState />}>
-                <div className="grid grid-cols-2 gap-3 text-xs text-slate-500">
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <Meta label="创建者" value={item.createdByAgentId ?? 'Agent'} />
                   <Meta label="来源会话" value={item.conversationTitle ?? '未命名'} />
                   <Meta label="创建时间" value={formatTime(item.createdAt)} />
@@ -2495,10 +2457,10 @@ function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation 
 
               <DetailSection icon={<Wrench className="size-4" />} title="快捷操作">
                 <div className="grid gap-2">
-                  <Button onClick={() => onPreview(item.id)} className="rounded-xl bg-[#3370ff] hover:bg-[#2563eb]">打开预览</Button>
-                  <Button variant="outline" className="rounded-xl border-slate-200">复制引用</Button>
-                  <Button variant="outline" className="rounded-xl border-slate-200">导出源码</Button>
-                  <Button variant="outline" className="rounded-xl border-slate-200" onClick={() => onOpenConversation(item.conversationId)}>打开会话</Button>
+                  <Button onClick={() => onPreview(item.id)} className="rounded-lg">打开预览</Button>
+                  <Button variant="outline" className="rounded-lg">复制引用</Button>
+                  <Button variant="outline" className="rounded-lg">导出源码</Button>
+                  <Button variant="outline" className="rounded-lg" onClick={() => onOpenConversation(item.conversationId)}>打开会话</Button>
                 </div>
               </DetailSection>
 
@@ -2507,13 +2469,13 @@ function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation 
               </DetailSection>
 
               <DetailSection icon={<FileText className="size-4" />} title="产物标识">
-                <div className="truncate rounded-2xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500">{item.id}</div>
+                <div className="truncate rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-400">{item.id}</div>
               </DetailSection>
             </div>
           </ScrollArea>
         </div>
       ) : (
-        <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个产物查看详情</div>
+        <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500 dark:text-slate-400">选择一个产物查看详情</div>
       )}
     </aside>
   )
@@ -2529,7 +2491,7 @@ function AutomationWorkspace() {
               <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">自动化</h1>
               <p className="mt-1 text-sm text-slate-500">管理自动化任务并查看近期运行记录</p>
             </div>
-            <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]">
+            <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 transition hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
               <Plus className="mr-1.5 size-3.5" />
               添加
             </Button>
@@ -2558,7 +2520,7 @@ function AutomationWorkspace() {
                     <h2 className="text-sm font-semibold text-slate-950">近期运行记录</h2>
                     <p className="mt-1 text-xs text-slate-500">按最近触发时间展示自动化任务状态</p>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-[#3370ff]">实时</span>
+                  <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--agenthub-accent)]">实时</span>
                 </div>
                 <div className="mt-4 space-y-2">
                   {ANALYTICS_RECENT_RUNS.slice(0, 4).map((run) => (
@@ -2569,7 +2531,7 @@ function AutomationWorkspace() {
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-xl bg-white text-[#3370ff] shadow-sm">
+                  <div className="flex size-8 items-center justify-center rounded-xl bg-white text-[var(--agenthub-accent)] shadow-sm">
                     <TrendingUp className="size-4" />
                   </div>
                   <div>
@@ -2581,7 +2543,7 @@ function AutomationWorkspace() {
                   {ANALYTICS_TREND.map((point) => (
                     <div key={point.label} className="flex min-h-[96px] flex-col items-center justify-end gap-2">
                       <div className="w-full rounded-full bg-blue-100">
-                        <div className="mx-auto w-3 rounded-full bg-[#3370ff]" style={{ height: `${Math.max(18, point.value * 3)}px` }} />
+                        <div className="mx-auto w-3 rounded-full bg-[var(--agenthub-accent)]" style={{ height: `${Math.max(18, point.value * 3)}px` }} />
                       </div>
                       <span className="text-[10px] text-slate-400">{point.label.slice(1)}</span>
                     </div>
@@ -2600,7 +2562,7 @@ function AutomationTaskCard({ task }: { task: AutomationTaskPreset }) {
   const Icon = task.icon
 
   return (
-    <article className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
+    <article className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[var(--agenthub-accent-border)] hover:shadow-md">
       <div className="flex items-start gap-3">
         <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-2xl transition duration-200 group-hover:scale-105', task.iconWrapClassName)}>
           <Icon className={cn('size-5', task.iconClassName)} />
@@ -2608,7 +2570,7 @@ function AutomationTaskCard({ task }: { task: AutomationTaskPreset }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="truncate text-base font-semibold text-slate-950">{task.title}</h3>
-            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', task.status === '待配置' ? 'bg-slate-100 text-slate-500' : task.status === '运行中' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-[#3370ff]')}>
+            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', task.status === '待配置' ? 'bg-slate-100 text-slate-500' : task.status === '运行中' ? 'bg-emerald-50 text-emerald-600' : 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}>
               {task.status}
             </span>
           </div>
@@ -2635,7 +2597,7 @@ function AnalyticsWorkspace() {
               <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">分析</h1>
               <p className="mt-1 text-sm text-slate-500">自动化任务运行分析，观察任务质量、成功率与近期趋势</p>
             </div>
-            <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-[#3370ff]">
+            <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
               <Clock3 className="mr-1.5 size-3.5" />
               近 7 天
             </Button>
@@ -2663,7 +2625,7 @@ function AnalyticsWorkspace() {
                   {ANALYTICS_TREND.map((point) => (
                     <div key={point.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
                       <div className="flex w-full flex-1 items-end justify-center">
-                        <div className="w-full max-w-8 rounded-t-2xl bg-[#3370ff] transition hover:bg-[#2563eb]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
+                        <div className="w-full max-w-8 rounded-t-2xl bg-[var(--agenthub-accent)] transition hover:bg-[var(--agenthub-accent-hover)]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
                       </div>
                       <div className="text-center">
                         <div className="text-[11px] font-medium text-slate-700">{point.value}</div>
@@ -2723,7 +2685,7 @@ function AnalyticsKpiCard({ kpi }: { kpi: AnalyticsKpi }) {
   const Icon = kpi.icon
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[var(--agenthub-accent-border)] hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs text-slate-500">{kpi.label}</div>
@@ -2742,11 +2704,11 @@ function AutomationRunRow({ run, table = false }: { run: AnalyticsRunRecord; tab
   const statusClassName = run.status === '成功'
     ? 'bg-emerald-50 text-emerald-600'
     : run.status === '运行中'
-      ? 'bg-blue-50 text-[#3370ff]'
+      ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
       : 'bg-rose-50 text-rose-600'
 
   return (
-    <div className={cn('grid gap-3 border-slate-100 bg-white p-3 transition hover:bg-blue-50/40 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center', table ? 'border-b last:border-b-0' : 'rounded-2xl border')}>
+    <div className={cn('grid gap-3 border-slate-100 bg-white p-3 transition hover:bg-[var(--agenthub-accent-soft)]/40 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center', table ? 'border-b last:border-b-0' : 'rounded-2xl border')}>
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-slate-900">{run.title}</div>
         <div className="mt-0.5 text-xs text-slate-500 sm:hidden">{run.category} · {run.duration} · {run.time}</div>
@@ -2771,15 +2733,15 @@ function DetailSection({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-950/30">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 dark:bg-neutral-800 dark:text-slate-400">
             {icon}
           </div>
-          <h3 className="truncate text-sm font-semibold text-slate-900">{title}</h3>
+          <h3 className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
         </div>
-        {aside && <div className="shrink-0 text-xs text-slate-400">{aside}</div>}
+        {aside && <div className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{aside}</div>}
       </div>
       {children}
     </section>
@@ -2788,7 +2750,7 @@ function DetailSection({
 
 function SavedState() {
   return (
-    <span className="inline-flex items-center gap-1 text-emerald-600">
+    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-300">
       <CheckCircle2 className="size-3" />
       已保存
     </span>
@@ -2797,30 +2759,30 @@ function SavedState() {
 
 function PermissionRow({ name, code }: { name: string; code: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 transition duration-200 hover:border-blue-100 hover:bg-blue-50/60">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 dark:bg-neutral-800 dark:text-slate-400">
         <Wrench className="size-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-slate-800">{name}</div>
-        <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400">{code}</div>
+        <div className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{name}</div>
+        <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">{code}</div>
       </div>
-      <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+      <CheckCircle2 className="size-4 shrink-0 text-emerald-500 dark:text-emerald-300" />
     </div>
   )
 }
 
 function HistoryRow({ icon, title, description, time }: { icon: React.ReactNode; title: string; description: string; time: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 transition duration-200 hover:border-blue-100 hover:bg-blue-50/60">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#3370ff] shadow-sm">
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 dark:bg-neutral-800 dark:text-slate-400">
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-slate-800">{title}</div>
-        <div className="mt-0.5 truncate text-[10px] text-slate-500">{description}</div>
+        <div className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{title}</div>
+        <div className="mt-0.5 truncate text-[10px] text-slate-500 dark:text-slate-400">{description}</div>
       </div>
-      <div className="shrink-0 text-[10px] text-slate-400">{time}</div>
+      <div className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">{time}</div>
     </div>
   )
 }
@@ -2841,7 +2803,7 @@ function formatToolName(toolName: string) {
 }
 
 function Meta({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="text-[10px] text-slate-400">{label}</div><div className="mt-1 truncate text-xs text-slate-700">{value}</div></div>
+  return <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-neutral-950/40"><div className="text-[10px] text-slate-400 dark:text-slate-500">{label}</div><div className="mt-1 truncate text-xs text-slate-700 dark:text-slate-200">{value}</div></div>
 }
 
 function formatTime(value: number) {

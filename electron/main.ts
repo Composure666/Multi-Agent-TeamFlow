@@ -50,7 +50,13 @@ if (!gotLock) {
       minWidth: 980,
       minHeight: 600,
       title: 'AgentHub',
-      backgroundColor: '#0a0a0a',
+      backgroundColor: '#0F1115',
+      autoHideMenuBar: true,
+      titleBarStyle: 'hidden',
+      titleBarOverlay: {
+        color: '#1C1F26',
+        symbolColor: '#E5E7EB',
+      },
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -58,6 +64,7 @@ if (!gotLock) {
         devTools: !app.isPackaged,
       },
     })
+    win.setMenuBarVisibility(false)
 
     // a) 外链交给 OS 默认浏览器，不在窗口里新开
     win.webContents.setWindowOpenHandler(({ url: target }) => {
