@@ -10,13 +10,14 @@
 import { sql } from 'drizzle-orm'
 
 import { db } from './client'
+import { isDuplicateColumnError } from './migration-utils'
 
 function safeAlter(stmt: string, columnName: string) {
   try {
     db.run(sql.raw(stmt))
     console.log(`✓ added column ${columnName}`)
   } catch (err) {
-    if (err instanceof Error && err.message.toLowerCase().includes('duplicate column')) {
+    if (isDuplicateColumnError(err)) {
       console.log(`= column ${columnName} already exists, skip`)
     } else {
       throw err

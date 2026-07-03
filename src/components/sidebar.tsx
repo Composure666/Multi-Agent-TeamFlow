@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, ArchiveRestore, BarChart3, Bot, ChevronDown, ChevronRight, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Bot, ChevronDown, ChevronRight, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentLibrary } from '@/components/agent-library'
@@ -10,7 +10,6 @@ import { ArtifactLibrary } from '@/components/artifact-library'
 import { NewConversationDialog } from '@/components/new-conversation-dialog'
 import { SettingsButton } from '@/components/settings-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { UsageDashboard } from '@/components/usage-dashboard'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +34,7 @@ import { cn } from '@/lib/utils'
 import type { AgentRow, ConversationRow } from '@/db/schema'
 import { useAppStore, useConversationList, useUnreadCount } from '@/stores/app-store'
 
-type Mode = 'conversations' | 'artifacts' | 'agents' | 'analytics'
+type Mode = 'conversations' | 'artifacts' | 'agents'
 
 export function Sidebar() {
   const mobileOpen = useAppStore((s) => s.mobileSidebarOpen)
@@ -223,14 +222,6 @@ export function Sidebar() {
           icon={<Bot className="size-4" />}
           label="Agents"
         />
-        <TabButton
-          mode={mode}
-          self="analytics"
-          collapsed={collapsed}
-          onClick={() => setMode('analytics')}
-          icon={<BarChart3 className="size-4" />}
-          label="分析"
-        />
       </div>
 
       {/* 内容区按 mode 分发 */}
@@ -375,10 +366,8 @@ export function Sidebar() {
         </>
       ) : mode === 'artifacts' ? (
         !collapsed && <ArtifactLibrary />
-      ) : mode === 'agents' ? (
-        !collapsed && <AgentLibrary />
       ) : (
-        !collapsed && <UsageDashboard />
+        !collapsed && <AgentLibrary />
       )}
 
       <NewConversationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
