@@ -36,6 +36,10 @@ const ArtifactCodeEditor = dynamic(() => import('./artifact-code-editor'), {
 
 type SaveVersionFn = (rawContent: unknown, title?: string) => Promise<void>
 
+type ArtifactPreviewPanelProps = {
+  fullHeight?: boolean
+}
+
 /**
  * ArtifactPreviewPanel — 右侧滑入的产物预览面板。
  *
@@ -43,7 +47,7 @@ type SaveVersionFn = (rawContent: unknown, title?: string) => Promise<void>
  * 顶部支持多版本切换：从同一个 root 派生的所有 artifact 通过 /versions API 查回。
  * web_app / document 支持面板内编辑并「提交为新版本」（POST /versions → createArtifactVersion）。
  */
-export function ArtifactPreviewPanel() {
+export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPanelProps) {
   const id = useAppStore((s) => s.previewArtifactId)
   const artifact = useAppStore((s) => (id ? s.artifacts[id] : null))
   const upsertArtifact = useAppStore((s) => s.upsertArtifact)
@@ -121,7 +125,12 @@ export function ArtifactPreviewPanel() {
   const hasMultiple = versionCount > 1
 
   return (
-    <aside className="flex min-w-0 flex-1 shrink flex-col overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm shadow-slate-200/70 max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:min-w-0 max-md:rounded-none xl:min-w-[520px]">
+    <aside
+      className={cn(
+        'flex min-w-0 flex-1 shrink flex-col overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm shadow-slate-200/70 max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:min-w-0 max-md:rounded-none xl:min-w-[520px]',
+        fullHeight && 'h-full self-stretch',
+      )}
+    >
       <header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <TypeIcon type={artifact.type} />

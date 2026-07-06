@@ -112,6 +112,16 @@ export async function deleteAgent(agentId: string): Promise<void> {
   await json<{ ok: true }>(fetch(`/api/agents/${agentId}`, { method: 'DELETE' }))
 }
 
+export async function optimizePrompt(prompt: string): Promise<{ enhancedText: string }> {
+  return json<{ enhancedText: string }>(
+    fetch('/api/prompt/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    }),
+  )
+}
+
 // ─── Conversations ──────────────────────────────
 export async function fetchConversations(): Promise<ConversationWithMeta[]> {
   const { conversations } = await json<{ conversations: ConversationWithMeta[] }>(

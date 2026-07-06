@@ -99,7 +99,7 @@ release/                 # electron-builder 输出（gitignored）
 **约束**：
 - `electron/` 用独立 tsconfig（`module: commonjs`，因为 Electron main 跑在 Node CJS 环境）
 - `electron/` 不引用 `src/` 的运行时代码（避免把 React / Next bundle 拉进 main 包）；要共享常量（如默认端口）就单独放 `electron/shared.ts` 并在 src 侧 mirror，**不**用 `@/electron/...` import
-- preload.ts Phase 1 没用上（renderer 通信全走 HTTP/SSE 经 Next API routes，不需要 IPC）；将来要做原生 file dialog 再加
+- preload.ts 仅用于白名单原生能力：窗口控制（最小化、最大化/还原、关闭、标题栏右键菜单）与未来 native dialog；业务通信仍全走 HTTP/SSE 经 Next API routes
 
 ---
 
@@ -127,17 +127,21 @@ new BrowserWindow({
   width: 1280, height: 800,
   minWidth: 980, minHeight: 600,
   title: 'AgentHub',
-  backgroundColor: '#0a0a0a',     // 避免白屏闪烁
+  backgroundColor: '#0F1115',     // 避免白屏闪烁
+  frame: false,                   // 渲染端绘制自定义标题栏与窗口控制按钮
+  autoHideMenuBar: true,
+  titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
+  trafficLightPosition: process.platform === 'darwin' ? { x: 14, y: 13 } : undefined,
   webPreferences: {
     nodeIntegration: false,        // 强制：渲染端纯 web
     contextIsolation: true,        // 强制
     sandbox: true,                 // 强制（renderer 走 chromium sandbox）
-    preload: path.join(__dirname, 'preload.cjs'),  // Phase 1 可不挂
+    preload: path.join(__dirname, 'preload.js'),
   },
 })
 ```
 
-**安全**：渲染端完全等同浏览器，不获取 Node API；与 server 的所有通信走 fetch + SSE，跟 web 版一致。
+**安全**：渲染端完全等同浏览器，不获取 Node API；与 server 的所有业务通信走 fetch + SSE，跟 web 版一致。preload 只暴露 `agenthubWindowControls` 窄接口，固定支持最小化、最大化/还原、关闭、查询最大化状态和标题栏右键菜单，不暴露通用 IPC。
 
 ### 4.3 内嵌 Next server（`electron/server-bootstrap.ts`）
 
@@ -444,7 +448,7 @@ pnpm electron:build
 ## 9. 安全模型
 
 - Renderer `nodeIntegration: false`、`contextIsolation: true`、`sandbox: true` —— 渲染端等同浏览器
-- Preload（如启用）只暴露白名单 API：当前只规划 `electronAPI.pickDirectory()` 走原生 dialog 选 boundPath，**Phase 1 可不挂**（继续用 web 版 `/api/fs/listdir`）
+- Preload 只暴露白名单 API：当前包含 `agenthubWindowControls`（最小化、最大化/还原、关闭、查询最大化状态、标题栏右键菜单）与未来 native dialog；不暴露 `ipcRenderer`、任意 channel、Node API 或命令执行能力
 - 不开 `webSecurity: false`、不开 `allowRunningInsecureContent`
 - iframe 渲染 LLM 产物：与 web 版完全一致（`sandbox="allow-scripts"`，详见 CLAUDE.md §5.1）
 - API key 存储：与 web 版完全一致（`app_settings` SQLite 单行表，详见 Spec 08 §8）。**不**引入 OS keychain / safeStorage：
@@ -521,7 +525,7 @@ Spec 12 把 in-process 作为首选；回退方案保留入口（同一份 main 
 | 深链接 protocol handler（`agenthub://`） | 未规划用户场景 |
 | 把 Claude Code CLI 打包进 app | CLI 体积大、版本与官方解耦，让用户自行装；缺失走错误提示 |
 | OS keychain / safeStorage 存 key | 详见 CLAUDE.md §5.4 与 §9 |
-| 渲染端 IPC 暴露 | Phase 1 通信全走 HTTP/SSE；preload 仅在 native dialog 介入时启用 |
+| 渲染端 IPC 暴露 | 仅暴露窗口控制白名单与未来 native dialog；业务通信继续全走 HTTP/SSE，不暴露通用 IPC |
 
 ---
 

@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
 import { AttachmentChip, PendingAttachmentChip } from '@/components/attachment-chip'
+import { PromptEnhanceModal } from '@/components/prompt-enhance-modal'
 import { QuotedMessage } from '@/components/quoted-message'
 import { SlashCommandHelpDialog } from '@/components/slash-command-help-dialog'
 import { SlashCommandMenu, type SlashCommandItem } from '@/components/slash-command-menu'
@@ -41,6 +42,7 @@ import {
   clearConversationHistory as clearConversationHistoryAPI,
   compactConversation as compactConversationAPI,
   fetchMessages,
+  optimizePrompt,
   reviseDispatchPlan,
   sendMessage as sendMessageAPI,
   setFsWriteApprovalMode,
@@ -249,6 +251,11 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   const [sending, setSending] = useState(false)
   const [aborting, setAborting] = useState(false)
   const [uploading, setUploading] = useState<Array<{ tempId: string; name: string }>>([])
+  const [enhanceOpen, setEnhanceOpen] = useState(false)
+  const [enhancingPrompt, setEnhancingPrompt] = useState(false)
+  const [enhancedText, setEnhancedText] = useState('')
+  const [enhanceError, setEnhanceError] = useState<string | null>(null)
+  const [enhanceOriginalText, setEnhanceOriginalText] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -381,6 +388,11 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     setTrigger(null)
     setSlashTrigger(null)
     setUploading([])
+    setEnhanceOpen(false)
+    setEnhancingPrompt(false)
+    setEnhancedText('')
+    setEnhanceError(null)
+    setEnhanceOriginalText('')
   }, [conversationId])
 
   const mentionedAgents = mentionedIds.map((id) => agents[id]).filter(Boolean)
@@ -677,6 +689,66 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     }
   }
 
+  const buildEnhancePromptInput = (text: string) => {
+    const contextLines = [
+      '## 当前上下文',
+      `- 会话模式：${conversation?.mode === 'group' ? '群聊' : '单聊'}`,
+      `- 会话标题：${conversation?.title ?? conversationId}`,
+      `- 写入审批模式：${approvalMode === 'review' ? 'Review（写入需审批）' : 'Auto（写入直接生效）'}`,
+    ]
+    if (mentionedAgents.length > 0) {
+      contextLines.push(`- 已 @ Agent：${mentionedAgents.map((agent) => agent.name).join('、')}`)
+    }
+    if (pending.length > 0) {
+      contextLines.push(`- 待发送附件：${pending.map((item) => item.fileName).join('、')}`)
+    }
+    if (uploading.length > 0) {
+      contextLines.push(`- 上传中附件：${uploading.map((item) => item.name).join('、')}`)
+    }
+    if (planReview) {
+      contextLines.push('- 当前处于计划审批修改场景：用户输入将作为对执行计划的修改意见')
+    }
+    if (pendingQuote) {
+      contextLines.push(`- 当前引用：${pendingQuote.kind === 'ask' ? '提问' : '改写'} · ${pendingQuote.sourceLabel}`)
+    }
+
+    return [
+      '请结合上下文增强用户提示词。',
+      '',
+      ...contextLines,
+      '',
+      '## 用户原始输入',
+      text,
+    ].join('\n').slice(0, 4000)
+  }
+
+  const enhancePrompt = async () => {
+    const text = content.trim()
+    if (enhancingPrompt) return
+    if (!text) {
+      setEnhanceError('请输入需要增强的提示词。')
+      setEnhanceOriginalText('')
+      setEnhancedText('')
+      setEnhanceOpen(true)
+      return
+    }
+
+    setEnhancingPrompt(true)
+    setEnhanceError(null)
+    setEnhanceOriginalText(text)
+    setEnhancedText('')
+    setEnhanceOpen(true)
+    try {
+      const result = await optimizePrompt(buildEnhancePromptInput(text))
+      setEnhancedText(result.enhancedText)
+    } catch (err) {
+      console.error('[MessageInput] optimize prompt failed', err)
+      setEnhanceError('提示词增强失败，请稍后重试。')
+    } finally {
+      setEnhancingPrompt(false)
+    }
+  }
+
   const submit = async () => {
     const text = content.trim()
     const hasAttachments = pending.length > 0
@@ -897,6 +969,23 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         </DialogContent>
       </Dialog>
 
+      <PromptEnhanceModal
+        visible={enhanceOpen}
+        originalText={enhanceOriginalText || content}
+        enhancedText={enhancedText}
+        loading={enhancingPrompt}
+        error={enhanceError}
+        onOpenChange={(open) => {
+          if (!enhancingPrompt) setEnhanceOpen(open)
+        }}
+        onKeepOriginal={() => setEnhanceOpen(false)}
+        onUseEnhanced={() => {
+          setContent(enhancedText)
+          setEnhanceOpen(false)
+          requestAnimationFrame(() => textareaRef.current?.focus())
+        }}
+      />
+
       <SlashCommandHelpDialog
         open={slashHelpOpen}
         commands={SLASH_COMMANDS}
@@ -941,6 +1030,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         </div>
       )}
 
+      {enhanceError && !enhanceOpen && <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{enhanceError}</div>}
+
       <div className="flex items-center gap-2">
         <Textarea
           ref={textareaRef}
@@ -984,6 +1075,17 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
             title="附件 / 图片"
           >
             <Paperclip className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => void enhancePrompt()}
+            disabled={enhancingPrompt || composerLocked}
+            title={enhancingPrompt ? '提示词增强中' : '增强提示词'}
+            className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            <Sparkles className="size-4" />
           </Button>
           {/* fs_write 审批模式开关：绿色 = Review（默认安全），红色 = Auto（直写） */}
           <Button

@@ -3,11 +3,12 @@
 import {
   BarChart3,
   Bot,
-  Boxes,
   CalendarClock,
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock3,
   Coins,
@@ -20,7 +21,6 @@ import {
   Menu,
   MessageCircle,
   MessageSquare,
-  Mic,
   MoreHorizontal,
   Newspaper,
   Paperclip,
@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   TrendingUp,
+  Trash2,
   Video,
   Workflow,
   Wrench,
@@ -44,13 +45,14 @@ import { AgentAvatar } from '@/components/agent-avatar'
 import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
 import { ChatPanel } from '@/components/chat-panel'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { FileExplorerPanel } from '@/components/file-explorer-panel'
 import { MessageHighlightLayer } from '@/components/message-highlight-layer'
+import { PromptEnhanceModal } from '@/components/prompt-enhance-modal'
 import { SelectionPopover } from '@/components/selection-popover'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
@@ -58,11 +60,14 @@ import type { AgentRow } from '@/db/schema'
 import {
   createConversation,
   createAgent,
+  deleteAgent,
+  deleteArtifact,
   fetchAgents,
   fetchArtifact,
   fetchArtifacts,
   fetchConversations,
   fetchUsageSummary,
+  optimizePrompt,
   sendMessage,
   setFsWriteApprovalMode,
   uploadAttachment,
@@ -84,9 +89,24 @@ const navItems: Array<{ id: WorkbenchView; label: string; icon: React.ComponentT
   { id: 'analytics', label: '分析', icon: BarChart3 },
 ]
 
-const artifactTabs = ['全部', '文档', 'Web 原型', 'PPT', '图片', '项目', '代码']
-const scenarioTabs = ['日常协作', '代码开发', '设计产物']
-const quickTasks = ['文档处理', '代码开发', '设计原型', '项目交付']
+const FEATURED_MY_AGENT_IDS_KEY = 'agenthub.featuredMyAgentIds'
+const FEATURED_AGENT_PAGE_SIZE = 12
+const ARTIFACT_GROUP_PAGE_SIZE = 12
+const SCROLL_END_THRESHOLD_PX = 80
+
+type ArtifactTabId = 'all' | 'document' | 'web_app' | 'ppt' | 'image' | 'project' | 'code'
+
+type ArtifactFeedback = { type: 'success' | 'error'; message: string } | null
+
+const artifactTabs: Array<{ id: ArtifactTabId; label: string; types: string[] }> = [
+  { id: 'all', label: '全部', types: [] },
+  { id: 'document', label: '文档', types: ['document'] },
+  { id: 'web_app', label: 'Web 原型', types: ['web_app'] },
+  { id: 'ppt', label: 'PPT', types: ['ppt'] },
+  { id: 'image', label: '图片', types: ['image'] },
+  { id: 'project', label: '项目', types: ['project'] },
+  { id: 'code', label: '代码', types: ['code_file', 'diff'] },
+]
 
 type ResourceAgentPreset = {
   id: string
@@ -100,22 +120,39 @@ type ResourceAgentPreset = {
   systemPrompt: string
 }
 
-type FeaturedScenario = {
-  id: string
-  title: string
-  category: string
+type SceneCategoryId = 'daily' | 'code' | 'finance' | 'design' | 'docs'
+
+type SceneCategory = {
+  id: SceneCategoryId
+  label: string
   description: string
-  agentPresetIds: string[]
-  prompt: string
-  icon: React.ComponentType<{ className?: string }>
-  iconWrapClassName: string
-  iconClassName: string
 }
 
-type DraftTask = {
-  agentPresetIds: string[]
-  prompt: string
-  sourceScenarioTitle: string
+type SummonableMember = {
+  id: string
+  name: string
+  role: string
+  avatar: string
+  modelName: string
+  isLead?: boolean
+  presetId: string
+}
+
+type SummonableTeam = {
+  id: string
+  category: SceneCategoryId
+  name: string
+  type: 'agent' | 'team'
+  iconUrl?: string
+  coverClassName: string
+  description: string
+  workflow: string
+  tags: string[]
+  heat: string
+  members: SummonableMember[]
+  systemPromptTemplate: string
+  featured?: boolean
+  sourcePresetIds: string[]
 }
 
 type AutomationTaskPreset = {
@@ -614,72 +651,262 @@ const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
   },
 ]
 
-const FEATURED_SCENARIOS: FeaturedScenario[] = [
+const featuredCategories = ['全部', ...Array.from(new Set(RESOURCE_AGENT_PRESETS.map((preset) => preset.category)))]
+
+const SUMMON_SCENE_CATEGORIES: SceneCategory[] = [
+  { id: 'daily', label: '日常协作', description: '会议、汇报、资料整理与个人效率' },
+  { id: 'code', label: '代码开发', description: '理解代码、规划实现、调试审查与上线' },
+  { id: 'finance', label: '金融投资', description: '市场检索、财报分析、风险与组合建议' },
+  { id: 'design', label: '设计产物', description: '需求、设计、原型与多模态创意' },
+  { id: 'docs', label: '内容文档', description: '报告、PPT、纪要与产品文案' },
+]
+
+const SUMMON_TEAMS: SummonableTeam[] = [
   {
-    id: 'scenario-product-prototype',
-    title: '产品需求到原型',
-    category: '设计创作',
-    description: '从需求收集到原型设计',
-    agentPresetIds: ['workbuddy-prd-writer', 'workbuddy-design-assistant', 'workbuddy-prototype-builder', 'workbuddy-copywriter'],
-    prompt: '请围绕一个新产品功能协作：先收集并整理产品需求，再设计页面结构和交互流程，最后输出可落地的原型方案与关键文案。',
-    icon: Sparkles,
-    iconWrapClassName: 'bg-slate-100',
-    iconClassName: 'text-slate-600',
+    id: 'team-daily-office',
+    category: 'daily',
+    name: '日常协作小队',
+    type: 'team',
+    coverClassName: 'from-slate-900 via-slate-700 to-slate-500',
+    description: '适合把零散材料整理成会议纪要、行动项和后续跟进计划。',
+    workflow: '先由会议纪要助手抽取事实与决议，再由报告写作助手整理结构，最后由合规审查助手检查表达风险。',
+    tags: ['会议纪要', '行动项', '汇报整理'],
+    heat: '12.8k 次召唤',
+    members: [
+      { id: 'daily-meeting', name: '会议纪要助手', role: '信息整理', avatar: '📝', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-meeting-summarizer' },
+      { id: 'daily-report', name: '报告写作助手', role: '结构输出', avatar: '📄', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-report-writer' },
+      { id: 'daily-compliance', name: '合规审查助手', role: '风险检查', avatar: '⚖️', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-compliance-reviewer' },
+    ],
+    systemPromptTemplate: '围绕日常协作任务整理信息、提炼结论、输出行动项，并检查表达风险。',
+    featured: true,
+    sourcePresetIds: ['workbuddy-meeting-summarizer', 'workbuddy-report-writer', 'workbuddy-compliance-reviewer'],
   },
   {
-    id: 'scenario-code-review',
-    title: '代码实现与审查',
-    category: '研发协作',
-    description: '实现功能并保障质量',
-    agentPresetIds: ['workbuddy-explore', 'workbuddy-plan', 'workbuddy-debugger', 'workbuddy-code-reviewer'],
-    prompt: '请协作完成一个代码需求：先理解现有实现和影响范围，再拆解实施步骤，完成后定位潜在问题并给出审查结论。',
-    icon: CheckCircle2,
-    iconWrapClassName: 'bg-slate-100',
-    iconClassName: 'text-slate-600',
+    id: 'agent-prompt-enhancer',
+    category: 'daily',
+    name: '提示词优化助手',
+    type: 'agent',
+    coverClassName: 'from-indigo-950 via-slate-800 to-slate-600',
+    description: '把模糊需求改写成结构清晰、上下文完整、可交给 Agent 执行的任务说明。',
+    workflow: '澄清目标、补齐约束、整理输出格式，并给出可直接执行的 Prompt。',
+    tags: ['需求澄清', 'Prompt', '任务拆解'],
+    heat: '9.4k 次召唤',
+    members: [
+      { id: 'prompt-lead', name: '提示词优化助手', role: '单 Agent', avatar: '🪄', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-prompt-enhancer' },
+    ],
+    systemPromptTemplate: '优化用户输入的任务描述，补齐背景、目标、约束和验收标准。',
+    sourcePresetIds: ['workbuddy-prompt-enhancer'],
   },
   {
-    id: 'scenario-docs-ppt',
-    title: '文档与 PPT',
-    category: '内容文档',
-    description: '生成文档与演示材料',
-    agentPresetIds: ['workbuddy-prd-writer', 'workbuddy-report-writer', 'workbuddy-meeting-summarizer', 'workbuddy-copywriter'],
-    prompt: '请根据资料协作生成一套交付材料：先整理结构化文档，再提炼汇报重点，最后形成适合演示的 PPT 大纲和页面文案。',
-    icon: FileText,
-    iconWrapClassName: 'bg-slate-100',
-    iconClassName: 'text-slate-600',
+    id: 'team-code-delivery',
+    category: 'code',
+    name: '代码交付团队',
+    type: 'team',
+    coverClassName: 'from-sky-950 via-blue-900 to-slate-700',
+    description: '从代码库探索、方案拆解、调试排障到代码审查的完整研发协作流程。',
+    workflow: 'Explore 定位上下文，Plan 输出实施步骤，Debugger 处理异常，Code Reviewer 汇总风险与审查结论。',
+    tags: ['代码理解', '实施规划', '调试审查'],
+    heat: '18.6k 次召唤',
+    members: [
+      { id: 'code-explore', name: '代码探索助手', role: '代码库探索', avatar: '🧭', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-explore' },
+      { id: 'code-plan', name: '实施规划助手', role: '方案拆解', avatar: '🗺️', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-plan' },
+      { id: 'code-debug', name: '调试排障助手', role: '问题定位', avatar: '🧯', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-debugger' },
+      { id: 'code-review', name: '代码审查助手', role: '质量审查', avatar: '🔍', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-code-reviewer' },
+    ],
+    systemPromptTemplate: '围绕代码需求完成探索、计划、实现风险分析与审查，输出可执行结论。',
+    featured: true,
+    sourcePresetIds: ['workbuddy-explore', 'workbuddy-plan', 'workbuddy-debugger', 'workbuddy-code-reviewer'],
   },
   {
-    id: 'scenario-agent-orchestration',
-    title: '多 Agent 编排',
-    category: '编排管理',
-    description: '协调多个 Agent 完成任务',
-    agentPresetIds: ['workbuddy-expert-manager', 'workbuddy-plan', 'workbuddy-prompt-enhancer', 'workbuddy-skill-creator'],
-    prompt: '请为一个复杂任务设计多 Agent 协作流程：选择合适角色、拆解执行顺序、定义交付物，并汇总每个 Agent 的职责边界。',
-    icon: Workflow,
-    iconWrapClassName: 'bg-slate-100',
-    iconClassName: 'text-slate-600',
+    id: 'team-local-project',
+    category: 'code',
+    name: '本地项目协作团队',
+    type: 'team',
+    coverClassName: 'from-neutral-950 via-slate-800 to-zinc-600',
+    description: '适合接手现有仓库：理解结构、规划修改、补充测试并准备部署说明。',
+    workflow: '先理解项目结构和关键模块，再规划修改方案，随后补充测试检查，最后整理上线与回归注意事项。',
+    tags: ['本地仓库', '测试', '部署'],
+    heat: '7.6k 次召唤',
+    members: [
+      { id: 'local-explore', name: '代码探索助手', role: '仓库理解', avatar: '🧭', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-explore' },
+      { id: 'local-plan', name: '实施规划助手', role: '任务拆解', avatar: '🗺️', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-plan' },
+      { id: 'local-test', name: '测试工程助手', role: '验证方案', avatar: '🧪', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-test-engineer' },
+      { id: 'local-deploy', name: '部署上线助手', role: '发布建议', avatar: '🚀', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-deploy-assistant' },
+    ],
+    systemPromptTemplate: '围绕本地项目仓库协作完成理解、计划、测试和部署建议。',
+    featured: true,
+    sourcePresetIds: ['workbuddy-explore', 'workbuddy-plan', 'workbuddy-test-engineer', 'workbuddy-deploy-assistant'],
   },
   {
-    id: 'scenario-local-project',
-    title: '本地项目协作',
-    category: '研发协作',
-    description: '理解并协作本地项目仓库',
-    agentPresetIds: ['workbuddy-explore', 'workbuddy-plan', 'workbuddy-test-engineer', 'workbuddy-deploy-assistant'],
-    prompt: '请围绕当前本地项目仓库协作：先理解项目结构和关键模块，再规划修改方案，补充测试检查，并给出部署或回归注意事项。',
-    icon: Boxes,
-    iconWrapClassName: 'bg-slate-100',
-    iconClassName: 'text-slate-600',
+    id: 'team-finance-research',
+    category: 'finance',
+    name: '金融投研团队',
+    type: 'team',
+    coverClassName: 'from-emerald-950 via-slate-800 to-teal-700',
+    description: '面向市场信息检索、股票数据、财报、宏观和组合风险的协作分析。',
+    workflow: '金融检索助手收集材料，股票数据分析师处理指标，财报与宏观 Agent 形成判断，风险分析师补充边界。',
+    tags: ['投研', '财报', '风险'],
+    heat: '11.2k 次召唤',
+    members: [
+      { id: 'finance-search', name: '金融检索助手', role: '信息检索', avatar: '🔎', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-finance-search' },
+      { id: 'finance-stock', name: '股票数据分析师', role: '数据分析', avatar: '📈', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-stock-data' },
+      { id: 'finance-earnings', name: '财报分析助手', role: '财务解读', avatar: '📑', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-earnings-analyst' },
+      { id: 'finance-risk', name: '风险分析助手', role: '风险边界', avatar: '🛡️', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-risk-analyst' },
+    ],
+    systemPromptTemplate: '协作完成金融投研分析，分清事实、推断、风险和不确定性。',
+    featured: true,
+    sourcePresetIds: ['workbuddy-finance-search', 'workbuddy-stock-data', 'workbuddy-earnings-analyst', 'workbuddy-risk-analyst'],
+  },
+  {
+    id: 'agent-portfolio-advisor',
+    category: 'finance',
+    name: '组合顾问助手',
+    type: 'agent',
+    coverClassName: 'from-lime-950 via-emerald-900 to-slate-700',
+    description: '围绕资产配置、组合再平衡和风险暴露给出结构化建议。',
+    workflow: '结合目标、约束和风险偏好，输出配置建议、再平衡动作和风险提示。',
+    tags: ['组合配置', '再平衡', '风险暴露'],
+    heat: '5.1k 次召唤',
+    members: [
+      { id: 'portfolio-lead', name: '组合顾问助手', role: '单 Agent', avatar: '🧺', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-portfolio-advisor' },
+    ],
+    systemPromptTemplate: '围绕投资组合给出结构化配置建议和风险说明。',
+    sourcePresetIds: ['workbuddy-portfolio-advisor'],
+  },
+  {
+    id: 'team-design-prototype',
+    category: 'design',
+    name: '需求到原型团队',
+    type: 'team',
+    coverClassName: 'from-violet-950 via-fuchsia-900 to-slate-700',
+    description: '从产品需求、页面结构、交互说明到原型文案的一站式设计协作。',
+    workflow: '需求文档助手梳理需求，设计协作助手定义结构，多模态创意助手补充视觉方向，原型构建助手输出落地方案。',
+    tags: ['PRD', '交互设计', '原型'],
+    heat: '14.3k 次召唤',
+    members: [
+      { id: 'design-prd', name: '需求文档助手', role: '需求梳理', avatar: '📋', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-prd-writer' },
+      { id: 'design-ui', name: '设计协作助手', role: '结构设计', avatar: '🎨', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-design-assistant' },
+      { id: 'design-creative', name: '多模态创意助手', role: '视觉方向', avatar: '🖼️', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-multimodal-generator' },
+      { id: 'design-prototype', name: '原型构建助手', role: '原型输出', avatar: '🧩', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-prototype-builder' },
+    ],
+    systemPromptTemplate: '协作完成从产品需求到原型方案的设计产物。',
+    featured: true,
+    sourcePresetIds: ['workbuddy-prd-writer', 'workbuddy-design-assistant', 'workbuddy-multimodal-generator', 'workbuddy-prototype-builder'],
+  },
+  {
+    id: 'team-docs-delivery',
+    category: 'docs',
+    name: '文档与 PPT 团队',
+    type: 'team',
+    coverClassName: 'from-amber-950 via-orange-900 to-slate-700',
+    description: '将资料整理成结构化文档、汇报重点、PPT 大纲和可直接使用的文案。',
+    workflow: '需求文档助手建立结构，报告写作助手输出正文，会议纪要助手补充事实，产品文案助手优化表达。',
+    tags: ['文档', 'PPT', '文案'],
+    heat: '10.7k 次召唤',
+    members: [
+      { id: 'docs-prd', name: '需求文档助手', role: '结构梳理', avatar: '📋', modelName: 'deepseek-v4-flash', isLead: true, presetId: 'workbuddy-prd-writer' },
+      { id: 'docs-report', name: '报告写作助手', role: '正文输出', avatar: '📄', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-report-writer' },
+      { id: 'docs-meeting', name: '会议纪要助手', role: '事实整理', avatar: '📝', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-meeting-summarizer' },
+      { id: 'docs-copy', name: '产品文案助手', role: '表达优化', avatar: '✍️', modelName: 'deepseek-v4-flash', presetId: 'workbuddy-copywriter' },
+    ],
+    systemPromptTemplate: '协作生成结构化文档、汇报材料和演示文案。',
+    featured: true,
+    sourcePresetIds: ['workbuddy-prd-writer', 'workbuddy-report-writer', 'workbuddy-meeting-summarizer', 'workbuddy-copywriter'],
   },
 ]
 
-const featuredCategories = ['全部', ...Array.from(new Set(RESOURCE_AGENT_PRESETS.map((preset) => preset.category)))]
+
+type PresetAgentUpsert = (agent: AgentRow) => void
+
+async function resolveOrCreatePresetAgent(
+  preset: ResourceAgentPreset,
+  knownAgents: AgentRow[],
+  upsertAgent: PresetAgentUpsert,
+): Promise<AgentRow> {
+  const displayName = getPresetDisplayName(preset)
+  const existingAgent = knownAgents.find((agent) => agent.name === preset.name || agent.name === displayName)
+  if (existingAgent) return existingAgent
+
+  const agent = await createAgent({
+    name: displayName,
+    avatar: preset.avatar,
+    description: preset.description,
+    capabilities: preset.capabilities,
+    systemPrompt: preset.systemPrompt,
+    adapterName: 'custom',
+    modelProvider: 'deepseek',
+    modelId: preset.modelId,
+    toolNames: preset.toolNames,
+    supportsVision: false,
+  })
+  upsertAgent(agent)
+  knownAgents.push(agent)
+  return agent
+}
+
+async function resolveOrCreateTeamAgents(
+  team: SummonableTeam,
+  agents: AgentRow[],
+  upsertAgent: PresetAgentUpsert,
+): Promise<AgentRow[]> {
+  const knownAgents = [...agents]
+  const resolvedAgents: AgentRow[] = []
+
+  for (const member of team.members) {
+    const preset = RESOURCE_AGENT_PRESETS.find((item) => item.id === member.presetId)
+    if (!preset) {
+      console.warn('[AppWorkbench] missing preset for team member', { teamId: team.id, memberId: member.id, presetId: member.presetId })
+      continue
+    }
+
+    const agent = await resolveOrCreatePresetAgent(preset, knownAgents, upsertAgent)
+    resolvedAgents.push(agent)
+  }
+
+  const seen = new Set<string>()
+  return resolvedAgents.filter((agent) => {
+    if (seen.has(agent.id)) return false
+    seen.add(agent.id)
+    return true
+  })
+}
+
+function findOrchestratorAgent(agents: AgentRow[]) {
+  return agents.find((agent) => agent.isOrchestrator) ?? null
+}
+
+function includeOrchestrator(teamAgents: AgentRow[], agents: AgentRow[]) {
+  const orchestrator = findOrchestratorAgent(agents)
+  const orderedAgents = orchestrator ? [orchestrator, ...teamAgents] : teamAgents
+  const seen = new Set<string>()
+
+  return orderedAgents.filter((agent) => {
+    if (seen.has(agent.id)) return false
+    seen.add(agent.id)
+    return true
+  })
+}
+
+function artifactExportUrl(artifactId: string) {
+  return `/api/artifacts/${encodeURIComponent(artifactId)}/export`
+}
+
+function buildArtifactReference(item: ArtifactListItem) {
+  return `请参考产物「${item.title}」v${item.version}（artifactId: ${item.id}）。`
+}
 
 export function AppWorkbench() {
   const [view, setView] = useState<WorkbenchView>('new-task')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [draftTask, setDraftTask] = useState<DraftTask | null>(null)
+  const [selectedTeam, setSelectedTeam] = useState<SummonableTeam | null>(null)
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false)
+  const [summoningTeamId, setSummoningTeamId] = useState<string | null>(null)
+  const agents = useAgentList()
   const setConversations = useAppStore((s) => s.setConversations)
   const setAgents = useAppStore((s) => s.setAgents)
+  const upsertConversation = useAppStore((s) => s.upsertConversation)
+  const upsertAgent = useAppStore((s) => s.upsertAgent)
+  const setActiveConversation = useAppStore((s) => s.setActiveConversation)
   const mobileSidebarOpen = useAppStore((s) => s.mobileSidebarOpen)
   const setMobileSidebarOpen = useAppStore((s) => s.setMobileSidebarOpen)
 
@@ -688,9 +915,34 @@ export function AppWorkbench() {
     fetchAgents().then(setAgents).catch(console.error)
   }, [setAgents, setConversations])
 
-  const startScenario = (draft: DraftTask) => {
-    setDraftTask(draft)
-    setView('new-task')
+  const openTeamDetail = (team: SummonableTeam) => {
+    setSelectedTeam(team)
+    setTeamDialogOpen(true)
+  }
+
+  const handleSummonTeam = async (team: SummonableTeam) => {
+    if (summoningTeamId) return
+    setSummoningTeamId(team.id)
+    try {
+      const teamAgents = includeOrchestrator(await resolveOrCreateTeamAgents(team, agents, upsertAgent), agents)
+      const uniqueAgentIds = teamAgents.map((agent) => agent.id)
+      if (uniqueAgentIds.length === 0) return
+
+      const conv = await createConversation({
+        title: team.name,
+        mode: uniqueAgentIds.length > 1 ? 'group' : 'single',
+        agentIds: uniqueAgentIds,
+      })
+      upsertConversation(conv)
+      setActiveConversation(conv.id)
+      setTeamDialogOpen(false)
+      setSelectedTeam(null)
+      setView('conversations')
+    } catch (err) {
+      console.error('[AppWorkbench] summon team failed', err)
+    } finally {
+      setSummoningTeamId(null)
+    }
   }
 
   const currentViewLabel = navItems.find((item) => item.id === view)?.label ?? 'AgentHub'
@@ -706,14 +958,14 @@ export function AppWorkbench() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
+    <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px))] bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="min-w-0 flex-1 overflow-visible">
         {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} />}
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {view === 'new-task' && <NewTaskView draftTask={draftTask} onDraftConsumed={() => setDraftTask(null)} onOpenConversations={() => setView('conversations')} />}
+        <div className="overflow-visible">
+          {view === 'new-task' && <NewTaskView onOpenConversations={() => setView('conversations')} />}
           {view === 'conversations' && <ConversationWorkspace />}
-          {view === 'agents' && <AgentWorkspace onOpenConversations={() => setView('conversations')} onStartScenario={startScenario} />}
+          {view === 'agents' && <AgentWorkspace onOpenConversations={() => setView('conversations')} onOpenTeamDetail={openTeamDetail} />}
           {view === 'artifacts' && <ArtifactWorkspace onOpenConversations={() => setView('conversations')} />}
           {view === 'automation' && <AutomationWorkspace />}
           {view === 'analytics' && <AnalyticsWorkspace />}
@@ -721,8 +973,217 @@ export function AppWorkbench() {
       </main>
       <MobileWorkbenchDrawer open={mobileSidebarOpen} view={view} onClose={closeMobileSidebar} onViewChange={changeViewFromMobile} onOpenSettings={openSettingsFromMobile} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <TeamSummonDialog
+        team={selectedTeam}
+        open={teamDialogOpen}
+        onOpenChange={(open) => {
+          setTeamDialogOpen(open)
+          if (!open) setSelectedTeam(null)
+        }}
+        onSummon={handleSummonTeam}
+        summoning={Boolean(summoningTeamId)}
+      />
       <SelectionPopover />
       <MessageHighlightLayer />
+    </div>
+  )
+}
+
+function TeamSummonDialog({
+  team,
+  open,
+  onOpenChange,
+  onSummon,
+  summoning,
+}: {
+  team: SummonableTeam | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSummon: (team: SummonableTeam) => Promise<void>
+  summoning: boolean
+}) {
+  if (!team) return null
+
+  const category = SUMMON_SCENE_CATEGORIES.find((item) => item.id === team.category)
+  const leadMember = team.members.find((member) => member.isLead) ?? team.members[0]
+  const hiddenMemberCount = Math.max(team.members.length - 3, 0)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[min(760px,calc(100vh-2rem))] max-w-3xl grid-rows-none flex-col overflow-hidden border border-slate-200 bg-white p-0 dark:border-white/10 dark:bg-[#1C1F26] sm:max-w-3xl">
+        <div className={cn('relative overflow-hidden bg-gradient-to-br px-5 pb-5 pt-6 text-white', team.coverClassName)}>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(15,23,42,0.72))]" />
+          <DialogHeader className="relative z-10 gap-3 pr-10">
+            <div className="flex items-start gap-4">
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/12 text-3xl shadow-sm backdrop-blur">
+                {leadMember?.avatar ?? '🤖'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">{category?.label ?? '场景'}</span>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">{team.type === 'team' ? '多 Agent 团队' : '单 Agent'}</span>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">{team.heat}</span>
+                </div>
+                <DialogTitle className="truncate text-2xl font-semibold tracking-tight text-white">{team.name}</DialogTitle>
+                <DialogDescription className="mt-2 max-w-2xl text-sm leading-6 text-white/78">{team.description}</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+        </div>
+
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-4 p-5 pb-8">
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#121418]/70">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">工作流说明</h3>
+                <Button variant="outline" size="sm" className="h-7 rounded-md text-xs">
+                  <Settings className="mr-1.5 size-3.5" />
+                  设置
+                </Button>
+              </div>
+              <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{team.workflow}</p>
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-sm font-semibold text-slate-950 dark:text-slate-100">擅长领域</h3>
+              <div className="flex flex-wrap gap-2">
+                {team.tags.map((tag) => (
+                  <span key={tag} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            {team.type === 'team' ? (
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">团队成员</h3>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{team.members.length} 位 Agent</span>
+                </div>
+                <div className="max-h-[250px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {team.members.map((member) => (
+                      <div key={member.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#252932]">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg dark:border-white/10 dark:bg-[#121418]">{member.avatar}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
+                            {member.isLead && <span className="shrink-0 rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">主理人</span>}
+                          </div>
+                          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                            <span className="truncate">{member.role}</span>
+                            <span className="shrink-0">·</span>
+                            <span className="truncate font-mono">{member.modelName}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#252932]">
+                <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">能力介绍</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{team.systemPromptTemplate}</p>
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="flex size-7 items-center justify-center rounded-md bg-slate-100 text-base dark:bg-[#121418]">{leadMember.avatar}</span>
+                  <span>{leadMember.name}</span>
+                  <span>·</span>
+                  <span className="font-mono">{leadMember.modelName}</span>
+                </div>
+              </section>
+            )}
+
+            <section className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#121418]/70">
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">召唤上下文</h3>
+              <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{team.systemPromptTemplate}</p>
+            </section>
+          </div>
+        </ScrollArea>
+
+        <DialogFooter className="sticky bottom-0 z-10 m-0 shrink-0 flex-row items-center justify-between rounded-none border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#1C1F26]">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex -space-x-2">
+              {team.members.slice(0, 3).map((member) => (
+                <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-100 text-sm dark:border-[#1C1F26] dark:bg-[#252932]">{member.avatar}</span>
+              ))}
+              {hiddenMemberCount > 0 && <span className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-200 text-[10px] text-slate-600 dark:border-[#1C1F26] dark:bg-[#252932] dark:text-slate-300">+{hiddenMemberCount}</span>}
+            </div>
+            <span className="truncate text-xs text-slate-500 dark:text-slate-400">{team.type === 'team' ? `${team.members.length} 位成员协作` : '单 Agent 对话'}</span>
+          </div>
+          <Button onClick={() => void onSummon(team)} disabled={summoning} className="shrink-0 rounded-md bg-[var(--agenthub-accent)] px-4 text-white hover:bg-[var(--agenthub-accent-hover)]">
+            {summoning ? '召唤中' : `召唤 ${team.name}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function HorizontalScrollControls({
+  children,
+  className,
+  contentClassName,
+  scrollAmount = 280,
+}: {
+  children: React.ReactNode
+  className?: string
+  contentClassName?: string
+  scrollAmount?: number
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const scrollByAmount = (left: number) => {
+    scrollRef.current?.scrollBy({ left, behavior: 'smooth' })
+  }
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const element = scrollRef.current
+    if (!element || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+
+    const maxScrollLeft = element.scrollWidth - element.clientWidth
+    if (maxScrollLeft <= 0) return
+
+    const atStart = element.scrollLeft <= 0
+    const atEnd = element.scrollLeft >= maxScrollLeft - 1
+    const shouldScrollLeft = event.deltaY < 0
+    const shouldScrollRight = event.deltaY > 0
+    const canScroll = (shouldScrollLeft && !atStart) || (shouldScrollRight && !atEnd)
+
+    if (!canScroll) return
+
+    event.preventDefault()
+    element.scrollBy({ left: event.deltaY, behavior: 'smooth' })
+  }
+
+  const buttonClassName = 'absolute top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:border-slate-300 hover:bg-white hover:text-slate-900 group-hover:flex dark:border-white/10 dark:bg-neutral-900/90 dark:text-slate-400 dark:hover:bg-neutral-900 dark:hover:text-slate-100'
+
+  return (
+    <div className={cn('group relative', className)}>
+      <button
+        type="button"
+        aria-label="向左滚动"
+        onClick={() => scrollByAmount(-scrollAmount)}
+        className={cn(buttonClassName, 'left-0')}
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <div
+        ref={scrollRef}
+        onWheel={handleWheel}
+        className={cn('agenthub-hide-scrollbar flex overflow-x-auto overscroll-x-contain scroll-smooth px-10 touch-pan-x', contentClassName)}
+      >
+        {children}
+      </div>
+      <button
+        type="button"
+        aria-label="向右滚动"
+        onClick={() => scrollByAmount(scrollAmount)}
+        className={cn(buttonClassName, 'right-0')}
+      >
+        <ChevronRight className="size-4" />
+      </button>
     </div>
   )
 }
@@ -1037,7 +1498,7 @@ function WorkbenchNav({
   const usage = useUsageSummary(accountOpen && !collapsed)
 
   return (
-    <aside className={cn('hidden shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', collapsed ? 'w-[88px]' : view === 'conversations' ? 'w-[288px]' : 'w-[236px]')}>
+    <aside className={cn('sticky top-[var(--agenthub-titlebar-height,0px)] hidden h-[calc(100vh-var(--agenthub-titlebar-height,0px))] shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', collapsed ? 'w-[88px]' : view === 'conversations' ? 'w-[288px]' : 'w-[236px]')}>
       <div className={cn('mb-3 flex items-center gap-2 px-2', collapsed && 'flex-col px-0')}>
         <button
           type="button"
@@ -1168,46 +1629,40 @@ function WorkbenchNav({
 }
 
 function NewTaskView({
-  draftTask,
-  onDraftConsumed,
   onOpenConversations,
 }: {
-  draftTask: DraftTask | null
-  onDraftConsumed: () => void
   onOpenConversations: () => void
 }) {
   const agents = useAgentList()
-  const defaultAgent = agents[0]
+  const defaultAgent = findOrchestratorAgent(agents) ?? agents[0]
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
+  const [selectedTeam, setSelectedTeam] = useState<{ id: string; name: string } | null>(null)
   const [content, setContent] = useState('')
   const [sending, setSending] = useState(false)
   const [approvalMode, setApprovalMode] = useState<'auto' | 'review'>('review')
   const [uploading, setUploading] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [scenarioTab, setScenarioTab] = useState(scenarioTabs[0])
+  const [enhanceOpen, setEnhanceOpen] = useState(false)
+  const [enhancingPrompt, setEnhancingPrompt] = useState(false)
+  const [enhancedText, setEnhancedText] = useState('')
+  const [enhanceError, setEnhanceError] = useState<string | null>(null)
+  const [enhanceOriginalText, setEnhanceOriginalText] = useState('')
+  const [activeCategory, setActiveCategory] = useState<SceneCategoryId>(SUMMON_SCENE_CATEGORIES[0].id)
+  const [activeSubcategoryId, setActiveSubcategoryId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const upsertConversation = useAppStore((s) => s.upsertConversation)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
   const addLocalUserMessage = useAppStore((s) => s.addLocalUserMessage)
   const replaceLocalMessageId = useAppStore((s) => s.replaceLocalMessageId)
   const upsertMessage = useAppStore((s) => s.upsertMessage)
+  const upsertAgent = useAppStore((s) => s.upsertAgent)
+  const [selectingTeamId, setSelectingTeamId] = useState<string | null>(null)
+  const [sceneAgentError, setSceneAgentError] = useState<string | null>(null)
 
   const activeAgentIds = selectedAgentIds.length > 0 ? selectedAgentIds : defaultAgent ? [defaultAgent.id] : []
   const activeAgents = activeAgentIds.map((id) => agents.find((agent) => agent.id === id)).filter((agent): agent is AgentRow => Boolean(agent))
-
-  useEffect(() => {
-    if (!draftTask) return
-    setContent(draftTask.prompt)
-    const matchedAgentIds = draftTask.agentPresetIds
-      .map((presetId) => {
-        const preset = RESOURCE_AGENT_PRESETS.find((item) => item.id === presetId)
-        if (!preset) return null
-        return agents.find((agent) => agent.name === preset.name || agent.name === getPresetDisplayName(preset))?.id ?? null
-      })
-      .filter((id): id is string => Boolean(id))
-    if (matchedAgentIds.length > 0) setSelectedAgentIds(matchedAgentIds)
-    onDraftConsumed()
-  }, [agents, draftTask, onDraftConsumed])
+  const activeCategoryMeta = SUMMON_SCENE_CATEGORIES.find((category) => category.id === activeCategory) ?? SUMMON_SCENE_CATEGORIES[0]
+  const quickTeams = SUMMON_TEAMS.filter((team) => team.category === activeCategory)
 
   const uploadFiles = async (conversationId: string) => {
     if (pendingFiles.length === 0) return []
@@ -1220,15 +1675,91 @@ function NewTaskView({
     }
   }
 
+  const buildNewTaskEnhanceInput = (text: string) => {
+    const lines = [
+      '请结合新建任务上下文增强用户提示词。',
+      '',
+      '## 当前上下文',
+      `- 场景分类：${activeCategoryMeta.label}`,
+      selectedTeam ? `- 已选择小队：${selectedTeam.name}（${activeAgents.length} 位协作）` : `- 当前 Agent：${activeAgents.map((agent) => getAgentDisplayName(agent)).join('、') || '未选择'}`,
+      `- 写入审批模式：${approvalMode === 'review' ? 'Review（写入需审批）' : 'Auto（写入直接生效）'}`,
+      pendingFiles.length > 0 ? `- 待上传附件：${pendingFiles.map((file) => file.name).join('、')}` : '',
+      '',
+      '## 用户原始输入',
+      text,
+    ].filter((line) => line.length > 0)
+    return lines.join('\n').slice(0, 4000)
+  }
+
+  const enhancePrompt = async () => {
+    const text = content.trim()
+    if (enhancingPrompt) return
+    if (!text) {
+      setEnhanceError('请输入需要增强的提示词。')
+      setEnhanceOriginalText('')
+      setEnhancedText('')
+      setEnhanceOpen(true)
+      return
+    }
+
+    setEnhancingPrompt(true)
+    setEnhanceError(null)
+    setEnhanceOriginalText(text)
+    setEnhancedText('')
+    setEnhanceOpen(true)
+    try {
+      const result = await optimizePrompt(buildNewTaskEnhanceInput(text))
+      setEnhancedText(result.enhancedText)
+    } catch (err) {
+      console.error('[NewTaskView] optimize prompt failed', err)
+      setEnhanceError('提示词增强失败，请稍后重试。')
+    } finally {
+      setEnhancingPrompt(false)
+    }
+  }
+
+  const applySubcategoryPrompt = async (team: SummonableTeam) => {
+    const category = SUMMON_SCENE_CATEGORIES.find((item) => item.id === team.category)
+    const memberNames = team.members.map((member) => member.name).join('、')
+    const lines = [
+      `我想使用「${team.name}」完成一个任务。`,
+      category ? `场景：${category.label}` : '',
+      `目标：${team.description}`,
+      `建议工作流：${team.workflow}`,
+      memberNames ? `建议参与 Agent：${memberNames}` : '',
+      '请基于以上场景，先帮我澄清目标、拆解步骤，并给出可执行方案。',
+    ].filter((line) => line.length > 0)
+
+    setActiveSubcategoryId(team.id)
+    setContent(lines.join('\n'))
+    setSceneAgentError(null)
+    setSelectingTeamId(team.id)
+
+    try {
+      const teamAgents = includeOrchestrator(await resolveOrCreateTeamAgents(team, agents, upsertAgent), agents)
+      if (teamAgents.length > 0) {
+        setSelectedAgentIds(teamAgents.map((agent) => agent.id))
+        setSelectedTeam({ id: team.id, name: team.name })
+      }
+    } catch (err) {
+      console.error('[NewTaskView] resolve scene agents failed', err)
+      setSceneAgentError('未能自动匹配场景 Agent，可手动选择后继续。')
+    } finally {
+      setSelectingTeamId(null)
+    }
+  }
+
   const submit = async () => {
     const text = content.trim()
     if (!text || activeAgentIds.length === 0 || sending) return
     setSending(true)
     try {
+      const submittedAgentIds = activeAgentIds.length > 1 ? includeOrchestrator(activeAgents, agents).map((agent) => agent.id) : activeAgentIds
+      const initialMentionedAgentIds = submittedAgentIds.length > 1 ? [] : submittedAgentIds
       const conv = await createConversation({
         title: text.length > 24 ? `${text.slice(0, 24)}…` : text,
-        mode: activeAgentIds.length > 1 ? 'group' : 'single',
-        agentIds: activeAgentIds,
+        mode: submittedAgentIds.length > 1 ? 'group' : 'single',
+        agentIds: submittedAgentIds,
       })
       upsertConversation(conv)
       if (approvalMode !== conv.fsWriteApprovalMode) {
@@ -1244,14 +1775,14 @@ function NewTaskView({
         tempId,
         conversationId: conv.id,
         content: text,
-        mentionedAgentIds: activeAgentIds,
+        mentionedAgentIds: initialMentionedAgentIds,
         attachments: uploadedAttachments,
       })
       setContent('')
       setPendingFiles([])
       const result = await sendMessage(conv.id, {
         content: text,
-        mentionedAgentIds: activeAgentIds,
+        mentionedAgentIds: initialMentionedAgentIds,
         attachmentIds: uploadedAttachments.map((attachment) => attachment.id),
       })
       replaceLocalMessageId(tempId, result.messageId)
@@ -1264,17 +1795,9 @@ function NewTaskView({
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
-      {/* 顶部激励栏 */}
-      <header className="flex shrink-0 items-center justify-end px-6 py-3">
-        <button type="button" className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">
-          <Sparkles className="size-3" />
-          来成长计划赚积分
-        </button>
-      </header>
-
+    <div className="flex min-w-0 flex-col bg-[var(--agenthub-surface-muted)]">
       {/* 主内容区 - 内容整体下移，垂直居中显示 */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
+      <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-64px)] items-center justify-center">
         <div className="mx-auto w-full max-w-5xl px-6 pb-12">
           {/* Hero Section - 标题 + 右侧机器人吉祥物 */}
           <div className="mb-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
@@ -1285,38 +1808,52 @@ function NewTaskView({
 
               {/* 一级场景切换 Tabs */}
               <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                {scenarioTabs.map((tab) => (
+                {SUMMON_SCENE_CATEGORIES.map((category) => (
                   <button
-                    key={tab}
+                    key={category.id}
                     type="button"
-                    onClick={() => setScenarioTab(tab)}
+                    onClick={() => {
+                      setActiveCategory(category.id)
+                      setActiveSubcategoryId(null)
+                      setSelectedTeam(null)
+                    }}
                     className={cn(
-                      'rounded-md px-3 py-1.5 text-sm font-medium transition',
-                      scenarioTab === tab
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+                      'rounded-full px-4 py-2 text-sm font-semibold transition active:scale-[0.98]',
+                      activeCategory === category.id
+                        ? 'bg-slate-950 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950'
+                        : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-900 dark:bg-white/5 dark:text-slate-400 dark:ring-white/10 dark:hover:bg-white/10 dark:hover:text-slate-100',
                     )}
                   >
-                    {tab}
+                    {category.label}
                   </button>
                 ))}
               </div>
 
-              {/* 二级快捷入口 Chips */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {quickTasks.map((task) => (
-                  <button
-                    key={task}
-                    type="button"
-                    onClick={() => setContent(task)}
-                    className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
-                  >
-                    <span className="flex size-5 items-center justify-center rounded bg-slate-100 text-slate-500">
-                      <Sparkles className="size-3.5" />
-                    </span>
-                    {task}
-                  </button>
-                ))}
+              {/* 二级子类胶囊 */}
+              <div className="mt-3 space-y-2">
+                <div className="text-xs text-slate-500 dark:text-slate-400">{activeCategoryMeta.description}</div>
+                <div className="flex flex-wrap gap-2">
+                  {quickTeams.map((team) => {
+                    const active = activeSubcategoryId === team.id
+                    return (
+                      <button
+                        key={team.id}
+                        type="button"
+                        onClick={() => void applySubcategoryPrompt(team)}
+                        disabled={selectingTeamId === team.id}
+                        className={cn(
+                          'rounded-full border px-3.5 py-2 text-sm font-medium transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70',
+                          active
+                            ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100',
+                        )}
+                        title={team.description}
+                      >
+                        {selectingTeamId === team.id ? '匹配中…' : team.name}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1339,13 +1876,22 @@ function NewTaskView({
 
           {/* 核心交互输入框 - 悬浮白色大卡片（输入 + 工具栏合并在一个阴影卡片中） */}
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)]">
-            {draftTask && (
-              <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                <Sparkles className="size-3" />
-                已载入精选场景：{draftTask.sourceScenarioTitle}
-              </div>
-            )}
             {/* 上半部：输入区 */}
+            <PromptEnhanceModal
+              visible={enhanceOpen}
+              originalText={enhanceOriginalText || content}
+              enhancedText={enhancedText}
+              loading={enhancingPrompt}
+              error={enhanceError}
+              onOpenChange={(open) => {
+                if (!enhancingPrompt) setEnhanceOpen(open)
+              }}
+              onKeepOriginal={() => setEnhanceOpen(false)}
+              onUseEnhanced={() => {
+                setContent(enhancedText)
+                setEnhanceOpen(false)
+              }}
+            />
             <Textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -1360,6 +1906,7 @@ function NewTaskView({
             />
 
             {/* 附件列表 */}
+            {enhanceError && !enhanceOpen && <div className="px-5 pb-3 text-xs text-red-600">{enhanceError}</div>}
             {pendingFiles.length > 0 && (
               <div className="flex flex-wrap gap-2 px-5 pb-3">
                 {pendingFiles.map((file) => (
@@ -1384,10 +1931,14 @@ function NewTaskView({
             {/* 下半部：参数配置栏 */}
             <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
               <select
-                value={activeAgentIds[0] ?? ''}
-                onChange={(e) => setSelectedAgentIds(e.target.value ? [e.target.value] : [])}
+                value={selectedTeam ? selectedTeam.id : activeAgentIds[0] ?? ''}
+                onChange={(e) => {
+                  setSelectedAgentIds(e.target.value ? [e.target.value] : [])
+                  setSelectedTeam(null)
+                }}
                 className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none transition focus:border-[var(--agenthub-accent)]"
               >
+                {selectedTeam && <option value={selectedTeam.id}>{selectedTeam.name} · {activeAgents.length} 位协作</option>}
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>{getAgentDisplayName(agent)}</option>
                 ))}
@@ -1404,40 +1955,6 @@ function NewTaskView({
               >
                 {approvalMode === 'auto' ? '自动' : 'Review'}
               </Button>
-
-              <Button variant="outline" size="sm" className="h-8 rounded-lg border-slate-200 text-xs font-medium text-slate-600">
-                技能
-              </Button>
-
-              {/* 更多设置：折叠 连应用 / 默认权限 */}
-              <Popover>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      title="更多设置"
-                      className="h-8 w-8 rounded-lg border-slate-200 text-slate-500 hover:text-slate-700"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  }
-                />
-                <PopoverContent align="start" className="w-48 p-1">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 transition hover:bg-slate-100"
-                  >
-                    连应用
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 transition hover:bg-slate-100"
-                  >
-                    默认权限
-                  </button>
-                </PopoverContent>
-              </Popover>
 
               {/* 分割线 + 右侧操作区 */}
               <div className="ml-auto flex items-center gap-1.5">
@@ -1461,10 +1978,12 @@ function NewTaskView({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  title="语音输入"
+                  title={enhancingPrompt ? '提示词增强中' : '增强提示词'}
+                  onClick={() => void enhancePrompt()}
+                  disabled={enhancingPrompt || sending || uploading}
                   className="rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                 >
-                  <Mic className="size-4" />
+                  <Sparkles className="size-4" />
                 </Button>
                 <Button
                   onClick={() => void submit()}
@@ -1480,6 +1999,7 @@ function NewTaskView({
           </section>
 
           {/* 底部状态栏 - 居中对齐 */}
+          {sceneAgentError && <div className="mt-3 text-center text-xs text-amber-600 dark:text-amber-300">{sceneAgentError}</div>}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5 rounded-md px-1">
               选择工作空间
@@ -1491,14 +2011,14 @@ function NewTaskView({
             </span>
             <span className="text-slate-300">·</span>
             <span className="inline-flex items-center gap-1.5 rounded-md px-1">
-              {approvalMode === 'review' ? 'Review 保护 enabled' : 'Auto 模式 · 直接生效'}
+              {selectedTeam ? `已选择小队：${selectedTeam.name} · ${activeAgents.length} 位协作` : approvalMode === 'review' ? 'Review 保护 enabled' : 'Auto 模式 · 直接生效'}
             </span>
             {activeAgents.length > 0 && (
               <>
                 <span className="text-slate-300">·</span>
                 <span className="inline-flex items-center gap-1.5 rounded-md px-1 text-[var(--agenthub-accent)]">
                   <AgentAvatar agent={activeAgents[0]} size="xs" />
-                  {activeAgents.length === 1 ? getAgentDisplayName(activeAgents[0]) : `${getAgentDisplayName(activeAgents[0])} 等 ${activeAgents.length} 位 Agent`}
+                  {selectedTeam ? `${selectedTeam.name} · ${activeAgents.length} 位协作` : activeAgents.length === 1 ? getAgentDisplayName(activeAgents[0]) : `${getAgentDisplayName(activeAgents[0])} 等 ${activeAgents.length} 位 Agent`}
                 </span>
               </>
             )}
@@ -1506,6 +2026,54 @@ function NewTaskView({
         </div>
       </div>
     </div>
+  )
+}
+
+function TeamAvatarStack({ members }: { members: SummonableMember[] }) {
+  const hiddenCount = Math.max(members.length - 3, 0)
+
+  return (
+    <div className="flex -space-x-2">
+      {members.slice(0, 3).map((member) => (
+        <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-white/60 bg-white/90 text-sm shadow-sm shadow-slate-950/10 backdrop-blur dark:border-white/20 dark:bg-white/15">
+          {member.avatar}
+        </span>
+      ))}
+      {hiddenCount > 0 && (
+        <span className="flex size-7 items-center justify-center rounded-full border border-white/60 bg-white/85 text-[10px] font-medium text-slate-700 shadow-sm shadow-slate-950/10 backdrop-blur dark:border-white/20 dark:bg-white/15 dark:text-white/90">
+          +{hiddenCount}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function FeaturedTeamCard({ team, onOpen }: { team: SummonableTeam; onOpen: () => void }) {
+  const category = SUMMON_SCENE_CATEGORIES.find((item) => item.id === team.category)
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn('group relative flex h-[176px] w-[300px] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-4 text-left text-white shadow-sm shadow-slate-950/10 ring-1 ring-black/5 transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-950/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)] focus-visible:ring-offset-2 active:translate-y-0 sm:w-[340px] lg:w-[360px]', team.coverClassName)}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.08),rgba(15,23,42,0.38)_46%,rgba(15,23,42,0.9))]" />
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-medium text-white/90 shadow-sm backdrop-blur-md">{category?.label}</span>
+          <span className="shrink-0 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-medium text-white/90 shadow-sm backdrop-blur-md">{team.heat}</span>
+        </div>
+        <div className="mt-auto">
+          <div className="text-xs font-medium text-white/72">{team.type === 'team' ? '热门团队' : '热门 Agent'}</div>
+          <h3 className="mt-1 truncate text-[17px] font-semibold tracking-tight text-white drop-shadow-sm">{team.name}</h3>
+          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-white/82">{team.description}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <TeamAvatarStack members={team.members} />
+            <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur transition group-hover:bg-white/22">打开详情</span>
+          </div>
+        </div>
+      </div>
+    </button>
   )
 }
 
@@ -1557,8 +2125,8 @@ function ConversationWorkspace() {
   }, [])
 
   return (
-    <div className="flex h-full min-w-0 gap-3 p-3 xl:p-4">
-      <section className="flex min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 sm:min-w-[360px]">
+    <div className="flex h-[calc(100vh-var(--agenthub-titlebar-height,0px))] min-w-0 gap-3 p-3 xl:p-4">
+      <section className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70 sm:min-w-[360px]">
         <ChatPanel />
         {workspaceOpen && (
           <ResizableRightPanel width={rightWidth} />
@@ -1571,7 +2139,7 @@ function ConversationWorkspace() {
 
 function ResizableRightPanel({ width }: { width: number }) {
   return (
-    <div className="hidden min-w-0 shrink-0 overflow-hidden border-l border-slate-100 lg:block" style={{ width }}>
+    <div className="hidden h-full min-w-0 shrink-0 overflow-hidden border-l border-slate-100 lg:block" style={{ width }}>
       <div className="flex h-9 items-center justify-between border-b border-slate-100 bg-slate-50/70 px-3 text-xs text-slate-500">
         <span className="font-medium">右侧工作区</span>
         <span className="text-[11px] text-slate-400">点击文件或产物入口时显示</span>
@@ -1668,26 +2236,53 @@ function formatConversationTime(value: number) {
 
 function AgentWorkspace({
   onOpenConversations,
-  onStartScenario,
+  onOpenTeamDetail,
 }: {
   onOpenConversations: () => void
-  onStartScenario: (draft: DraftTask) => void
+  onOpenTeamDetail: (team: SummonableTeam) => void
 }) {
   const agents = useAgentList()
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('全部')
   const [agentView, setAgentView] = useState<'featured' | 'mine'>('featured')
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  const [selectedPresetId, setSelectedPresetId] = useState<string>(RESOURCE_AGENT_PRESETS[0]?.id ?? '')
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
+  const [agentDetailOpen, setAgentDetailOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [startingPresetId, setStartingPresetId] = useState<string | null>(null)
-  const [listAtBottom, setListAtBottom] = useState(false)
-  const listViewportRef = useRef<HTMLDivElement>(null)
+  const [deleteTargetAgentId, setDeleteTargetAgentId] = useState<string | null>(null)
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
+  const [agentFeedback, setAgentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [selectedDeleteAgentIds, setSelectedDeleteAgentIds] = useState<Set<string>>(() => new Set())
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
+  const [batchDeleting, setBatchDeleting] = useState(false)
+  const [featuredMyAgentIds, setFeaturedMyAgentIds] = useState<Set<string>>(() => new Set())
+  const [addingPresetId, setAddingPresetId] = useState<string | null>(null)
+  const [visiblePresetCount, setVisiblePresetCount] = useState(FEATURED_AGENT_PAGE_SIZE)
   const upsertConversation = useAppStore((s) => s.upsertConversation)
   const upsertAgent = useAppStore((s) => s.upsertAgent)
+  const removeAgent = useAppStore((s) => s.removeAgent)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
 
-  const myAgents = agents
+  const myAgents = useMemo(() => {
+    return agents.filter((agent) => {
+      if (agent.isBuiltin) return false
+      if (!isPresetBackedAgent(agent)) return true
+      return featuredMyAgentIds.has(agent.id)
+    })
+  }, [agents, featuredMyAgentIds])
+
+  useEffect(() => {
+    setFeaturedMyAgentIds(readFeaturedMyAgentIds())
+  }, [])
+
+  useEffect(() => {
+    setSelectedDeleteAgentIds((current) => {
+      const visibleIds = new Set(myAgents.map((agent) => agent.id))
+      const next = new Set(Array.from(current).filter((id) => visibleIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [myAgents])
 
   const filteredPresets = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -1697,6 +2292,28 @@ function AgentWorkspace({
       return matchesQuery && matchesTab
     })
   }, [query, tab])
+  const visiblePresets = filteredPresets.slice(0, visiblePresetCount)
+  const hasMorePresets = visiblePresetCount < filteredPresets.length
+
+  useEffect(() => {
+    setVisiblePresetCount(FEATURED_AGENT_PAGE_SIZE)
+  }, [agentView, query, tab])
+
+  useEffect(() => {
+    if (agentView !== 'featured' || !hasMorePresets) return
+
+    const handleWindowScroll = () => {
+      const distanceToBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY
+      if (distanceToBottom > SCROLL_END_THRESHOLD_PX) return
+
+      setVisiblePresetCount((count) => Math.min(count + FEATURED_AGENT_PAGE_SIZE, filteredPresets.length))
+    }
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true })
+    handleWindowScroll()
+
+    return () => window.removeEventListener('scroll', handleWindowScroll)
+  }, [agentView, filteredPresets.length, hasMorePresets])
 
   const filteredAgents = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -1705,55 +2322,45 @@ function AgentWorkspace({
     })
   }, [myAgents, query])
 
-  const selectedAgent = agentView === 'mine'
-    ? (selectedAgentId ? agents.find((agent) => agent.id === selectedAgentId) : filteredAgents[0])
+  const selectedAgent = agentView === 'mine' && selectedAgentId
+    ? agents.find((agent) => agent.id === selectedAgentId)
     : undefined
-  const selectedPreset = RESOURCE_AGENT_PRESETS.find((preset) => preset.id === selectedPresetId) ?? filteredPresets[0] ?? RESOURCE_AGENT_PRESETS[0]
+  const selectedPreset = agentView === 'featured' && selectedPresetId
+    ? RESOURCE_AGENT_PRESETS.find((preset) => preset.id === selectedPresetId)
+    : undefined
+  const selectedPresetAgent = selectedPreset
+    ? agents.find((agent) => agent.name === selectedPreset.name || agent.name === getPresetDisplayName(selectedPreset))
+    : undefined
+  const selectedPresetAdded = selectedPresetAgent ? featuredMyAgentIds.has(selectedPresetAgent.id) : false
 
-  useEffect(() => {
-    setListAtBottom(false)
-    const viewport = listViewportRef.current
-    if (viewport) viewport.scrollTop = 0
-  }, [agentView, query, tab])
-
-  function updateListBottomState() {
-    const viewport = listViewportRef.current
-    if (!viewport) return
-    const canScroll = viewport.scrollHeight > viewport.clientHeight + 8
-    const atBottom = viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 24
-    setListAtBottom(canScroll && atBottom)
-  }
-
-  useEffect(() => {
-    const viewport = listViewportRef.current
-    if (!viewport) return
-    updateListBottomState()
-    viewport.addEventListener('scroll', updateListBottomState)
-    window.addEventListener('resize', updateListBottomState)
-    return () => {
-      viewport.removeEventListener('scroll', updateListBottomState)
-      window.removeEventListener('resize', updateListBottomState)
+  const addPresetToMine = async (preset: ResourceAgentPreset) => {
+    if (addingPresetId) return
+    setAddingPresetId(preset.id)
+    setAgentFeedback(null)
+    try {
+      const knownAgents = [...agents]
+      const agent = await resolveOrCreatePresetAgent(preset, knownAgents, upsertAgent)
+      setFeaturedMyAgentIds((current) => {
+        const next = new Set(current)
+        next.add(agent.id)
+        writeFeaturedMyAgentIds(next)
+        return next
+      })
+      setAgentFeedback({ type: 'success', message: `已添加「${getPresetDisplayName(preset)}」到我的 Agent。` })
+    } catch (err) {
+      console.error('[AgentWorkspace] add preset to mine failed', err)
+      setAgentFeedback({ type: 'error', message: '添加精选 Agent 失败，请稍后重试。' })
+    } finally {
+      setAddingPresetId(null)
     }
-  }, [agentView, filteredAgents.length, filteredPresets.length])
+  }
 
   const startPresetConversation = async (preset: ResourceAgentPreset) => {
     if (startingPresetId) return
     setStartingPresetId(preset.id)
     try {
-      const existingAgent = agents.find((agent) => agent.name === preset.name || agent.name === getPresetDisplayName(preset))
-      const agent = existingAgent ?? await createAgent({
-        name: getPresetDisplayName(preset),
-        avatar: preset.avatar,
-        description: preset.description,
-        capabilities: preset.capabilities,
-        systemPrompt: preset.systemPrompt,
-        adapterName: 'custom',
-        modelProvider: 'deepseek',
-        modelId: preset.modelId,
-        toolNames: preset.toolNames,
-        supportsVision: false,
-      })
-      if (!existingAgent) upsertAgent(agent)
+      const knownAgents = [...agents]
+      const agent = await resolveOrCreatePresetAgent(preset, knownAgents, upsertAgent)
       const conv = await createConversation({ mode: 'single', agentIds: [agent.id] })
       upsertConversation(conv)
       setActiveConversation(conv.id)
@@ -1776,10 +2383,88 @@ function AgentWorkspace({
     }
   }
 
+  const confirmDeleteAgent = async () => {
+    if (!deleteTargetAgentId || deletingAgentId) return
+
+    const target = agents.find((agent) => agent.id === deleteTargetAgentId)
+    if (!target || target.isBuiltin) return
+
+    setDeletingAgentId(target.id)
+    setAgentFeedback(null)
+    try {
+      await deleteAgent(target.id)
+      removeAgent(target.id)
+      setSelectedAgentId((current) => current === target.id ? null : current)
+      if (selectedAgentId === target.id) setAgentDetailOpen(false)
+      setSelectedDeleteAgentIds((current) => {
+        const next = new Set(current)
+        next.delete(target.id)
+        return next
+      })
+      setDeleteTargetAgentId(null)
+      setAgentFeedback({ type: 'success', message: `已删除 Agent「${getAgentDisplayName(target)}」。` })
+    } catch (err) {
+      console.error('[AgentWorkspace] delete agent failed', err)
+      setAgentFeedback({ type: 'error', message: '删除 Agent 失败，请确认该 Agent 未被会话或产物引用。' })
+    } finally {
+      setDeletingAgentId(null)
+    }
+  }
+
+  const deleteSelectedAgents = async () => {
+    const targetIds = Array.from(selectedDeleteAgentIds)
+    if (targetIds.length === 0 || batchDeleting) return
+
+    setBatchDeleting(true)
+    setAgentFeedback(null)
+    try {
+      const results = await Promise.allSettled(targetIds.map(async (id) => {
+        const agent = agents.find((item) => item.id === id)
+        if (!agent || agent.isBuiltin) throw new Error(`Agent cannot be deleted: ${id}`)
+        await deleteAgent(id)
+        return agent
+      }))
+      const succeededAgents = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+      const succeededIds = new Set(succeededAgents.map((agent) => agent.id))
+      const failedCount = targetIds.length - succeededIds.size
+
+      for (const agent of succeededAgents) removeAgent(agent.id)
+      setSelectedDeleteAgentIds((current) => {
+        const next = new Set(current)
+        for (const id of succeededIds) next.delete(id)
+        return next
+      })
+      setSelectedAgentId((current) => current && succeededIds.has(current) ? null : current)
+      if (selectedAgentId && succeededIds.has(selectedAgentId)) setAgentDetailOpen(false)
+      if (failedCount > 0) {
+        setAgentFeedback({ type: 'error', message: `已删除 ${succeededIds.size} 个，${failedCount} 个删除失败。` })
+      } else {
+        setBatchDeleteOpen(false)
+        setAgentFeedback({ type: 'success', message: `已删除 ${succeededIds.size} 个 Agent。` })
+      }
+    } catch (err) {
+      console.error('[AgentWorkspace] batch delete agents failed', err)
+      setAgentFeedback({ type: 'error', message: '批量删除 Agent 失败，请稍后重试。' })
+    } finally {
+      setBatchDeleting(false)
+    }
+  }
+
+  const toggleDeleteSelection = (agentId: string) => {
+    setSelectedDeleteAgentIds((current) => {
+      const next = new Set(current)
+      if (next.has(agentId)) next.delete(agentId)
+      else next.add(agentId)
+      return next
+    })
+  }
+
+  const deleteTargetAgent = deleteTargetAgentId ? agents.find((agent) => agent.id === deleteTargetAgentId) : null
+
   return (
-    <div className="flex h-full min-w-0 gap-3 p-4 xl:p-5">
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)]">
-        <div className="shrink-0 border-b border-slate-200 p-4">
+    <div className="flex min-w-0 items-start gap-3 p-4 xl:p-5">
+      <section className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
+        <div className="border-b border-slate-200 p-4 dark:border-white/10">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Agent 库</h1>
@@ -1790,9 +2475,26 @@ function AgentWorkspace({
                 <Plus className="mr-2 size-4" />
                 创建 Agent
               </Button>
+              {agentView === 'mine' && (
+                <Button
+                  variant="outline"
+                  disabled={selectedDeleteAgentIds.size === 0 || batchDeleting}
+                  onClick={() => setBatchDeleteOpen(true)}
+                  className="rounded-md border-slate-200"
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  {selectedDeleteAgentIds.size > 0 ? `批量删除 (${selectedDeleteAgentIds.size})` : '批量删除'}
+                </Button>
+              )}
               <Button
                 variant="outline"
-                onClick={() => setAgentView((view) => (view === 'mine' ? 'featured' : 'mine'))}
+                onClick={() => {
+                  setAgentView((view) => (view === 'mine' ? 'featured' : 'mine'))
+                  setAgentDetailOpen(false)
+                  setSelectedAgentId(null)
+                  setSelectedPresetId(null)
+                  setSelectedDeleteAgentIds(new Set())
+                }}
                 className={cn(
                   'rounded-md border-slate-200',
                   agentView === 'mine' && 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-100',
@@ -1812,74 +2514,105 @@ function AgentWorkspace({
             />
           </div>
           {agentView === 'featured' && (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <HorizontalScrollControls className="mt-3" contentClassName="gap-2 pb-1" scrollAmount={220}>
               {featuredCategories.map((item) => (
-                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs transition', tab === item ? 'border-slate-300 bg-slate-100 text-slate-900' : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-900')}>
+                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)]' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-400 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100')}>
                   {item}
                 </button>
               ))}
-            </div>
+            </HorizontalScrollControls>
           )}
           {agentView === 'featured' && (
-            <div className="mt-3 border-t border-slate-100 pt-3">
+            <div className="mt-3 border-t border-slate-100 pt-3 dark:border-white/10">
               <div className="mb-2">
-                <h2 className="text-sm font-semibold text-slate-900">精选场景</h2>
-                <p className="mt-1 text-xs text-slate-500">一键组合 Agent，快速载入任务提示词</p>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">精选场景</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">从场景卡片进入统一团队详情，召唤后直接创建会话</p>
               </div>
-              <div className="grid grid-cols-2 gap-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
-                {FEATURED_SCENARIOS.map((scenario) => (
-                  <ScenarioCard
-                    key={scenario.id}
-                    scenario={scenario}
-                    onStart={() => onStartScenario({
-                      agentPresetIds: scenario.agentPresetIds,
-                      prompt: scenario.prompt,
-                      sourceScenarioTitle: scenario.title,
-                    })}
-                  />
+              <HorizontalScrollControls
+                className="-mx-1"
+                contentClassName="snap-x snap-mandatory gap-4 px-1 pb-3 pt-1"
+                scrollAmount={380}
+              >
+                {SUMMON_TEAMS.filter((team) => team.featured).map((team) => (
+                  <FeaturedTeamCard key={team.id} team={team} onOpen={() => onOpenTeamDetail(team)} />
                 ))}
-              </div>
+              </HorizontalScrollControls>
             </div>
           )}
         </div>
 
-        <ScrollArea className="min-h-0 flex-1" viewportRef={listViewportRef}>
-          <div className="space-y-4 p-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-            {agentView === 'featured' ? (
+        <div className="space-y-4 p-4">
+          {agentView === 'featured' ? (
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-slate-950">精选 Agent</h2>
-                    <p className="mt-1 text-xs text-slate-500">选择一个预设 Agent，直接开始对话</p>
+                    <h2 className="text-base font-semibold text-slate-950 dark:text-slate-100">精选 Agent</h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-                  {filteredPresets.map((preset) => {
-                    return (
-                      <ResourcePresetCard
-                        key={preset.id}
-                        preset={preset}
-                        starting={startingPresetId === preset.id}
-                        selected={selectedPreset?.id === preset.id}
-                        onSelect={() => setSelectedPresetId(preset.id)}
-                        onStart={() => void startPresetConversation(preset)}
-                      />
-                    )
-                  })}
+                <div className="min-h-[280px] pr-1">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+                    {visiblePresets.map((preset) => {
+                      return (
+                        <ResourcePresetCard
+                          key={preset.id}
+                          preset={preset}
+                          starting={startingPresetId === preset.id}
+                          selected={agentDetailOpen && selectedPreset?.id === preset.id}
+                          onSelect={() => {
+                            setSelectedPresetId(preset.id)
+                            setAgentDetailOpen(true)
+                          }}
+                          onStart={() => void startPresetConversation(preset)}
+                        />
+                      )
+                    })}
+                  </div>
+                  {filteredPresets.length > 0 && !hasMorePresets && (
+                    <div className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">已经到底了</div>
+                  )}
                 </div>
+                {filteredPresets.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center dark:border-white/10 dark:bg-neutral-950/40">
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">没有匹配的精选 Agent</div>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">试试切换分类或调整搜索关键词。</p>
+                  </div>
+                )}
               </section>
             ) : (
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-semibold">我的 Agent</h2>
-                    <p className="mt-1 text-xs text-slate-500">来自当前 AgentHub 数据库，可直接开始对话或继续配置</p>
+                    <p className="mt-1 text-xs text-slate-500">仅展示你创建的自定义 Agent，可直接开始对话或继续配置</p>
                   </div>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">{filteredAgents.length} 个</span>
                 </div>
+                {agentFeedback && (
+                  <div className={cn(
+                    'mb-3 rounded-lg border px-3 py-2 text-xs',
+                    agentFeedback.type === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-red-200 bg-red-50 text-red-600',
+                  )}>
+                    {agentFeedback.message}
+                  </div>
+                )}
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                   {filteredAgents.map((agent) => (
-                    <AgentCard key={agent.id} agent={agent} selected={selectedAgent?.id === agent.id} onSelect={() => setSelectedAgentId(agent.id)} onStart={() => void startConversation(agent)} />
+                    <AgentCard
+                      key={agent.id}
+                      agent={agent}
+                      selected={agentDetailOpen && selectedAgent?.id === agent.id}
+                      selectable={agentView === 'mine'}
+                      checked={selectedDeleteAgentIds.has(agent.id)}
+                      onToggleSelected={() => toggleDeleteSelection(agent.id)}
+                      onSelect={() => {
+                        setSelectedAgentId(agent.id)
+                        setAgentDetailOpen(true)
+                      }}
+                      onStart={() => void startConversation(agent)}
+                    />
                   ))}
                 </div>
                 {filteredAgents.length === 0 && (
@@ -1890,21 +2623,70 @@ function AgentWorkspace({
                 )}
               </section>
             )}
-          </div>
-          {listAtBottom && (
-            <div className="pointer-events-none sticky bottom-4 z-10 mx-auto mt-4 w-fit rounded-full border border-slate-200 bg-white/95 px-3 py-1.5 text-[11px] font-medium text-slate-500 shadow-sm shadow-slate-200/70 backdrop-blur">
-              已滚动到底部
-            </div>
-          )}
-        </ScrollArea>
+        </div>
       </section>
 
-      {agentView === 'featured' ? (
-        <FeaturedPresetDetailPanel preset={selectedPreset} />
-      ) : (
-        <AgentDetailPanel agent={selectedAgent} onStart={(agent) => void startConversation(agent)} />
+      {agentDetailOpen && selectedPreset && agentView === 'featured' && (
+        <FeaturedPresetDetailPanel
+          preset={selectedPreset}
+          addedToMine={selectedPresetAdded}
+          adding={addingPresetId === selectedPreset.id}
+          onAddToMine={(preset) => void addPresetToMine(preset)}
+          onClose={() => {
+            setSelectedPresetId(null)
+            setAgentDetailOpen(false)
+          }}
+        />
+      )}
+      {agentDetailOpen && selectedAgent && agentView === 'mine' && (
+        <AgentDetailPanel
+          agent={selectedAgent}
+          deleting={deletingAgentId === selectedAgent.id}
+          onStart={(agent) => void startConversation(agent)}
+          onDelete={(agent) => setDeleteTargetAgentId(agent.id)}
+          onClose={() => {
+            setSelectedAgentId(null)
+            setAgentDetailOpen(false)
+          }}
+        />
       )}
       <CreateAgentDialog open={formOpen} onOpenChange={setFormOpen} />
+      <Dialog open={Boolean(deleteTargetAgentId)} onOpenChange={(open) => {
+        if (!open && !deletingAgentId) setDeleteTargetAgentId(null)
+      }}>
+        <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+          <DialogHeader>
+            <DialogTitle>确认删除 Agent</DialogTitle>
+            <DialogDescription>
+              确定删除「{deleteTargetAgent ? getAgentDisplayName(deleteTargetAgent) : '该 Agent'}」吗？已使用该 Agent 的会话可能无法继续调用它。此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTargetAgentId(null)} disabled={Boolean(deletingAgentId)}>取消</Button>
+            <Button onClick={() => void confirmDeleteAgent()} disabled={Boolean(deletingAgentId)} className="bg-red-600 text-white hover:bg-red-700">
+              {deletingAgentId ? '删除中…' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={batchDeleteOpen} onOpenChange={(open) => {
+        if (!open && !batchDeleting) setBatchDeleteOpen(false)
+      }}>
+        <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+          <DialogHeader>
+            <DialogTitle>批量删除 Agent</DialogTitle>
+            <DialogDescription>
+              确定删除已选择的 {selectedDeleteAgentIds.size} 个 Agent 吗？已使用这些 Agent 的会话可能无法继续调用它们。此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchDeleteOpen(false)} disabled={batchDeleting}>取消</Button>
+            <Button onClick={() => void deleteSelectedAgents()} disabled={batchDeleting || selectedDeleteAgentIds.size === 0} className="bg-red-600 text-white hover:bg-red-700">
+              {batchDeleting ? '删除中…' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1953,22 +2735,25 @@ function getAgentDisplayName(agent: AgentRow) {
   return preset ? getPresetDisplayName(preset) : agent.name
 }
 
-function ScenarioCard({ scenario, onStart }: { scenario: FeaturedScenario; onStart: () => void }) {
-  const Icon = scenario.icon
+function isPresetBackedAgent(agent: AgentRow) {
+  return RESOURCE_AGENT_PRESETS.some((preset) => agent.name === preset.name || agent.name === getPresetDisplayName(preset))
+}
 
-  return (
-    <button
-      type="button"
-      onClick={onStart}
-      className="flex min-h-[92px] w-full flex-col rounded-lg border border-slate-200 bg-white p-3 text-left transition duration-200 hover:border-slate-300 hover:bg-slate-50"
-    >
-      <span className={cn('flex size-7 items-center justify-center rounded-md', scenario.iconWrapClassName)}>
-        <Icon className={cn('size-4', scenario.iconClassName)} />
-      </span>
-      <div className="mt-2 truncate text-sm font-semibold leading-5 text-slate-950">{scenario.title}</div>
-      <div className="mt-1 line-clamp-1 text-xs leading-5 text-slate-500">{scenario.description}</div>
-    </button>
-  )
+function readFeaturedMyAgentIds() {
+  if (typeof window === 'undefined') return new Set<string>()
+
+  try {
+    const raw = window.localStorage.getItem(FEATURED_MY_AGENT_IDS_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [])
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function writeFeaturedMyAgentIds(ids: Set<string>) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(FEATURED_MY_AGENT_IDS_KEY, JSON.stringify(Array.from(ids)))
 }
 
 function ResourcePresetCard({
@@ -1986,39 +2771,46 @@ function ResourcePresetCard({
 }) {
   return (
     <article
-      onClick={onSelect}
       className={cn(
-        'group relative flex min-h-[190px] cursor-pointer flex-col rounded-lg border bg-white p-3.5 transition duration-200 hover:border-slate-300 hover:bg-slate-50',
-        selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)]' : 'border-slate-200',
+        'group relative flex min-h-[190px] flex-col rounded-lg border bg-white p-3.5 transition duration-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
+        selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg transition duration-200">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg transition duration-200 dark:border-white/10 dark:bg-neutral-800">
           <span aria-hidden="true">{preset.avatar}</span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start gap-2">
-            <h3 className={cn('line-clamp-2 flex-1 text-[15px] font-semibold leading-5 text-slate-950', getPresetDisplayName(preset).length > 22 && 'text-sm leading-5')}>
+            <h3 className={cn('line-clamp-2 flex-1 text-[15px] font-semibold leading-5 text-slate-950 dark:text-slate-50', getPresetDisplayName(preset).length > 22 && 'text-sm leading-5')}>
               {getPresetDisplayName(preset)}
             </h3>
-            <span className="shrink-0 rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">{preset.category}</span>
+            <span className="shrink-0 rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{preset.category}</span>
           </div>
-          <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{preset.description}</p>
+          <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600 dark:text-slate-400">{preset.description}</p>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {preset.capabilities.slice(0, 2).map((capability) => (
-          <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600">
+          <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">
             {capability}
           </span>
         ))}
         {preset.capabilities.length > 2 && (
-          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400">+{preset.capabilities.length - 2}</span>
+          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
         )}
       </div>
 
-      <div className="mt-auto pt-4">
+      <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
+        <Button
+          size="sm"
+          onClick={onSelect}
+          variant="outline"
+          className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800"
+        >
+          详情
+        </Button>
         <Button
           size="sm"
           disabled={starting}
@@ -2027,28 +2819,40 @@ function ResourcePresetCard({
             onStart()
           }}
           variant="outline"
-          className="h-8 w-full rounded-md border-slate-300 bg-white text-xs text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+          className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800"
         >
-          {starting ? '创建对话中' : '开始对话'}
+          {starting ? '创建中' : '开始对话'}
         </Button>
       </div>
     </article>
   )
 }
 
-function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset }) {
+function FeaturedPresetDetailPanel({
+  preset,
+  addedToMine,
+  adding,
+  onAddToMine,
+  onClose,
+}: {
+  preset?: ResourceAgentPreset
+  addedToMine: boolean
+  adding: boolean
+  onAddToMine: (preset: ResourceAgentPreset) => void
+  onClose: () => void
+}) {
   const [promptOpen, setPromptOpen] = useState(false)
 
   if (!preset) {
     return (
-      <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
+      <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个精选 Agent 查看详情</div>
       </aside>
     )
   }
 
   return (
-    <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
+    <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
       <div className="flex h-full flex-col">
         <div className="border-b border-slate-200 p-4">
           <div className="flex items-start gap-3">
@@ -2062,6 +2866,15 @@ function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset })
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100"
+              title="关闭详情"
+              aria-label="关闭详情"
+            >
+              <X className="size-4" />
+            </button>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {preset.capabilities.slice(0, 2).map((capability) => (
@@ -2071,10 +2884,18 @@ function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset })
               <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400">+{preset.capabilities.length - 2}</span>
             )}
           </div>
+          <Button
+            variant="outline"
+            onClick={() => onAddToMine(preset)}
+            disabled={addedToMine || adding}
+            className="mt-3 w-full rounded-xl border-slate-200 text-xs"
+          >
+            <Plus className="mr-2 size-4" />
+            {addedToMine ? '已在我的 Agent' : adding ? '添加中…' : '添加到我的 Agent'}
+          </Button>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-3 p-4 text-sm">
+        <div className="space-y-3 p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -2119,56 +2940,102 @@ function FeaturedPresetDetailPanel({ preset }: { preset?: ResourceAgentPreset })
             <DetailSection icon={<FileCode2 className="size-4" />} title="最近产物">
               <HistoryRow icon={<FileText className="size-4" />} title={`${getPresetDisplayName(preset)} preset`} description="开始对话时会复用或创建对应 Agent 配置" time="预设" />
             </DetailSection>
-          </div>
-        </ScrollArea>
+        </div>
       </div>
     </aside>
   )
 }
 
-function AgentCard({ agent, selected, onSelect, onStart }: { agent: AgentRow; selected: boolean; onSelect: () => void; onStart: () => void }) {
+function AgentCard({
+  agent,
+  selected,
+  selectable,
+  checked,
+  onToggleSelected,
+  onSelect,
+  onStart,
+}: {
+  agent: AgentRow
+  selected: boolean
+  selectable: boolean
+  checked: boolean
+  onToggleSelected: () => void
+  onSelect: () => void
+  onStart: () => void
+}) {
   return (
-    <article onClick={onSelect} className={cn('relative cursor-pointer rounded-lg border bg-white p-3.5 transition hover:border-slate-300 hover:bg-slate-50', selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)]' : 'border-slate-200')}>
-      <div className="flex items-start gap-3">
+    <article className={cn('relative rounded-lg border bg-white p-3.5 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70', selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10')}>
+      {selectable && (
+        <button
+          type="button"
+          aria-pressed={checked}
+          title={checked ? '取消选择' : '选择用于批量删除'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleSelected()
+          }}
+          className={cn(
+            'absolute right-3 top-3 z-10 flex size-6 items-center justify-center rounded-md border text-xs transition',
+            checked
+              ? 'border-[var(--agenthub-accent,#2F5FD0)] bg-[var(--agenthub-accent,#2F5FD0)] text-white'
+              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-200',
+          )}
+        >
+          {checked && <Check className="size-4" />}
+        </button>
+      )}
+      <div className="flex items-start gap-3 pr-7">
         <AgentAvatar agent={agent} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-semibold">{getAgentDisplayName(agent)}</h3>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{agent.isBuiltin ? '内置' : '自定义'}</span>
+            <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{getAgentDisplayName(agent)}</h3>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{agent.isBuiltin ? '内置' : '自定义'}</span>
           </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{agent.description || '可配置的协作 Agent'}</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{agent.description || '可配置的协作 Agent'}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
         {[agent.adapterName, agent.isOrchestrator ? '编排' : '执行'].map((tag) => (
-          <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600">{tag}</span>
+          <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{tag}</span>
         ))}
-        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-400">+1</span>
+        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-400 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500">+1</span>
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-        <div className="truncate font-mono text-[11px] text-slate-500">{agent.modelId || 'default model'}</div>
+      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
+        <div className="truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">{agent.modelId || 'default model'}</div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="h-8 rounded-md text-xs" onClick={(e) => { e.stopPropagation(); onSelect() }}>详情</Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50" onClick={(e) => { e.stopPropagation(); onStart() }}>开始对话</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onSelect}>详情</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onStart}>开始对话</Button>
         </div>
       </div>
     </article>
   )
 }
 
-function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agent: AgentRow) => void }) {
+function AgentDetailPanel({
+  agent,
+  deleting,
+  onStart,
+  onDelete,
+  onClose,
+}: {
+  agent?: AgentRow
+  deleting: boolean
+  onStart: (agent: AgentRow) => void
+  onDelete: (agent: AgentRow) => void
+  onClose: () => void
+}) {
   const [promptOpen, setPromptOpen] = useState(false)
 
   if (!agent) {
     return (
-      <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
+      <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个 Agent 查看详情</div>
       </aside>
     )
   }
 
   return (
-    <aside className="hidden w-[340px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:block">
+    <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
       <div className="flex h-full flex-col">
         <div className="border-b border-slate-200 p-4">
           <div className="flex items-start gap-3">
@@ -2182,6 +3049,15 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">{agent.description || '可配置的协作 Agent'}</p>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100"
+              title="关闭详情"
+              aria-label="关闭详情"
+            >
+              <X className="size-4" />
+            </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-1.5">
             {agent.capabilities.map((capability) => (
@@ -2191,10 +3067,20 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
           <Button onClick={() => onStart(agent)} className="mt-4 w-full rounded-xl bg-[var(--agenthub-accent)] shadow-sm shadow-none transition hover:-translate-y-0.5 hover:bg-[var(--agenthub-accent-hover)] hover:shadow-md">
             开始对话
           </Button>
+          {!agent.isBuiltin && (
+            <Button
+              variant="outline"
+              onClick={() => onDelete(agent)}
+              disabled={deleting}
+              className="mt-2 w-full rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 className="mr-2 size-4" />
+              {deleting ? '删除中…' : '删除 Agent'}
+            </Button>
+          )}
         </div>
 
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-3 p-4 text-sm">
+        <div className="space-y-3 p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -2239,8 +3125,7 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
             <DetailSection icon={<FileCode2 className="size-4" />} title="最近产物">
               <HistoryRow icon={<FileText className="size-4" />} title="产物库联动" description="按 Agent 过滤待后端聚合字段补充" time="已接入" />
             </DetailSection>
-          </div>
-        </ScrollArea>
+        </div>
       </div>
     </aside>
   )
@@ -2249,62 +3134,218 @@ function AgentDetailPanel({ agent, onStart }: { agent?: AgentRow; onStart: (agen
 function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () => void }) {
   const [items, setItems] = useState<ArtifactListItem[]>([])
   const [query, setQuery] = useState('')
-  const [tab, setTab] = useState('全部')
+  const [tab, setTab] = useState<ArtifactTabId>('all')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<ArtifactFeedback>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [artifactDetailOpen, setArtifactDetailOpen] = useState(false)
+  const [visibleArtifactCount, setVisibleArtifactCount] = useState(ARTIFACT_GROUP_PAGE_SIZE)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [copiedArtifactId, setCopiedArtifactId] = useState<string | null>(null)
+  const [exportingId, setExportingId] = useState<string | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [deleteTargetIds, setDeleteTargetIds] = useState<string[] | null>(null)
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set())
+  const [pendingAction, setPendingAction] = useState<'delete' | null>(null)
   const upsertArtifact = useAppStore((s) => s.upsertArtifact)
   const openArtifactPreview = useAppStore((s) => s.openArtifactPreview)
   const previewArtifactId = useAppStore((s) => s.previewArtifactId)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
 
-  useEffect(() => {
-    fetchArtifacts()
-      .then((list) => {
-        setItems(list)
-        setSelectedId(list[0]?.id ?? null)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+  const showFeedback = useCallback((next: ArtifactFeedback) => {
+    setFeedback(next)
+    if (next?.type === 'success') window.setTimeout(() => setFeedback(null), 1800)
   }, [])
 
+  const loadArtifacts = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const list = await fetchArtifacts()
+      setItems(list)
+      setSelectedId((current) => current && list.some((item) => item.id === current) ? current : null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setLoadError(message)
+      showFeedback({ type: 'error', message: '产物加载失败，请重试。' })
+    } finally {
+      setLoading(false)
+    }
+  }, [showFeedback])
+
+  useEffect(() => {
+    void loadArtifacts()
+  }, [loadArtifacts])
+
   const groups = useMemo(() => groupArtifactVersions(items), [items])
+  const activeTab = artifactTabs.find((item) => item.id === tab) ?? artifactTabs[0]
   const filteredGroups = useMemo(() => {
     const q = query.trim().toLowerCase()
     return groups.filter((group) => {
       const item = group.latest
       const matchesQuery = !q || `${item.title} ${item.type} ${item.conversationTitle ?? ''}`.toLowerCase().includes(q)
-      const matchesTab = tab === '全部' || item.type.toLowerCase().includes(tab.toLowerCase().replace('web 原型', 'web'))
+      const matchesTab = activeTab.id === 'all' || activeTab.types.includes(item.type)
       return matchesQuery && matchesTab
     })
-  }, [groups, query, tab])
+  }, [activeTab, groups, query])
+  const visibleGroups = filteredGroups.slice(0, visibleArtifactCount)
+  const hasMoreArtifacts = visibleArtifactCount < filteredGroups.length
 
-  const selected = items.find((item) => item.id === selectedId) ?? filteredGroups[0]?.latest
+  useEffect(() => {
+    setVisibleArtifactCount(ARTIFACT_GROUP_PAGE_SIZE)
+  }, [query, tab, filteredGroups.length])
+
+  const selected = selectedId ? items.find((item) => item.id === selectedId) : undefined
   const previewOpen = Boolean(previewArtifactId)
 
+  useEffect(() => {
+    if (previewOpen || !hasMoreArtifacts) return
+
+    const handleWindowScroll = () => {
+      const distanceToBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY
+      if (distanceToBottom > SCROLL_END_THRESHOLD_PX) return
+
+      setVisibleArtifactCount((count) => Math.min(count + ARTIFACT_GROUP_PAGE_SIZE, filteredGroups.length))
+    }
+
+    window.addEventListener('scroll', handleWindowScroll, { passive: true })
+    handleWindowScroll()
+
+    return () => window.removeEventListener('scroll', handleWindowScroll)
+  }, [filteredGroups.length, hasMoreArtifacts, previewOpen])
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setSelectionMode(false)
+  }
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const exportArtifactSource = (artifactId: string) => {
+    setExportingId(artifactId)
+    window.location.href = artifactExportUrl(artifactId)
+    showFeedback({ type: 'success', message: '已开始导出产物。' })
+    window.setTimeout(() => setExportingId(null), 800)
+  }
+
+  const deleteArtifactsByIds = async (ids: string[]) => {
+    const targetIds = Array.from(new Set(ids))
+    if (targetIds.length === 0 || pendingAction) return
+
+    setPendingAction('delete')
+    setDeletingIds(new Set(targetIds))
+    try {
+      const results = await Promise.allSettled(targetIds.map((id) => deleteArtifact(id)))
+      const succeededIds = targetIds.filter((_, index) => results[index]?.status === 'fulfilled')
+      const failedCount = targetIds.length - succeededIds.length
+      const succeededSet = new Set(succeededIds)
+
+      setItems((current) => {
+        const next = current.filter((item) => !succeededSet.has(item.id))
+        setSelectedId((currentSelectedId) => {
+          if (!currentSelectedId || !succeededSet.has(currentSelectedId)) return currentSelectedId
+          setArtifactDetailOpen(false)
+          return null
+        })
+        return next
+      })
+      setSelectedIds((current) => {
+        const next = new Set(current)
+        for (const id of succeededIds) next.delete(id)
+        return next
+      })
+
+      if (failedCount > 0) showFeedback({ type: 'error', message: `已删除 ${succeededIds.length} 个，${failedCount} 个删除失败。` })
+      else {
+        showFeedback({ type: 'success', message: `已删除 ${succeededIds.length} 个产物。` })
+        clearSelection()
+      }
+    } catch (err) {
+      console.error('[ArtifactWorkspace] delete artifacts failed', err)
+      showFeedback({ type: 'error', message: '删除产物失败，请稍后重试。' })
+    } finally {
+      setDeletingIds(new Set())
+      setPendingAction(null)
+    }
+  }
+
   const openPreview = async (id: string) => {
+    setSelectedId(id)
+    setArtifactDetailOpen(true)
     try {
       const artifact = await fetchArtifact(id)
       upsertArtifact(artifact)
       openArtifactPreview(id)
     } catch (err) {
       console.error('[ArtifactWorkspace] open preview failed', err)
+      showFeedback({ type: 'error', message: '打开预览失败，请稍后重试。' })
     }
   }
 
+  const copyArtifactReference = async (item: ArtifactListItem) => {
+    if (!navigator.clipboard?.writeText) {
+      showFeedback({ type: 'error', message: '当前环境不支持剪贴板写入。' })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(buildArtifactReference(item))
+      setCopiedArtifactId(item.id)
+      showFeedback({ type: 'success', message: '已复制产物引用。' })
+      window.setTimeout(() => setCopiedArtifactId(null), 1500)
+    } catch (err) {
+      console.error('[ArtifactWorkspace] copy reference failed', err)
+      showFeedback({ type: 'error', message: '复制失败，请检查剪贴板权限。' })
+    }
+  }
+
+  const showArtifactDetailPanel = artifactDetailOpen && Boolean(selected)
+  const previewOnly = previewOpen && !showArtifactDetailPanel
+
+  const confirmDelete = async () => {
+    if (!deleteTargetIds) return
+    await deleteArtifactsByIds(deleteTargetIds)
+    setDeleteTargetIds(null)
+  }
+
   return (
-    <div className={cn('flex h-full min-w-0 gap-4 bg-[var(--agenthub-surface-muted)]', previewOpen ? 'p-4 xl:p-5' : 'p-4 xl:p-5')}>
+    <div
+      className={cn(
+        'flex min-w-0 gap-4 bg-[var(--agenthub-surface-muted)] p-4 xl:p-5',
+        previewOnly
+          ? 'h-[calc(100vh-var(--agenthub-titlebar-height,0px))] items-stretch overflow-hidden'
+          : 'items-start',
+      )}
+    >
       {!previewOpen && (
-        <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
+        <section className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
           <div className="shrink-0 border-b border-slate-100 p-4 dark:border-white/10 xl:p-5">
             <div className="flex flex-nowrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="truncate text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">产物库</h1>
                 <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">集中管理文档、原型、PPT、图片、项目和历史版本</p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" className="h-8 rounded-lg px-3 text-xs">批量管理</Button>
-                <Button variant="outline" className="h-8 rounded-lg px-3 text-xs">导出</Button>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {selectionMode ? (
+                  <>
+                    <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" disabled={selectedIds.size === 0 || pendingAction === 'delete'} onClick={() => setDeleteTargetIds(Array.from(selectedIds))}>
+                      {pendingAction === 'delete' ? '删除中…' : `删除所选(${selectedIds.size})`}
+                    </Button>
+                    <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" disabled={pendingAction === 'delete'} onClick={clearSelection}>完成</Button>
+                  </>
+                ) : (
+                  <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={() => setSelectionMode(true)}>批量管理</Button>
+                )}
+                <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" disabled={!selected || exportingId === selected.id} onClick={() => selected && exportArtifactSource(selected.id)}>{selected && exportingId === selected.id ? '导出中…' : '导出源码'}</Button>
                 <Button
                   variant="outline"
                   size="icon"
@@ -2322,32 +3363,96 @@ function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () =>
               <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索产物、版本或来源会话" className="h-9 w-full rounded-lg border-slate-200 bg-slate-50 pl-10 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-ring/20 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-100 dark:placeholder:text-slate-500" />
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <HorizontalScrollControls className="mt-3" contentClassName="gap-2 pb-1" scrollAmount={220}>
               {artifactTabs.map((item) => (
-                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-400 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100')}>{item}</button>
+                <button key={item.id} type="button" onClick={() => setTab(item.id)} className={cn('shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition', tab === item.id ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-400 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100')}>{item.label}</button>
               ))}
-            </div>
+            </HorizontalScrollControls>
+
+            {feedback && (
+              <div className={cn('mt-3 rounded-lg border px-3 py-2 text-xs', feedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300')}>
+                {feedback.message}
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <LibraryStat label="产物组" value={String(filteredGroups.length)} />
               <LibraryStat label="总版本" value={String(items.length)} />
-              <LibraryStat label="当前分类" value={tab} />
+              <LibraryStat label="当前分类" value={activeTab.label} />
               <LibraryStat label="视图" value={viewMode === 'grid' ? '网格' : '列表'} />
             </div>
           </div>
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className={cn('p-4 xl:p-5', viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3' : 'space-y-2')}>
-              {loading ? <div className="text-sm text-slate-500 dark:text-slate-400">加载中…</div> : filteredGroups.map((group) => (
-                <ArtifactCard key={group.rootId} item={group.latest} versions={group.versions.length} selected={selected?.id === group.latest.id} compact={viewMode === 'list'} onSelect={() => setSelectedId(group.latest.id)} onPreview={() => void openPreview(group.latest.id)} onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }} />
-              ))}
-              {!loading && filteredGroups.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">暂无匹配产物</div>}
-            </div>
-          </ScrollArea>
+          <div
+            className={cn(
+              'min-h-[320px] p-4 xl:p-5',
+              viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3' : 'space-y-2',
+            )}
+          >
+            {loading ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400">加载中…</div>
+            ) : loadError ? (
+              <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-6 py-12 text-center text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                <div>产物加载失败</div>
+                <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => void loadArtifacts()}>重试</Button>
+              </div>
+            ) : visibleGroups.map((group) => (
+              <ArtifactCard
+                key={group.rootId}
+                item={group.latest}
+                versions={group.versions.length}
+                selected={artifactDetailOpen && selected?.id === group.latest.id}
+                compact={viewMode === 'list'}
+                selectable={selectionMode}
+                checked={selectedIds.has(group.latest.id)}
+                deleting={deletingIds.has(group.latest.id)}
+                onToggleSelected={() => toggleSelected(group.latest.id)}
+                onSelect={() => {
+                  setSelectedId(group.latest.id)
+                  setArtifactDetailOpen(true)
+                }}
+                onPreview={() => void openPreview(group.latest.id)}
+                onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }}
+              />
+            ))}
+            {!loading && !loadError && filteredGroups.length > 0 && !hasMoreArtifacts && (
+              <div className={cn('py-4 text-center text-xs text-slate-400 dark:text-slate-500', viewMode === 'grid' && 'col-span-full')}>已经到底了</div>
+            )}
+            {!loading && !loadError && filteredGroups.length === 0 && <div className={cn('rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400', viewMode === 'grid' && 'col-span-full')}>{items.length === 0 ? '暂无产物' : '暂无匹配产物'}</div>}
+          </div>
         </section>
       )}
-      <ArtifactDetailPanel item={selected} previewOpen={previewOpen} onPreview={(id) => void openPreview(id)} onOpenConversation={(id) => { setActiveConversation(id); onOpenConversations() }} />
-      <ArtifactPreviewPanel />
+      {showArtifactDetailPanel && selected && (
+        <ArtifactDetailPanel
+          item={selected}
+          previewOpen={previewOpen}
+          copied={copiedArtifactId === selected?.id}
+          exporting={Boolean(selected && exportingId === selected.id)}
+          deleting={Boolean(selected && deletingIds.has(selected.id))}
+          onPreview={(id) => void openPreview(id)}
+          onCopyReference={(item) => void copyArtifactReference(item)}
+          onExport={exportArtifactSource}
+          onDelete={(id) => setDeleteTargetIds([id])}
+          onOpenConversation={(id) => { setActiveConversation(id); onOpenConversations() }}
+          onClose={() => {
+            setSelectedId(null)
+            setArtifactDetailOpen(false)
+          }}
+        />
+      )}
+      <ArtifactPreviewPanel fullHeight={previewOnly} />
+      <Dialog open={Boolean(deleteTargetIds)} onOpenChange={(open) => { if (!open && pendingAction !== 'delete') setDeleteTargetIds(null) }}>
+        <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+          <DialogHeader>
+            <DialogTitle>确认删除产物</DialogTitle>
+            <DialogDescription>确认删除 {deleteTargetIds?.length ?? 0} 个产物？此操作不可撤销。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTargetIds(null)} disabled={pendingAction === 'delete'}>取消</Button>
+            <Button onClick={() => void confirmDelete()} disabled={pendingAction === 'delete'} className="bg-red-600 text-white hover:bg-red-700">{pendingAction === 'delete' ? '删除中…' : '确认删除'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -2361,16 +3466,59 @@ function LibraryStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, onOpenConversation }: { item: ArtifactListItem; versions: number; selected: boolean; compact: boolean; onSelect: () => void; onPreview: () => void; onOpenConversation: () => void }) {
+function ArtifactCard({
+  item,
+  versions,
+  selected,
+  compact,
+  selectable,
+  checked,
+  deleting,
+  onToggleSelected,
+  onSelect,
+  onPreview,
+  onOpenConversation,
+}: {
+  item: ArtifactListItem
+  versions: number
+  selected: boolean
+  compact: boolean
+  selectable: boolean
+  checked: boolean
+  deleting: boolean
+  onToggleSelected: () => void
+  onSelect: () => void
+  onPreview: () => void
+  onOpenConversation: () => void
+}) {
+  const selector = selectable ? (
+    <button
+      type="button"
+      aria-pressed={checked}
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggleSelected()
+      }}
+      className={cn(
+        'absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded-md border text-xs shadow-sm transition',
+        checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-slate-200 bg-white text-transparent hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900',
+      )}
+    >
+      <Check className="size-3.5" />
+    </button>
+  ) : null
+
   if (compact) {
     return (
       <article
-        onClick={onSelect}
         className={cn(
-          'relative grid cursor-pointer grid-cols-[44px_minmax(0,1.5fr)_minmax(150px,0.9fr)_120px_176px] items-center gap-4 rounded-lg border bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
+          'relative grid grid-cols-[44px_minmax(0,1.5fr)_minmax(150px,0.9fr)_120px_232px] items-center gap-4 rounded-lg border bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
           selected ? 'border-[var(--agenthub-accent-border)] before:absolute before:left-0 before:top-2 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
+          selectable && 'pl-10',
+          deleting && 'pointer-events-none opacity-60',
         )}
       >
+        {selector}
         <div className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300"><FileText className="size-4" /></div>
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{item.title}</h3>
@@ -2382,8 +3530,9 @@ function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, 
         </div>
         <div className="truncate text-xs text-slate-500 dark:text-slate-400">{formatTime(item.createdAt)}</div>
         <div className="flex justify-end gap-2">
-          <Button size="sm" className="h-8 rounded-lg px-3 text-xs" onClick={(e) => { e.stopPropagation(); onPreview() }}>预览</Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={(e) => { e.stopPropagation(); onOpenConversation() }}>打开会话</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={onSelect}>详情</Button>
+          <Button size="sm" className="h-8 rounded-lg px-3 text-xs" onClick={onPreview}>预览</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={onOpenConversation}>打开会话</Button>
         </div>
       </article>
     )
@@ -2391,12 +3540,14 @@ function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, 
 
   return (
     <article
-      onClick={onSelect}
       className={cn(
-        'relative flex min-h-[236px] cursor-pointer flex-col rounded-lg border bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
+        'relative flex min-h-[236px] flex-col rounded-lg border bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
         selected ? 'border-[var(--agenthub-accent-border)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
+        selectable && 'pt-10',
+        deleting && 'pointer-events-none opacity-60',
       )}
     >
+      {selector}
       <div className="flex min-w-0 items-start gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300"><FileText className="size-4" /></div>
         <div className="min-w-0 flex-1">
@@ -2412,17 +3563,42 @@ function ArtifactCard({ item, versions, selected, compact, onSelect, onPreview, 
         <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">更新时间</span><span className="truncate">{formatTime(item.createdAt)}</span></div>
       </div>
 
-      <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 dark:border-white/10">
-        <Button size="sm" className="h-8 rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); onPreview() }}>预览</Button>
-        <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={(e) => { e.stopPropagation(); onOpenConversation() }}>打开会话</Button>
+      <div className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 dark:border-white/10">
+        <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={onSelect}>详情</Button>
+        <Button size="sm" className="h-8 rounded-lg text-xs" onClick={onPreview}>预览</Button>
+        <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={onOpenConversation}>打开会话</Button>
       </div>
     </article>
   )
 }
 
-function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation }: { item?: ArtifactListItem; previewOpen: boolean; onPreview: (id: string) => void; onOpenConversation: (conversationId: string) => void }) {
+function ArtifactDetailPanel({
+  item,
+  previewOpen,
+  copied,
+  exporting,
+  deleting,
+  onPreview,
+  onCopyReference,
+  onExport,
+  onDelete,
+  onOpenConversation,
+  onClose,
+}: {
+  item?: ArtifactListItem
+  previewOpen: boolean
+  copied: boolean
+  exporting: boolean
+  deleting: boolean
+  onPreview: (id: string) => void
+  onCopyReference: (item: ArtifactListItem) => void
+  onExport: (id: string) => void
+  onDelete: (id: string) => void
+  onOpenConversation: (conversationId: string) => void
+  onClose: () => void
+}) {
   return (
-    <aside className={cn('hidden shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900 xl:block', previewOpen ? 'w-[360px] 2xl:w-[380px]' : 'w-[360px]')}>
+    <aside className={cn('hidden shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900 xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block', previewOpen ? 'w-[360px] 2xl:w-[380px]' : 'w-[360px]')}>
       {item ? (
         <div className="flex h-full flex-col">
           <div className="border-b border-slate-200 p-4 dark:border-white/10">
@@ -2437,6 +3613,15 @@ function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation 
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{item.conversationTitle ?? '未命名会话'}</p>
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100"
+                title="关闭详情"
+                aria-label="关闭详情"
+              >
+                <X className="size-4" />
+              </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">{item.type}</span>
@@ -2444,8 +3629,7 @@ function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation 
               <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">可预览</span>
             </div>
           </div>
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-3 p-4 text-sm">
+          <div className="space-y-3 p-4 text-sm">
               <DetailSection icon={<SlidersHorizontal className="size-4" />} title="元数据" aside={<SavedState />}>
                 <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <Meta label="创建者" value={item.createdByAgentId ?? 'Agent'} />
@@ -2458,9 +3642,13 @@ function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation 
               <DetailSection icon={<Wrench className="size-4" />} title="快捷操作">
                 <div className="grid gap-2">
                   <Button onClick={() => onPreview(item.id)} className="rounded-lg">打开预览</Button>
-                  <Button variant="outline" className="rounded-lg">复制引用</Button>
-                  <Button variant="outline" className="rounded-lg">导出源码</Button>
+                  <Button variant="outline" className="rounded-lg" onClick={() => onCopyReference(item)}>{copied ? '已复制' : '复制引用'}</Button>
+                  <Button variant="outline" className="rounded-lg" disabled={exporting} onClick={() => onExport(item.id)}>{exporting ? '导出中…' : '导出源码'}</Button>
                   <Button variant="outline" className="rounded-lg" onClick={() => onOpenConversation(item.conversationId)}>打开会话</Button>
+                  <Button variant="outline" className="rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10" disabled={deleting} onClick={() => onDelete(item.id)}>
+                    <Trash2 className="mr-2 size-4" />
+                    {deleting ? '删除中…' : '删除产物'}
+                  </Button>
                 </div>
               </DetailSection>
 
@@ -2471,8 +3659,7 @@ function ArtifactDetailPanel({ item, previewOpen, onPreview, onOpenConversation 
               <DetailSection icon={<FileText className="size-4" />} title="产物标识">
                 <div className="truncate rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-400">{item.id}</div>
               </DetailSection>
-            </div>
-          </ScrollArea>
+          </div>
         </div>
       ) : (
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500 dark:text-slate-400">选择一个产物查看详情</div>
