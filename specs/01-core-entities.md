@@ -278,9 +278,73 @@ interface Attachment {
 | Workspace | `ws_` |
 | AgentRun | `run_` |
 | Attachment | `att_` |
+| Automation | `auto_` |
+| AutomationRun | `arun_` |
+| AutomationRunLog | `alog_` |
 | ToolCall（内存中） | `call_` |
 
 ID 用 `nanoid(12)`，URL-safe alphabet。详见 `src/server/ids.ts`。
+
+---
+
+## 自动化支撑实体
+
+`Automation`、`AutomationRun` 与 `AutomationRunLog` 服务于自动化能力看板、任务计划和触发执行链路。它们不是原始 IM 会话聚合的一部分，但执行时复用 Conversation、AgentRun、Tool 和 Workspace 沙箱能力。
+
+```typescript
+interface Automation {
+  id: string
+  title: string
+  description: string
+  category: string
+  cadence: string                    // 展示文案，由 scheduleType/config 派生或人工填写
+  status: 'enabled' | 'running' | 'draft' | 'paused'
+  iconKey: 'newspaper' | 'languages' | 'calendar_clock' | 'video' | 'history'
+  prompt: string                     // 自动化触发时发送到会话的用户任务内容
+  agentId?: string                   // 可选；为空时服务层自动选择默认 Agent 并回写绑定
+  conversationId?: string            // 可选；为空时服务层自动创建同名会话并回写绑定
+  workspaceId?: string               // 可选；预留给后续 workspace 绑定展示
+  scheduleType: 'manual' | 'interval' | 'daily' | 'weekly'
+  scheduleConfig?: unknown           // JSON；由应用层 zod 按 scheduleType 校验
+  nextRunAt?: number                 // enabled 且非 manual 时参与本地调度扫描
+  latestRunAt?: number
+  lastError?: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface AutomationRun {
+  id: string
+  automationId: string
+  status: 'success' | 'failed' | 'running'
+  trigger: 'manual' | 'schedule'
+  agentRunId?: string
+  conversationId?: string
+  attempt: number
+  durationMs?: number
+  startedAt: number
+  finishedAt?: number
+  error?: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface AutomationRunLog {
+  id: string
+  runId: string
+  level: 'info' | 'warn' | 'error'
+  message: string
+  metadata?: string
+  createdAt: number
+}
+```
+
+**约束**：
+- 删除 Automation 时级联删除其 AutomationRun 与 AutomationRunLog。
+- `status='draft' | 'paused'` 不进入自动调度；`status='enabled'` 且 `nextRunAt <= now` 才会被 scheduler 扫描。
+- `status='running'` 仅兼容早期看板 seed；新逻辑以 `AutomationRun.status='running'` 表达运行中。
+- `scheduleConfig` 按 `scheduleType` 校验：`interval.intervalMinutes`、`daily.timeOfDay`、`weekly.dayOfWeek + timeOfDay`。
+- 手动执行必须通过 `AutomationService.runAutomation()` 写入 run 和 log；真实 Agent 执行必须复用 Conversation/AgentRun 路径，不直接调用 LLM SDK。
 
 ---
 

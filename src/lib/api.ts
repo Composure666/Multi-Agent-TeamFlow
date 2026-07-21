@@ -30,6 +30,80 @@ export interface ArtifactListItem {
   createdAt: number
 }
 
+export type AutomationStatus = 'enabled' | 'running' | 'draft' | 'paused'
+export type AutomationRunStatus = 'success' | 'failed' | 'running'
+export type AutomationIconKey = 'newspaper' | 'languages' | 'calendar_clock' | 'video' | 'history'
+export type AutomationScheduleType = 'manual' | 'interval' | 'daily' | 'weekly'
+export type AutomationRunTrigger = 'manual' | 'schedule'
+export type AutomationRunLogLevel = 'info' | 'warn' | 'error'
+
+export interface AutomationListItem {
+  id: string
+  title: string
+  description: string
+  category: string
+  cadence: string
+  latestRunAt: number | null
+  status: AutomationStatus
+  iconKey: AutomationIconKey
+  prompt: string
+  agentId: string | null
+  conversationId: string | null
+  workspaceId: string | null
+  scheduleType: AutomationScheduleType
+  scheduleConfig: unknown
+  nextRunAt: number | null
+  lastError: string | null
+}
+
+export interface AutomationRunLogItem {
+  id: string
+  runId: string
+  level: AutomationRunLogLevel
+  message: string
+  metadata: string | null
+  createdAt: number
+}
+
+export interface AutomationRunListItem {
+  id: string
+  automationId: string
+  title: string
+  category: string
+  status: AutomationRunStatus
+  trigger: AutomationRunTrigger
+  durationMs: number | null
+  startedAt: number
+  finishedAt: number | null
+  error: string | null
+}
+
+export interface AutomationRunDetailItem extends AutomationRunListItem {
+  agentRunId: string | null
+  conversationId: string | null
+  attempt: number
+  logs: AutomationRunLogItem[]
+}
+
+export interface AutomationStats {
+  enabledCount: number
+  todayRunCount: number
+  successRate: number
+  pendingCount: number
+}
+
+export interface AutomationTrendPoint {
+  label: string
+  value: number
+}
+
+export interface AutomationDashboard {
+  stats: AutomationStats
+  automations: AutomationListItem[]
+  recentRuns: AutomationRunListItem[]
+  trend: AutomationTrendPoint[]
+}
+
 async function json<T>(req: Promise<Response>): Promise<T> {
   const res = await req
   if (!res.ok) {
@@ -120,6 +194,82 @@ export async function optimizePrompt(prompt: string): Promise<{ enhancedText: st
       body: JSON.stringify({ prompt }),
     }),
   )
+}
+
+export async function fetchAutomationDashboard(): Promise<AutomationDashboard> {
+  const { dashboard } = await json<{ dashboard: AutomationDashboard }>(fetch('/api/automations'))
+  return dashboard
+}
+
+export interface SaveAutomationBody {
+  title: string
+  description?: string
+  category?: string
+  status?: Exclude<AutomationStatus, 'running'>
+  iconKey?: AutomationIconKey
+  prompt: string
+  agentId?: string | null
+  conversationId?: string | null
+  workspaceId?: string | null
+  scheduleType: AutomationScheduleType
+  scheduleConfig?: unknown
+}
+
+export async function createAutomation(body: SaveAutomationBody): Promise<AutomationListItem> {
+  const { automation } = await json<{ automation: AutomationListItem }>(
+    fetch('/api/automations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+  return automation
+}
+
+export async function updateAutomation(
+  automationId: string,
+  body: Partial<SaveAutomationBody>,
+): Promise<AutomationListItem> {
+  const { automation } = await json<{ automation: AutomationListItem }>(
+    fetch(`/api/automations/${automationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+  return automation
+}
+
+export async function deleteAutomation(automationId: string): Promise<void> {
+  await json<{ ok: true }>(fetch(`/api/automations/${automationId}`, { method: 'DELETE' }))
+}
+
+export async function enableAutomation(automationId: string): Promise<AutomationListItem> {
+  const { automation } = await json<{ automation: AutomationListItem }>(
+    fetch(`/api/automations/${automationId}/enable`, { method: 'POST' }),
+  )
+  return automation
+}
+
+export async function disableAutomation(automationId: string): Promise<AutomationListItem> {
+  const { automation } = await json<{ automation: AutomationListItem }>(
+    fetch(`/api/automations/${automationId}/disable`, { method: 'POST' }),
+  )
+  return automation
+}
+
+export async function runAutomationNow(automationId: string): Promise<AutomationRunDetailItem> {
+  const { run } = await json<{ run: AutomationRunDetailItem }>(
+    fetch(`/api/automations/${automationId}/run`, { method: 'POST' }),
+  )
+  return run
+}
+
+export async function fetchAutomationRuns(automationId: string): Promise<AutomationRunDetailItem[]> {
+  const { runs } = await json<{ runs: AutomationRunDetailItem[] }>(
+    fetch(`/api/automations/${automationId}/runs`),
+  )
+  return runs
 }
 
 // ─── Conversations ──────────────────────────────

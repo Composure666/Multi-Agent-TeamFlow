@@ -12,6 +12,26 @@ function isMenuPoint(value: unknown): value is MenuPoint {
   return typeof point.x === 'number' && typeof point.y === 'number' && Number.isFinite(point.x) && Number.isFinite(point.y)
 }
 
+type NativeNotificationPayload = {
+  title: string
+  body?: string
+  level?: 'info' | 'success' | 'warning' | 'error'
+  urgent?: boolean
+  conversationId?: string
+  automationId?: string
+  runId?: string
+}
+
+function isNativeNotificationPayload(value: unknown): value is NativeNotificationPayload {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as { title?: unknown; body?: unknown; level?: unknown; urgent?: unknown }
+  if (typeof payload.title !== 'string' || payload.title.trim().length === 0) return false
+  if (payload.body !== undefined && typeof payload.body !== 'string') return false
+  if (payload.level !== undefined && !['info', 'success', 'warning', 'error'].includes(String(payload.level))) return false
+  if (payload.urgent !== undefined && typeof payload.urgent !== 'boolean') return false
+  return true
+}
+
 contextBridge.exposeInMainWorld('agenthubWindowControls', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
   maximize: () => ipcRenderer.invoke('window:maximize'),
@@ -27,4 +47,13 @@ contextBridge.exposeInMainWorld('agenthubWindowControls', {
     })
   },
   platform: process.platform,
+})
+
+contextBridge.exposeInMainWorld('agenthubNotifications', {
+  showNative: (payload: unknown) => {
+    if (!isNativeNotificationPayload(payload)) return Promise.resolve()
+    return ipcRenderer.invoke('notifications:show-native', payload)
+  },
+  flashFrame: () => ipcRenderer.invoke('notifications:flash-frame'),
+  clearUrgent: () => ipcRenderer.invoke('notifications:clear-urgent'),
 })

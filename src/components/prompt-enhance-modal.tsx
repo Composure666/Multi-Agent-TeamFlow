@@ -12,6 +12,13 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 
 export function PromptEnhanceModal({
+  title = 'AI 优化提示词',
+  description = '对比原始输入与优化后的提示词，选择是否替换当前输入。',
+  originalLabel = '原始提示词',
+  enhancedLabel = '优化后的提示词',
+  loadingText = '正在优化提示词…',
+  keepOriginalText = '使用原始版本',
+  useEnhancedText = '使用优化版本',
   visible,
   originalText,
   enhancedText,
@@ -21,6 +28,13 @@ export function PromptEnhanceModal({
   onKeepOriginal,
   onUseEnhanced,
 }: {
+  title?: string
+  description?: string
+  originalLabel?: string
+  enhancedLabel?: string
+  loadingText?: string
+  keepOriginalText?: string
+  useEnhancedText?: string
   visible: boolean
   originalText: string
   enhancedText: string
@@ -34,19 +48,19 @@ export function PromptEnhanceModal({
     <Dialog open={visible} onOpenChange={onOpenChange}>
       <DialogContent className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>增强提示词</DialogTitle>
-          <DialogDescription>对比原始输入与增强后的提示词，选择是否替换当前输入。</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="grid min-h-0 gap-4 overflow-y-auto md:grid-cols-2">
           <div className="min-h-0 space-y-2">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">原始提示词</div>
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{originalLabel}</div>
             <Textarea value={originalText} readOnly className="min-h-[260px] resize-none bg-slate-50 text-sm dark:bg-neutral-900" />
           </div>
           <div className="min-h-0 space-y-2">
-            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">增强提示词</div>
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{enhancedLabel}</div>
             <Textarea
-              value={loading ? '正在增强提示词…' : enhancedText}
+              value={loading ? loadingText : enhancedText}
               readOnly
               className="min-h-[260px] resize-none bg-slate-50 text-sm dark:bg-neutral-900"
             />
@@ -56,10 +70,10 @@ export function PromptEnhanceModal({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onKeepOriginal} disabled={loading}>
-            保留原始版本
+            {keepOriginalText}
           </Button>
           <Button type="button" onClick={onUseEnhanced} disabled={loading || !enhancedText.trim()}>
-            使用增强版本
+            {useEnhancedText}
           </Button>
         </DialogFooter>
       </DialogContent>

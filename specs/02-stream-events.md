@@ -68,9 +68,26 @@ type StreamEvent = BaseEvent & (
   // —— Token usage 计量（adapter 在 run 结束前 emit）——
   | { type: 'run.usage', runId: string, usage: RunUsageEvent }
 
+  // —— 用户通知（系统级提示，不替代 message / run log）——
+  | { type: 'notification.created', notification: AppNotification }
+
   // —— 心跳 ——
   | { type: 'heartbeat' }
 )
+
+interface AppNotification {
+  id: string                    // ntf_<nanoid>
+  title: string
+  body?: string
+  level: 'info' | 'success' | 'warning' | 'error'
+  source: 'ui' | 'automation' | 'conversation' | 'agent_run' | 'system'
+  createdAt: number
+  conversationId?: string
+  automationId?: string
+  runId?: string
+  urgent?: boolean              // 前端可触发闪烁 / 高亮提醒
+  native?: boolean              // false 表示只展示站内通知
+}
 
 interface RunUsageEvent {
   inputTokens: number

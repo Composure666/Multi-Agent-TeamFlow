@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, Notification, session, shell } from 'electron'
 
 import { setupDataDir } from './paths'
 import { startEmbeddedServer } from './server-bootstrap'
@@ -14,6 +14,65 @@ let mainUrlPromise: Promise<string> | null = null
 // 用户数据会落在 ~/Library/Application Support/bytedance-agenthub/。覆盖成 productName 'AgentHub'，
 // 让 userData 路径更友好；必须在任何 app.getPath('userData') 调用之前完成。
 app.setName('AgentHub')
+
+type NativeNotificationPayload = {
+  title: string
+  body?: string
+  level?: 'info' | 'success' | 'warning' | 'error'
+  urgent?: boolean
+  conversationId?: string
+  automationId?: string
+  runId?: string
+}
+
+let mainWindow: BrowserWindow | null = null
+
+function isNativeNotificationPayload(value: unknown): value is NativeNotificationPayload {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as { title?: unknown; body?: unknown; level?: unknown; urgent?: unknown }
+  if (typeof payload.title !== 'string' || payload.title.trim().length === 0) return false
+  if (payload.body !== undefined && typeof payload.body !== 'string') return false
+  if (payload.level !== undefined && !['info', 'success', 'warning', 'error'].includes(String(payload.level))) return false
+  if (payload.urgent !== undefined && typeof payload.urgent !== 'boolean') return false
+  return true
+}
+
+function focusMainWindow(): void {
+  const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+}
+
+function registerNotificationIpc(): void {
+  ipcMain.handle('notifications:show-native', (_event, payload: unknown) => {
+    if (!isNativeNotificationPayload(payload) || !Notification.isSupported()) return
+
+    const notification = new Notification({
+      title: payload.title,
+      body: payload.body,
+      silent: false,
+    })
+    notification.on('click', focusMainWindow)
+    notification.show()
+
+    if (payload.urgent) {
+      const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
+      win?.flashFrame(true)
+    }
+  })
+
+  ipcMain.handle('notifications:flash-frame', () => {
+    const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
+    win?.flashFrame(true)
+  })
+
+  ipcMain.handle('notifications:clear-urgent', () => {
+    const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
+    win?.flashFrame(false)
+  })
+}
 
 function getMainUrl(): Promise<string> {
   if (!mainUrlPromise) {
@@ -144,6 +203,11 @@ async function createMainWindow(): Promise<void> {
       preload: path.join(__dirname, 'preload.js'),
     },
   })
+  mainWindow = win
+  win.on('focus', () => win.flashFrame(false))
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null
+  })
   win.setMenuBarVisibility(false)
 
   // a) 外链交给 OS 默认浏览器，不在窗口里新开
@@ -181,6 +245,7 @@ if (!gotLock) {
   // 关键时序：DATA_DIR 必须在 server require 业务代码之前注入
   setupDataDir()
   registerWindowControlIpc()
+  registerNotificationIpc()
 
   app.whenReady().then(async () => {
     // 用户 shell 里若设了 http_proxy / HTTPS_PROXY，Chromium 会继承它去代理 localhost 请求，

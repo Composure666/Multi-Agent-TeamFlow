@@ -26,6 +26,7 @@ import {
   Paperclip,
   PlayCircle,
   Plus,
+  RefreshCw,
   Search,
   Send,
   Settings,
@@ -60,21 +61,38 @@ import type { AgentRow } from '@/db/schema'
 import {
   createConversation,
   createAgent,
+  createAutomation,
   deleteAgent,
   deleteArtifact,
+  deleteAutomation,
+  disableAutomation,
+  enableAutomation,
   fetchAgents,
   fetchArtifact,
   fetchArtifacts,
+  fetchAutomationDashboard,
+  fetchAutomationRuns,
   fetchConversations,
   fetchUsageSummary,
   optimizePrompt,
+  runAutomationNow,
   sendMessage,
   setFsWriteApprovalMode,
+  updateAutomation,
   uploadAttachment,
   type ArtifactListItem,
+  type AutomationDashboard,
+  type AutomationIconKey,
+  type AutomationListItem,
+  type AutomationRunDetailItem,
+  type AutomationRunListItem,
+  type AutomationScheduleType,
+  type AutomationStatus,
+  type SaveAutomationBody,
   type UsageSummary,
 } from '@/lib/api'
 import { groupArtifactVersions } from '@/lib/artifact-groups'
+import type { AppNotification } from '@/shared/types'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList } from '@/stores/app-store'
 
@@ -159,12 +177,41 @@ type AutomationTaskPreset = {
   id: string
   title: string
   description: string
+  category: string
   cadence: string
   latestRun: string
-  status: '运行中' | '已启用' | '待配置'
+  latestRunAt: number | null
+  rawStatus: AutomationStatus
+  status: '运行中' | '已启用' | '待配置' | '已暂停'
+  statusClassName: string
+  lastError: string | null
+  prompt: string
+  agentId: string | null
+  conversationId: string | null
+  scheduleType: AutomationScheduleType
+  scheduleConfig: unknown
+  nextRunAt: number | null
   icon: React.ComponentType<{ className?: string }>
   iconWrapClassName: string
   iconClassName: string
+}
+
+const WEEKDAY_LABELS: Record<number, string> = {
+  0: '周日',
+  1: '周一',
+  2: '周二',
+  3: '周三',
+  4: '周四',
+  5: '周五',
+  6: '周六',
+}
+
+const AUTOMATION_ICON_STYLES: Record<AutomationIconKey, Pick<AutomationTaskPreset, 'icon' | 'iconWrapClassName' | 'iconClassName'>> = {
+  newspaper: { icon: Newspaper, iconWrapClassName: 'bg-slate-100', iconClassName: 'text-slate-600' },
+  languages: { icon: Languages, iconWrapClassName: 'bg-emerald-50', iconClassName: 'text-emerald-600' },
+  calendar_clock: { icon: CalendarClock, iconWrapClassName: 'bg-violet-50', iconClassName: 'text-violet-600' },
+  video: { icon: Video, iconWrapClassName: 'bg-orange-50', iconClassName: 'text-orange-600' },
+  history: { icon: History, iconWrapClassName: 'bg-cyan-50', iconClassName: 'text-cyan-600' },
 }
 
 type AnalyticsKpi = {
@@ -194,64 +241,6 @@ type AnalyticsDistributionItem = {
   value: number
   className: string
 }
-
-const AUTOMATION_TASK_PRESETS: AutomationTaskPreset[] = [
-  {
-    id: 'daily-ai-news',
-    title: '每日 AI 新闻推送',
-    description: '关注当天 AI 领域的重要动态，自动整理并推送摘要。',
-    cadence: '每天 08:30',
-    latestRun: '今日 08:30',
-    status: '已启用',
-    icon: Newspaper,
-    iconWrapClassName: 'bg-slate-100',
-    iconClassName: 'text-slate-600',
-  },
-  {
-    id: 'daily-english-words',
-    title: '每日 5 个英语单词',
-    description: '每天推荐 5 个高频实用英语单词，包含释义与例句。',
-    cadence: '每天 07:45',
-    latestRun: '今日 07:45',
-    status: '运行中',
-    icon: Languages,
-    iconWrapClassName: 'bg-emerald-50',
-    iconClassName: 'text-emerald-600',
-  },
-  {
-    id: 'weekly-work-report',
-    title: '每周工作周报',
-    description: '每周五汇总仓库 PR、Issue 与任务进展，生成工作周报。',
-    cadence: '周五 18:00',
-    latestRun: '上周五 18:00',
-    status: '已启用',
-    icon: CalendarClock,
-    iconWrapClassName: 'bg-violet-50',
-    iconClassName: 'text-violet-600',
-  },
-  {
-    id: 'classic-movie',
-    title: '经典电影推荐',
-    description: '推荐一部高分经典电影，并附带简短推荐理由。',
-    cadence: '每天 20:00',
-    latestRun: '昨日 20:00',
-    status: '已启用',
-    icon: Video,
-    iconWrapClassName: 'bg-orange-50',
-    iconClassName: 'text-orange-600',
-  },
-  {
-    id: 'today-history',
-    title: '历史上的今天',
-    description: '从科技、电影、文化等领域挑选一件历史事件进行介绍。',
-    cadence: '每天 09:00',
-    latestRun: '今日 09:00',
-    status: '待配置',
-    icon: History,
-    iconWrapClassName: 'bg-cyan-50',
-    iconClassName: 'text-cyan-600',
-  },
-]
 
 const ANALYTICS_KPIS: AnalyticsKpi[] = [
   { label: '任务总数', value: '5', caption: '已配置自动化任务', icon: Workflow, toneClassName: 'bg-slate-100 text-slate-600' },
@@ -1495,6 +1484,7 @@ function WorkbenchNav({
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const hasAutomationResultNotice = useAppStore((s) => s.notifications.some((notification) => notification.source === 'automation' && notification.conversationId))
   const usage = useUsageSummary(accountOpen && !collapsed)
 
   return (
@@ -1567,6 +1557,7 @@ function WorkbenchNav({
         {navItems.filter((item) => item.id !== 'new-task').map((item) => {
           const Icon = item.icon
           const active = view === item.id || (item.id === 'conversations' && view === 'new-task')
+          const showAutomationResultNotice = item.id === 'conversations' && hasAutomationResultNotice && !active
           return (
             <button
               key={item.id}
@@ -1579,10 +1570,14 @@ function WorkbenchNav({
                 active
                   ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
                   : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+                showAutomationResultNotice && 'animate-pulse ring-1 ring-[var(--agenthub-accent-border)]',
               )}
             >
               <Icon className={cn('size-4 shrink-0 stroke-[2.2]', active && 'stroke-[2.5]')} />
               {!collapsed && item.label}
+              {showAutomationResultNotice && (
+                <span className={cn('ml-auto size-2 rounded-full bg-[var(--agenthub-accent)]', collapsed && 'absolute right-2 top-2')} title="有自动化任务结果生成" />
+              )}
             </button>
           )
         })}
@@ -3668,7 +3663,402 @@ function ArtifactDetailPanel({
   )
 }
 
+function automationStatusLabel(status: AutomationStatus): AutomationTaskPreset['status'] {
+  if (status === 'running') return '运行中'
+  if (status === 'enabled') return '已启用'
+  if (status === 'paused') return '已暂停'
+  return '待配置'
+}
+
+function automationStatusClassName(status: AutomationStatus): string {
+  if (status === 'running') return 'bg-emerald-50 text-emerald-600'
+  if (status === 'enabled') return 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
+  if (status === 'paused') return 'bg-slate-100 text-slate-500'
+  return 'bg-amber-50 text-amber-600'
+}
+
+function automationStatusDescription(status: AutomationStatus): string {
+  if (status === 'running') return '已有运行记录处理中，页面会自动同步最新状态。'
+  if (status === 'enabled') return '任务已启用，等待下一次触发。'
+  if (status === 'paused') return '任务已暂停，不会自动触发。'
+  return '任务仍需补全配置后才能运行。'
+}
+
+function mapAutomationTask(item: AutomationListItem): AutomationTaskPreset {
+  const iconStyle = AUTOMATION_ICON_STYLES[item.iconKey]
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    category: item.category,
+    cadence: item.cadence,
+    latestRun: item.latestRunAt ? formatRelativeRunTime(item.latestRunAt) : '尚未运行',
+    latestRunAt: item.latestRunAt,
+    rawStatus: item.status,
+    status: automationStatusLabel(item.status),
+    statusClassName: automationStatusClassName(item.status),
+    lastError: item.lastError,
+    prompt: item.prompt,
+    agentId: item.agentId,
+    conversationId: item.conversationId,
+    scheduleType: item.scheduleType,
+    scheduleConfig: item.scheduleConfig,
+    nextRunAt: item.nextRunAt,
+    ...iconStyle,
+  }
+}
+
+function mapAutomationRun(item: AutomationRunListItem): AnalyticsRunRecord {
+  return {
+    id: item.id,
+    title: item.title,
+    category: item.category,
+    status: item.status === 'success' ? '成功' : item.status === 'running' ? '运行中' : '失败',
+    duration: item.status === 'running' ? '进行中' : formatDuration(item.durationMs),
+    time: formatRelativeRunTime(item.startedAt),
+  }
+}
+
+function formatDuration(value: number | null): string {
+  if (value === null) return '—'
+  const totalSeconds = Math.max(0, Math.round(value / 1000))
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`
+}
+
+function formatRelativeRunTime(value: number): string {
+  const now = new Date()
+  const target = new Date(value)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  const targetDay = new Date(target)
+  targetDay.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((today.getTime() - targetDay.getTime()) / (24 * 60 * 60 * 1000))
+  const clock = target.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  if (diffDays === 0) return `今日 ${clock}`
+  if (diffDays === 1) return `昨日 ${clock}`
+  if (diffDays > 1 && diffDays < 7) return `${diffDays} 天前`
+  return target.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
+function formatSyncTime(value: number | null): string {
+  if (value === null) return '尚未同步'
+  const date = new Date(value)
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatDateTime(value: number | null): string {
+  if (value === null) return '—'
+  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function scheduleConfigField(config: unknown, key: string): string {
+  if (!config || typeof config !== 'object' || !(key in config)) return ''
+  const value = (config as Record<string, unknown>)[key]
+  return typeof value === 'number' || typeof value === 'string' ? String(value) : ''
+}
+
+function buildAutomationSaveBody(form: AutomationFormState): SaveAutomationBody {
+  const scheduleConfig =
+    form.scheduleType === 'interval'
+      ? { intervalMinutes: Number(form.intervalMinutes || 60) }
+      : form.scheduleType === 'daily'
+        ? { timeOfDay: form.timeOfDay || '09:00' }
+        : form.scheduleType === 'weekly'
+          ? { dayOfWeek: Number(form.dayOfWeek || 1), timeOfDay: form.timeOfDay || '09:00' }
+          : undefined
+
+  return {
+    title: form.title.trim(),
+    description: form.description.trim(),
+    category: form.category.trim(),
+    prompt: form.prompt.trim(),
+    agentId: form.agentId || null,
+    conversationId: form.conversationId || null,
+    scheduleType: form.scheduleType,
+    scheduleConfig,
+    status: form.status,
+  }
+}
+
+function buildAutomationPromptEnhanceInput(form: AutomationFormState): string {
+  const scheduleLabel =
+    form.scheduleType === 'interval'
+      ? `每 ${form.intervalMinutes || '60'} 分钟执行一次`
+      : form.scheduleType === 'daily'
+        ? `每天 ${form.timeOfDay || '09:00'} 执行`
+        : form.scheduleType === 'weekly'
+          ? `每周 ${WEEKDAY_LABELS[Number(form.dayOfWeek || 1)] ?? '周一'} ${form.timeOfDay || '09:00'} 执行`
+          : '手动触发'
+
+  return [
+    '请为一个 AgentHub 自动化任务生成可直接保存执行的任务提示词。',
+    `任务标题：${form.title.trim() || '未命名自动化任务'}`,
+    `任务分类：${form.category.trim() || '自定义任务'}`,
+    form.description.trim() ? `任务描述：${form.description.trim()}` : '',
+    `触发方式：${scheduleLabel}`,
+    form.prompt.trim() ? `当前提示词草稿：${form.prompt.trim()}` : '',
+    '要求：输出中文；说明清楚目标、输入范围、执行步骤和最终输出格式；不要输出额外解释。',
+  ].filter((line) => line.length > 0).join('\n')
+}
+
+function trendBarHeight(value: number, maxValue: number): number {
+  if (value <= 0) return 4
+  return Math.round(18 + (value / Math.max(maxValue, 1)) * 68)
+}
+
+type LoadDashboardOptions = {
+  silent?: boolean
+}
+
+type AutomationFormState = {
+  title: string
+  description: string
+  category: string
+  prompt: string
+  agentId: string
+  conversationId: string
+  scheduleType: AutomationScheduleType
+  intervalMinutes: string
+  timeOfDay: string
+  dayOfWeek: string
+  status: Exclude<AutomationStatus, 'running'>
+}
+
+function automationFormFromTask(task?: AutomationTaskPreset | null): AutomationFormState {
+  return {
+    title: task?.title ?? '',
+    description: task?.description ?? '',
+    category: task?.category ?? '自定义任务',
+    prompt: task?.prompt ?? '',
+    agentId: task?.agentId ?? '',
+    conversationId: task?.conversationId ?? '',
+    scheduleType: task?.scheduleType ?? 'manual',
+    intervalMinutes: scheduleConfigField(task?.scheduleConfig, 'intervalMinutes') || '60',
+    timeOfDay: scheduleConfigField(task?.scheduleConfig, 'timeOfDay') || '09:00',
+    dayOfWeek: scheduleConfigField(task?.scheduleConfig, 'dayOfWeek') || '1',
+    status: task?.rawStatus === 'enabled' || task?.rawStatus === 'paused' || task?.rawStatus === 'draft' ? task.rawStatus : 'draft',
+  }
+}
+
 function AutomationWorkspace() {
+  const [dashboard, setDashboard] = useState<AutomationDashboard | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [showAllRuns, setShowAllRuns] = useState(false)
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit' | null>(null)
+  const [form, setForm] = useState<AutomationFormState>(() => automationFormFromTask())
+  const [submitting, setSubmitting] = useState(false)
+  const [promptFilling, setPromptFilling] = useState(false)
+  const [promptEnhanceOpen, setPromptEnhanceOpen] = useState(false)
+  const [promptEnhanceOriginal, setPromptEnhanceOriginal] = useState('')
+  const [promptEnhanceResult, setPromptEnhanceResult] = useState('')
+  const [promptEnhanceError, setPromptEnhanceError] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [runHistory, setRunHistory] = useState<AutomationRunDetailItem[]>([])
+  const [runHistoryLoading, setRunHistoryLoading] = useState(false)
+  const [runsError, setRunsError] = useState<string | null>(null)
+  const requestSeqRef = useRef(0)
+  const hasDashboardRef = useRef(false)
+
+  const loadDashboard = useCallback(async (options: LoadDashboardOptions = {}) => {
+    const requestSeq = requestSeqRef.current + 1
+    requestSeqRef.current = requestSeq
+    const hasDashboard = hasDashboardRef.current
+    if (!options.silent) {
+      if (hasDashboard) setRefreshing(true)
+      else setLoading(true)
+      setError(null)
+    }
+    try {
+      const nextDashboard = await fetchAutomationDashboard()
+      if (requestSeq !== requestSeqRef.current) return
+      setDashboard(nextDashboard)
+      hasDashboardRef.current = true
+      setLastUpdatedAt(Date.now())
+      setError(null)
+    } catch (err) {
+      if (requestSeq !== requestSeqRef.current) return
+      const message = err instanceof Error ? err.message : '自动化数据加载失败'
+      setError(hasDashboard ? `同步失败，当前显示上次同步数据：${message}` : message)
+    } finally {
+      if (requestSeq === requestSeqRef.current && !options.silent) {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadDashboard()
+  }, [loadDashboard])
+
+  const hasRunningState = useMemo(
+    () => Boolean(dashboard?.automations.some((item) => item.status === 'running') || dashboard?.recentRuns.some((run) => run.status === 'running')),
+    [dashboard],
+  )
+
+  useEffect(() => {
+    if (!hasRunningState) return
+    const timer = window.setInterval(() => {
+      void loadDashboard({ silent: true })
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [hasRunningState, loadDashboard])
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      setRunHistory([])
+      setRunsError(null)
+      return
+    }
+    let cancelled = false
+    setRunHistoryLoading(true)
+    setRunsError(null)
+    fetchAutomationRuns(selectedTaskId)
+      .then((runs) => {
+        if (!cancelled) setRunHistory(runs)
+      })
+      .catch((err) => {
+        if (!cancelled) setRunsError(err instanceof Error ? err.message : '运行记录加载失败')
+      })
+      .finally(() => {
+        if (!cancelled) setRunHistoryLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedTaskId, dashboard])
+
+  const tasks = useMemo(
+    () => (dashboard?.automations ?? []).map(mapAutomationTask),
+    [dashboard?.automations],
+  )
+  const recentRuns = useMemo(
+    () => (dashboard?.recentRuns ?? []).map(mapAutomationRun),
+    [dashboard?.recentRuns],
+  )
+  const visibleRuns = showAllRuns ? recentRuns : recentRuns.slice(0, 4)
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null
+  const trend = dashboard?.trend ?? []
+  const maxTrend = Math.max(...trend.map((point) => point.value), 1)
+  const syncBadge = refreshing ? '同步中' : hasRunningState ? '自动刷新' : '已同步'
+  const initialLoading = loading && !dashboard
+  const agents = useAgentList()
+  const conversations = useConversationList()
+  const addNotification = useAppStore((s) => s.addNotification)
+
+  const notifyAutomation = useCallback((notification: Omit<AppNotification, 'id' | 'createdAt' | 'source'>) => {
+    addNotification({
+      ...notification,
+      id: `ntf_${nanoid()}`,
+      source: 'ui',
+      createdAt: Date.now(),
+    })
+  }, [addNotification])
+
+  const openCreateDialog = () => {
+    setForm(automationFormFromTask())
+    setDialogMode('create')
+    setError(null)
+  }
+
+  const openEditDialog = () => {
+    if (!selectedTask) return
+    setForm(automationFormFromTask(selectedTask))
+    setDialogMode('edit')
+    setError(null)
+  }
+
+  const handleSaveAutomation = async () => {
+    if (!form.title.trim() || !form.prompt.trim()) {
+      setError('标题和任务提示词不能为空')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      const body = buildAutomationSaveBody(form)
+      const saved = dialogMode === 'edit' && selectedTask ? await updateAutomation(selectedTask.id, body) : await createAutomation(body)
+      setDialogMode(null)
+      setSelectedTaskId(saved.id)
+      notifyAutomation({
+        title: dialogMode === 'edit' ? '自动化任务已更新' : '自动化任务已创建',
+        body: `任务「${saved.title}」已保存。`,
+        level: 'success',
+        automationId: saved.id,
+      })
+      await loadDashboard()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '自动化任务保存失败'
+      setError(message)
+      notifyAutomation({ title: '自动化任务保存失败', body: message, level: 'error', urgent: true })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleEnhanceAutomationPrompt = async () => {
+    if (!form.title.trim() && !form.description.trim() && !form.prompt.trim()) {
+      setError('请先填写标题、描述或任务提示词，再使用 AI 优化提示词')
+      return
+    }
+
+    const originalPrompt = form.prompt.trim()
+    const originalText = originalPrompt || '未输入原始提示词，AI 将根据任务标题、描述、分类和触发计划生成。'
+    setPromptFilling(true)
+    setPromptEnhanceOriginal(originalText)
+    setPromptEnhanceResult('')
+    setPromptEnhanceError(null)
+    setPromptEnhanceOpen(true)
+    setError(null)
+    try {
+      const result = await optimizePrompt(buildAutomationPromptEnhanceInput(form))
+      setPromptEnhanceResult(result.enhancedText.trim())
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'AI 优化提示词失败'
+      setPromptEnhanceError(message)
+      setError(message)
+      notifyAutomation({ title: 'AI 优化提示词失败', body: message, level: 'error' })
+    } finally {
+      setPromptFilling(false)
+    }
+  }
+
+  const handleAutomationAction = async (action: 'enable' | 'disable' | 'run' | 'delete') => {
+    if (!selectedTask) return
+    setActionLoading(action)
+    setError(null)
+    try {
+      if (action === 'enable') await enableAutomation(selectedTask.id)
+      if (action === 'disable') await disableAutomation(selectedTask.id)
+      if (action === 'run') await runAutomationNow(selectedTask.id)
+      if (action === 'delete') {
+        if (!window.confirm(`确认删除自动化任务「${selectedTask.title}」？`)) return
+        await deleteAutomation(selectedTask.id)
+        setSelectedTaskId(null)
+      }
+      notifyAutomation({
+        title: action === 'run' ? '已提交自动化运行' : action === 'delete' ? '自动化任务已删除' : '自动化任务状态已更新',
+        body: action === 'run' ? `任务「${selectedTask.title}」已开始执行。` : `任务「${selectedTask.title}」操作已完成。`,
+        level: 'success',
+        automationId: selectedTask.id,
+      })
+      await loadDashboard()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '自动化操作失败'
+      setError(message)
+      notifyAutomation({ title: '自动化操作失败', body: message, level: 'error', automationId: selectedTask.id, urgent: true })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   return (
     <div className="h-full p-4 xl:p-6">
       <section className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
@@ -3677,28 +4067,121 @@ function AutomationWorkspace() {
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">自动化</h1>
               <p className="mt-1 text-sm text-slate-500">管理自动化任务并查看近期运行记录</p>
+              <p className="mt-1 text-xs text-slate-400">最近同步：{formatSyncTime(lastUpdatedAt)}</p>
             </div>
-            <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 transition hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
-              <Plus className="mr-1.5 size-3.5" />
-              添加
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" disabled={refreshing} onClick={() => void loadDashboard()} className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 transition hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
+                <RefreshCw className={cn('mr-1.5 size-3.5', refreshing && 'animate-spin')} />
+                {refreshing ? '同步中' : '刷新'}
+              </Button>
+              <Button variant="outline" onClick={openCreateDialog} className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 transition hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
+                <Plus className="mr-1.5 size-3.5" />
+                添加
+              </Button>
+            </div>
           </div>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-5 p-4 xl:p-5">
+            {error && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
+                <span>自动化数据加载失败：{error}</span>
+                <Button variant="outline" onClick={() => void loadDashboard()} className="h-8 rounded-xl border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-100">
+                  重试
+                </Button>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <LibraryStat label="启用任务" value="4" />
-              <LibraryStat label="今日运行" value="18" />
-              <LibraryStat label="成功率" value="96.8%" />
-              <LibraryStat label="待处理" value="1" />
+              <LibraryStat label="启用任务" value={initialLoading ? '—' : String(dashboard?.stats.enabledCount ?? 0)} />
+              <LibraryStat label="今日运行" value={initialLoading ? '—' : String(dashboard?.stats.todayRunCount ?? 0)} />
+              <LibraryStat label="成功率" value={initialLoading ? '—' : `${dashboard?.stats.successRate ?? 0}%`} />
+              <LibraryStat label="待处理" value={initialLoading ? '—' : String(dashboard?.stats.pendingCount ?? 0)} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {AUTOMATION_TASK_PRESETS.map((task) => (
-                <AutomationTaskCard key={task.id} task={task} />
+              {tasks.map((task) => (
+                <AutomationTaskCard
+                  key={task.id}
+                  task={task}
+                  selected={selectedTask?.id === task.id}
+                  onSelect={(id) => setSelectedTaskId((current) => (current === id ? null : id))}
+                />
+              ))}
+              {initialLoading && Array.from({ length: 3 }, (_, index) => (
+                <div key={index} className="min-h-[168px] rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm" />
               ))}
             </div>
+            {!initialLoading && tasks.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">暂无自动化任务，点击“添加”创建第一个任务。</div>
+            )}
+
+            {selectedTask && (
+              <div className="rounded-2xl border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]/50 p-4 text-sm text-slate-700">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-base font-semibold text-slate-950">{selectedTask.title}</h2>
+                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', selectedTask.statusClassName)}>{selectedTask.status}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{automationStatusDescription(selectedTask.rawStatus)}</p>
+                  </div>
+                  <button type="button" onClick={() => setSelectedTaskId(null)} className="rounded-lg p-1 text-slate-400 transition hover:bg-white/70 hover:text-slate-700" aria-label="关闭自动化详情">
+                    <X className="size-4" />
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                  <Meta label="分类" value={selectedTask.category} />
+                  <Meta label="触发时间" value={selectedTask.cadence} />
+                  <Meta label="下次运行" value={formatDateTime(selectedTask.nextRunAt)} />
+                  <Meta label="最近运行" value={selectedTask.latestRun} />
+                </div>
+                <div className="mt-4 rounded-xl border border-white/70 bg-white/70 p-3 text-xs text-slate-600">
+                  <div className="font-medium text-slate-700">任务提示词</div>
+                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap">{selectedTask.prompt || '暂无提示词'}</p>
+                  {selectedTask.lastError && <p className="mt-2 text-rose-600">最近错误：{selectedTask.lastError}</p>}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={openEditDialog} className="h-8 rounded-xl bg-white px-3 text-xs">编辑</Button>
+                  {selectedTask.rawStatus === 'enabled' || selectedTask.rawStatus === 'running' ? (
+                    <Button variant="outline" disabled={actionLoading === 'disable'} onClick={() => void handleAutomationAction('disable')} className="h-8 rounded-xl bg-white px-3 text-xs">
+                      {actionLoading === 'disable' ? '暂停中…' : '暂停'}
+                    </Button>
+                  ) : (
+                    <Button variant="outline" disabled={actionLoading === 'enable'} onClick={() => void handleAutomationAction('enable')} className="h-8 rounded-xl bg-white px-3 text-xs">
+                      {actionLoading === 'enable' ? '启用中…' : '启用'}
+                    </Button>
+                  )}
+                  <Button disabled={actionLoading === 'run'} onClick={() => void handleAutomationAction('run')} className="h-8 rounded-xl px-3 text-xs">
+                    {actionLoading === 'run' ? '提交中…' : '立即运行'}
+                  </Button>
+                  <Button variant="outline" disabled={actionLoading === 'delete'} onClick={() => void handleAutomationAction('delete')} className="h-8 rounded-xl border-red-200 bg-white px-3 text-xs text-red-600 hover:bg-red-50">
+                    {actionLoading === 'delete' ? '删除中…' : '删除'}
+                  </Button>
+                </div>
+                <div className="mt-4 rounded-xl border border-white/70 bg-white/70 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-medium text-slate-700">运行历史</div>
+                    {runHistoryLoading && <span className="text-[10px] text-slate-400">加载中</span>}
+                  </div>
+                  {runsError && <p className="mt-2 text-xs text-rose-600">{runsError}</p>}
+                  <div className="mt-2 space-y-2">
+                    {runHistory.slice(0, 4).map((run) => (
+                      <div key={run.id} className="rounded-lg border border-slate-100 bg-white p-2 text-xs text-slate-600">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{run.trigger === 'manual' ? '手动触发' : '计划触发'} · {run.status === 'success' ? '成功' : run.status === 'running' ? '运行中' : '失败'}</span>
+                          <span className="text-slate-400">{formatRelativeRunTime(run.startedAt)}</span>
+                        </div>
+                        {run.error && <p className="mt-1 text-rose-600">{run.error}</p>}
+                        {run.logs[0] && <p className="mt-1 text-slate-400">{run.logs[0].message}</p>}
+                      </div>
+                    ))}
+                    {!runHistoryLoading && runHistory.length === 0 && <p className="text-xs text-slate-400">暂无运行历史</p>}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -3707,12 +4190,20 @@ function AutomationWorkspace() {
                     <h2 className="text-sm font-semibold text-slate-950">近期运行记录</h2>
                     <p className="mt-1 text-xs text-slate-500">按最近触发时间展示自动化任务状态</p>
                   </div>
-                  <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--agenthub-accent)]">实时</span>
+                  <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--agenthub-accent)]">{syncBadge}</span>
                 </div>
                 <div className="mt-4 space-y-2">
-                  {ANALYTICS_RECENT_RUNS.slice(0, 4).map((run) => (
+                  {visibleRuns.map((run) => (
                     <AutomationRunRow key={run.id} run={run} />
                   ))}
+                  {!initialLoading && recentRuns.length > 4 && (
+                    <Button variant="ghost" onClick={() => setShowAllRuns((open) => !open)} className="h-8 w-full rounded-xl text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+                      {showAllRuns ? '收起运行记录' : `查看全部 ${recentRuns.length} 条`}
+                    </Button>
+                  )}
+                  {!initialLoading && recentRuns.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">暂无运行记录</div>
+                  )}
                 </div>
               </div>
 
@@ -3723,16 +4214,24 @@ function AutomationWorkspace() {
                   </div>
                   <div>
                     <h2 className="text-sm font-semibold text-slate-950">运行概览</h2>
-                    <p className="text-xs text-slate-500">今日高峰集中在上午</p>
+                    <p className="text-xs text-slate-500">最近 7 天运行次数</p>
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-7 items-end gap-2 rounded-2xl border border-slate-200 bg-white p-3">
-                  {ANALYTICS_TREND.map((point) => (
-                    <div key={point.label} className="flex min-h-[96px] flex-col items-center justify-end gap-2">
-                      <div className="w-full rounded-full bg-blue-100">
-                        <div className="mx-auto w-3 rounded-full bg-[var(--agenthub-accent)]" style={{ height: `${Math.max(18, point.value * 3)}px` }} />
+                  {trend.map((point) => (
+                    <div key={point.label} className="flex min-h-[96px] flex-col items-center justify-end gap-2" title={`${point.label}：${point.value} 次`}>
+                      <div className="flex h-[86px] w-full items-end justify-center rounded-full bg-blue-100/70">
+                        <div className={cn('mx-auto w-3 rounded-full', point.value > 0 ? 'bg-[var(--agenthub-accent)]' : 'bg-slate-200')} style={{ height: `${trendBarHeight(point.value, maxTrend)}px` }} />
                       </div>
                       <span className="text-[10px] text-slate-400">{point.label.slice(1)}</span>
+                    </div>
+                  ))}
+                  {initialLoading && Array.from({ length: 7 }, (_, index) => (
+                    <div key={index} className="flex min-h-[96px] flex-col items-center justify-end gap-2">
+                      <div className="flex h-[86px] w-full items-end justify-center rounded-full bg-blue-100/70">
+                        <div className="mx-auto h-1 w-3 rounded-full bg-slate-200" />
+                      </div>
+                      <span className="text-[10px] text-slate-400">—</span>
                     </div>
                   ))}
                 </div>
@@ -3741,15 +4240,151 @@ function AutomationWorkspace() {
           </div>
         </ScrollArea>
       </section>
+
+      <Dialog open={dialogMode !== null} onOpenChange={(open) => !open && setDialogMode(null)}>
+        <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-2xl flex-col overflow-hidden rounded-2xl border-slate-200 bg-white p-0">
+          <DialogHeader className="shrink-0 px-6 pt-6">
+            <DialogTitle>{dialogMode === 'edit' ? '编辑自动化任务' : '创建自动化任务'}</DialogTitle>
+            <DialogDescription>配置任务提示词、执行目标和基础触发计划。</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="min-h-0 flex-1 px-6">
+            <div className="grid gap-3 py-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-xs text-slate-500">标题
+                <Input value={form.title} onChange={(event) => setForm((draft) => ({ ...draft, title: event.target.value }))} className="mt-1" />
+              </label>
+              <label className="text-xs text-slate-500">分类
+                <Input value={form.category} onChange={(event) => setForm((draft) => ({ ...draft, category: event.target.value }))} className="mt-1" />
+              </label>
+            </div>
+            <label className="text-xs text-slate-500">描述
+              <Input value={form.description} onChange={(event) => setForm((draft) => ({ ...draft, description: event.target.value }))} className="mt-1" />
+            </label>
+            <div>
+              <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                <span>任务提示词</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  title={promptFilling ? 'AI 优化中' : 'AI 优化提示词'}
+                  aria-label="AI 优化提示词"
+                  onClick={() => void handleEnhanceAutomationPrompt()}
+                  disabled={promptFilling || submitting}
+                  className="group relative size-7 rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-[var(--agenthub-accent)] disabled:cursor-wait disabled:opacity-60"
+                >
+                  <Sparkles className={cn('size-3.5', promptFilling && 'animate-pulse')} />
+                  <span className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-normal text-slate-600 shadow-sm group-hover:block">
+                    {promptFilling ? 'AI 优化中' : 'AI 优化提示词'}
+                  </span>
+                </Button>
+              </div>
+              <Textarea value={form.prompt} onChange={(event) => setForm((draft) => ({ ...draft, prompt: event.target.value }))} className="mt-1 min-h-32 max-h-64 resize-y whitespace-pre-wrap break-words" />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="text-xs text-slate-500">目标 Agent
+                <select value={form.agentId} onChange={(event) => setForm((draft) => ({ ...draft, agentId: event.target.value }))} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                  <option value="">自动选择</option>
+                  {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-slate-500">目标会话
+                <select value={form.conversationId} onChange={(event) => setForm((draft) => ({ ...draft, conversationId: event.target.value }))} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                  <option value="">未绑定</option>
+                  {conversations.map((conversation) => <option key={conversation.id} value={conversation.id}>{conversation.title}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="text-xs text-slate-500">触发类型
+                <select value={form.scheduleType} onChange={(event) => setForm((draft) => ({ ...draft, scheduleType: event.target.value as AutomationScheduleType }))} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                  <option value="manual">手动</option>
+                  <option value="interval">间隔</option>
+                  <option value="daily">每天</option>
+                  <option value="weekly">每周</option>
+                </select>
+              </label>
+              {form.scheduleType === 'interval' && (
+                <label className="text-xs text-slate-500">间隔分钟
+                  <Input type="number" min={1} value={form.intervalMinutes} onChange={(event) => setForm((draft) => ({ ...draft, intervalMinutes: event.target.value }))} className="mt-1" />
+                </label>
+              )}
+              {(form.scheduleType === 'daily' || form.scheduleType === 'weekly') && (
+                <label className="text-xs text-slate-500">时间
+                  <Input type="time" value={form.timeOfDay} onChange={(event) => setForm((draft) => ({ ...draft, timeOfDay: event.target.value }))} className="mt-1" />
+                </label>
+              )}
+              {form.scheduleType === 'weekly' && (
+                <label className="text-xs text-slate-500">星期
+                  <select value={form.dayOfWeek} onChange={(event) => setForm((draft) => ({ ...draft, dayOfWeek: event.target.value }))} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                    <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option><option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option>
+                  </select>
+                </label>
+              )}
+              <label className="text-xs text-slate-500">状态
+                <select value={form.status} onChange={(event) => setForm((draft) => ({ ...draft, status: event.target.value as Exclude<AutomationStatus, 'running'> }))} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                  <option value="draft">草稿</option>
+                  <option value="enabled">启用</option>
+                  <option value="paused">暂停</option>
+                </select>
+              </label>
+            </div>
+            </div>
+          </ScrollArea>
+          <DialogFooter className="shrink-0 border-t border-slate-100 px-6 py-4">
+            <Button variant="outline" onClick={() => setDialogMode(null)} disabled={submitting || promptFilling}>取消</Button>
+            <Button onClick={() => void handleSaveAutomation()} disabled={submitting || promptFilling}>{submitting ? '保存中…' : '保存'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <PromptEnhanceModal
+        visible={promptEnhanceOpen}
+        title={form.prompt.trim() ? 'AI 优化提示词' : 'AI 生成提示词'}
+        description={form.prompt.trim() ? '对比原始提示词和优化后的提示词，选择继续使用原版或替换为优化版。' : '当前未输入提示词，AI 会根据任务信息生成一份可执行提示词。'}
+        originalLabel="原始提示词"
+        enhancedLabel={form.prompt.trim() ? '优化后的提示词' : '生成后的提示词'}
+        loadingText={form.prompt.trim() ? '正在优化提示词…' : '正在生成提示词…'}
+        keepOriginalText="使用原版"
+        useEnhancedText={form.prompt.trim() ? '使用优化版' : '使用生成版'}
+        originalText={promptEnhanceOriginal}
+        enhancedText={promptEnhanceResult}
+        loading={promptFilling}
+        error={promptEnhanceError}
+        onOpenChange={(open) => {
+          if (!promptFilling) setPromptEnhanceOpen(open)
+        }}
+        onKeepOriginal={() => setPromptEnhanceOpen(false)}
+        onUseEnhanced={() => {
+          setForm((draft) => ({ ...draft, prompt: promptEnhanceResult }))
+          setPromptEnhanceOpen(false)
+          notifyAutomation({ title: '提示词已更新', body: '已使用 AI 处理后的提示词。', level: 'success' })
+        }}
+      />
     </div>
   )
 }
 
-function AutomationTaskCard({ task }: { task: AutomationTaskPreset }) {
+function AutomationTaskCard({
+  task,
+  selected,
+  onSelect,
+}: {
+  task: AutomationTaskPreset
+  selected: boolean
+  onSelect: (id: string) => void
+}) {
   const Icon = task.icon
 
   return (
-    <article className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[var(--agenthub-accent-border)] hover:shadow-md">
+    <button
+      type="button"
+      onClick={() => onSelect(task.id)}
+      className={cn(
+        'group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[var(--agenthub-accent-border)] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--agenthub-accent-border)]',
+        selected && 'border-[var(--agenthub-accent-border)] shadow-md',
+      )}
+      aria-pressed={selected}
+    >
       <div className="flex items-start gap-3">
         <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-2xl transition duration-200 group-hover:scale-105', task.iconWrapClassName)}>
           <Icon className={cn('size-5', task.iconClassName)} />
@@ -3757,18 +4392,19 @@ function AutomationTaskCard({ task }: { task: AutomationTaskPreset }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="truncate text-base font-semibold text-slate-950">{task.title}</h3>
-            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', task.status === '待配置' ? 'bg-slate-100 text-slate-500' : task.status === '运行中' ? 'bg-emerald-50 text-emerald-600' : 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}>
+            <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', task.statusClassName)}>
               {task.status}
             </span>
           </div>
           <p className="mt-1 truncate text-sm text-slate-500">{task.description}</p>
+          <p className="mt-1 text-xs text-slate-400">{task.category}</p>
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4">
         <Meta label="触发时间" value={task.cadence} />
         <Meta label="最近运行" value={task.latestRun} />
       </div>
-    </article>
+    </button>
   )
 }
 

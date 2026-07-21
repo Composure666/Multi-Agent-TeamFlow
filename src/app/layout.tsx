@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 
 import { GlobalSearch } from '@/components/global-search'
+import { NotificationCenter } from '@/components/notification-center'
 import { StreamProvider } from '@/components/stream-provider'
 import { ThemeProvider } from '@/components/theme-provider'
 
@@ -35,7 +36,10 @@ export default function RootLayout({
     >
       <body className="min-h-screen overflow-x-hidden">
         <ThemeProvider>
-          <StreamProvider>{children}</StreamProvider>
+          <StreamProvider>
+            {children}
+            <NotificationCenter />
+          </StreamProvider>
         </ThemeProvider>
         <GlobalSearch />
       </body>

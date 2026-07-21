@@ -384,6 +384,23 @@ export interface AskUserAnswer {
   freeformNote?: string
 }
 
+export type AppNotificationLevel = 'info' | 'success' | 'warning' | 'error'
+export type AppNotificationSource = 'ui' | 'automation' | 'conversation' | 'agent_run' | 'system'
+
+export interface AppNotification {
+  id: string
+  title: string
+  body?: string
+  level: AppNotificationLevel
+  source: AppNotificationSource
+  createdAt: number
+  conversationId?: string
+  automationId?: string
+  runId?: string
+  urgent?: boolean
+  native?: boolean
+}
+
 // ─── StreamEvent 联合 ─────────────────────────────────────
 interface BaseEvent {
   conversationId: string
@@ -426,6 +443,7 @@ export type StreamEvent = BaseEvent &
     | { type: 'bash_command.resolved'; pendingId: string; approved: boolean }
     | { type: 'ask_user.pending'; pendingQuestion: PendingQuestion }
     | { type: 'ask_user.resolved'; pendingId: string; answered: boolean }
+    | { type: 'notification.created'; notification: AppNotification }
     | { type: 'heartbeat' }
   )
 

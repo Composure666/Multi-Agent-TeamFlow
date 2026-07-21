@@ -6,6 +6,7 @@ import { immer } from 'zustand/middleware/immer'
 
 import type { AgentRunRow, AgentRow, ArtifactRow, AttachmentRow, ConversationWithMeta, MessageRow } from '@/db/schema'
 import type {
+  AppNotification,
   DispatchPlanItem,
   DispatchTaskStatus,
   MessagePart,
@@ -92,8 +93,14 @@ interface AppState {
   // ─── 流连接状态 ────────────────────────────────────
   streamConnected: boolean
 
+  // ─── 用户通知 ──────────────────────────────────────
+  notifications: AppNotification[]
+
   // ─── actions ───────────────────────────────────────
   setStreamConnected(connected: boolean): void
+  addNotification(notification: AppNotification): void
+  dismissNotification(id: string): void
+  clearNotifications(): void
 
   setConversations(list: ConversationWithMeta[]): void
   upsertConversation(conv: ConversationWithMeta): void
@@ -192,10 +199,28 @@ export const useAppStore = create<AppState>()(
     pendingQuoteForInput: null,
     highlightedMessageId: null,
     streamConnected: false,
+    notifications: [],
 
     setStreamConnected: (connected) =>
       set((s) => {
         s.streamConnected = connected
+      }),
+
+    addNotification: (notification) =>
+      set((s) => {
+        if (s.notifications.some((item) => item.id === notification.id)) return
+        s.notifications.unshift(notification)
+        if (s.notifications.length > 20) s.notifications.length = 20
+      }),
+
+    dismissNotification: (id) =>
+      set((s) => {
+        s.notifications = s.notifications.filter((item) => item.id !== id)
+      }),
+
+    clearNotifications: () =>
+      set((s) => {
+        s.notifications = []
       }),
 
     setConversations: (list) =>
@@ -849,6 +874,13 @@ export const useAppStore = create<AppState>()(
             const next = list.filter((q) => q.id !== event.pendingId)
             if (next.length === 0) delete s.pendingQuestionsByConv[event.conversationId]
             else s.pendingQuestionsByConv[event.conversationId] = next
+            return
+          }
+
+          case 'notification.created': {
+            if (s.notifications.some((item) => item.id === event.notification.id)) return
+            s.notifications.unshift(event.notification)
+            if (s.notifications.length > 20) s.notifications.length = 20
             return
           }
 

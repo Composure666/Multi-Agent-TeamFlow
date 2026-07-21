@@ -209,6 +209,84 @@ export const agentRuns = sqliteTable(
   (t) => [index('idx_runs_parent').on(t.parentRunId)],
 )
 
+// ─── Automations ─────────────────────────────────────────────
+export type AutomationStatus = 'enabled' | 'running' | 'draft' | 'paused'
+export type AutomationRunStatus = 'success' | 'failed' | 'running'
+export type AutomationIconKey = 'newspaper' | 'languages' | 'calendar_clock' | 'video' | 'history'
+export type AutomationScheduleType = 'manual' | 'interval' | 'daily' | 'weekly'
+export type AutomationRunTrigger = 'manual' | 'schedule'
+export type AutomationRunLogLevel = 'info' | 'warn' | 'error'
+
+export const automations = sqliteTable(
+  'automations',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    category: text('category').notNull(),
+    cadence: text('cadence').notNull(),
+    status: text('status').$type<AutomationStatus>().notNull(),
+    iconKey: text('icon_key').$type<AutomationIconKey>().notNull(),
+    prompt: text('prompt').notNull().default(''),
+    agentId: text('agent_id').references(() => agents.id),
+    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
+    scheduleType: text('schedule_type').$type<AutomationScheduleType>().notNull().default('manual'),
+    scheduleConfig: text('schedule_config'),
+    nextRunAt: integer('next_run_at'),
+    latestRunAt: integer('latest_run_at'),
+    lastError: text('last_error'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_automations_status').on(t.status),
+    index('idx_automations_next_run').on(t.status, t.nextRunAt),
+    index('idx_automations_updated').on(t.updatedAt),
+  ],
+)
+
+export const automationRuns = sqliteTable(
+  'automation_runs',
+  {
+    id: text('id').primaryKey(),
+    automationId: text('automation_id')
+      .notNull()
+      .references(() => automations.id, { onDelete: 'cascade' }),
+    status: text('status').$type<AutomationRunStatus>().notNull(),
+    trigger: text('trigger').$type<AutomationRunTrigger>().notNull().default('manual'),
+    agentRunId: text('agent_run_id').references(() => agentRuns.id, { onDelete: 'set null' }),
+    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+    attempt: integer('attempt').notNull().default(1),
+    durationMs: integer('duration_ms'),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+    error: text('error'),
+    createdAt: integer('created_at').notNull().default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer('updated_at').notNull().default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [
+    index('idx_automation_runs_automation_started').on(t.automationId, t.startedAt),
+    index('idx_automation_runs_started').on(t.startedAt),
+    index('idx_automation_runs_status').on(t.status),
+  ],
+)
+
+export const automationRunLogs = sqliteTable(
+  'automation_run_logs',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => automationRuns.id, { onDelete: 'cascade' }),
+    level: text('level').$type<AutomationRunLogLevel>().notNull(),
+    message: text('message').notNull(),
+    metadata: text('metadata'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('idx_automation_run_logs_run_created').on(t.runId, t.createdAt)],
+)
+
 /** RunUsage —— 一次 run 累计的 token 用量。所有字段 0+ 整数；不返回的字段 0 不是 null（聚合好处理）。 */
 export interface RunUsage {
   inputTokens: number
@@ -301,6 +379,13 @@ export type AttachmentInsert = typeof attachments.$inferInsert
 
 export type AgentRunRow = typeof agentRuns.$inferSelect
 export type AgentRunInsert = typeof agentRuns.$inferInsert
+
+export type AutomationRow = typeof automations.$inferSelect
+export type AutomationInsert = typeof automations.$inferInsert
+
+export type AutomationRunRow = typeof automationRuns.$inferSelect
+export type AutomationRunLogRow = typeof automationRunLogs.$inferSelect
+export type AutomationRunLogInsert = typeof automationRunLogs.$inferInsert
 
 export type ContextSummaryRow = typeof contextSummaries.$inferSelect
 export type ContextSummaryInsert = typeof contextSummaries.$inferInsert

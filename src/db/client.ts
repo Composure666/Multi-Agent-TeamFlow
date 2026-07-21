@@ -30,12 +30,13 @@ const sqlite =
 if (!globalForDb.sqlite) {
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('foreign_keys = ON')
-  // 同步建表 + seed 内置 agent（CREATE TABLE IF NOT EXISTS + 只在空时插入，幂等）。
-  // 打包后桌面版第一次起 server 时，userData 里只有空 DB 文件，必须在这里把 schema / 数据补齐。
-  // dev 模式 DB 已经存在，操作都是 no-op，开销可忽略。
-  bootstrapDatabase(sqlite)
   globalForDb.sqlite = sqlite
 }
+
+// 同步建表 + seed 内置 agent（CREATE TABLE IF NOT EXISTS + 只在空时插入，幂等）。
+// 打包后桌面版第一次起 server 时，userData 里只有空 DB 文件，必须在这里把 schema / 数据补齐。
+// dev 模式下即使 HMR 复用 SQLite connection，也要重新执行 bootstrap，确保新增列/索引能补到既有 DB。
+bootstrapDatabase(sqlite)
 
 export const db = drizzle(sqlite, { schema })
 export { schema, sqlite }

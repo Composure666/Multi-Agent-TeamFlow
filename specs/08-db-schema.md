@@ -1,8 +1,8 @@
 # Spec 08 — 数据库 Schema
 
-> Drizzle ORM + SQLite。本 spec 描述 9 张表的字段、索引、外键级联策略，是 Spec 01 实体的物理映射。**修改字段需先讨论。**
+> Drizzle ORM + SQLite。本 spec 描述 11 张表的字段、索引、外键级联策略，是 Spec 01 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
 >
-> 7 张「业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的 7 个实体；`conversation_context_summaries` 是上下文压缩基础设施表；`app_settings` 是单行配置表，不对应实体。
+> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`app_settings` 是单行配置表，不对应实体。
 
 源文件：`src/db/schema.ts`
 
@@ -201,7 +201,92 @@ INDEX idx_runs_parent ON (parent_run_id)
 
 ---
 
-## 8. conversation_context_summaries
+## 8. automations
+
+```ts
+automations {
+  id              text PK           // auto_<nanoid> 或内置 seed id
+  title           text NOT NULL
+  description     text NOT NULL
+  category        text NOT NULL
+  cadence         text NOT NULL     // 展示用触发规则文案，由 schedule 字段派生
+  status          text NOT NULL     // 'enabled'|'running'|'draft'|'paused'
+  icon_key        text NOT NULL     // 'newspaper'|'languages'|'calendar_clock'|'video'|'history'
+  prompt          text NOT NULL default ''
+  agent_id        text FK→agents.id
+  conversation_id text FK→conversations.id ON DELETE SET NULL
+  workspace_id    text FK→workspaces.id ON DELETE SET NULL
+  schedule_type   text NOT NULL default 'manual' // 'manual'|'interval'|'daily'|'weekly'
+  schedule_config text              // JSON，由应用层 zod 按 schedule_type 校验
+  next_run_at     int               // enabled 且 due 时由 scheduler 扫描
+  latest_run_at   int               // 最近一次运行完成时间；null = 尚未运行
+  last_error      text              // 最近一次失败概要
+  created_at      int NOT NULL
+  updated_at      int NOT NULL
+}
+INDEX idx_automations_status ON (status)
+INDEX idx_automations_next_run ON (status, next_run_at)
+INDEX idx_automations_updated ON (updated_at)
+```
+
+**语义**：自动化任务定义。`cadence` 只用于 UI 展示；调度以 `schedule_type`、`schedule_config`、`next_run_at` 为准。`agent_id` / `conversation_id` 允许为空；保存或运行时由 `AutomationService` 自动选择默认 Agent、创建同名会话并回写绑定。
+
+**约束**：
+- `status='draft'` 表示待配置，不进入自动触发。
+- `status='paused'` 表示暂停，不进入自动触发。
+- `status='enabled'` 且 `next_run_at <= now` 才会被本地 scheduler 扫描。
+- `status='running'` 仅兼容早期看板语义；新执行状态以 `automation_runs.status` 为准。
+
+---
+
+## 9. automation_runs
+
+```ts
+automation_runs {
+  id              text PK           // arun_<nanoid> 或内置 seed id
+  automation_id   text NOT NULL FK→automations.id ON DELETE CASCADE
+  status          text NOT NULL     // 'success'|'failed'|'running'
+  trigger         text NOT NULL default 'manual' // 'manual'|'schedule'
+  agent_run_id    text FK→agent_runs.id ON DELETE SET NULL
+  conversation_id text FK→conversations.id ON DELETE SET NULL
+  attempt         int NOT NULL default 1
+  duration_ms     int               // running 时可为当前耗时或 null
+  started_at      int NOT NULL
+  finished_at     int               // null = 仍在 running
+  error           text              // failed 时存错误概要
+  created_at      int NOT NULL
+  updated_at      int NOT NULL
+}
+INDEX idx_automation_runs_automation_started ON (automation_id, started_at)
+INDEX idx_automation_runs_started ON (started_at)
+INDEX idx_automation_runs_status ON (status)
+```
+
+**语义**：自动化任务运行记录。它记录自动化层面的运行状态，并可关联由 Conversation/AgentRunner 创建的 `agent_runs`。
+
+**生命周期**：`running → success | failed`。同一 automation 同时只允许一个 `running` run。
+
+---
+
+## 10. automation_run_logs
+
+```ts
+automation_run_logs {
+  id          text PK           // alog_<nanoid>
+  run_id      text NOT NULL FK→automation_runs.id ON DELETE CASCADE
+  level       text NOT NULL     // 'info'|'warn'|'error'
+  message     text NOT NULL
+  metadata    text              // JSON 文本，存触发来源、messageId、runIds、错误摘要等
+  created_at  int NOT NULL
+}
+INDEX idx_automation_run_logs_run_created ON (run_id, created_at)
+```
+
+**语义**：自动化运行日志，用于前端运行历史详情和异常排查。日志随 run 级联删除。
+
+---
+
+## 11. conversation_context_summaries
 
 ```ts
 conversation_context_summaries {
@@ -227,7 +312,7 @@ INDEX idx_context_summaries_conv_created ON (conversation_id, created_at)
 
 ---
 
-## 9. app_settings
+## 11. app_settings
 
 ```ts
 app_settings {
@@ -281,6 +366,8 @@ conversations  ─── CASCADE ──┬─► messages
                              ├─► agent_runs
                              └─► conversation_context_summaries
 
+automations ─── CASCADE ───────► automation_runs
+
 agents ──(no cascade)──── messages.agent_id
                           artifacts.created_by_agent_id
                           agent_runs.agent_id
@@ -330,6 +417,8 @@ app_settings ──(独立，无外键)── 单行表，与任何业务表都�
 | Attachment | `att_` | `att_qWeR...` |
 | AgentRun | `run_` | `run_xT9m...` |
 | ContextSummary | `ctx_` | `ctx_mN4p...` |
+| Automation | `auto_` | `auto_xY8k...` |
+| AutomationRun | `arun_` | `arun_pQ2s...` |
 | ToolCall (内存中) | `call_` | `call_aBc...` |
 | AppSettings | `'singleton'` | 不用 nanoid，固定字面量 |
 

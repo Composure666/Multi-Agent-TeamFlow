@@ -30,6 +30,71 @@ const BUILTIN_TOOL_UPGRADES = new Map(
   BUILTIN_AGENTS.map((agent) => [agent.id, agent.toolNames] as const),
 )
 
+const AUTOMATION_SEED = [
+  {
+    id: 'auto_daily_ai_news',
+    title: '每日 AI 新闻推送',
+    description: '关注当天 AI 领域的重要动态，自动整理并推送摘要。',
+    category: '内容推送',
+    cadence: '每天 08:30',
+    status: 'enabled',
+    iconKey: 'newspaper',
+    prompt: '请整理今天 AI 领域的重要动态，输出 5 条以内摘要，包含来源、影响和后续关注点。',
+    scheduleType: 'daily',
+    scheduleConfig: { timeOfDay: '08:30' },
+  },
+  {
+    id: 'auto_daily_english_words',
+    title: '每日 5 个英语单词',
+    description: '每天推荐 5 个高频实用英语单词，包含释义与例句。',
+    category: '学习提醒',
+    cadence: '每天 07:45',
+    status: 'running',
+    iconKey: 'languages',
+    prompt: '请推荐 5 个高频实用英语单词，为每个单词提供中文释义、英文例句和记忆提示。',
+    scheduleType: 'daily',
+    scheduleConfig: { timeOfDay: '07:45' },
+  },
+  {
+    id: 'auto_weekly_work_report',
+    title: '每周工作周报',
+    description: '每周五汇总仓库 PR、Issue 与任务进展，生成工作周报。',
+    category: '项目报告',
+    cadence: '周五 18:00',
+    status: 'enabled',
+    iconKey: 'calendar_clock',
+    prompt: '请汇总本周项目进展，整理已完成工作、风险问题和下周计划，输出一份简洁周报。',
+    scheduleType: 'weekly',
+    scheduleConfig: { dayOfWeek: 5, timeOfDay: '18:00' },
+  },
+  {
+    id: 'auto_classic_movie',
+    title: '经典电影推荐',
+    description: '推荐一部高分经典电影，并附带简短推荐理由。',
+    category: '兴趣推荐',
+    cadence: '每天 20:00',
+    status: 'enabled',
+    iconKey: 'video',
+    prompt: '请推荐一部高分经典电影，说明推荐理由、适合人群和一句话看点。',
+    scheduleType: 'daily',
+    scheduleConfig: { timeOfDay: '20:00' },
+  },
+  {
+    id: 'auto_today_history',
+    title: '历史上的今天',
+    description: '从科技、电影、文化等领域挑选一件历史事件进行介绍。',
+    category: '内容推送',
+    cadence: '每天 09:00',
+    status: 'draft',
+    iconKey: 'history',
+    prompt: '请介绍历史上的今天发生的一件科技、电影或文化事件，包含背景、过程和影响。',
+    scheduleType: 'manual',
+    scheduleConfig: null,
+  },
+] as const
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
 const DDL: string[] = [
   // ─── agents ────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS agents (
@@ -135,6 +200,59 @@ const DDL: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_runs_parent ON agent_runs(parent_run_id)`,
 
+  // ─── automations ───────────────────────────────
+  `CREATE TABLE IF NOT EXISTS automations (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    status TEXT NOT NULL,
+    icon_key TEXT NOT NULL,
+    prompt TEXT NOT NULL DEFAULT '',
+    agent_id TEXT REFERENCES agents(id),
+    conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+    workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+    schedule_type TEXT NOT NULL DEFAULT 'manual',
+    schedule_config TEXT,
+    next_run_at INTEGER,
+    latest_run_at INTEGER,
+    last_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_automations_status ON automations(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_automations_updated ON automations(updated_at)`,
+
+  `CREATE TABLE IF NOT EXISTS automation_runs (
+    id TEXT PRIMARY KEY,
+    automation_id TEXT NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    trigger TEXT NOT NULL DEFAULT 'manual',
+    agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+    conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+    attempt INTEGER NOT NULL DEFAULT 1,
+    duration_ms INTEGER,
+    started_at INTEGER NOT NULL,
+    finished_at INTEGER,
+    error TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_automation_runs_automation_started ON automation_runs(automation_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_automation_runs_started ON automation_runs(started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status)`,
+
+  `CREATE TABLE IF NOT EXISTS automation_run_logs (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES automation_runs(id) ON DELETE CASCADE,
+    level TEXT NOT NULL,
+    message TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_automation_run_logs_run_created ON automation_run_logs(run_id, created_at)`,
+
   // ─── conversation_context_summaries ─────────────────────────
   `CREATE TABLE IF NOT EXISTS conversation_context_summaries (
     id TEXT PRIMARY KEY,
@@ -177,6 +295,24 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_publish_enabled INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_publish_dir TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_public_base_url TEXT`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN prompt TEXT NOT NULL DEFAULT ''`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN agent_id TEXT REFERENCES agents(id)`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN schedule_type TEXT NOT NULL DEFAULT 'manual'`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN schedule_config TEXT`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN next_run_at INTEGER`)
+  safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN last_error TEXT`)
+  safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN trigger TEXT NOT NULL DEFAULT 'manual'`)
+  safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL`)
+  safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL`)
+  safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0`)
+  safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`)
+  sqlite.exec(`UPDATE automation_runs SET created_at = started_at WHERE created_at = 0`)
+  sqlite.exec(`UPDATE automation_runs SET updated_at = COALESCE(finished_at, started_at) WHERE updated_at = 0`)
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_automations_next_run ON automations(status, next_run_at)`)
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_automation_run_logs_run_created ON automation_run_logs(run_id, created_at)`)
 }
 
 function safeAlter(sqlite: Database.Database, stmt: string): void {
@@ -300,8 +436,133 @@ function upgradeBuiltinAgents(sqlite: Database.Database): void {
   }
 }
 
+function ensureDemoAutomations(sqlite: Database.Database): void {
+  const row = sqlite
+    .prepare('SELECT 1 AS one FROM automations LIMIT 1')
+    .get()
+  if (row) {
+    backfillDemoAutomationPrompts(sqlite)
+    return
+  }
+
+  const now = Date.now()
+  const todayStart = new Date(now)
+  todayStart.setHours(0, 0, 0, 0)
+  const startOfToday = todayStart.getTime()
+
+  const latestRuns: Record<string, number | null> = {
+    auto_daily_ai_news: startOfToday + 8 * 60 * 60 * 1000 + 30 * 60 * 1000,
+    auto_daily_english_words: startOfToday + 7 * 60 * 60 * 1000 + 45 * 60 * 1000,
+    auto_weekly_work_report: startOfToday - 3 * DAY_MS + 18 * 60 * 60 * 1000,
+    auto_classic_movie: startOfToday - DAY_MS + 20 * 60 * 60 * 1000,
+    auto_today_history: null,
+  }
+
+  const insertAutomation = sqlite.prepare(`
+    INSERT INTO automations (
+      id, title, description, category, cadence, status, icon_key,
+      prompt, schedule_type, schedule_config, next_run_at,
+      latest_run_at, created_at, updated_at
+    ) VALUES (
+      @id, @title, @description, @category, @cadence, @status, @icon_key,
+      @prompt, @schedule_type, @schedule_config, @next_run_at,
+      @latest_run_at, @created_at, @updated_at
+    )
+  `)
+  const insertRun = sqlite.prepare(`
+    INSERT INTO automation_runs (
+      id, automation_id, status, trigger, attempt, duration_ms,
+      started_at, finished_at, error, created_at, updated_at
+    ) VALUES (
+      @id, @automation_id, @status, @trigger, @attempt, @duration_ms,
+      @started_at, @finished_at, @error, @created_at, @updated_at
+    )
+  `)
+
+  const tx = sqlite.transaction(() => {
+    for (const item of AUTOMATION_SEED) {
+      insertAutomation.run({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        cadence: item.cadence,
+        status: item.status,
+        prompt: item.prompt,
+        schedule_type: item.scheduleType,
+        schedule_config: item.scheduleConfig ? JSON.stringify(item.scheduleConfig) : null,
+        next_run_at: item.status === 'enabled' ? latestRuns[item.id] ? latestRuns[item.id]! + DAY_MS : startOfToday + DAY_MS : null,
+        latest_run_at: latestRuns[item.id],
+        created_at: now - 14 * DAY_MS,
+        updated_at: latestRuns[item.id] ?? now - 2 * DAY_MS,
+      })
+    }
+
+    const runRows = [
+      ['arun_ai_news_today', 'auto_daily_ai_news', 'success', 36_000, latestRuns.auto_daily_ai_news],
+      ['arun_english_today', 'auto_daily_english_words', 'running', 12_000, latestRuns.auto_daily_english_words],
+      ['arun_report_recent', 'auto_weekly_work_report', 'success', 138_000, latestRuns.auto_weekly_work_report],
+      ['arun_movie_yesterday', 'auto_classic_movie', 'failed', 8_000, latestRuns.auto_classic_movie],
+      ['arun_history_today', 'auto_today_history', 'success', 24_000, startOfToday + 9 * 60 * 60 * 1000],
+      ['arun_ai_news_d1', 'auto_daily_ai_news', 'success', 32_000, startOfToday - DAY_MS + 8 * 60 * 60 * 1000],
+      ['arun_english_d1', 'auto_daily_english_words', 'success', 18_000, startOfToday - DAY_MS + 7 * 60 * 60 * 1000],
+      ['arun_ai_news_d2', 'auto_daily_ai_news', 'success', 35_000, startOfToday - 2 * DAY_MS + 8 * 60 * 60 * 1000],
+      ['arun_movie_d2', 'auto_classic_movie', 'success', 42_000, startOfToday - 2 * DAY_MS + 20 * 60 * 60 * 1000],
+      ['arun_history_d3', 'auto_today_history', 'success', 26_000, startOfToday - 3 * DAY_MS + 9 * 60 * 60 * 1000],
+      ['arun_english_d4', 'auto_daily_english_words', 'success', 17_000, startOfToday - 4 * DAY_MS + 7 * 60 * 60 * 1000],
+      ['arun_ai_news_d5', 'auto_daily_ai_news', 'success', 34_000, startOfToday - 5 * DAY_MS + 8 * 60 * 60 * 1000],
+      ['arun_movie_d6', 'auto_classic_movie', 'success', 39_000, startOfToday - 6 * DAY_MS + 20 * 60 * 60 * 1000],
+    ] as const
+
+    for (const [id, automationId, status, durationMs, startedAt] of runRows) {
+      if (startedAt === null) continue
+      const finishedAt = status === 'running' ? null : startedAt + durationMs
+      insertRun.run({
+        id,
+        automation_id: automationId,
+        status,
+        trigger: 'schedule',
+        attempt: 1,
+        duration_ms: durationMs,
+        started_at: startedAt,
+        finished_at: finishedAt,
+        error: status === 'failed' ? '示例运行失败：输入源暂不可用' : null,
+        created_at: startedAt,
+        updated_at: finishedAt ?? startedAt,
+      })
+    }
+  })
+
+  tx()
+  backfillDemoAutomationPrompts(sqlite)
+}
+
+function backfillDemoAutomationPrompts(sqlite: Database.Database): void {
+  const update = sqlite.prepare(`
+    UPDATE automations
+    SET prompt = @prompt, schedule_type = @schedule_type, schedule_config = @schedule_config, updated_at = @updated_at
+    WHERE id = @id AND (prompt IS NULL OR trim(prompt) = '')
+  `)
+  const now = Date.now()
+
+  const tx = sqlite.transaction(() => {
+    for (const item of AUTOMATION_SEED) {
+      update.run({
+        id: item.id,
+        prompt: item.prompt,
+        schedule_type: item.scheduleType,
+        schedule_config: item.scheduleConfig ? JSON.stringify(item.scheduleConfig) : null,
+        updated_at: now,
+      })
+    }
+  })
+
+  tx()
+}
+
 export function bootstrapDatabase(sqlite: Database.Database): void {
   ensureSchema(sqlite)
   ensureBuiltinAgents(sqlite)
   upgradeBuiltinAgents(sqlite)
+  ensureDemoAutomations(sqlite)
 }
