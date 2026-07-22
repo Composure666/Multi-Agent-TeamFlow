@@ -253,6 +253,29 @@ const DDL: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_automation_run_logs_run_created ON automation_run_logs(run_id, created_at)`,
 
+  // ─── notifications ─────────────────────────────
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT,
+    level TEXT NOT NULL,
+    source TEXT NOT NULL,
+    category TEXT NOT NULL,
+    priority TEXT NOT NULL,
+    target_type TEXT,
+    target_payload TEXT,
+    toast INTEGER NOT NULL DEFAULT 1,
+    native INTEGER NOT NULL DEFAULT 0,
+    urgent INTEGER NOT NULL DEFAULT 0,
+    read_at INTEGER,
+    deleted_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(read_at, deleted_at, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_category ON notifications(category, created_at)`,
+
   // ─── conversation_context_summaries ─────────────────────────
   `CREATE TABLE IF NOT EXISTS conversation_context_summaries (
     id TEXT PRIMARY KEY,
@@ -281,6 +304,13 @@ const DDL: string[] = [
     deployment_publish_enabled INTEGER NOT NULL DEFAULT 0,
     deployment_publish_dir TEXT,
     deployment_public_base_url TEXT,
+    notification_task_enabled INTEGER NOT NULL DEFAULT 1,
+    notification_error_enabled INTEGER NOT NULL DEFAULT 1,
+    notification_system_enabled INTEGER NOT NULL DEFAULT 1,
+    notification_configuration_enabled INTEGER NOT NULL DEFAULT 1,
+    notification_toast_enabled INTEGER NOT NULL DEFAULT 1,
+    notification_native_enabled INTEGER NOT NULL DEFAULT 1,
+    notification_urgent_enabled INTEGER NOT NULL DEFAULT 1,
     updated_at INTEGER NOT NULL
   )`,
 ]
@@ -295,6 +325,13 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_publish_enabled INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_publish_dir TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_public_base_url TEXT`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_task_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_error_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_system_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_configuration_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_toast_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_native_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_urgent_enabled INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN prompt TEXT NOT NULL DEFAULT ''`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN agent_id TEXT REFERENCES agents(id)`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL`)
@@ -488,6 +525,7 @@ function ensureDemoAutomations(sqlite: Database.Database): void {
         category: item.category,
         cadence: item.cadence,
         status: item.status,
+        icon_key: item.iconKey,
         prompt: item.prompt,
         schedule_type: item.scheduleType,
         schedule_config: item.scheduleConfig ? JSON.stringify(item.scheduleConfig) : null,

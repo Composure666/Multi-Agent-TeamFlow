@@ -9,6 +9,8 @@ import type {
 } from '@/db/schema'
 import type {
   AskUserAnswer,
+  AppNotification,
+  AppNotificationCategory,
   DeployCandidateRecord,
   DeployStatusRecord,
   PendingBashCommand,
@@ -272,6 +274,57 @@ export async function fetchAutomationRuns(automationId: string): Promise<Automat
   return runs
 }
 
+export interface NotificationListResult {
+  notifications: AppNotification[]
+  nextCursor: number | null
+  unreadCount: number
+}
+
+export async function fetchNotifications(opts: {
+  status?: 'all' | 'unread' | 'read'
+  category?: AppNotificationCategory
+  limit?: number
+  cursor?: number
+} = {}): Promise<NotificationListResult> {
+  const params = new URLSearchParams()
+  if (opts.status) params.set('status', opts.status)
+  if (opts.category) params.set('category', opts.category)
+  if (opts.limit) params.set('limit', String(opts.limit))
+  if (opts.cursor) params.set('cursor', String(opts.cursor))
+  const qs = params.toString()
+  return json<NotificationListResult>(fetch(`/api/notifications${qs ? `?${qs}` : ''}`))
+}
+
+export async function fetchUnreadNotificationCount(): Promise<number> {
+  const { count } = await json<{ count: number }>(fetch('/api/notifications/unread-count'))
+  return count
+}
+
+export async function markNotificationRead(notificationId: string): Promise<AppNotification> {
+  const { notification } = await json<{ notification: AppNotification }>(
+    fetch(`/api/notifications/${notificationId}/read`, { method: 'POST' }),
+  )
+  return notification
+}
+
+export async function markNotificationsRead(body: {
+  ids?: string[]
+  all?: boolean
+  category?: AppNotificationCategory
+}): Promise<{ updated: number }> {
+  return json<{ updated: number }>(
+    fetch('/api/notifications/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+}
+
+export async function deleteNotification(notificationId: string): Promise<void> {
+  await json<{ ok: true }>(fetch(`/api/notifications/${notificationId}`, { method: 'DELETE' }))
+}
+
 // ─── Conversations ──────────────────────────────
 export async function fetchConversations(): Promise<ConversationWithMeta[]> {
   const { conversations } = await json<{ conversations: ConversationWithMeta[] }>(
@@ -521,11 +574,12 @@ export interface MessagePage {
 
 export async function fetchMessagePage(
   conversationId: string,
-  opts: { limit?: number; before?: number } = {},
+  opts: { limit?: number; before?: number; aroundMessageId?: string } = {},
 ): Promise<MessagePage> {
   const params = new URLSearchParams()
   if (opts.limit) params.set('limit', String(opts.limit))
   if (opts.before) params.set('before', String(opts.before))
+  if (opts.aroundMessageId) params.set('aroundMessageId', opts.aroundMessageId)
   const qs = params.toString()
   return json<MessagePage>(
     fetch(`/api/conversations/${conversationId}/messages${qs ? `?${qs}` : ''}`),
@@ -972,6 +1026,13 @@ export interface AppSettingsPatchBody {
   deploymentPublishEnabled?: boolean
   deploymentPublishDir?: string | null
   deploymentPublicBaseUrl?: string | null
+  notificationTaskEnabled?: boolean
+  notificationErrorEnabled?: boolean
+  notificationSystemEnabled?: boolean
+  notificationConfigurationEnabled?: boolean
+  notificationToastEnabled?: boolean
+  notificationNativeEnabled?: boolean
+  notificationUrgentEnabled?: boolean
 }
 
 export async function updateAppSettings(patch: AppSettingsPatchBody): Promise<AppSettingsRow> {

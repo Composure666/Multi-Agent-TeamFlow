@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Bell,
   Check,
   Clipboard,
   Eye,
@@ -41,6 +42,7 @@ import {
   type ConnectionHint,
 } from '@/lib/api'
 import { subscribeUiCommand } from '@/lib/ui-command-events'
+import { useAppStore } from '@/stores/app-store'
 
 interface SettingsForm {
   anthropicApiKey: string
@@ -53,6 +55,13 @@ interface SettingsForm {
   deploymentPublishEnabled: boolean
   deploymentPublishDir: string
   deploymentPublicBaseUrl: string
+  notificationTaskEnabled: boolean
+  notificationErrorEnabled: boolean
+  notificationSystemEnabled: boolean
+  notificationConfigurationEnabled: boolean
+  notificationToastEnabled: boolean
+  notificationNativeEnabled: boolean
+  notificationUrgentEnabled: boolean
 }
 
 /**
@@ -78,6 +87,7 @@ export function SettingsDialog({
   const [connectionHints, setConnectionHints] = useState<ConnectionHint[]>([])
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [tab, setTab] = useState('keys')
+  const activeSettingsSection = useAppStore((s) => s.activeSettingsSection)
   const [form, setForm] = useState<SettingsForm>({
     anthropicApiKey: '',
     anthropicBaseUrl: '',
@@ -89,6 +99,13 @@ export function SettingsDialog({
     deploymentPublishEnabled: false,
     deploymentPublishDir: '',
     deploymentPublicBaseUrl: '',
+    notificationTaskEnabled: true,
+    notificationErrorEnabled: true,
+    notificationSystemEnabled: true,
+    notificationConfigurationEnabled: true,
+    notificationToastEnabled: true,
+    notificationNativeEnabled: true,
+    notificationUrgentEnabled: true,
   })
   const [reveal, setReveal] = useState<Record<keyof SettingsForm, boolean>>({
     anthropicApiKey: false,
@@ -101,7 +118,20 @@ export function SettingsDialog({
     deploymentPublishEnabled: true,
     deploymentPublishDir: true,
     deploymentPublicBaseUrl: true,
+    notificationTaskEnabled: true,
+    notificationErrorEnabled: true,
+    notificationSystemEnabled: true,
+    notificationConfigurationEnabled: true,
+    notificationToastEnabled: true,
+    notificationNativeEnabled: true,
+    notificationUrgentEnabled: true,
   })
+
+  useEffect(() => {
+    if (!open) return
+    if (activeSettingsSection === 'notifications') setTab('notifications')
+    else if (activeSettingsSection === 'api-keys' || activeSettingsSection === 'providers') setTab('keys')
+  }, [activeSettingsSection, open])
 
   useEffect(() => {
     if (!open) return
@@ -166,6 +196,13 @@ export function SettingsDialog({
         deploymentPublishEnabled: form.deploymentPublishEnabled,
         deploymentPublishDir: form.deploymentPublishDir.trim() || null,
         deploymentPublicBaseUrl: form.deploymentPublicBaseUrl.trim() || null,
+        notificationTaskEnabled: form.notificationTaskEnabled,
+        notificationErrorEnabled: form.notificationErrorEnabled,
+        notificationSystemEnabled: form.notificationSystemEnabled,
+        notificationConfigurationEnabled: form.notificationConfigurationEnabled,
+        notificationToastEnabled: form.notificationToastEnabled,
+        notificationNativeEnabled: form.notificationNativeEnabled,
+        notificationUrgentEnabled: form.notificationUrgentEnabled,
       }
       await updateAppSettings(patch)
       onOpenChange(false)
@@ -270,6 +307,10 @@ export function SettingsDialog({
                   <FolderUp className="size-3.5" />
                   发布
                 </TabsTrigger>
+                <TabsTrigger value="notifications">
+                  <Bell className="size-3.5" />
+                  通知
+                </TabsTrigger>
               </TabsList>
               {tab === 'keys' && (
                 <TooltipProvider>
@@ -365,6 +406,13 @@ export function SettingsDialog({
                   onPublicBaseUrlChange={(deploymentPublicBaseUrl) =>
                     setForm((f) => ({ ...f, deploymentPublicBaseUrl }))
                   }
+                />
+              </TabsContent>
+
+              <TabsContent value="notifications" className="mt-0 py-1">
+                <NotificationPreferenceSettings
+                  form={form}
+                  onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
                 />
               </TabsContent>
             </div>
@@ -594,6 +642,69 @@ function DeploymentPublishSettings({
   )
 }
 
+function NotificationPreferenceSettings({
+  form,
+  onChange,
+}: {
+  form: SettingsForm
+  onChange: (patch: Partial<SettingsForm>) => void
+}) {
+  return (
+    <section className="rounded-lg border bg-muted/30 p-3">
+      <div className="mb-3 flex items-center gap-2">
+        <Bell className="size-4 text-muted-foreground" />
+        <div>
+          <h3 className="text-sm font-medium">通知偏好</h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">关闭分类后仍会进入信息中心，但不会弹 Toast 或系统通知。</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <div className="rounded-md border bg-background p-2">
+          <p className="mb-2 text-xs font-medium">通知分类</p>
+          <div className="grid gap-2">
+            <CheckboxRow label="任务通知" checked={form.notificationTaskEnabled} onChange={(notificationTaskEnabled) => onChange({ notificationTaskEnabled })} />
+            <CheckboxRow label="异常告警" checked={form.notificationErrorEnabled} onChange={(notificationErrorEnabled) => onChange({ notificationErrorEnabled })} />
+            <CheckboxRow label="系统消息" checked={form.notificationSystemEnabled} onChange={(notificationSystemEnabled) => onChange({ notificationSystemEnabled })} />
+            <CheckboxRow label="配置提醒" checked={form.notificationConfigurationEnabled} onChange={(notificationConfigurationEnabled) => onChange({ notificationConfigurationEnabled })} />
+          </div>
+        </div>
+
+        <div className="rounded-md border bg-background p-2">
+          <p className="mb-2 text-xs font-medium">展示方式</p>
+          <div className="grid gap-2">
+            <CheckboxRow label="应用内 Toast" checked={form.notificationToastEnabled} onChange={(notificationToastEnabled) => onChange({ notificationToastEnabled })} />
+            <CheckboxRow label="系统通知" checked={form.notificationNativeEnabled} onChange={(notificationNativeEnabled) => onChange({ notificationNativeEnabled })} />
+            <CheckboxRow label="紧急提醒" checked={form.notificationUrgentEnabled} onChange={(notificationUrgentEnabled) => onChange({ notificationUrgentEnabled })} />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CheckboxRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.currentTarget.checked)}
+        className="size-4 rounded border-input accent-primary"
+      />
+    </label>
+  )
+}
+
 function hintIcon(kind: ConnectionHint['kind']) {
   switch (kind) {
     case 'tailscale':
@@ -688,5 +799,12 @@ function rowToForm(row: AppSettingsRow): SettingsForm {
     deploymentPublishEnabled: row.deploymentPublishEnabled,
     deploymentPublishDir: row.deploymentPublishDir ?? '',
     deploymentPublicBaseUrl: row.deploymentPublicBaseUrl ?? '',
+    notificationTaskEnabled: row.notificationTaskEnabled,
+    notificationErrorEnabled: row.notificationErrorEnabled,
+    notificationSystemEnabled: row.notificationSystemEnabled,
+    notificationConfigurationEnabled: row.notificationConfigurationEnabled,
+    notificationToastEnabled: row.notificationToastEnabled,
+    notificationNativeEnabled: row.notificationNativeEnabled,
+    notificationUrgentEnabled: row.notificationUrgentEnabled,
   }
 }

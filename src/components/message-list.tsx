@@ -18,6 +18,8 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   const messages = useMessagesForConversation(conversationId)
   const setMessagesForConversation = useAppStore((s) => s.setMessagesForConversation)
   const messageIdsByConv = useAppStore((s) => s.messageIdsByConv[conversationId])
+  const pendingMessageJump = useAppStore((s) => s.pendingMessageJump)
+  const consumePendingMessageJump = useAppStore((s) => s.consumePendingMessageJump)
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const scrollFrameRef = useRef<number | null>(null)
@@ -118,6 +120,45 @@ export function MessageList({ conversationId }: { conversationId: string }) {
     setHasMore(messages.length >= MESSAGE_PAGE_SIZE)
     setNextBefore(messages[0]?.createdAt ?? null)
   }, [messageIdsByConv, messages, nextBefore])
+
+  useEffect(() => {
+    if (!pendingMessageJump || pendingMessageJump.conversationId !== conversationId) return
+    let cancelled = false
+    const jump = pendingMessageJump
+
+    const scrollToTarget = () => {
+      window.requestAnimationFrame(() => {
+        const el = document.getElementById(`message-${jump.messageId}`)
+        if (!el) return
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('search-highlight-flash')
+        window.setTimeout(() => el.classList.remove('search-highlight-flash'), 2000)
+      })
+    }
+
+    if (messageIdsByConv?.includes(jump.messageId)) {
+      consumePendingMessageJump()
+      scrollToTarget()
+      return
+    }
+
+    fetchMessagePage(conversationId, { limit: MESSAGE_PAGE_SIZE, aroundMessageId: jump.messageId })
+      .then((page) => {
+        if (cancelled) return
+        setMessagesForConversation(conversationId, mergeMessages(page.messages, messages))
+        setHasMore(page.hasMore)
+        setNextBefore(page.nextBefore)
+        consumePendingMessageJump()
+        scrollToTarget()
+      })
+      .catch((err) => {
+        console.error('[MessageList] jump target fetch failed', err)
+        consumePendingMessageJump()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [consumePendingMessageJump, conversationId, messageIdsByConv, messages, pendingMessageJump, setMessagesForConversation])
 
   const loadOlderMessages = useCallback(async () => {
     const before = nextBefore ?? messages[0]?.createdAt

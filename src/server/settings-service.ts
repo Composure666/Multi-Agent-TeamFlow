@@ -31,6 +31,13 @@ const EMPTY: AppSettingsRow = {
   deploymentPublishEnabled: false,
   deploymentPublishDir: null,
   deploymentPublicBaseUrl: null,
+  notificationTaskEnabled: true,
+  notificationErrorEnabled: true,
+  notificationSystemEnabled: true,
+  notificationConfigurationEnabled: true,
+  notificationToastEnabled: true,
+  notificationNativeEnabled: true,
+  notificationUrgentEnabled: true,
   updatedAt: 0,
 }
 
@@ -52,6 +59,13 @@ export interface AppSettingsPatch {
   deploymentPublishEnabled?: boolean
   deploymentPublishDir?: string | null
   deploymentPublicBaseUrl?: string | null
+  notificationTaskEnabled?: boolean
+  notificationErrorEnabled?: boolean
+  notificationSystemEnabled?: boolean
+  notificationConfigurationEnabled?: boolean
+  notificationToastEnabled?: boolean
+  notificationNativeEnabled?: boolean
+  notificationUrgentEnabled?: boolean
 }
 
 /** UPSERT 全部字段：传 null 清空，undefined 不动。 */
@@ -87,6 +101,13 @@ export async function updateAppSettings(patch: AppSettingsPatch): Promise<AppSet
         deploymentPublishEnabled: next.deploymentPublishEnabled,
         deploymentPublishDir: next.deploymentPublishDir,
         deploymentPublicBaseUrl: next.deploymentPublicBaseUrl,
+        notificationTaskEnabled: next.notificationTaskEnabled,
+        notificationErrorEnabled: next.notificationErrorEnabled,
+        notificationSystemEnabled: next.notificationSystemEnabled,
+        notificationConfigurationEnabled: next.notificationConfigurationEnabled,
+        notificationToastEnabled: next.notificationToastEnabled,
+        notificationNativeEnabled: next.notificationNativeEnabled,
+        notificationUrgentEnabled: next.notificationUrgentEnabled,
         updatedAt: next.updatedAt,
       },
     })

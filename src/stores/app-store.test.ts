@@ -22,6 +22,7 @@ function resetStore(): void {
     messageIdsByConv: {},
     runsByConv: {},
     dispatchesByRunId: {},
+    workbenchView: 'new-task',
     activeConversationId: null,
     previewArtifactId: null,
     fileExplorerOpen: false,
@@ -37,6 +38,16 @@ function resetStore(): void {
     mobileSidebarOpen: false,
     highlightedMessageId: null,
     streamConnected: false,
+    notifications: [],
+    persistentNotifications: [],
+    unreadNotificationCount: 0,
+    automationResultNotices: {},
+    pendingMessageJump: null,
+    activeArtifactId: null,
+    activeAutomationId: null,
+    activeAutomationRunId: null,
+    settingsOpen: false,
+    activeSettingsSection: null,
   })
 }
 
@@ -114,6 +125,151 @@ describe('app-store dispatch plan binding', () => {
     const state = useAppStore.getState()
     expect(state.dispatchesByRunId.run_orch?.messageId).toBe('msg_plan')
     expect(selectDispatchForMessage(state, 'msg_plan')?.pendingPlanId).toBe('pdp_1')
+  })
+})
+
+
+describe('app-store notification reducer', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('deduplicates notification events and keeps the newest 20 items', () => {
+    for (let index = 0; index < 22; index += 1) {
+      useAppStore.getState().applyEvent({
+        type: 'notification.created',
+        conversationId: `conv_${index}`,
+        timestamp: index,
+        notification: {
+          id: `ntf_${index}`,
+          title: `通知 ${index}`,
+          level: 'info',
+          source: 'system',
+          createdAt: index,
+          conversationId: `conv_${index}`,
+        },
+      })
+    }
+
+    useAppStore.getState().applyEvent({
+      type: 'notification.created',
+      conversationId: 'conv_duplicate',
+      timestamp: 100,
+      notification: {
+        id: 'ntf_21',
+        title: '重复通知',
+        level: 'error',
+        source: 'automation',
+        createdAt: 100,
+        conversationId: 'conv_duplicate',
+      },
+    })
+
+    const notifications = useAppStore.getState().notifications
+    expect(notifications).toHaveLength(20)
+    expect(notifications[0]?.id).toBe('ntf_21')
+    expect(notifications.at(-1)?.id).toBe('ntf_2')
+    expect(notifications.filter((item) => item.id === 'ntf_21')).toHaveLength(1)
+  })
+
+  it('opens a conversation from global notification navigation', () => {
+    useAppStore.setState({
+      workbenchView: 'automation',
+      unreadByConv: { conv_result: 3 },
+      mobileSidebarOpen: true,
+    })
+
+    useAppStore.getState().openConversation('conv_result')
+
+    const state = useAppStore.getState()
+    expect(state.workbenchView).toBe('conversations')
+    expect(state.activeConversationId).toBe('conv_result')
+    expect(state.unreadByConv.conv_result).toBeUndefined()
+    expect(state.mobileSidebarOpen).toBe(false)
+  })
+
+  it('keeps automation result notices until the result conversation is opened', () => {
+    useAppStore.getState().applyEvent({
+      type: 'notification.created',
+      conversationId: 'conv_result',
+      timestamp: 1,
+      notification: {
+        id: 'ntf_result',
+        title: '自动化任务执行完成',
+        level: 'success',
+        source: 'automation',
+        createdAt: 1,
+        conversationId: 'conv_result',
+        automationId: 'auto_1',
+        runId: 'arun_1',
+      },
+    })
+
+    expect(useAppStore.getState().notifications).toHaveLength(1)
+    expect(useAppStore.getState().automationResultNotices.ntf_result).toMatchObject({
+      notificationId: 'ntf_result',
+      conversationId: 'conv_result',
+      automationId: 'auto_1',
+      runId: 'arun_1',
+      createdAt: 1,
+    })
+
+    useAppStore.getState().dismissNotification('ntf_result')
+    expect(useAppStore.getState().notifications).toHaveLength(0)
+    expect(useAppStore.getState().automationResultNotices.ntf_result).toBeDefined()
+
+    useAppStore.getState().openConversation('conv_result')
+    expect(useAppStore.getState().automationResultNotices.ntf_result).toBeUndefined()
+  })
+
+  it('tracks persistent notifications and unread count idempotently', () => {
+    const event = {
+      type: 'notification.created' as const,
+      conversationId: 'conv_1',
+      timestamp: 1,
+      notification: {
+        id: 'ntf_persistent',
+        title: '持久通知',
+        level: 'info' as const,
+        source: 'system' as const,
+        category: 'system' as const,
+        createdAt: 1,
+      },
+    }
+
+    useAppStore.getState().applyEvent(event)
+    useAppStore.getState().applyEvent(event)
+
+    expect(useAppStore.getState().persistentNotifications).toHaveLength(1)
+    expect(useAppStore.getState().unreadNotificationCount).toBe(1)
+
+    useAppStore.getState().markNotificationReadLocal('ntf_persistent')
+    useAppStore.getState().markNotificationReadLocal('ntf_persistent')
+    expect(useAppStore.getState().unreadNotificationCount).toBe(0)
+
+    useAppStore.getState().deleteNotificationLocal('ntf_persistent')
+    expect(useAppStore.getState().persistentNotifications).toHaveLength(0)
+  })
+
+  it('routes notification targets to the correct workbench state', () => {
+    useAppStore.getState().openNotificationTarget({ type: 'settings', settingsSection: 'notifications' })
+    expect(useAppStore.getState().settingsOpen).toBe(true)
+    expect(useAppStore.getState().activeSettingsSection).toBe('notifications')
+
+    useAppStore.getState().openNotificationTarget({ type: 'automation', automationId: 'auto_1', runId: 'run_1' })
+    expect(useAppStore.getState().workbenchView).toBe('automation')
+    expect(useAppStore.getState().activeAutomationId).toBe('auto_1')
+    expect(useAppStore.getState().activeAutomationRunId).toBe('run_1')
+
+    useAppStore.getState().openNotificationTarget({ type: 'artifact', artifactId: 'art_1', conversationId: 'conv_1', messageId: 'msg_1' })
+    expect(useAppStore.getState().workbenchView).toBe('artifacts')
+    expect(useAppStore.getState().activeArtifactId).toBe('art_1')
+    expect(useAppStore.getState().previewArtifactId).toBe('art_1')
+
+    useAppStore.getState().openNotificationTarget({ type: 'conversation', conversationId: 'conv_2', messageId: 'msg_2' })
+    expect(useAppStore.getState().workbenchView).toBe('conversations')
+    expect(useAppStore.getState().activeConversationId).toBe('conv_2')
+    expect(useAppStore.getState().pendingMessageJump).toEqual({ conversationId: 'conv_2', messageId: 'msg_2' })
   })
 })
 

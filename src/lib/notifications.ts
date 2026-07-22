@@ -17,11 +17,13 @@ export function showNativeNotification(notification: AppNotification): void {
   if (typeof window === 'undefined') return
 
   const nativePayload = {
+    id: notification.id,
     title: notification.title,
     body: notification.body,
     level: notification.level,
     urgent: notification.urgent,
-    conversationId: notification.conversationId,
+    target: notification.target,
+    conversationId: notification.target?.conversationId ?? notification.conversationId,
     automationId: notification.automationId,
     runId: notification.runId,
   }
@@ -33,7 +35,10 @@ export function showNativeNotification(notification: AppNotification): void {
   }
 
   if ('Notification' in window && window.Notification.permission === 'granted') {
-    new window.Notification(notification.title, { body: notification.body })
+    const browserNotification = new window.Notification(notification.title, { body: notification.body })
+    browserNotification.onclick = () => {
+      window.dispatchEvent(new CustomEvent('agenthub:notification-clicked', { detail: nativePayload }))
+    }
   }
 }
 

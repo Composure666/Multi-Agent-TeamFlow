@@ -43,6 +43,7 @@ import {
   type RunToolEvidence,
 } from './dispatch-run-evidence'
 import { formatDispatchProgressMessage } from './dispatch-progress-message'
+import { publishNotification } from './notification-service'
 import { evaluateWorkspaceEvidence } from './dispatch-workspace-evidence'
 import {
   buildReplanContext,
@@ -1923,6 +1924,10 @@ async function finalize(
     .set({ updatedAt: finishedAt })
     .where(eq(schema.conversations.id, args.conversationId))
 
+  if (status === 'failed') {
+    await publishAgentRunFailureNotification(runId, args, error)
+  }
+
   publish({
     type: 'run.end',
     conversationId: args.conversationId,
@@ -1941,6 +1946,82 @@ async function finalize(
     outputArtifacts: result.outputArtifacts,
     ...(result.taskReport ? { taskReport: result.taskReport } : {}),
   }
+}
+
+async function publishAgentRunFailureNotification(runId: string, args: RunArgs, error: string | undefined): Promise<void> {
+  const kind = classifyRunFailure(error)
+  try {
+    await publishNotification({
+      title: kind.title,
+      body: kind.body(error),
+      level: 'error',
+      source: 'agent_run',
+      category: kind.category,
+      priority: kind.priority,
+      target: kind.target ?? {
+        type: 'conversation',
+        conversationId: args.conversationId,
+        messageId: args.triggerMessageId,
+      },
+      conversationId: args.conversationId,
+      runId,
+      native: true,
+      toast: true,
+      urgent: kind.priority === 'urgent',
+    })
+  } catch (err) {
+    console.error('[AgentRunner] publish failure notification failed', err)
+  }
+}
+
+function classifyRunFailure(error: string | undefined): {
+  title: string
+  category: 'error' | 'configuration'
+  priority: 'high' | 'urgent'
+  target?: { type: 'settings'; settingsSection: 'api-keys' | 'providers' | 'workspaces' }
+  body(error: string | undefined): string
+} {
+  const text = (error ?? '').toLowerCase()
+  const safeBody = (fallback: string) => sanitizeNotificationError(error) || fallback
+  if (text.includes('api key') || text.includes('apikey') || text.includes('unauthorized') || text.includes('401')) {
+    return {
+      title: 'Provider 配置异常',
+      category: 'configuration',
+      priority: 'urgent',
+      target: { type: 'settings', settingsSection: 'api-keys' },
+      body: () => `API Key 或鉴权配置异常：${safeBody('请检查 Provider API Key 配置。')}`,
+    }
+  }
+  if (text.includes('quota') || text.includes('rate limit') || text.includes('429') || text.includes('token')) {
+    return {
+      title: 'Provider 调用受限',
+      category: 'configuration',
+      priority: 'high',
+      target: { type: 'settings', settingsSection: 'providers' },
+      body: () => `模型调用额度或速率受限：${safeBody('请检查 Provider 额度、限流或模型配置。')}`,
+    }
+  }
+  if (text.includes('workspace') || text.includes('worktree') || text.includes('cwd') || text.includes('path')) {
+    return {
+      title: 'Workspace 环境异常',
+      category: 'configuration',
+      priority: 'high',
+      target: { type: 'settings', settingsSection: 'workspaces' },
+      body: () => `工作区或环境配置异常：${safeBody('请检查 workspace 路径和运行环境。')}`,
+    }
+  }
+  return {
+    title: 'Agent 运行失败',
+    category: 'error',
+    priority: 'high',
+    body: () => `Agent 运行失败：${safeBody('请打开对应对话查看失败详情。')}`,
+  }
+}
+
+function sanitizeNotificationError(error: string | undefined): string {
+  return (error ?? '')
+    .replace(/[A-Za-z0-9_-]{24,}/g, '[redacted]')
+    .slice(0, 240)
 }
 
 async function emitErrorVisualisation(

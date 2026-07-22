@@ -10,7 +10,7 @@ import type {
   AutomationStatus,
 } from '@/db/schema'
 import { cadenceFromSchedule, calculateNextRunAt, deserializeScheduleConfig, parseScheduleConfig, serializeScheduleConfig } from '@/server/automation-schedule'
-import { createConversation, sendMessage } from '@/server/conversation-service'
+import { addAgentsToConversation, createConversation, sendMessage } from '@/server/conversation-service'
 import { newAutomationId, newAutomationRunId, newAutomationRunLogId } from '@/server/ids'
 import { publishNotification } from '@/server/notification-service'
 
@@ -262,7 +262,7 @@ export async function deleteAutomation(id: string): Promise<void> {
 }
 
 export async function enableAutomation(id: string): Promise<AutomationListItem> {
-  const current = await getAutomationRow(id)
+  const current = await ensureAutomationBinding(await getAutomationRow(id))
   const config = deserializeScheduleConfig(current.scheduleType, current.scheduleConfig)
   const now = Date.now()
   const patch = {
@@ -326,16 +326,30 @@ export async function runAutomation(
       content: automation.prompt,
       mentionedAgentIds: [automation.agentId],
     })
-    const agentRunId = sent.runIds[0] ?? null
+    if (sent.runIds.length === 0) {
+      throw new AutomationServiceError(`Automation submitted but no agent run was created for conversation ${automation.conversationId} and agent ${automation.agentId}`, 502)
+    }
+    const agentRunId = sent.runIds[0]
     await appendAutomationRunLog({ runId, level: 'info', message: 'Automation submitted to conversation', metadata: { messageId: sent.messageId, runIds: sent.runIds } })
+    const submittedMessage = await db.query.messages.findFirst({
+      where: and(
+        eq(schema.messages.id, sent.messageId),
+        eq(schema.messages.conversationId, automation.conversationId),
+      ),
+    })
     const completed = await completeAutomationRun({ automation, runId, status: 'success', agentRunId })
-    publishAutomationRunNotification({ automation, run: completed, trigger: options.trigger })
+    await publishAutomationRunNotification({
+      automation,
+      run: completed,
+      trigger: options.trigger,
+      messageId: submittedMessage?.id,
+    })
     return completed
   } catch (err) {
     const error = normalizeAutomationError(err)
     await appendAutomationRunLog({ runId, level: 'error', message: 'Automation run failed', metadata: error })
     const completed = await completeAutomationRun({ automation, runId, status: 'failed', error: error.message })
-    publishAutomationRunNotification({ automation, run: completed, trigger: options.trigger })
+    await publishAutomationRunNotification({ automation, run: completed, trigger: options.trigger })
     return completed
   }
 }
@@ -405,6 +419,9 @@ async function ensureAutomationBinding(automation: AutomationRow): Promise<Bound
   if (conversationId) {
     const conversation = await db.query.conversations.findFirst({ where: eq(schema.conversations.id, conversationId) })
     if (!conversation) throw new AutomationServiceError(`Automation conversation not found: ${conversationId}`, 400)
+    if (!conversation.agentIds.includes(agentId)) {
+      await addAgentsToConversation({ conversationId, agentIds: [agentId] })
+    }
   } else {
     const conversation = await createConversation({
       title: automation.title,
@@ -437,24 +454,36 @@ async function getDefaultAutomationAgentId(): Promise<string> {
   throw new AutomationServiceError('Automation needs at least one agent before it can be bound', 400)
 }
 
-function publishAutomationRunNotification(args: {
+async function publishAutomationRunNotification(args: {
   automation: BoundAutomationRow
   run: AutomationRunDetailItem
   trigger: AutomationRunTrigger
-}): void {
+  messageId?: string
+}): Promise<void> {
   const failed = args.run.status === 'failed'
-  publishNotification({
+  const urgent = failed && args.trigger === 'schedule'
+  await publishNotification({
     title: failed ? '自动化任务执行失败' : '自动化任务执行完成',
     body: failed
       ? `${args.automation.title}：${args.run.error ?? '执行失败'}。结果位置：${args.automation.title} 会话。`
       : `${args.automation.title} 已完成，结果已生成在「${args.automation.title}」对话会话中。`,
     level: failed ? 'error' : 'success',
     source: 'automation',
+    category: failed ? 'error' : 'task',
+    priority: urgent ? 'urgent' : failed ? 'high' : 'normal',
+    target: {
+      type: 'conversation',
+      conversationId: args.automation.conversationId,
+      messageId: failed ? undefined : args.messageId,
+      automationId: args.automation.id,
+      runId: args.run.id,
+    },
     automationId: args.automation.id,
     runId: args.run.id,
     conversationId: args.automation.conversationId,
-    urgent: failed && args.trigger === 'schedule',
+    urgent,
     native: true,
+    toast: true,
   })
 }
 

@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  Bell,
   Bot,
   CalendarClock,
   Check,
@@ -47,6 +48,7 @@ import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
 import { ChatPanel } from '@/components/chat-panel'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
 import { FileExplorerPanel } from '@/components/file-explorer-panel'
+import { InformationCenterWorkspace } from '@/components/information-center-workspace'
 import { MessageHighlightLayer } from '@/components/message-highlight-layer'
 import { PromptEnhanceModal } from '@/components/prompt-enhance-modal'
 import { SelectionPopover } from '@/components/selection-popover'
@@ -94,9 +96,9 @@ import {
 import { groupArtifactVersions } from '@/lib/artifact-groups'
 import type { AppNotification } from '@/shared/types'
 import { cn } from '@/lib/utils'
-import { useAgentList, useAppStore, useConversationList } from '@/stores/app-store'
+import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 
-type WorkbenchView = 'new-task' | 'conversations' | 'agents' | 'artifacts' | 'automation' | 'analytics'
+type WorkbenchView = AppWorkbenchView
 
 const navItems: Array<{ id: WorkbenchView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'new-task', label: '新建任务', icon: Plus },
@@ -104,6 +106,7 @@ const navItems: Array<{ id: WorkbenchView; label: string; icon: React.ComponentT
   { id: 'agents', label: 'Agent 库', icon: Bot },
   { id: 'artifacts', label: '产物库', icon: Layers },
   { id: 'automation', label: '自动化', icon: Workflow },
+  { id: 'information-center', label: '信息中心', icon: Bell },
   { id: 'analytics', label: '分析', icon: BarChart3 },
 ]
 
@@ -885,8 +888,11 @@ function buildArtifactReference(item: ArtifactListItem) {
 }
 
 export function AppWorkbench() {
-  const [view, setView] = useState<WorkbenchView>('new-task')
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const view = useAppStore((s) => s.workbenchView)
+  const setView = useAppStore((s) => s.setWorkbenchView)
+  const settingsOpen = useAppStore((s) => s.settingsOpen)
+  const closeSettingsTarget = useAppStore((s) => s.closeSettingsTarget)
+  const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
   const [selectedTeam, setSelectedTeam] = useState<SummonableTeam | null>(null)
   const [teamDialogOpen, setTeamDialogOpen] = useState(false)
   const [summoningTeamId, setSummoningTeamId] = useState<string | null>(null)
@@ -942,13 +948,13 @@ export function AppWorkbench() {
     setMobileSidebarOpen(false)
   }
   const openSettingsFromMobile = () => {
-    setSettingsOpen(true)
+    openSettingsTarget(null)
     setMobileSidebarOpen(false)
   }
 
   return (
     <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px))] bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
-      <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
+      <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
       <main className="min-w-0 flex-1 overflow-visible">
         {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} />}
         <div className="overflow-visible">
@@ -957,11 +963,15 @@ export function AppWorkbench() {
           {view === 'agents' && <AgentWorkspace onOpenConversations={() => setView('conversations')} onOpenTeamDetail={openTeamDetail} />}
           {view === 'artifacts' && <ArtifactWorkspace onOpenConversations={() => setView('conversations')} />}
           {view === 'automation' && <AutomationWorkspace />}
+          {view === 'information-center' && <InformationCenterWorkspace />}
           {view === 'analytics' && <AnalyticsWorkspace />}
         </div>
       </main>
       <MobileWorkbenchDrawer open={mobileSidebarOpen} view={view} onClose={closeMobileSidebar} onViewChange={changeViewFromMobile} onOpenSettings={openSettingsFromMobile} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog open={settingsOpen} onOpenChange={(open) => {
+        if (!open) closeSettingsTarget()
+        else openSettingsTarget(null)
+      }} />
       <TeamSummonDialog
         team={selectedTeam}
         open={teamDialogOpen}
@@ -1484,7 +1494,8 @@ function WorkbenchNav({
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
-  const hasAutomationResultNotice = useAppStore((s) => s.notifications.some((notification) => notification.source === 'automation' && notification.conversationId))
+  const hasAutomationResultNotice = useAppStore((s) => Object.keys(s.automationResultNotices).length > 0)
+  const unreadNotificationCount = useAppStore((s) => s.unreadNotificationCount)
   const usage = useUsageSummary(accountOpen && !collapsed)
 
   return (
@@ -1558,6 +1569,7 @@ function WorkbenchNav({
           const Icon = item.icon
           const active = view === item.id || (item.id === 'conversations' && view === 'new-task')
           const showAutomationResultNotice = item.id === 'conversations' && hasAutomationResultNotice && !active
+          const showUnreadNotifications = item.id === 'information-center' && unreadNotificationCount > 0
           return (
             <button
               key={item.id}
@@ -1577,6 +1589,11 @@ function WorkbenchNav({
               {!collapsed && item.label}
               {showAutomationResultNotice && (
                 <span className={cn('ml-auto size-2 rounded-full bg-[var(--agenthub-accent)]', collapsed && 'absolute right-2 top-2')} title="有自动化任务结果生成" />
+              )}
+              {showUnreadNotifications && (
+                <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white', collapsed && 'absolute right-1 top-1 px-1')} title="未读通知">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
               )}
             </button>
           )
@@ -3952,6 +3969,11 @@ function AutomationWorkspace() {
   const agents = useAgentList()
   const conversations = useConversationList()
   const addNotification = useAppStore((s) => s.addNotification)
+  const setConversations = useAppStore((s) => s.setConversations)
+
+  const refreshConversations = useCallback(async () => {
+    setConversations(await fetchConversations())
+  }, [setConversations])
 
   const notifyAutomation = useCallback((notification: Omit<AppNotification, 'id' | 'createdAt' | 'source'>) => {
     addNotification({
@@ -3994,6 +4016,7 @@ function AutomationWorkspace() {
         automationId: saved.id,
       })
       await loadDashboard()
+      await refreshConversations()
     } catch (err) {
       const message = err instanceof Error ? err.message : '自动化任务保存失败'
       setError(message)
@@ -4050,6 +4073,7 @@ function AutomationWorkspace() {
         automationId: selectedTask.id,
       })
       await loadDashboard()
+      if (action === 'enable' || action === 'run') await refreshConversations()
     } catch (err) {
       const message = err instanceof Error ? err.message : '自动化操作失败'
       setError(message)

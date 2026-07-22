@@ -7,6 +7,8 @@ import { immer } from 'zustand/middleware/immer'
 import type { AgentRunRow, AgentRow, ArtifactRow, AttachmentRow, ConversationWithMeta, MessageRow } from '@/db/schema'
 import type {
   AppNotification,
+  AppNotificationTarget,
+  AppNotificationTargetType,
   DispatchPlanItem,
   DispatchTaskStatus,
   MessagePart,
@@ -18,6 +20,18 @@ import type {
 } from '@/shared/types'
 
 enableMapSet()
+
+export type AppWorkbenchView = 'new-task' | 'conversations' | 'agents' | 'artifacts' | 'automation' | 'analytics' | 'information-center'
+
+export type SettingsSection = 'api-keys' | 'providers' | 'workspaces' | 'notifications'
+
+export interface AutomationResultNotice {
+  notificationId: string
+  conversationId: string
+  automationId?: string
+  runId?: string
+  createdAt: number
+}
 
 export interface DispatchState {
   runId: string                                    // Orchestrator 的 runId
@@ -43,11 +57,19 @@ interface AppState {
   // Orchestrator 的调度状态，按 Orchestrator runId 索引
   dispatchesByRunId: Record<string, DispatchState>
 
+  // ─── 工作台导航 ──────────────────────────────────────
+  workbenchView: AppWorkbenchView
+
   // ─── 当前会话 ──────────────────────────────────────
   activeConversationId: string | null
 
   // ─── 产物预览 ──────────────────────────────────────
   previewArtifactId: string | null
+  activeArtifactId: string | null
+  activeAutomationId: string | null
+  activeAutomationRunId: string | null
+  settingsOpen: boolean
+  activeSettingsSection: SettingsSection | null
 
   // ─── 右侧文件浏览器面板（与 artifact preview 互斥）─
   fileExplorerOpen: boolean
@@ -95,12 +117,30 @@ interface AppState {
 
   // ─── 用户通知 ──────────────────────────────────────
   notifications: AppNotification[]
+  persistentNotifications: AppNotification[]
+  unreadNotificationCount: number
+  automationResultNotices: Record<string, AutomationResultNotice>
+  pendingMessageJump: { conversationId: string; messageId: string } | null
 
   // ─── actions ───────────────────────────────────────
   setStreamConnected(connected: boolean): void
+  setWorkbenchView(view: AppWorkbenchView): void
+  openConversation(conversationId: string): void
+  openConversationTarget(target: { conversationId: string; messageId?: string | null }): void
+  openNotificationTarget(target: AppNotificationTarget): void
+  openSettingsTarget(section?: string | null): void
+  closeSettingsTarget(): void
+  openAutomationTarget(target: { automationId: string; runId?: string | null }): void
+  openArtifactTarget(target: { artifactId: string; conversationId?: string | null; messageId?: string | null }): void
+  consumePendingMessageJump(): { conversationId: string; messageId: string } | null
   addNotification(notification: AppNotification): void
   dismissNotification(id: string): void
   clearNotifications(): void
+  setPersistentNotifications(list: AppNotification[], unreadCount?: number): void
+  upsertPersistentNotification(notification: AppNotification): void
+  setUnreadNotificationCount(count: number): void
+  markNotificationReadLocal(id: string): void
+  deleteNotificationLocal(id: string): void
 
   setConversations(list: ConversationWithMeta[]): void
   upsertConversation(conv: ConversationWithMeta): void
@@ -184,8 +224,14 @@ export const useAppStore = create<AppState>()(
     messageIdsByConv: {},
     runsByConv: {},
     dispatchesByRunId: {},
+    workbenchView: 'new-task',
     activeConversationId: null,
     previewArtifactId: null,
+    activeArtifactId: null,
+    activeAutomationId: null,
+    activeAutomationRunId: null,
+    settingsOpen: false,
+    activeSettingsSection: null,
     fileExplorerOpen: false,
     openFilesByConv: {},
     activeTabByConv: {},
@@ -200,11 +246,111 @@ export const useAppStore = create<AppState>()(
     highlightedMessageId: null,
     streamConnected: false,
     notifications: [],
+    persistentNotifications: [],
+    unreadNotificationCount: 0,
+    automationResultNotices: {},
+    pendingMessageJump: null,
 
     setStreamConnected: (connected) =>
       set((s) => {
         s.streamConnected = connected
       }),
+
+    setWorkbenchView: (view) =>
+      set((s) => {
+        s.workbenchView = view
+      }),
+
+    openConversation: (conversationId) =>
+      set((s) => {
+        s.workbenchView = 'conversations'
+        s.activeConversationId = conversationId
+        delete s.unreadByConv[conversationId]
+        for (const [id, notice] of Object.entries(s.automationResultNotices)) {
+          if (notice.conversationId === conversationId) delete s.automationResultNotices[id]
+        }
+        s.mobileSidebarOpen = false
+      }),
+
+    openConversationTarget: (target) =>
+      set((s) => {
+        s.workbenchView = 'conversations'
+        s.activeConversationId = target.conversationId
+        if (target.messageId) {
+          s.pendingMessageJump = { conversationId: target.conversationId, messageId: target.messageId }
+        }
+        delete s.unreadByConv[target.conversationId]
+        for (const [id, notice] of Object.entries(s.automationResultNotices)) {
+          if (notice.conversationId === target.conversationId) delete s.automationResultNotices[id]
+        }
+        s.mobileSidebarOpen = false
+      }),
+
+    openNotificationTarget: (target) => {
+      const targetType: AppNotificationTargetType = target.type
+      if (targetType === 'conversation' && target.conversationId) {
+        useAppStore.getState().openConversationTarget({
+          conversationId: target.conversationId,
+          messageId: target.messageId,
+        })
+        return
+      }
+      if (targetType === 'settings') {
+        useAppStore.getState().openSettingsTarget(target.settingsSection)
+        return
+      }
+      if (targetType === 'automation' && target.automationId) {
+        useAppStore.getState().openAutomationTarget({ automationId: target.automationId, runId: target.runId })
+        return
+      }
+      if (targetType === 'artifact' && target.artifactId) {
+        useAppStore.getState().openArtifactTarget({
+          artifactId: target.artifactId,
+          conversationId: target.conversationId,
+          messageId: target.messageId,
+        })
+      }
+    },
+
+    openSettingsTarget: (section) =>
+      set((s) => {
+        s.settingsOpen = true
+        s.activeSettingsSection = normalizeSettingsSection(section)
+        s.mobileSidebarOpen = false
+      }),
+
+    closeSettingsTarget: () =>
+      set((s) => {
+        s.settingsOpen = false
+      }),
+
+    openAutomationTarget: (target) =>
+      set((s) => {
+        s.workbenchView = 'automation'
+        s.activeAutomationId = target.automationId
+        s.activeAutomationRunId = target.runId ?? null
+        s.mobileSidebarOpen = false
+      }),
+
+    openArtifactTarget: (target) =>
+      set((s) => {
+        s.workbenchView = 'artifacts'
+        s.activeArtifactId = target.artifactId
+        s.previewArtifactId = target.artifactId
+        if (target.conversationId && target.messageId) {
+          s.pendingMessageJump = { conversationId: target.conversationId, messageId: target.messageId }
+        }
+        s.mobileSidebarOpen = false
+      }),
+
+    consumePendingMessageJump: () => {
+      let jump: { conversationId: string; messageId: string } | null = null
+      set((s) => {
+        jump = s.pendingMessageJump
+        s.pendingMessageJump = null
+      })
+      return jump
+    },
 
     addNotification: (notification) =>
       set((s) => {
@@ -221,6 +367,45 @@ export const useAppStore = create<AppState>()(
     clearNotifications: () =>
       set((s) => {
         s.notifications = []
+      }),
+
+    setPersistentNotifications: (list, unreadCount) =>
+      set((s) => {
+        s.persistentNotifications = list
+        if (typeof unreadCount === 'number') s.unreadNotificationCount = unreadCount
+      }),
+
+    upsertPersistentNotification: (notification) =>
+      set((s) => {
+        const existing = s.persistentNotifications.findIndex((item) => item.id === notification.id)
+        if (existing >= 0) s.persistentNotifications[existing] = notification
+        else s.persistentNotifications.unshift(notification)
+      }),
+
+    setUnreadNotificationCount: (count) =>
+      set((s) => {
+        s.unreadNotificationCount = Math.max(0, count)
+      }),
+
+    markNotificationReadLocal: (id) =>
+      set((s) => {
+        const now = Date.now()
+        for (const item of s.persistentNotifications) {
+          if (item.id === id && !item.readAt) {
+            item.readAt = now
+            item.updatedAt = now
+            s.unreadNotificationCount = Math.max(0, s.unreadNotificationCount - 1)
+          }
+        }
+      }),
+
+    deleteNotificationLocal: (id) =>
+      set((s) => {
+        const item = s.persistentNotifications.find((notification) => notification.id === id)
+        if (item && !item.readAt) s.unreadNotificationCount = Math.max(0, s.unreadNotificationCount - 1)
+        s.persistentNotifications = s.persistentNotifications.filter((notification) => notification.id !== id)
+        s.notifications = s.notifications.filter((notification) => notification.id !== id)
+        delete s.automationResultNotices[id]
       }),
 
     setConversations: (list) =>
@@ -878,9 +1063,25 @@ export const useAppStore = create<AppState>()(
           }
 
           case 'notification.created': {
-            if (s.notifications.some((item) => item.id === event.notification.id)) return
-            s.notifications.unshift(event.notification)
-            if (s.notifications.length > 20) s.notifications.length = 20
+            const shouldToast = event.notification.toast !== false
+            if (shouldToast && !s.notifications.some((item) => item.id === event.notification.id)) {
+              s.notifications.unshift(event.notification)
+              if (s.notifications.length > 20) s.notifications.length = 20
+            }
+            if (!event.notification.deletedAt && !s.persistentNotifications.some((item) => item.id === event.notification.id)) {
+              s.persistentNotifications.unshift(event.notification)
+              if (!event.notification.readAt) s.unreadNotificationCount += 1
+            }
+            const conversationId = getNotificationConversationId(event.notification)
+            if (event.notification.source === 'automation' && conversationId && event.notification.runId) {
+              s.automationResultNotices[event.notification.id] = {
+                notificationId: event.notification.id,
+                conversationId,
+                automationId: event.notification.automationId,
+                runId: event.notification.runId,
+                createdAt: event.notification.createdAt,
+              }
+            }
             return
           }
 
@@ -894,6 +1095,15 @@ export const useAppStore = create<AppState>()(
 // ─── 派生 hooks ──────────────────────────────────────
 // 用 useShallow 防止派生数组每次新引用导致无限渲染（Zustand 5 标准做法）。
 import { useShallow } from 'zustand/react/shallow'
+function getNotificationConversationId(notification: AppNotification): string | undefined {
+  return notification.target?.conversationId ?? notification.conversationId
+}
+
+function normalizeSettingsSection(section: string | null | undefined): SettingsSection | null {
+  if (section === 'api-keys' || section === 'providers' || section === 'workspaces' || section === 'notifications') return section
+  return null
+}
+
 function findLatestAgentMessageIdForRun(
   messages: Record<string, MessageRow>,
   runId: string,

@@ -6,7 +6,19 @@
 
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import type { ArtifactContent, ArtifactType, AdapterName, MessagePart, ModelProvider } from '@/shared/types'
+import type {
+  AppNotificationCategory,
+  AppNotificationLevel,
+  AppNotificationPriority,
+  AppNotificationSource,
+  AppNotificationTarget,
+  AppNotificationTargetType,
+  ArtifactContent,
+  ArtifactType,
+  AdapterName,
+  MessagePart,
+  ModelProvider,
+} from '@/shared/types'
 
 // ─── Agents ──────────────────────────────────────────────────
 export const agents = sqliteTable('agents', {
@@ -287,6 +299,33 @@ export const automationRunLogs = sqliteTable(
   (t) => [index('idx_automation_run_logs_run_created').on(t.runId, t.createdAt)],
 )
 
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    body: text('body'),
+    level: text('level').$type<AppNotificationLevel>().notNull(),
+    source: text('source').$type<AppNotificationSource>().notNull(),
+    category: text('category').$type<AppNotificationCategory>().notNull(),
+    priority: text('priority').$type<AppNotificationPriority>().notNull(),
+    targetType: text('target_type').$type<AppNotificationTargetType>(),
+    targetPayload: text('target_payload', { mode: 'json' }).$type<AppNotificationTarget>(),
+    toast: integer('toast', { mode: 'boolean' }).notNull().default(true),
+    native: integer('native', { mode: 'boolean' }).notNull().default(false),
+    urgent: integer('urgent', { mode: 'boolean' }).notNull().default(false),
+    readAt: integer('read_at'),
+    deletedAt: integer('deleted_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_notifications_created').on(t.createdAt),
+    index('idx_notifications_unread').on(t.readAt, t.deletedAt, t.createdAt),
+    index('idx_notifications_category').on(t.category, t.createdAt),
+  ],
+)
+
 /** RunUsage —— 一次 run 累计的 token 用量。所有字段 0+ 整数；不返回的字段 0 不是 null（聚合好处理）。 */
 export interface RunUsage {
   inputTokens: number
@@ -342,6 +381,13 @@ export const appSettings = sqliteTable('app_settings', {
     .default(false),
   deploymentPublishDir: text('deployment_publish_dir'),
   deploymentPublicBaseUrl: text('deployment_public_base_url'),
+  notificationTaskEnabled: integer('notification_task_enabled', { mode: 'boolean' }).notNull().default(true),
+  notificationErrorEnabled: integer('notification_error_enabled', { mode: 'boolean' }).notNull().default(true),
+  notificationSystemEnabled: integer('notification_system_enabled', { mode: 'boolean' }).notNull().default(true),
+  notificationConfigurationEnabled: integer('notification_configuration_enabled', { mode: 'boolean' }).notNull().default(true),
+  notificationToastEnabled: integer('notification_toast_enabled', { mode: 'boolean' }).notNull().default(true),
+  notificationNativeEnabled: integer('notification_native_enabled', { mode: 'boolean' }).notNull().default(true),
+  notificationUrgentEnabled: integer('notification_urgent_enabled', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull(),
 })
 
@@ -386,6 +432,9 @@ export type AutomationInsert = typeof automations.$inferInsert
 export type AutomationRunRow = typeof automationRuns.$inferSelect
 export type AutomationRunLogRow = typeof automationRunLogs.$inferSelect
 export type AutomationRunLogInsert = typeof automationRunLogs.$inferInsert
+
+export type NotificationRow = typeof notifications.$inferSelect
+export type NotificationInsert = typeof notifications.$inferInsert
 
 export type ContextSummaryRow = typeof contextSummaries.$inferSelect
 export type ContextSummaryInsert = typeof contextSummaries.$inferInsert

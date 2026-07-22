@@ -1,6 +1,8 @@
+import { and, eq, gte } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
+import { db, schema } from '@/db/client'
 import { clearConversationHistory, listMessages, sendMessage } from '@/server/conversation-service'
 
 const DEFAULT_MESSAGE_PAGE_SIZE = 50
@@ -9,6 +11,7 @@ const MAX_MESSAGE_PAGE_SIZE = 200
 const MessagesQuery = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_MESSAGE_PAGE_SIZE).default(DEFAULT_MESSAGE_PAGE_SIZE),
   before: z.coerce.number().int().positive().optional(),
+  aroundMessageId: z.string().trim().min(1).optional(),
 })
 
 interface RouteContext {
@@ -34,7 +37,26 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: 'Invalid query', issues: parsed.error.issues }, { status: 400 })
   }
 
-  const { limit, before } = parsed.data
+  const { limit, before, aroundMessageId } = parsed.data
+  if (aroundMessageId) {
+    const target = await db.query.messages.findFirst({
+      where: and(eq(schema.messages.id, aroundMessageId), eq(schema.messages.conversationId, id)),
+    })
+    if (!target) return NextResponse.json({ error: 'Message not found' }, { status: 404 })
+
+    const rows = await db
+      .select()
+      .from(schema.messages)
+      .where(and(eq(schema.messages.conversationId, id), gte(schema.messages.createdAt, target.createdAt)))
+      .orderBy(schema.messages.createdAt)
+      .limit(limit)
+    return NextResponse.json({
+      messages: rows,
+      hasMore: rows.length >= limit,
+      nextBefore: rows[0]?.createdAt ?? null,
+    })
+  }
+
   const rows = await listMessages(id, { limit: limit + 1, before })
   const hasMore = rows.length > limit
   const messages = hasMore ? rows.slice(rows.length - limit) : rows

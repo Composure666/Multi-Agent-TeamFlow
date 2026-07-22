@@ -21,6 +21,13 @@ const PatchBody = z.object({
   deploymentPublishEnabled: z.boolean().optional(),
   deploymentPublishDir: z.string().nullable().optional(),
   deploymentPublicBaseUrl: z.string().nullable().optional(),
+  notificationTaskEnabled: z.boolean().optional(),
+  notificationErrorEnabled: z.boolean().optional(),
+  notificationSystemEnabled: z.boolean().optional(),
+  notificationConfigurationEnabled: z.boolean().optional(),
+  notificationToastEnabled: z.boolean().optional(),
+  notificationNativeEnabled: z.boolean().optional(),
+  notificationUrgentEnabled: z.boolean().optional(),
 })
 
 /** PATCH /api/settings —— upsert 部分字段 */

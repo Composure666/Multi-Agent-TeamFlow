@@ -386,6 +386,19 @@ export interface AskUserAnswer {
 
 export type AppNotificationLevel = 'info' | 'success' | 'warning' | 'error'
 export type AppNotificationSource = 'ui' | 'automation' | 'conversation' | 'agent_run' | 'system'
+export type AppNotificationCategory = 'task' | 'error' | 'system' | 'configuration'
+export type AppNotificationPriority = 'normal' | 'high' | 'urgent'
+export type AppNotificationTargetType = 'conversation' | 'automation' | 'artifact' | 'settings'
+
+export interface AppNotificationTarget {
+  type: AppNotificationTargetType
+  conversationId?: string
+  messageId?: string
+  automationId?: string
+  runId?: string
+  artifactId?: string
+  settingsSection?: string
+}
 
 export interface AppNotification {
   id: string
@@ -393,7 +406,14 @@ export interface AppNotification {
   body?: string
   level: AppNotificationLevel
   source: AppNotificationSource
+  category?: AppNotificationCategory
+  priority?: AppNotificationPriority
+  target?: AppNotificationTarget
   createdAt: number
+  updatedAt?: number
+  readAt?: number | null
+  deletedAt?: number | null
+  toast?: boolean
   conversationId?: string
   automationId?: string
   runId?: string

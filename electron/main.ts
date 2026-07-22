@@ -15,11 +15,23 @@ let mainUrlPromise: Promise<string> | null = null
 // 让 userData 路径更友好；必须在任何 app.getPath('userData') 调用之前完成。
 app.setName('AgentHub')
 
+type NativeNotificationTarget = {
+  type: 'conversation' | 'automation' | 'artifact' | 'settings'
+  conversationId?: string
+  messageId?: string
+  automationId?: string
+  runId?: string
+  artifactId?: string
+  settingsSection?: string
+}
+
 type NativeNotificationPayload = {
+  id?: string
   title: string
   body?: string
   level?: 'info' | 'success' | 'warning' | 'error'
   urgent?: boolean
+  target?: NativeNotificationTarget
   conversationId?: string
   automationId?: string
   runId?: string
@@ -29,20 +41,46 @@ let mainWindow: BrowserWindow | null = null
 
 function isNativeNotificationPayload(value: unknown): value is NativeNotificationPayload {
   if (!value || typeof value !== 'object') return false
-  const payload = value as { title?: unknown; body?: unknown; level?: unknown; urgent?: unknown }
+  const payload = value as {
+    id?: unknown
+    title?: unknown
+    body?: unknown
+    level?: unknown
+    urgent?: unknown
+    target?: unknown
+    conversationId?: unknown
+    automationId?: unknown
+    runId?: unknown
+  }
+  if (payload.id !== undefined && typeof payload.id !== 'string') return false
   if (typeof payload.title !== 'string' || payload.title.trim().length === 0) return false
   if (payload.body !== undefined && typeof payload.body !== 'string') return false
   if (payload.level !== undefined && !['info', 'success', 'warning', 'error'].includes(String(payload.level))) return false
   if (payload.urgent !== undefined && typeof payload.urgent !== 'boolean') return false
+  if (payload.target !== undefined && !isNativeNotificationTarget(payload.target)) return false
+  if (payload.conversationId !== undefined && typeof payload.conversationId !== 'string') return false
+  if (payload.automationId !== undefined && typeof payload.automationId !== 'string') return false
+  if (payload.runId !== undefined && typeof payload.runId !== 'string') return false
   return true
 }
 
-function focusMainWindow(): void {
+function isNativeNotificationTarget(value: unknown): value is NativeNotificationTarget {
+  if (!value || typeof value !== 'object') return false
+  const target = value as Record<string, unknown>
+  if (!['conversation', 'automation', 'artifact', 'settings'].includes(String(target.type))) return false
+  for (const key of ['conversationId', 'messageId', 'automationId', 'runId', 'artifactId', 'settingsSection']) {
+    if (target[key] !== undefined && typeof target[key] !== 'string') return false
+  }
+  return true
+}
+
+function focusMainWindow(): BrowserWindow | null {
   const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
-  if (!win) return
+  if (!win) return null
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()
+  return win
 }
 
 function registerNotificationIpc(): void {
@@ -54,7 +92,10 @@ function registerNotificationIpc(): void {
       body: payload.body,
       silent: false,
     })
-    notification.on('click', focusMainWindow)
+    notification.on('click', () => {
+      const win = focusMainWindow()
+      win?.webContents.send('notifications:clicked', payload)
+    })
     notification.show()
 
     if (payload.urgent) {

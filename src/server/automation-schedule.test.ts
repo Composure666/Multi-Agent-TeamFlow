@@ -6,6 +6,10 @@ function localTimestamp(year: number, monthIndex: number, day: number, hours: nu
   return new Date(year, monthIndex, day, hours, minutes, 0, 0).getTime()
 }
 
+function localTimestampWithSeconds(year: number, monthIndex: number, day: number, hours: number, minutes: number, seconds: number): number {
+  return new Date(year, monthIndex, day, hours, minutes, seconds, 0).getTime()
+}
+
 describe('automation schedule', () => {
   it('does not schedule manual automations', () => {
     expect(parseScheduleConfig('manual', undefined)).toBeNull()
@@ -31,5 +35,17 @@ describe('automation schedule', () => {
     expect(calculateNextRunAt('weekly', config, localTimestamp(2026, 0, 1, 8, 0))).toBe(localTimestamp(2026, 0, 2, 18, 0))
     expect(calculateNextRunAt('weekly', config, localTimestamp(2026, 0, 2, 19, 0))).toBe(localTimestamp(2026, 0, 9, 18, 0))
     expect(cadenceFromSchedule('weekly', config)).toBe('周五 18:00')
+  })
+
+  it('keeps the current minute on today for daily automations', () => {
+    const config = parseScheduleConfig('daily', { timeOfDay: '10:35' })
+    expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 30))).toBe(localTimestamp(2026, 6, 22, 10, 35))
+    expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 36, 0))).toBe(localTimestamp(2026, 6, 23, 10, 35))
+  })
+
+  it('keeps the current minute on this week for weekly automations', () => {
+    const config = parseScheduleConfig('weekly', { dayOfWeek: 3, timeOfDay: '10:35' })
+    expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 30))).toBe(localTimestamp(2026, 6, 22, 10, 35))
+    expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 36, 0))).toBe(localTimestamp(2026, 6, 29, 10, 35))
   })
 })
