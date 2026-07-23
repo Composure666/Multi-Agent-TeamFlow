@@ -123,10 +123,20 @@ describe('automation service bindings and notifications', () => {
       scheduleType: 'manual',
     })
 
-    const run = await service.runAutomation(automation.id, { trigger: 'schedule' })
+    const run = await service.runAutomation(automation.id, { trigger: 'schedule', scheduledFor: 123, schedulerNow: 456 })
 
     expect(run.status).toBe('failed')
     expect(run.error).toBe('adapter unavailable')
+    const startedLog = run.logs.find((log) => log.message === 'Automation run started')
+    expect(startedLog?.metadata).toBeTruthy()
+    expect(JSON.parse(startedLog!.metadata!)).toMatchObject({
+      trigger: 'schedule',
+      automationId: automation.id,
+      scheduleType: 'manual',
+      nextRunAt: null,
+      scheduledFor: 123,
+      schedulerNow: 456,
+    })
 
     const notification = events.find((event) => event.type === 'notification.created')
     expect(notification).toBeDefined()
@@ -229,5 +239,25 @@ describe('automation service bindings and notifications', () => {
       runId: run.id,
       conversationId: automation.conversationId,
     })
+  })
+
+  it('records scheduled dispatch failures and advances the next run time', async () => {
+    const now = new Date(2026, 6, 22, 10, 35, 30, 0).getTime()
+    const automation = await service.createAutomation({
+      title: '调度派发失败自动化测试',
+      prompt: '调度派发失败',
+      status: 'enabled',
+      scheduleType: 'daily',
+      scheduleConfig: { timeOfDay: '10:35' },
+    })
+
+    await service.recordScheduledAutomationDispatchFailure(automation.id, new Error('already running'), now)
+
+    const row = await dbClient.db.query.automations.findFirst({
+      where: (table, { eq }) => eq(table.id, automation.id),
+    })
+    expect(row?.lastError).toBe('already running')
+    expect(row?.nextRunAt).toBeGreaterThan(now)
+    expect(row?.nextRunAt).toBe(new Date(2026, 6, 23, 10, 35, 0, 0).getTime())
   })
 })

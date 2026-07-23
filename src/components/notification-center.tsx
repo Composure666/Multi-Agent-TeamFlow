@@ -155,7 +155,9 @@ function NotificationToast({
   const meta = LEVEL_META[notification.level]
   const Icon = meta.icon
 
-  const canOpen = Boolean(notification.target?.conversationId ?? notification.conversationId)
+  const canOpen = Boolean(notification.target ?? notification.conversationId)
+  const openLabel = getToastOpenLabel(notification)
+  const openTitle = getToastOpenTitle(notification)
 
   return (
     <div
@@ -167,7 +169,7 @@ function NotificationToast({
       )}
       role="status"
       tabIndex={canOpen ? 0 : undefined}
-      title={canOpen ? '打开结果会话' : undefined}
+      title={canOpen ? openTitle : undefined}
       onClick={canOpen ? onOpen : undefined}
       onKeyDown={(event) => {
         if (!canOpen || (event.key !== 'Enter' && event.key !== ' ')) return
@@ -192,7 +194,7 @@ function NotificationToast({
                 }}
                 className="h-7 rounded-lg bg-white/60 px-2 text-xs"
               >
-                查看结果
+                {openLabel}
               </Button>
             )}
             <Button
@@ -225,4 +227,20 @@ function NotificationToast({
       </div>
     </div>
   )
+}
+
+function getToastOpenLabel(notification: AppNotification): string {
+  const type = notification.target?.type ?? (notification.conversationId ? 'conversation' : undefined)
+  if (type === 'settings') return '去设置'
+  if (type === 'automation') return '查看任务'
+  if (type === 'artifact') return '查看产物'
+  return '查看结果'
+}
+
+function getToastOpenTitle(notification: AppNotification): string {
+  const type = notification.target?.type ?? (notification.conversationId ? 'conversation' : undefined)
+  if (type === 'settings') return '打开相关设置'
+  if (type === 'automation') return '打开自动化任务'
+  if (type === 'artifact') return '打开相关产物'
+  return '打开结果会话'
 }

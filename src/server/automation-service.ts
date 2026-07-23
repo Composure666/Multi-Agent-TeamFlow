@@ -293,7 +293,7 @@ export async function listDueAutomations(now = Date.now()): Promise<AutomationLi
 
 export async function runAutomation(
   id: string,
-  options: { trigger: AutomationRunTrigger },
+  options: { trigger: AutomationRunTrigger; scheduledFor?: number | null; schedulerNow?: number },
 ): Promise<AutomationRunDetailItem> {
   const automation = await ensureAutomationBinding(await getAutomationRow(id))
   const running = await findRunningRun(id)
@@ -316,7 +316,20 @@ export async function runAutomation(
     createdAt: now,
     updatedAt: now,
   })
-  await appendAutomationRunLog({ runId, level: 'info', message: 'Automation run started', metadata: { trigger: options.trigger } })
+  await appendAutomationRunLog({
+    runId,
+    level: 'info',
+    message: 'Automation run started',
+    metadata: {
+      trigger: options.trigger,
+      automationId: automation.id,
+      scheduleType: automation.scheduleType,
+      nextRunAt: automation.nextRunAt,
+      scheduledFor: options.scheduledFor ?? null,
+      schedulerNow: options.schedulerNow ?? null,
+      startedAt: now,
+    },
+  })
 
   try {
     if (!automation.prompt.trim()) throw new AutomationServiceError('Automation prompt is required before running', 400)
@@ -405,6 +418,24 @@ export async function appendAutomationRunLog(input: {
     metadata: input.metadata === undefined ? null : JSON.stringify(input.metadata),
     createdAt: Date.now(),
   })
+}
+
+export async function recordScheduledAutomationDispatchFailure(
+  id: string,
+  error: unknown,
+  now = Date.now(),
+): Promise<void> {
+  const automation = await getAutomationRow(id)
+  const normalized = normalizeAutomationError(error)
+  const config = deserializeScheduleConfig(automation.scheduleType, automation.scheduleConfig)
+  await db
+    .update(schema.automations)
+    .set({
+      lastError: normalized.message,
+      nextRunAt: automation.status === 'enabled' ? calculateNextRunAt(automation.scheduleType, config, now) : null,
+      updatedAt: now,
+    })
+    .where(eq(schema.automations.id, id))
 }
 
 type AutomationRow = typeof schema.automations.$inferSelect

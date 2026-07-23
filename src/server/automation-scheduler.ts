@@ -1,4 +1,4 @@
-import { listDueAutomations, runAutomation } from '@/server/automation-service'
+import { listDueAutomations, recordScheduledAutomationDispatchFailure, runAutomation } from '@/server/automation-service'
 
 const SCHEDULER_INTERVAL_MS = 30_000
 
@@ -27,7 +27,15 @@ export async function tickAutomationScheduler(now = Date.now()): Promise<void> {
   try {
     const dueAutomations = await listDueAutomations(now)
     for (const automation of dueAutomations) {
-      await runAutomation(automation.id, { trigger: 'schedule' }).catch(() => undefined)
+      try {
+        await runAutomation(automation.id, {
+          trigger: 'schedule',
+          scheduledFor: automation.nextRunAt,
+          schedulerNow: now,
+        })
+      } catch (error) {
+        await recordScheduledAutomationDispatchFailure(automation.id, error, now)
+      }
     }
   } finally {
     globalForAutomationScheduler.automationSchedulerTicking = false

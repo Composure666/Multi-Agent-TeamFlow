@@ -93,7 +93,7 @@ function nextTimeOfDay(timeOfDay: string, from: number): number {
   const [hours, minutes] = parseTimeOfDay(timeOfDay)
   const next = new Date(from)
   next.setHours(hours, minutes, 0, 0)
-  if (next.getTime() < floorToMinute(from)) next.setDate(next.getDate() + 1)
+  if (next.getTime() <= from) next.setDate(next.getDate() + 1)
   return next.getTime()
 }
 
@@ -103,14 +103,8 @@ function nextWeeklyTime(dayOfWeek: number, timeOfDay: string, from: number): num
   next.setHours(hours, minutes, 0, 0)
   const daysUntil = (dayOfWeek - next.getDay() + 7) % 7
   next.setDate(next.getDate() + daysUntil)
-  if (next.getTime() < floorToMinute(from)) next.setDate(next.getDate() + 7)
+  if (next.getTime() <= from) next.setDate(next.getDate() + 7)
   return next.getTime()
-}
-
-function floorToMinute(value: number): number {
-  const date = new Date(value)
-  date.setSeconds(0, 0)
-  return date.getTime()
 }
 
 function parseTimeOfDay(value: string): [number, number] {

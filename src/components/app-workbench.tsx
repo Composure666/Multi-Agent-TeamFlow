@@ -103,10 +103,10 @@ type WorkbenchView = AppWorkbenchView
 const navItems: Array<{ id: WorkbenchView; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'new-task', label: '新建任务', icon: Plus },
   { id: 'conversations', label: '对话', icon: MessageSquare },
+  { id: 'information-center', label: '信息中心', icon: Bell },
   { id: 'agents', label: 'Agent 库', icon: Bot },
   { id: 'artifacts', label: '产物库', icon: Layers },
   { id: 'automation', label: '自动化', icon: Workflow },
-  { id: 'information-center', label: '信息中心', icon: Bell },
   { id: 'analytics', label: '分析', icon: BarChart3 },
 ]
 
@@ -956,7 +956,7 @@ export function AppWorkbench() {
     <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px))] bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
       <main className="min-w-0 flex-1 overflow-visible">
-        {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} />}
+        {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
         <div className="overflow-visible">
           {view === 'new-task' && <NewTaskView onOpenConversations={() => setView('conversations')} />}
           {view === 'conversations' && <ConversationWorkspace />}
@@ -1187,7 +1187,16 @@ function HorizontalScrollControls({
   )
 }
 
-function MobileWorkbenchTopBar({ currentLabel, onOpen }: { currentLabel: string; onOpen: () => void }) {
+function MobileWorkbenchTopBar({
+  currentLabel,
+  onOpen,
+  onOpenInformationCenter,
+}: {
+  currentLabel: string
+  onOpen: () => void
+  onOpenInformationCenter: () => void
+}) {
+  const unreadNotificationCount = useAppStore((s) => s.unreadNotificationCount)
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-white/10 dark:bg-neutral-900 md:hidden">
       <button
@@ -1205,6 +1214,20 @@ function MobileWorkbenchTopBar({ currentLabel, onOpen }: { currentLabel: string;
         <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">AgentHub</div>
         <div className="truncate text-xs text-slate-500 dark:text-slate-400">{currentLabel}</div>
       </div>
+      <button
+        type="button"
+        onClick={onOpenInformationCenter}
+        className="relative flex size-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+        title="信息中心"
+        aria-label="信息中心"
+      >
+        <Bell className="size-4 stroke-[2.2]" />
+        {unreadNotificationCount > 0 && (
+          <span className="absolute -right-1 -top-1 rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+            {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+          </span>
+        )}
+      </button>
       <ThemeToggle className="size-8 rounded-lg text-slate-500 dark:text-slate-400" />
     </div>
   )
@@ -1225,6 +1248,7 @@ function MobileWorkbenchDrawer({
 }) {
   const [accountOpen, setAccountOpen] = useState(false)
   const usage = useUsageSummary(open && accountOpen)
+  const unreadNotificationCount = useAppStore((s) => s.unreadNotificationCount)
 
   return (
     <>
@@ -1301,6 +1325,11 @@ function MobileWorkbenchDrawer({
                 >
                   <Icon className="size-5 stroke-[2.1]" />
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {item.id === 'information-center' && unreadNotificationCount > 0 && (
+                    <span className="rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                      {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                    </span>
+                  )}
                 </button>
               )
             })}

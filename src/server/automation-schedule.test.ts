@@ -37,15 +37,19 @@ describe('automation schedule', () => {
     expect(cadenceFromSchedule('weekly', config)).toBe('周五 18:00')
   })
 
-  it('keeps the current minute on today for daily automations', () => {
+  it('advances daily automations when the configured minute has already started', () => {
     const config = parseScheduleConfig('daily', { timeOfDay: '10:35' })
-    expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 30))).toBe(localTimestamp(2026, 6, 22, 10, 35))
+    expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 34, 59))).toBe(localTimestamp(2026, 6, 22, 10, 35))
+    expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 0))).toBe(localTimestamp(2026, 6, 23, 10, 35))
+    expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 30))).toBe(localTimestamp(2026, 6, 23, 10, 35))
     expect(calculateNextRunAt('daily', config, localTimestampWithSeconds(2026, 6, 22, 10, 36, 0))).toBe(localTimestamp(2026, 6, 23, 10, 35))
   })
 
-  it('keeps the current minute on this week for weekly automations', () => {
+  it('advances weekly automations when the configured minute has already started', () => {
     const config = parseScheduleConfig('weekly', { dayOfWeek: 3, timeOfDay: '10:35' })
-    expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 30))).toBe(localTimestamp(2026, 6, 22, 10, 35))
+    expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 34, 59))).toBe(localTimestamp(2026, 6, 22, 10, 35))
+    expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 0))).toBe(localTimestamp(2026, 6, 29, 10, 35))
+    expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 35, 30))).toBe(localTimestamp(2026, 6, 29, 10, 35))
     expect(calculateNextRunAt('weekly', config, localTimestampWithSeconds(2026, 6, 22, 10, 36, 0))).toBe(localTimestamp(2026, 6, 29, 10, 35))
   })
 })
