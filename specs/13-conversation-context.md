@@ -2,7 +2,7 @@
 
 > 多轮对话里 agent 怎么「记住」之前发生的事。这个 spec 定义从 DB messages 表到 LLM 的 `messages` 数组的序列化契约。
 
-源文件：`src/server/conversation-context.ts`（`buildHistoryFor`），`src/server/adapters/types.ts`（`AdapterInput.history` 字段），`src/server/adapters/custom-agent-adapter.ts`（消费侧）。
+源文件：`src/server/conversation-context.ts`（`buildPromptContextSnapshot` / `buildHistoryFor`），`src/server/adapters/types.ts`（`AdapterInput.history` 字段），`src/server/adapters/custom-agent-adapter.ts`（消费侧）。
 
 ---
 
@@ -20,7 +20,7 @@ CustomAgentAdapter 已有 within-run 的 turn 累计（一个 run 内 LLM 调用
 2. **agent 视角隔离**：每个 agent 看到的 history 是「以该 agent 为 LLM 主体」视角下的版本——它自己的发言是 `assistant`，他人发言（如有）是 `user` 带前缀。
 3. **artifact 不内联**：history 里的 `artifact_ref` part 折叠成 `[Artifact: title (id=...)]` 文本占位，agent 真要看内容自己 `read_artifact`。`deploy_status` 只折叠为部署 URL / 失败原因，不内联 artifact 内容。
 4. **pinned 永远在**：pinned messages 不计入「最近 N 条」额度，永远注入（去重）。
-5. **token 预算 Phase D 才做**：Phase A 用简单 N=20 条上限，超出范围用户自行 pin 关键消息。
+5. **Workspace Memory 不属于 conversation history**：Workspace Memory 由 `AgentRunner` 组装 system prompt 时单独注入，不进入 `buildHistoryFor` / `PromptContextSnapshot`，也不参与 compaction。
 
 ---
 
@@ -32,7 +32,37 @@ interface BuildHistoryOptions {
   maxTurns?: number
   /** 是否把 pinned messages 注入。默认 true。 */
   includePinned?: boolean
+  /** 当前触发消息 id；它不应进入历史（避免重复）。 */
+  excludeMessageId?: string
+  /** history 的 token 预算上限，不含 system / current user / output reserve。 */
+  tokenBudget?: number
 }
+
+interface PromptContextSnapshotItem {
+  sourceId: string
+  sourceType: 'summary' | 'message'
+  isPinned: boolean
+  tokens: number
+  messages: ChatCompletionMessageParam[]
+  included: boolean
+}
+
+interface PromptContextSnapshot {
+  conversationId: string
+  agentId: string
+  latestSummary: ContextSummaryRow | null
+  items: PromptContextSnapshotItem[]
+  messages: ChatCompletionMessageParam[]
+  tokenBudget?: number
+  tokenEstimate: number
+  trimmedTokenEstimate: number
+}
+
+export async function buildPromptContextSnapshot(
+  agentId: string,
+  conversationId: string,
+  options?: BuildHistoryOptions,
+): Promise<PromptContextSnapshot>
 
 export async function buildHistoryFor(
   agentId: string,
@@ -41,7 +71,9 @@ export async function buildHistoryFor(
 ): Promise<ChatCompletionMessageParam[]>
 ```
 
-返回值类型来自 `openai/resources/chat/completions` 的 `ChatCompletionMessageParam` 联合类型（system / user / assistant / tool）。**不含**当前触发消息——那条由 adapter 自己拼到末尾（保持现状）。
+`buildPromptContextSnapshot` 是阶段五后的规范边界：它返回可解释的上下文快照，包括 summary、pinned、recent message 以及预算裁剪结果。`buildHistoryFor` 是适配器兼容入口，只返回 `snapshot.messages`。Workspace Memory 不在该快照内；它是 `AgentRunner.buildAdapterInput` 组装 system prompt 时的独立输入，见 Spec 16。
+
+返回的 `messages` 类型来自 `openai/resources/chat/completions` 的 `ChatCompletionMessageParam` 联合类型（system / user / assistant / tool）。**不含**当前触发消息——那条由 adapter 自己拼到末尾（保持现状）。
 
 ---
 
@@ -115,12 +147,46 @@ export async function buildHistoryFor(
 
 ---
 
+## PromptContext 快照
+
+`PromptContextSnapshot` 是 L3 在调用 adapter 前生成的上下文快照。它的职责是把“为什么这些历史会进入 prompt”变成可测试的数据，而不是只返回一组不可解释的 chat messages。
+
+快照项按最终上下文顺序排列：
+
+1. 最新 `conversation_context_summaries`（如果存在），作为 `sourceType='summary'`，视为 pinned 项。
+2. `conversation.pinnedMessageIds` 指向的 complete messages，即使早于 summary boundary 也保留。
+3. 最新 summary 覆盖边界之后的 complete messages，受 `maxTurns` 限制。
+
+每个 item 记录：
+
+- `sourceId`：summary id 或 message id。
+- `sourceType`：`summary` / `message`。
+- `isPinned`：summary 和 pinned messages 为 true。
+- `tokens`：粗粒度 token 估算。
+- `included`：预算裁剪后是否进入 `messages`。
+- `messages`：该 item 序列化出的 OpenAI ChatMessage 片段。
+
+预算裁剪只会把非 pinned item 标记为 `included=false`。summary 和 pinned messages 永远保留，即使总量仍超过 `tokenBudget`。
+
+---
+
 ## 序列化纯函数边界
 
 `buildHistoryFor` 应**只做 DB 读 + 纯转换**，不发起 LLM 调用、不查 artifact 全文（只查 title）、不访问 workspace。这样：
 - 单测好写
 - 缓存友好（DB 读结果可以 memo per conversation/turn）
 - 失败不影响主流程（捕获异常返回空数组，agent 退化到「无历史」模式）
+
+---
+
+## Workspace Memory 边界
+
+Workspace Memory（Spec 16）是用户显式维护的 conversation/workspace 备注，不是聊天历史序列化的一部分：
+
+- `buildHistoryFor` / `buildPromptContextSnapshot` 不读取 `workspace_memories` 表，不访问 workspace 文件，也不输出 memory item。
+- 普通 Agent run 需要 memory 时，由 `AgentRunner.buildAdapterInput` 在 `<workspace_info>` 后、agent system prompt 前注入有界 `<workspace_memory>` 块。
+- `args.overridePrompt` 子任务默认不注入 Workspace Memory，保持 Orchestrator 子任务隔离上下文。
+- Conversation compaction 只处理 `messages` 与 `conversation_context_summaries`，不会改写或删除 Workspace Memory。
 
 ---
 
@@ -289,6 +355,12 @@ artifact 仍只记录 id/title，不内联全文；需要全文时 agent 继续�
 
 Claude Code agent 默认通过 SDK `resume` 续接内部 session，不消费 `AdapterInput.history`。手动 compact 成功后必须清掉该 conversation 的 Claude Code session 缓存；下一轮 Claude Code run 不再 resume 老 session，而是在新 prompt 前置 `<conversation_summary>` 块。
 
+### SDK adapter 边界
+
+Claude Code 和 Codex 默认通过 SDK 内部 session/thread 续接，不消费 `AdapterInput.history`。AgentRunner 在普通会话轮次中给它们的当前 prompt 前置最新 `<conversation_summary>`；被 Orchestrator 分派的 `overridePrompt` 子任务不前置全局 summary，继续使用 spec 06 的隔离上下文。
+
+手动 compact 成功后必须清掉对应 conversation 的 SDK session 缓存，下一轮 SDK agent 从新 session 开始，配合 summary prefix 与 DB 中保留的近期消息继续工作。
+
 ### UI 反馈
 
 compact 成功后，service 额外写一条 `role='system'` 的提示消息，例如：
@@ -299,7 +371,7 @@ compact 成功后，service 额外写一条 `role='system'` 的提示消息，�
 
 该系统消息只用于用户可见反馈，不参与 summary 表语义。
 
-第一版不做自动压缩；自动阈值触发留到后续 Phase E.2。
+第一版不做自动压缩；自动阈值触发留到后续阶段。
 
 ---
 

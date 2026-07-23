@@ -14,6 +14,7 @@ import { readAttachmentTool } from '@/server/tools/read-attachment'
 import { reportTaskResultTool } from '@/server/tools/report-task-result'
 import { toolRegistry } from '@/server/tools/registry'
 import type { ToolContext } from '@/server/tools/types'
+import { webFetchTool } from '@/server/tools/web-fetch'
 import { writeArtifactTool } from '@/server/tools/write-artifact'
 import { getEffectiveCwd } from '@/server/workspace-utils'
 
@@ -29,6 +30,7 @@ const EXPOSED_TOOLS = {
   fs_list: fsListTool,
   plan_tasks: planTasksTool,
   read_attachment: readAttachmentTool,
+  web_fetch: webFetchTool,
 }
 
 const BodySchema = z.object({

@@ -24,6 +24,8 @@ OpenSpec capability specs under `openspec/specs/` are the concise, testable cont
 | `desktop-electron` | `specs/12-desktop-electron.md` |
 | `conversation-context` | `specs/13-conversation-context.md` |
 | `mobile-companion` | `specs/14-mobile-remote.md` |
+| `workspace-memory` | `specs/16-workspace-memory.md` |
+| `agent-run-debugging` | `specs/17-agent-run-debugging.md` |
 
 ## Technology
 

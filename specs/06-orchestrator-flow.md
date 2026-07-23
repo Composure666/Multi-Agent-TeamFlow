@@ -8,7 +8,7 @@
 
 Orchestrator 是「特殊 Agent」（详见 Spec 01）：
 - `isOrchestrator: true`
-- `toolNames` 必含 `dispatch_to_agent`（实际通过 `plan_tasks` 工具暴露给 LLM）
+- `toolNames` 必含 `plan_tasks`；早期 `dispatch_to_agent` 命名已废弃，不再作为独立工具实现
 - 走同一个 `AgentRunner`，与普通 Agent 共享代码路径
 - 默认 `adapterName: 'custom'`，由用户在创建时选定底层 LLM
 
@@ -138,6 +138,8 @@ const planTasksTool: ToolDef = {
 ```
 
 **说明**：`plan_tasks` 是「输出端工具」——它的目的是让 LLM 用结构化方式输出 plan，而不是真的去做什么副作用。
+
+**兼容说明**：早期 roadmap / 文档中出现的 `dispatch_to_agent` 已并入 `plan_tasks`。Orchestrator 不直接逐个调用子 Agent，而是一次性输出完整 plan，由 `AgentRunner` 负责编译、审批、DAG 执行、重试、证据校验与聚合。`dispatch_to_agent` 不再作为独立工具实现。
 
 **校验分层**：
 - `plan_tasks` handler 只做参数形状校验（`tasks` 是否为数组、字段是否存在），返回 ack 给 LLM。

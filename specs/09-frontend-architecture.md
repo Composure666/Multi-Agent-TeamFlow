@@ -60,6 +60,10 @@ interface AppState {
   pendingAttachmentsByConv: Record<string, AttachmentRow[]>  // 待发送附件
   pendingWritesByConv: Record<string, PendingWrite[]>        // Agent fs_write 审批队列（review 模式）
   pendingBashCommandsByConv: Record<string, PendingBashCommand[]> // Agent bash 关键命令审批队列
+  pendingMcpToolApprovalsByConv: Record<string, PendingMcpToolApproval[]> // 外部 MCP trust='ask' 审批队列
+  workspaceMemoriesByConv: Record<string, WorkspaceMemoryRow[]> // 当前会话 Workspace Memory，打开面板时 lazy fetch
+  agentRunDebugByConv: Record<string, AgentRunDebugListItem[]> // Run 调试列表，打开面板时 lazy fetch
+  agentRunDebugDetailsByRun: Record<string, AgentRunDebugDetail> // 单 run 调试详情缓存
   highlightedMessageId: string | null                         // 跳转后短暂高亮
   streamConnected: boolean
 }
@@ -68,7 +72,7 @@ interface AppState {
 **设计要点**：
 - **实体 normalize 成 `Record<id, Row>`**，不放在 conversations 的嵌套里（避免重复存储 + 局部更新困难）
 - **关系用「id 列表」分桶**，渲染时 map 拿实体。这样新增 / 删除消息只动 id 列表 + 实体 map，不破坏 React shallow equality
-- **UI 状态按 conversationId 分桶**（pendingAttachments / replyTarget），切会话不会污染
+- **UI 状态按 conversationId 分桶**（pendingAttachments / replyTarget / workspaceMemories），切会话不会污染
 - **不放在 store 的东西**：表单 draft、modal 开关、临时 hover 状态——这些用组件内 `useState`
 
 ---
@@ -102,6 +106,12 @@ interface AppState {
 | `fs_write.resolved` | 从 `pendingWritesByConv[convId]` 移除 `pendingId`；ChatPanel 的清理 effect 会同步关掉对应 `diff:<pwId>` tab |
 | `bash_command.pending` | `pendingBashCommandsByConv[convId].push(pendingCommand)`（已存在的 id 不重复 push） |
 | `bash_command.resolved` | 从 `pendingBashCommandsByConv[convId]` 移除 `pendingId` |
+| `mcp_tool.pending` | `pendingMcpToolApprovalsByConv[convId].push(pendingApproval)`（已存在的 id 不重复 push） |
+| `mcp_tool.resolved` | 从 `pendingMcpToolApprovalsByConv[convId]` 移除 `pendingId` |
+
+**Workspace Memory**：Memory CRUD 不走 SSE；`WorkspaceMemoryButton` 打开时 lazy fetch `GET /api/conversations/:id/workspace-memory`，create/update/delete 成功后用 store action 更新 `workspaceMemoriesByConv[convId]`。Memory 是 workspace metadata，不是聊天历史；`clearConversationHistory` 默认不清理该 bucket，删除 conversation 时清理。
+
+**Agent Run 调试**：Run 调试面板不走 SSE；`AgentRunDebugButton` 打开时 lazy fetch `GET /api/conversations/:id/agent-runs`，选择 run 时 fetch `GET /api/conversations/:id/agent-runs/:runId/debug`。`agentRunDebugByConv` / `agentRunDebugDetailsByRun` 是只读调试缓存；live `runsByConv` 继续服务流式运行状态与中止按钮。删除 conversation 时清理对应 debug list 和 detail bucket。
 
 **幂等性**：`message.start` / `run.start` 在 id 已存在时仍 idempotent（覆盖写）；`messageIdsByConv` 用 `includes` 检查防重复。这样支持事件重放（未来重连补发）。
 
@@ -150,6 +160,10 @@ replaceLocalMessageId(tempId, realId)          // 把 messages 表和 messageIds
 | `usePendingAttachments(convId)` | 该会话待发送附件 |
 | `useTopLevelRunningRuns(convId)` | 当前会话顶层正在跑的 run（用于「中止」按钮）—— `parentRunId == null && status == 'running'` |
 | `useDispatchForMessage(messageId)` | 该消息上挂的 DispatchState（O(n) 扫，n 通常 < 10） |
+| `usePendingMcpToolApprovals(convId)` | 当前会话待审批外部 MCP tool 调用 |
+| `useWorkspaceMemories(convId)` | 当前会话 Workspace Memory 列表，按 pinned / updatedAt 展示 |
+| `useAgentRunDebugList(convId)` | 当前会话调试面板 run 列表，按 startedAt 降序展示 |
+| `useAgentRunDebugDetail(runId)` | 单个 run 的调试详情缓存 |
 
 **性能注意**：`useMessagesForConversation` 是 hot path，每个 SSE delta 都会触发 selector 重算。useShallow 比较的是数组中每个元素引用 —— 因为 immer 只改动了变化的消息行，其余引用不变，shallow 比较成功 → 不渲染。
 
@@ -206,7 +220,7 @@ app/page.tsx
     │   │   └── <CreateAgentDialog />    ── 顶部 radio 选 adapterName（'custom' / 'claude-code' / 'codex'）；SDK adapter 模式下隐藏 provider/工具集，Codex 使用 AgentHub 隔离 CODEX_HOME
     │   └── <RenameInput />       ── 内联重命名
     ├── <ChatPanel />             ── 当前会话主区
-    │   ├── header: 头像堆 + AgentInfoPopover + 文件树/产物预览 toggle + FileLibraryDialog + AddAgentDialog + UsageBadge（点开 popover 看 token 拆分）
+    │   ├── header: 头像堆 + AgentInfoPopover + 文件树/产物预览 toggle + FileLibraryDialog + AddAgentDialog + WorkspaceMemoryButton + AgentRunDebugButton + UsageBadge（点开 popover 看 token 拆分）
     │   ├── tab bar（openFiles 非空时显示）: 「对话」+ 每个打开的文件 / diff tab
     │   ├── 主体（按 activeTab 切换）:
     │   │   ├── activeTab === 'chat': <PinnedMessagesBar> + <MessageList> + <PendingWritesPanel> + <MessageInput>
@@ -250,6 +264,7 @@ app/page.tsx
 | `messages` | 切换会话时一次性拉全量（`fetchMessages`） | `messageIdsByConv` + `messages` |
 | `artifacts` | 不预加载；首次见到 `artifact_ref` part 时 lazy fetch 详情（`ArtifactRefPart` 组件内 effect） | `artifacts[id]` |
 | `attachments` | 打开 `FileLibraryDialog` 时拉该会话列表；附件 chip 渲染时也按需拉 | 组件内 useState |
+| `workspace_memories` | 打开 `WorkspaceMemoryButton` 面板时拉当前会话 memory；CRUD 后更新 store bucket | `workspaceMemoriesByConv[conversationId]` |
 | `agents` / `conversations` | 应用启动时全量拉一次 | 同名 maps |
 
 **404 行为**：artifact lazy fetch 404 → 渲染「产物已删除」墓碑卡片（不在 store 标记 deleted；用组件 local state）。

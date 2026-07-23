@@ -4,8 +4,10 @@ import { enableMapSet } from 'immer'
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 
-import type { AgentRunRow, AgentRow, ArtifactRow, AttachmentRow, ConversationWithMeta, MessageRow } from '@/db/schema'
+import type { AgentRunRow, AgentRow, ArtifactRow, AttachmentRow, ConversationWithMeta, MessageRow, WorkspaceMemoryRow } from '@/db/schema'
 import type {
+  AgentRunDebugDetail,
+  AgentRunDebugListItem,
   AppNotification,
   AppNotificationTarget,
   AppNotificationTargetType,
@@ -14,6 +16,7 @@ import type {
   MessagePart,
   PendingBashCommand,
   PendingDispatchPlan,
+  PendingMcpToolApproval,
   PendingQuestion,
   PendingWrite,
   StreamEvent,
@@ -103,6 +106,16 @@ interface AppState {
   // ─── Agent bash 关键命令审批等待队列（按 conversationId 分桶）─
   pendingBashCommandsByConv: Record<string, PendingBashCommand[]>
 
+  // ─── 外部 MCP 工具调用审批等待队列（按 conversationId 分桶）─
+  pendingMcpToolApprovalsByConv: Record<string, PendingMcpToolApproval[]>
+
+  // ─── Workspace Memory（按 conversationId 分桶，面板 lazy fetch）─
+  workspaceMemoriesByConv: Record<string, WorkspaceMemoryRow[]>
+
+  // ─── Agent Run Debug（面板 lazy fetch）─
+  agentRunDebugByConv: Record<string, AgentRunDebugListItem[]>
+  agentRunDebugDetailsByRun: Record<string, AgentRunDebugDetail>
+
   // ─── Agent ask_user 结构化问答等待队列（按 conversationId 分桶）─
   pendingQuestionsByConv: Record<string, PendingQuestion[]>
 
@@ -191,6 +204,18 @@ interface AppState {
     list: PendingBashCommand[],
   ): void
 
+  setPendingMcpToolApprovalsForConversation(
+    conversationId: string,
+    list: PendingMcpToolApproval[],
+  ): void
+
+  setWorkspaceMemoriesForConversation(conversationId: string, list: WorkspaceMemoryRow[]): void
+  upsertWorkspaceMemory(conversationId: string, memory: WorkspaceMemoryRow): void
+  removeWorkspaceMemory(conversationId: string, memoryId: string): void
+
+  setAgentRunDebugList(conversationId: string, runs: AgentRunDebugListItem[]): void
+  setAgentRunDebugDetail(runId: string, detail: AgentRunDebugDetail): void
+
   setPendingQuestionsForConversation(conversationId: string, list: PendingQuestion[]): void
 
   setPendingDispatchPlansForConversation(
@@ -239,6 +264,10 @@ export const useAppStore = create<AppState>()(
     pendingAttachmentsByConv: {},
     pendingWritesByConv: {},
     pendingBashCommandsByConv: {},
+    pendingMcpToolApprovalsByConv: {},
+    workspaceMemoriesByConv: {},
+    agentRunDebugByConv: {},
+    agentRunDebugDetailsByRun: {},
     pendingQuestionsByConv: {},
     unreadByConv: {},
     mobileSidebarOpen: false,
@@ -428,6 +457,14 @@ export const useAppStore = create<AppState>()(
         delete s.runsByConv[id]
         delete s.pendingWritesByConv[id]
         delete s.pendingBashCommandsByConv[id]
+        delete s.pendingMcpToolApprovalsByConv[id]
+        delete s.workspaceMemoriesByConv[id]
+        delete s.agentRunDebugByConv[id]
+        for (const runId in s.agentRunDebugDetailsByRun) {
+          if (s.agentRunDebugDetailsByRun[runId].agentRun.conversationId === id) {
+            delete s.agentRunDebugDetailsByRun[runId]
+          }
+        }
         delete s.pendingQuestionsByConv[id]
         if (s.activeConversationId === id) s.activeConversationId = null
       }),
@@ -590,6 +627,13 @@ export const useAppStore = create<AppState>()(
         delete s.replyTargetByConv[conversationId]
         delete s.pendingWritesByConv[conversationId]
         delete s.pendingBashCommandsByConv[conversationId]
+        delete s.pendingMcpToolApprovalsByConv[conversationId]
+        delete s.agentRunDebugByConv[conversationId]
+        for (const runId in s.agentRunDebugDetailsByRun) {
+          if (s.agentRunDebugDetailsByRun[runId].agentRun.conversationId === conversationId) {
+            delete s.agentRunDebugDetailsByRun[runId]
+          }
+        }
         delete s.pendingQuestionsByConv[conversationId]
         delete s.unreadByConv[conversationId]
         if (s.highlightedMessageId && messageIds.has(s.highlightedMessageId)) {
@@ -647,6 +691,46 @@ export const useAppStore = create<AppState>()(
       set((s) => {
         if (list.length === 0) delete s.pendingBashCommandsByConv[conversationId]
         else s.pendingBashCommandsByConv[conversationId] = list
+      }),
+
+    setPendingMcpToolApprovalsForConversation: (conversationId, list) =>
+      set((s) => {
+        if (list.length === 0) delete s.pendingMcpToolApprovalsByConv[conversationId]
+        else s.pendingMcpToolApprovalsByConv[conversationId] = list
+      }),
+
+    setWorkspaceMemoriesForConversation: (conversationId, list) =>
+      set((s) => {
+        if (list.length === 0) delete s.workspaceMemoriesByConv[conversationId]
+        else s.workspaceMemoriesByConv[conversationId] = sortWorkspaceMemories(list)
+      }),
+
+    upsertWorkspaceMemory: (conversationId, memory) =>
+      set((s) => {
+        const list = s.workspaceMemoriesByConv[conversationId] ?? []
+        const idx = list.findIndex((item) => item.id === memory.id)
+        const next = idx >= 0 ? [...list.slice(0, idx), memory, ...list.slice(idx + 1)] : [...list, memory]
+        s.workspaceMemoriesByConv[conversationId] = sortWorkspaceMemories(next)
+      }),
+
+    removeWorkspaceMemory: (conversationId, memoryId) =>
+      set((s) => {
+        const list = s.workspaceMemoriesByConv[conversationId]
+        if (!list) return
+        const next = list.filter((item) => item.id !== memoryId)
+        if (next.length === 0) delete s.workspaceMemoriesByConv[conversationId]
+        else s.workspaceMemoriesByConv[conversationId] = next
+      }),
+
+    setAgentRunDebugList: (conversationId, runs) =>
+      set((s) => {
+        if (runs.length === 0) delete s.agentRunDebugByConv[conversationId]
+        else s.agentRunDebugByConv[conversationId] = runs
+      }),
+
+    setAgentRunDebugDetail: (runId, detail) =>
+      set((s) => {
+        s.agentRunDebugDetailsByRun[runId] = detail
       }),
 
     setPendingQuestionsForConversation: (conversationId, list) =>
@@ -1046,6 +1130,22 @@ export const useAppStore = create<AppState>()(
             return
           }
 
+          case 'mcp_tool.pending': {
+            const list = s.pendingMcpToolApprovalsByConv[event.conversationId] ?? []
+            if (list.some((p) => p.id === event.pendingApproval.id)) return
+            s.pendingMcpToolApprovalsByConv[event.conversationId] = [...list, event.pendingApproval]
+            return
+          }
+
+          case 'mcp_tool.resolved': {
+            const list = s.pendingMcpToolApprovalsByConv[event.conversationId]
+            if (!list) return
+            const next = list.filter((p) => p.id !== event.pendingId)
+            if (next.length === 0) delete s.pendingMcpToolApprovalsByConv[event.conversationId]
+            else s.pendingMcpToolApprovalsByConv[event.conversationId] = next
+            return
+          }
+
           case 'ask_user.pending': {
             const list = s.pendingQuestionsByConv[event.conversationId] ?? []
             if (list.some((q) => q.id === event.pendingQuestion.id)) return
@@ -1121,6 +1221,10 @@ function findLatestAgentMessageIdForRun(
     }
   }
   return attachMsgId
+}
+
+function sortWorkspaceMemories(list: WorkspaceMemoryRow[]): WorkspaceMemoryRow[] {
+  return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
 }
 
 function attachDispatchToMessageForRun(
@@ -1398,6 +1502,31 @@ export const usePendingBashCommands = (conversationId: string | null): PendingBa
       conversationId ? s.pendingBashCommandsByConv[conversationId] ?? [] : [],
     ),
   )
+
+/** 该会话当前所有待审批的外部 MCP 工具调用。 */
+export const usePendingMcpToolApprovals = (conversationId: string | null): PendingMcpToolApproval[] =>
+  useAppStore(
+    useShallow((s) =>
+      conversationId ? s.pendingMcpToolApprovalsByConv[conversationId] ?? [] : [],
+    ),
+  )
+
+export const useWorkspaceMemories = (conversationId: string | null): WorkspaceMemoryRow[] =>
+  useAppStore(
+    useShallow((s) =>
+      conversationId ? s.workspaceMemoriesByConv[conversationId] ?? [] : [],
+    ),
+  )
+
+export const useAgentRunDebugList = (conversationId: string | null): AgentRunDebugListItem[] =>
+  useAppStore(
+    useShallow((s) =>
+      conversationId ? s.agentRunDebugByConv[conversationId] ?? [] : [],
+    ),
+  )
+
+export const useAgentRunDebugDetail = (runId: string | null): AgentRunDebugDetail | null =>
+  useAppStore((s) => (runId ? s.agentRunDebugDetailsByRun[runId] ?? null : null))
 
 /** 该会话当前所有待回答的 ask_user（agent 通过结构化问答让用户选）。 */
 export const usePendingQuestions = (conversationId: string | null): PendingQuestion[] =>

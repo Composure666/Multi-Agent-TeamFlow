@@ -14,6 +14,18 @@ export interface AgentPlatformAdapter {
   stream(input: AdapterInput, signal: AbortSignal): AsyncIterable<StreamEvent>
 }
 
+export interface ExternalMcpStdioServerConfig {
+  id: string
+  name: string
+  transport: 'stdio'
+  command: string
+  args: string[]
+  env: Record<string, string>
+  trust: 'always' | 'ask'
+}
+
+export type ExternalMcpServerConfig = ExternalMcpStdioServerConfig
+
 export interface AdapterInput {
   agentId: string
   conversationId: string
@@ -45,6 +57,9 @@ export interface AdapterInput {
    *  SDK adapters use this to scope AgentHub MCP tools and Orchestrator plan-stage restrictions. */
   toolNames: string[]
 
+  /** 用户显式启用的外部 stdio MCP server；custom adapter 在 stdio MVP 中忽略。 */
+  externalMcpServers?: ExternalMcpServerConfig[]
+
   /** 触发消息的附件（图片 / 文件），adapter 决定是否注入到 LLM content */
   attachments?: AdapterAttachment[]
 
@@ -69,6 +84,7 @@ export interface AdapterAttachment {
   id: string
   fileName: string
   mimeType: string
+  size?: number
   kind: 'image' | 'file'
   /** 文件的本地绝对路径，adapter 读 base64 用 */
   absPath: string

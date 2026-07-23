@@ -24,4 +24,14 @@ describe('agenthub Codex MCP bridge', () => {
     expect(match?.[0]).toContain('diagram')
     expect(match?.[0]).toContain('syntax: "mermaid"')
   })
+
+  it('registers web_fetch with safety-focused schema', () => {
+    const match = script.match(/registerTool\(\s*'web_fetch',[\s\S]*?registerTool\(\s*'ask_user'/)
+
+    expect(match?.[0]).toContain('public HTTPS URL')
+    expect(match?.[0]).toContain('url: z.string()')
+    expect(match?.[0]).toContain('maxChars')
+    expect(match?.[0]).toContain('timeoutMs')
+    expect(match?.[0]).toContain('private IP ranges')
+  })
 })

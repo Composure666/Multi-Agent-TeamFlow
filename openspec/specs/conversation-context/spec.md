@@ -6,6 +6,14 @@ Defines cross-run history serialization, pinned message injection, and context c
 
 ## Requirements
 
+### Requirement: PromptContext snapshots SHALL be explicit and bounded
+
+Prompt context construction MUST produce an explainable snapshot of the latest summary, preserved pinned messages, recent messages after the summary boundary, and token-budget trimming decisions.
+
+#### Scenario: Context snapshot is built after compaction
+- **WHEN** a conversation has a latest context summary and pinned messages
+- **THEN** the snapshot includes the summary, preserves pinned messages even when covered by the summary, excludes covered unpinned old messages, and marks any budget-trimmed non-pinned messages.
+
 ### Requirement: Custom agents SHALL receive bounded chat history
 
 CustomAgentAdapter runs MUST receive serialized conversation history within a model-aware token budget for ordinary user turns.
@@ -43,5 +51,5 @@ Orchestrator-dispatched child runs MUST use their isolated task prompt and skip 
 Compacting conversation history MUST clear SDK session caches whose internal state no longer matches the database history.
 
 #### Scenario: Conversation is compacted
-- **WHEN** compaction writes a new summary and deletes old messages
+- **WHEN** compaction writes a new summary while preserving original messages
 - **THEN** Claude Code and Codex session ids for that conversation are cleared.

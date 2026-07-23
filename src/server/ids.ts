@@ -13,11 +13,15 @@ export const newToolCallId = () => `call_${nano()}`
 export const newAttachmentId = () => `att_${nano()}`
 export const newPendingWriteId = () => `pwr_${nano()}`
 export const newPendingBashCommandId = () => `pbc_${nano()}`
+export const newPendingMcpToolApprovalId = () => `pmcp_${nano()}`
 export const newPendingQuestionId = () => `pq_${nano()}`
 export const newPendingDispatchPlanId = () => `pdp_${nano()}`
 export const newContextSummaryId = () => `ctx_${nano()}`
+export const newWorkspaceMemoryId = () => `mem_${nano()}`
+export const newAgentRunDebugSnapshotId = () => `rdbg_${nano()}`
 export const newDeploymentId = () => `dep_${nano()}`
 export const newAutomationId = () => `auto_${nano()}`
 export const newAutomationRunId = () => `arun_${nano()}`
 export const newAutomationRunLogId = () => `alog_${nano()}`
+export const newMcpServerId = () => `mcp_${nano()}`
 export const newNotificationId = () => `ntf_${nano()}`

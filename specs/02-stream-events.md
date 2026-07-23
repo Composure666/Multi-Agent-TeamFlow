@@ -65,6 +65,10 @@ type StreamEvent = BaseEvent & (
   | { type: 'bash_command.pending',  pendingCommand: PendingBashCommand }
   | { type: 'bash_command.resolved', pendingId: string, approved: boolean }
 
+  // —— 外部 MCP 工具调用审批（详见 Spec 07 / 15） ——
+  | { type: 'mcp_tool.pending',  pendingApproval: PendingMcpToolApproval }
+  | { type: 'mcp_tool.resolved', pendingId: string, approved: boolean }
+
   // —— Token usage 计量（adapter 在 run 结束前 emit）——
   | { type: 'run.usage', runId: string, usage: RunUsageEvent }
 
@@ -118,6 +122,19 @@ interface PendingBashCommand {
   command: string
   cwd: string
   reason: string
+  createdAt: number
+}
+
+interface PendingMcpToolApproval {
+  id: string                    // pmcp_<nanoid>
+  conversationId: string
+  agentId: string
+  runId: string
+  serverId: string
+  serverName: string
+  toolName: string              // 原始 MCP tool 名
+  namespacedToolName: string    // mcp__<serverName>__<toolName>
+  args: unknown
   createdAt: number
 }
 

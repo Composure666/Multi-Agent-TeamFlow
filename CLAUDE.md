@@ -97,7 +97,7 @@ message.parts = [
 
 ### 3.6 Orchestrator 是特殊 Agent，不是独立服务
 
-Orchestrator 走同一个 `AgentRunner`，只是多了 `dispatch_to_agent` 工具与不同的 system prompt。**不要**为它写独立服务路径。
+Orchestrator 走同一个 `AgentRunner`，只是通过 `plan_tasks` 输出结构化调度计划，由 `AgentRunner` 执行 DAG 调度；子 Agent 通过 `report_task_result` 上报结果。早期 `dispatch_to_agent` 命名已统一为 `plan_tasks`。**不要**为它写独立服务路径。
 
 ---
 

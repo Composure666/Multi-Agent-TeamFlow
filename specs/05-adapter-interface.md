@@ -77,8 +77,20 @@ interface AdapterInput {
   apiKey: string | null
 
   // 当前 agent 可用的工具名。Custom adapter 用 toolRegistry.resolve(toolNames) 拿 ToolDef；
-  // Claude Code / Codex adapter 忽略此字段（用 SDK 内置工具集）
+  // Claude Code / Codex adapter 用它限定内部 AgentHub MCP 工具和 Orchestrator plan-stage 工具。
+  // AgentHub-managed web_fetch 也由这里控制：Custom 需显式装备，SDK adapter 经 internal agenthub MCP 暴露。
   toolNames: string[]
+
+  // 用户显式启用的外部 stdio MCP server。首版只由 Claude Code / Codex SDK adapter 消费；Custom 暂不消费
+  externalMcpServers?: Array<{
+    id: string
+    name: string                 // [a-z0-9_]+，不能是 agenthub
+    transport: 'stdio'
+    command: string
+    args: string[]
+    env: Record<string, string>
+    trust: 'always' | 'ask'
+  }>
 
   // 附件（用户上传的文件/图片）— 用于 multimodal 投递
   attachments?: Array<{
@@ -114,6 +126,7 @@ interface AdapterInput {
 - 新增 `customConfig.apiKey`：per-agent API key（优先级高于 env，见 Spec 08）
 - 新增 `customConfig.supportsVision`：决定是否把图片以 multimodal 投递
 - 新增 `parentRunId`：Orchestrator 子 run 的父引用
+- 新增 `externalMcpServers`：Agent 显式 opt-in 的外部 stdio MCP server 配置；Claude Code 接入全部 server 并对 `trust='ask'` 走 pre-call 审批；Codex 仅接收 `trust='always'` server；Custom MCP client 延后
 
 ---
 
@@ -218,6 +231,18 @@ const result = await toolRegistry.execute(name, args, ctx)
 |---|---|---|
 | **A. Adapter 自调 toolRegistry**（现状） | 模块顶部 import，loop 中直接 execute | 代码简单；Adapter 多一个依赖 |
 | **B. Adapter 只 yield 事件，Runner 执行后注入** | Adapter 必须支持「暂停-等待 result-继续」 | 干净；async iterator 双向通信复杂 |
+
+---
+
+## Adapter 联网能力与 `web_fetch`
+
+AgentHub-managed `web_fetch` 是统一的公开网页读取路径：
+
+- CustomAgentAdapter：当 `AdapterInput.toolNames` 包含 `web_fetch` 时，通过 `toolRegistry.resolve()` 暴露给 OpenAI-compatible function calling，工具执行走 `executeStructured()`。
+- ClaudeCodeAdapter：通过 internal `agenthub` MCP server 暴露 `web_fetch`，要求 agent 使用 `mcp__agenthub__web_fetch` 读取公开 HTTPS 页面；原生 `WebFetch` / `WebSearch` 应在 `disallowedTools` 中禁用，或至少通过 system/MCP instructions 兜底约束。
+- CodexAdapter：通过 `scripts/agenthub-codex-mcp.mjs` 暴露 `web_fetch`，实际调用内部 `/api/internal/agenthub-tools`，仍由 `toolRegistry.executeStructured()` 执行。
+- Codex 原生网络保持关闭：`networkAccessEnabled=false`、`webSearchMode='disabled'`。Codex 需要网页文本时只能经 AgentHub MCP `web_fetch`。
+- 外部 MCP server 若自行提供 fetch/search 工具，不继承 AgentHub `web_fetch` 的 SSRF 与 content-type 策略；它们受外部 MCP opt-in / trust 模型约束。
 
 ---
 

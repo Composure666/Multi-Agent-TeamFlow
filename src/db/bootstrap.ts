@@ -110,6 +110,7 @@ const DDL: string[] = [
     api_key TEXT,
     api_base_url TEXT,
     tool_names TEXT NOT NULL,
+    mcp_server_ids TEXT NOT NULL DEFAULT '[]',
     is_builtin INTEGER NOT NULL DEFAULT 0,
     is_orchestrator INTEGER NOT NULL DEFAULT 0,
     supports_vision INTEGER NOT NULL DEFAULT 0,
@@ -199,6 +200,18 @@ const DDL: string[] = [
     finished_at INTEGER
   )`,
   `CREATE INDEX IF NOT EXISTS idx_runs_parent ON agent_runs(parent_run_id)`,
+
+  // ─── agent_run_debug_snapshots ─────────────────
+  `CREATE TABLE IF NOT EXISTS agent_run_debug_snapshots (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(id),
+    snapshot TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_run_debug_run ON agent_run_debug_snapshots(run_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_run_debug_conv_created ON agent_run_debug_snapshots(conversation_id, created_at)`,
 
   // ─── automations ───────────────────────────────
   `CREATE TABLE IF NOT EXISTS automations (
@@ -291,6 +304,36 @@ const DDL: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_context_summaries_conv_created ON conversation_context_summaries(conversation_id, created_at)`,
 
+  // ─── workspace_memories ────────────────────────
+  `CREATE TABLE IF NOT EXISTS workspace_memories (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'user',
+    created_by_agent_id TEXT REFERENCES agents(id),
+    pinned INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_workspace_memories_conv_updated ON workspace_memories(conversation_id, updated_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_workspace_memories_conv_pinned ON workspace_memories(conversation_id, pinned, updated_at)`,
+
+  // ─── mcp_servers ───────────────────────────────
+  `CREATE TABLE IF NOT EXISTS mcp_servers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    transport TEXT NOT NULL DEFAULT 'stdio',
+    command TEXT NOT NULL,
+    args TEXT NOT NULL DEFAULT '[]',
+    env TEXT NOT NULL DEFAULT '{}',
+    trust TEXT NOT NULL DEFAULT 'ask',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)`,
+
   // ─── app_settings ──────────────────────────────
   `CREATE TABLE IF NOT EXISTS app_settings (
     id TEXT PRIMARY KEY,
@@ -320,6 +363,7 @@ function ensureSchema(sqlite: Database.Database): void {
   for (const stmt of DDL) {
     sqlite.exec(stmt)
   }
+  safeAlter(sqlite, `ALTER TABLE agents ADD COLUMN mcp_server_ids TEXT NOT NULL DEFAULT '[]'`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN companion_mode TEXT NOT NULL DEFAULT 'off'`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN mobile_device_token TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_publish_enabled INTEGER NOT NULL DEFAULT 0`)
@@ -372,11 +416,11 @@ function ensureBuiltinAgents(sqlite: Database.Database): void {
     INSERT INTO agents (
       id, name, avatar, description, capabilities, system_prompt,
       adapter_name, model_provider, model_id, api_key, api_base_url,
-      tool_names, is_builtin, is_orchestrator, supports_vision, created_at
+      tool_names, mcp_server_ids, is_builtin, is_orchestrator, supports_vision, created_at
     ) VALUES (
       @id, @name, @avatar, @description, @capabilities, @system_prompt,
       @adapter_name, @model_provider, @model_id, @api_key, @api_base_url,
-      @tool_names, @is_builtin, @is_orchestrator, @supports_vision, @created_at
+      @tool_names, @mcp_server_ids, @is_builtin, @is_orchestrator, @supports_vision, @created_at
     )
   `)
 
@@ -395,6 +439,7 @@ function ensureBuiltinAgents(sqlite: Database.Database): void {
         api_key: a.apiKey ?? null,
         api_base_url: a.apiBaseUrl ?? null,
         tool_names: JSON.stringify(a.toolNames),
+        mcp_server_ids: '[]',
         is_builtin: a.isBuiltin ? 1 : 0,
         is_orchestrator: a.isOrchestrator ? 1 : 0,
         supports_vision: a.supportsVision ? 1 : 0,

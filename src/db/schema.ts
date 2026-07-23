@@ -18,6 +18,7 @@ import type {
   AdapterName,
   MessagePart,
   ModelProvider,
+  AgentRunDebugSnapshot,
 } from '@/shared/types'
 
 // ─── Agents ──────────────────────────────────────────────────
@@ -48,6 +49,10 @@ export const agents = sqliteTable('agents', {
   apiBaseUrl: text('api_base_url'),
 
   toolNames: text('tool_names', { mode: 'json' }).$type<string[]>().notNull(),
+  mcpServerIds: text('mcp_server_ids', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
 
   isBuiltin: integer('is_builtin', { mode: 'boolean' }).notNull().default(false),
   isOrchestrator: integer('is_orchestrator', { mode: 'boolean' }).notNull().default(false),
@@ -221,6 +226,29 @@ export const agentRuns = sqliteTable(
   (t) => [index('idx_runs_parent').on(t.parentRunId)],
 )
 
+// ─── Agent run debug snapshots ─────────────────────────────
+export const agentRunDebugSnapshots = sqliteTable(
+  'agent_run_debug_snapshots',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id),
+    snapshot: text('snapshot', { mode: 'json' }).$type<AgentRunDebugSnapshot>().notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_run_debug_run').on(t.runId),
+    index('idx_run_debug_conv_created').on(t.conversationId, t.createdAt),
+  ],
+)
+
 // ─── Automations ─────────────────────────────────────────────
 export type AutomationStatus = 'enabled' | 'running' | 'draft' | 'paused'
 export type AutomationRunStatus = 'success' | 'failed' | 'running'
@@ -360,6 +388,51 @@ export const contextSummaries = sqliteTable(
   (t) => [index('idx_context_summaries_conv_created').on(t.conversationId, t.createdAt)],
 )
 
+export type WorkspaceMemorySource = 'user' | 'agent' | 'system'
+
+// ─── Workspace Memory ────────────────────────────────────────
+export const workspaceMemories = sqliteTable(
+  'workspace_memories',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    source: text('source', { enum: ['user', 'agent', 'system'] })
+      .$type<WorkspaceMemorySource>()
+      .notNull()
+      .default('user'),
+    createdByAgentId: text('created_by_agent_id').references(() => agents.id),
+    pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_workspace_memories_conv_updated').on(t.conversationId, t.updatedAt),
+    index('idx_workspace_memories_conv_pinned').on(t.conversationId, t.pinned, t.updatedAt),
+  ],
+)
+
+// ─── External MCP Servers ───────────────────────────────────
+export const mcpServers = sqliteTable(
+  'mcp_servers',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull().unique(),
+    transport: text('transport', { enum: ['stdio'] }).notNull().default('stdio'),
+    command: text('command').notNull(),
+    args: text('args', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    env: text('env', { mode: 'json' }).$type<Record<string, string>>().notNull().default(sql`'{}'`),
+    trust: text('trust', { enum: ['always', 'ask'] }).notNull().default('ask'),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('idx_mcp_servers_enabled').on(t.enabled)],
+)
+
 // ─── AppSettings (全局 API key / endpoint) ──────────────────
 /**
  * 全局应用设置。单行表（PK 固定 'singleton'），存用户在「设置」面板填写的
@@ -390,6 +463,15 @@ export const appSettings = sqliteTable('app_settings', {
   notificationUrgentEnabled: integer('notification_urgent_enabled', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull(),
 })
+
+export type WorkspaceMemoryRow = typeof workspaceMemories.$inferSelect
+export type WorkspaceMemoryInsert = typeof workspaceMemories.$inferInsert
+
+export type AgentRunDebugSnapshotRow = typeof agentRunDebugSnapshots.$inferSelect
+export type AgentRunDebugSnapshotInsert = typeof agentRunDebugSnapshots.$inferInsert
+
+export type McpServerRow = typeof mcpServers.$inferSelect
+export type McpServerInsert = typeof mcpServers.$inferInsert
 
 export type AppSettingsRow = typeof appSettings.$inferSelect
 export type AppSettingsInsert = typeof appSettings.$inferInsert

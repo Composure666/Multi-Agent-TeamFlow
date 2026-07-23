@@ -1,8 +1,8 @@
-# Spec 15 — 外部 MCP 工具接入（设计提案）
+# Spec 15 — 外部 MCP 工具接入
 
-> 让**任意 adapter** 的 Agent 接入「用户配置的外部 MCP server」,把工具扩展统一到 MCP 协议上,而不必为每个能力手写内置工具。
+> 让 Agent 接入「用户配置的外部 MCP server」，把工具扩展统一到 MCP 协议上，而不必为每个能力手写内置工具。
 >
-> **状态:设计提案,未实现。** 本 spec 用于先对齐方案(CLAUDE.md §6.1),确认后再分期落地。涉及安全约束(§5)与跨层接口,**实现前需讨论**。
+> **状态：P0 stdio MVP 已实现基础接线，Phase 6 已补运行时信任门。** 当前覆盖全局 `mcp_servers` 数据模型、per-agent `mcpServerIds` opt-in、Claude Code / Codex stdio MCP 接线。Claude Code 对 `trust='ask'` 外部 MCP 工具执行 pre-call 审批；Codex 在缺少已验证 pre-call permission hook 时只接收 `trust='always'` server。Custom MCP client、SSE/OAuth 和连接池延后。
 
 源文件(待建):`src/server/mcp/**`(client + registry) · 改动 `src/server/adapters/**`
 
@@ -13,8 +13,8 @@
 | Adapter | 工具机制 | 是不是 MCP client | 能接外部 MCP 吗 |
 |---|---|---|---|
 | `custom` | OpenAI function-calling + 内部 `toolRegistry` | ❌ 无 MCP | ❌ |
-| `claude-code` | SDK 预置工具 + 进程内 `createSdkMcpServer`(只挂 `agenthub`) | ✅(SDK 自带) | ❌(没接线) |
-| `codex` | Codex 内置 + 外部 stdio MCP(只挂 `agenthub`) | ✅(SDK 自带) | ❌(没接线) |
+| `claude-code` | SDK 预置工具 + 进程内 `createSdkMcpServer`(内部 `agenthub`) + 外部 stdio MCP | ✅(SDK 自带) | ✅ stdio，`trust=ask` 走审批门 |
+| `codex` | Codex 内置 + 外部 stdio MCP(内部 `agenthub` + trusted external) | ✅(SDK 自带) | ✅ 仅 `trust=always` |
 
 **问题**:三者目前都**只挂了内部 `agenthub` 一个 MCP server**,没有「让用户接第三方 MCP server(filesystem / github / postgres / 自建…)」的路径;`custom` 连 MCP client 底子都没有。
 
@@ -86,10 +86,11 @@ createdAt     integer
 
 ---
 
-## 5. 工具命名与事件(契约影响:最小)
+## 5. 工具命名与事件(契约影响)
 
-- **命名空间**:外部 MCP 工具统一命名 `mcp__<serverName>__<toolName>`(对齐 claude-code/codex SDK 既有约定,如 `mcp__agenthub__write_artifact`),避免与内置工具冲突。
-- **事件**:MCP 工具调用复用现有 `tool.call` / `tool.result`(`specs/02`),`toolName` 用命名空间名。**不新增 StreamEvent,不破坏前端 reducer**。
+- **命名空间**:外部 MCP 工具统一命名 `mcp__<serverName>__<toolName>`(对齐 claude-code SDK 既有约定,如 `mcp__agenthub__write_artifact`),避免与内置工具冲突。
+- **调用事件**:MCP 工具调用复用现有 `tool.call` / `tool.result`(`specs/02`),`toolName` 用命名空间名。
+- **审批事件**:`trust='ask'` 的外部 MCP 工具在执行前新增 `mcp_tool.pending` / `mcp_tool.resolved` 事件,用于 UI 展示审批队列。审批粒度是 `conversationId + mcp__server__tool`。
 - **artifact**:外部 MCP 工具一般不产 AgentHub 产物;不触发 `artifact.create`(除非它显式返回 `artifactId` 并被约定识别——首版不做)。
 
 ---
@@ -101,7 +102,7 @@ createdAt     integer
 1. **显式 opt-in 两道**:server 由用户**手动登记**;Agent 由用户**手动勾选**。默认不启用任何外部 MCP。
 2. **trust 级别**:
    - `always`:直接放行(用户明确信任的 server)。
-   - `ask`(默认):MCP 工具调用走**审批门**(复用 `fs_write` 的 `pending` 机制,spec 07 / `pending-writes`)。**粒度 = per-tool-per-conversation**:某 `mcp__server__tool` 在一次会话内**首次**调用时弹审批,批准后该会话内该工具免再问;拒绝则该次调用返回 `isError`。(每次都问太吵;整个 server 一次批又太粗——同一 server 可能既有安全的读、又有危险的写。)
+   - `ask`(默认):MCP 工具调用走**审批门**。Claude Code 通过 `canUseTool` 在调用前创建 `mcp_tool.pending`,用户批准后才允许 SDK 执行。**粒度 = per-tool-per-conversation**:某 `mcp__server__tool` 在一次会话内**首次**调用时弹审批,批准后该会话内该工具免再问;拒绝则该次调用被 deny,且不记住批准。Codex 当前没有已验证的 pre-call MCP permission hook,因此 `trust='ask'` server 不会进入 Codex MCP config,避免静默升级成 `always`。
 3. **stdio 收敛**:子进程 `cwd` 尽量限定到 workspace 的 effective cwd;`env` 走白名单(复用 `buildChildProcessEnv`);可执行命令做基本校验(不在本 spec 的 Bash 黑名单内,但应有独立的「危险命令」提示)。
 4. **失败隔离**:某 server 连接/调用失败 → 该 server 工具标记不可用 + 警告,**不崩整个 run**。
 5. **中止**:`AbortSignal` 触发时关闭所有 MCP 连接、杀 stdio 进程树。
@@ -144,7 +145,7 @@ createdAt     integer
 |---|---|---|
 | **P0** | 数据模型(`mcp_servers` + `agents.mcpServerIds`)+ **claude-code/codex 接线** + 全局 server 配置 + agent 选用 | 中(SDK 已支持,主要接线 + UI) |
 | **P1** | **custom 的 MCP 客户端层**(连接 / listTools / 名字空间 / loop 路由 / 清理) | 高(新子系统) |
-| **P2** | `ask` 审批门、SSE/OAuth、连接池、危险命令提示 | 中 |
+| **P2** | SSE/OAuth、连接池、危险命令提示 | 中 |
 
 > 即「先让真 agent 平台(claude-code/codex)接上外部 MCP(便宜),再补 custom(贵)」。
 

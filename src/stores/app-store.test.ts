@@ -33,6 +33,10 @@ function resetStore(): void {
     pendingAttachmentsByConv: {},
     pendingWritesByConv: {},
     pendingBashCommandsByConv: {},
+    pendingMcpToolApprovalsByConv: {},
+    workspaceMemoriesByConv: {},
+    agentRunDebugByConv: {},
+    agentRunDebugDetailsByRun: {},
     pendingQuestionsByConv: {},
     unreadByConv: {},
     mobileSidebarOpen: false,
@@ -125,6 +129,186 @@ describe('app-store dispatch plan binding', () => {
     const state = useAppStore.getState()
     expect(state.dispatchesByRunId.run_orch?.messageId).toBe('msg_plan')
     expect(selectDispatchForMessage(state, 'msg_plan')?.pendingPlanId).toBe('pdp_1')
+  })
+})
+
+
+describe('app-store MCP approval reducer', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('adds and removes pending MCP tool approvals', () => {
+    useAppStore.getState().applyEvent({
+      type: 'mcp_tool.pending',
+      conversationId: 'conv_mcp',
+      timestamp: 1,
+      pendingApproval: {
+        id: 'pmcp_1',
+        conversationId: 'conv_mcp',
+        agentId: 'ag_mcp',
+        runId: 'run_mcp',
+        serverId: 'mcp_1',
+        serverName: 'github',
+        toolName: 'create_issue',
+        namespacedToolName: 'mcp__github__create_issue',
+        args: { title: 'Bug' },
+        createdAt: 1,
+      },
+    })
+
+    useAppStore.getState().applyEvent({
+      type: 'mcp_tool.pending',
+      conversationId: 'conv_mcp',
+      timestamp: 1,
+      pendingApproval: {
+        id: 'pmcp_1',
+        conversationId: 'conv_mcp',
+        agentId: 'ag_mcp',
+        runId: 'run_mcp',
+        serverId: 'mcp_1',
+        serverName: 'github',
+        toolName: 'create_issue',
+        namespacedToolName: 'mcp__github__create_issue',
+        args: { title: 'Bug' },
+        createdAt: 1,
+      },
+    })
+
+    expect(useAppStore.getState().pendingMcpToolApprovalsByConv.conv_mcp).toHaveLength(1)
+
+    useAppStore.getState().applyEvent({
+      type: 'mcp_tool.resolved',
+      conversationId: 'conv_mcp',
+      timestamp: 2,
+      pendingId: 'pmcp_1',
+      approved: true,
+    })
+
+    expect(useAppStore.getState().pendingMcpToolApprovalsByConv.conv_mcp).toBeUndefined()
+  })
+})
+
+
+describe('app-store workspace memory reducers', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('sets, upserts, sorts, and removes workspace memories', () => {
+    useAppStore.getState().setWorkspaceMemoriesForConversation('conv_memory', [
+      {
+        id: 'mem_old',
+        conversationId: 'conv_memory',
+        title: 'Old',
+        content: 'old',
+        source: 'user',
+        createdByAgentId: null,
+        pinned: false,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ])
+
+    useAppStore.getState().upsertWorkspaceMemory('conv_memory', {
+      id: 'mem_pinned',
+      conversationId: 'conv_memory',
+      title: 'Pinned',
+      content: 'pinned',
+      source: 'user',
+      createdByAgentId: null,
+      pinned: true,
+      createdAt: 2,
+      updatedAt: 2,
+    })
+
+    expect(useAppStore.getState().workspaceMemoriesByConv.conv_memory.map((memory) => memory.id)).toEqual([
+      'mem_pinned',
+      'mem_old',
+    ])
+
+    useAppStore.getState().upsertWorkspaceMemory('conv_memory', {
+      id: 'mem_old',
+      conversationId: 'conv_memory',
+      title: 'Old updated',
+      content: 'old updated',
+      source: 'user',
+      createdByAgentId: null,
+      pinned: false,
+      createdAt: 1,
+      updatedAt: 3,
+    })
+
+    expect(useAppStore.getState().workspaceMemoriesByConv.conv_memory).toHaveLength(2)
+    expect(useAppStore.getState().workspaceMemoriesByConv.conv_memory[1]?.title).toBe('Old updated')
+
+    useAppStore.getState().removeWorkspaceMemory('conv_memory', 'mem_pinned')
+    expect(useAppStore.getState().workspaceMemoriesByConv.conv_memory.map((memory) => memory.id)).toEqual([
+      'mem_old',
+    ])
+  })
+})
+
+
+describe('app-store agent run debug reducers', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('sets debug list/detail and removes them with the conversation', () => {
+    useAppStore.setState({
+      conversations: {
+        conv_debug: {
+          id: 'conv_debug',
+          title: 'Debug',
+          mode: 'single',
+          agentIds: ['ag_debug'],
+          pinnedMessageIds: [],
+          bookmarkedMessageIds: [],
+          archived: false,
+          pinnedAt: null,
+          fsWriteApprovalMode: 'review',
+          createdAt: 1,
+          updatedAt: 1,
+          workspaceMode: 'sandbox',
+          workspaceBoundPath: null,
+        },
+      },
+    })
+
+    useAppStore.getState().setAgentRunDebugList('conv_debug', [
+      {
+        id: 'run_debug',
+        conversationId: 'conv_debug',
+        agentId: 'ag_debug',
+        agentName: 'Debug Agent',
+        adapterName: 'custom',
+        modelId: 'gpt-test',
+        triggerMessageId: 'msg_trigger',
+        parentRunId: null,
+        status: 'complete',
+        error: null,
+        usage: null,
+        startedAt: 1,
+        finishedAt: 2,
+        hasDebugSnapshot: true,
+      },
+    ])
+    useAppStore.getState().setAgentRunDebugDetail('run_debug', {
+      agentRun: useAppStore.getState().agentRunDebugByConv.conv_debug[0],
+      snapshot: null,
+      triggerMessage: null,
+      outputMessages: [],
+      childrenRuns: [],
+      parentRun: null,
+    })
+
+    expect(useAppStore.getState().agentRunDebugByConv.conv_debug).toHaveLength(1)
+    expect(useAppStore.getState().agentRunDebugDetailsByRun.run_debug?.agentRun.id).toBe('run_debug')
+
+    useAppStore.getState().removeConversation('conv_debug')
+    expect(useAppStore.getState().agentRunDebugByConv.conv_debug).toBeUndefined()
+    expect(useAppStore.getState().agentRunDebugDetailsByRun.run_debug).toBeUndefined()
   })
 })
 

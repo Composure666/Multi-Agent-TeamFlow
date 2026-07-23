@@ -7,6 +7,8 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import { db, schema } from '@/db/client'
 import type { AgentRow, ArtifactRow, MessageRow, WorkspaceRow } from '@/db/schema'
 import type {
+  AgentRunDebugAttachment,
+  AgentRunDebugPromptSection,
   ArtifactContent,
   DispatchExpectedOutputType,
   DispatchExpectedOutput,
@@ -20,11 +22,11 @@ import type {
 import { estimateTokens, getModelLimits } from '@/shared/model-registry'
 
 import { agentRegistry } from './adapters/registry'
-import type { AdapterAttachment, AdapterInput } from './adapters/types'
+import type { AdapterAttachment, AdapterInput, ExternalMcpServerConfig } from './adapters/types'
+import { recordAgentRunDebugSnapshot } from './agent-run-debug-service'
 import { getAttachmentAbsolutePath } from './attachment-service'
 import {
   getLatestContextSummary,
-  prefixPromptWithContextSummary,
   renderConversationSummaryBlock,
 } from './context-compaction-service'
 import { buildHistoryFor } from './conversation-context'
@@ -44,6 +46,7 @@ import {
 } from './dispatch-run-evidence'
 import { formatDispatchProgressMessage } from './dispatch-progress-message'
 import { publishNotification } from './notification-service'
+import { resolveAgentMcpServers } from './mcp-server-service'
 import { evaluateWorkspaceEvidence } from './dispatch-workspace-evidence'
 import {
   buildReplanContext,
@@ -64,6 +67,7 @@ import { newArtifactId, newMessageId, newRunId } from './ids'
 import { pendingDispatchPlans, type PlanReviewOutcome } from './pending-dispatch-plans'
 import { buildProjectFiles, buildProjectFilesFromTargetPaths } from './project-artifact'
 import { getAppSettings } from './settings-service'
+import { buildWorkspaceMemoryBlock } from './workspace-memory-service'
 import {
   evaluateTaskResultReport,
   isTaskResultReportToolName,
@@ -222,6 +226,7 @@ const ORCHESTRATOR_PLAN_ALLOWED_TOOLS = new Set([
   ASK_USER_TOOL_NAME,
   'fs_list',
   'fs_read',
+  'web_fetch',
   'read_artifact',
   'read_attachment',
 ])
@@ -313,6 +318,7 @@ async function executeRun(runId: string, signal: AbortSignal, args: RunArgs): Pr
             id: p.attachmentId,
             fileName: p.fileName,
             mimeType: p.mimeType,
+            size: p.size,
             kind: p.type === 'image_attachment' ? 'image' : 'file',
             absPath,
           })
@@ -2238,9 +2244,29 @@ async function buildAdapterInput(
 ): Promise<AdapterInput> {
   const effectiveCwd = getEffectiveCwd(workspace)
   const baseSystemPrompt = systemPromptOverride ?? agent.systemPrompt
-  let systemPromptWithWorkspace = buildWorkspaceContextBlock(workspace) + '\n\n' + baseSystemPrompt
+  const workspaceInfoBlock = buildWorkspaceContextBlock(workspace)
+  const systemPromptSections: AgentRunDebugPromptSection[] = [createPromptSection('workspace_info', workspaceInfoBlock)]
+  const systemPromptParts = [workspaceInfoBlock]
+  let workspaceMemoryNoteCount = 0
+  if (!args.overridePrompt) {
+    const memoryBlock = await buildWorkspaceMemoryBlock(args.conversationId).catch((err) => {
+      console.warn('[agent-runner] buildWorkspaceMemoryBlock failed; continuing without workspace memory', err)
+      return null
+    })
+    if (memoryBlock) {
+      workspaceMemoryNoteCount = countWorkspaceMemoryNotes(memoryBlock)
+      systemPromptParts.push(memoryBlock)
+      systemPromptSections.push(createPromptSection('workspace_memory', memoryBlock))
+    }
+  }
+  systemPromptParts.push(baseSystemPrompt)
+  systemPromptSections.push(createPromptSection(systemPromptOverride ? 'override_system' : 'agent_system', baseSystemPrompt))
+  let systemPromptWithWorkspace = systemPromptParts.join('\n\n')
   const toolGuidance = buildAgentHubToolGuidance(agent, toolNames, workspace)
-  if (toolGuidance) systemPromptWithWorkspace += '\n\n' + toolGuidance
+  if (toolGuidance) {
+    systemPromptWithWorkspace += '\n\n' + toolGuidance
+    systemPromptSections.push(createPromptSection('tool_guidance', toolGuidance))
+  }
 
   // Key 优先级：agent.apiKey (per-agent) > app_settings.* (用户全局自填) > adapter 内部 fallback env var
   // 只在 per-agent 字段为空时才注入全局 settings，避免覆盖用户的精细配置
@@ -2260,6 +2286,7 @@ async function buildAdapterInput(
   // 按模型 contextWindow 算出 historyBudget = totalContext - outputReserve - (system+currentUser 估算) - 安全 margin。
   // 失败回退到空数组，让 agent 退化到「无历史」模式而不是整个 run 崩。详见 specs/13-conversation-context.md。
   let history: ChatCompletionMessageParam[] = []
+  let historyBudget: number | null = null
   // Orchestrator 分派的子 agent（args.overridePrompt 已带 spec 06 的隔离上下文：
   // recent_conversation + pinned + artifacts + task）跳过历史注入，不再重复塞一份——
   // 既省 token，也守住 spec 06「子 agent 不看完整群聊历史」的隔离原则。普通会话轮次才注入。
@@ -2273,12 +2300,13 @@ async function buildAdapterInput(
     })
     if ((conv?.agentIds.length ?? 0) > 1) {
       systemPromptWithWorkspace += '\n\n' + GROUP_CHAT_SYSTEM_NOTE
+      systemPromptSections.push(createPromptSection('group_note', GROUP_CHAT_SYSTEM_NOTE))
     }
 
     const limits = getModelLimits(agent.modelProvider, agent.modelId)
     const promptEstimate =
       estimateTokens(systemPromptWithWorkspace) + estimateTokens(prompt) + 512 /* margin */
-    const historyBudget = Math.max(0, limits.contextWindow - limits.outputReserve - promptEstimate)
+    historyBudget = Math.max(0, limits.contextWindow - limits.outputReserve - promptEstimate)
     history = await buildHistoryFor(agent.id, args.conversationId, {
       excludeMessageId: args.triggerMessageId,
       tokenBudget: historyBudget,
@@ -2289,14 +2317,23 @@ async function buildAdapterInput(
   }
 
   let effectivePrompt = prompt
+  let summaryId: string | null = null
   if ((agent.adapterName === 'claude-code' || agent.adapterName === 'codex') && !args.overridePrompt) {
-    effectivePrompt = await prefixPromptWithContextSummary(args.conversationId, prompt).catch((err) => {
-      console.warn('[agent-runner] prefixPromptWithContextSummary failed; continuing without summary', err)
-      return prompt
+    const summary = await getLatestContextSummary(args.conversationId).catch((err) => {
+      console.warn('[agent-runner] getLatestContextSummary failed; continuing without summary metadata', err)
+      return null
     })
+    if (summary) {
+      summaryId = summary.id
+      effectivePrompt = [renderConversationSummaryBlock(summary), '', prompt].join('\n')
+    }
   }
 
-  return {
+  const externalMcpServers = args.overridePrompt || args.overrideSystemPrompt
+    ? []
+    : await resolveAgentMcpServers(agent)
+
+  const adapterInput: AdapterInput = {
     agentId: agent.id,
     conversationId: args.conversationId,
     runId,
@@ -2307,6 +2344,7 @@ async function buildAdapterInput(
     apiBaseUrl: effectiveApiBaseUrl,
     modelId: agent.modelId,
     toolNames,
+    externalMcpServers: externalMcpServers.length > 0 ? externalMcpServers : undefined,
     attachments: attachments.length > 0 ? attachments : undefined,
     history: history.length > 0 ? history : undefined,
     customConfig:
@@ -2317,6 +2355,91 @@ async function buildAdapterInput(
           }
         : undefined,
   }
+
+  await recordAgentRunDebugSnapshot({
+    runId,
+    conversationId: args.conversationId,
+    agentId: agent.id,
+    snapshot: {
+      runId,
+      conversationId: args.conversationId,
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        adapterName: agent.adapterName,
+        modelProvider: agent.modelProvider,
+        modelId: agent.modelId,
+        isOrchestrator: agent.isOrchestrator,
+      },
+      workspace: {
+        mode: workspace.mode,
+        effectiveCwd,
+        boundPath: workspace.boundPath,
+      },
+      prompt: {
+        overridePrompt: !!args.overridePrompt,
+        overrideSystemPrompt: !!args.overrideSystemPrompt,
+        userPromptChars: prompt.length,
+        effectivePromptChars: effectivePrompt.length,
+        systemPromptChars: systemPromptWithWorkspace.length,
+        systemPromptSections,
+      },
+      context: {
+        summaryInjected: !!summaryId,
+        summaryId,
+        workspaceMemoryInjected: workspaceMemoryNoteCount > 0,
+        workspaceMemoryNoteCount,
+        historyInjected: history.length > 0,
+        historyMessageCount: history.length,
+        historyTokenBudget: historyBudget,
+        historyTokenEstimate: history.length > 0 ? estimateTokens(JSON.stringify(history)) : null,
+      },
+      tools: {
+        toolNames,
+        externalMcpServers: buildMcpDebugSnapshot(externalMcpServers),
+      },
+      attachments: buildAttachmentDebugSnapshot(attachments),
+    },
+  }).catch((err) => {
+    console.warn('[agent-runner] recordAgentRunDebugSnapshot failed; continuing without debug snapshot', err)
+  })
+
+  return adapterInput
+}
+
+function createPromptSection(
+  kind: AgentRunDebugPromptSection['kind'],
+  text: string,
+): AgentRunDebugPromptSection {
+  return {
+    kind,
+    chars: text.length,
+    tokenEstimate: estimateTokens(text),
+    present: text.trim().length > 0,
+  }
+}
+
+function countWorkspaceMemoryNotes(memoryBlock: string): number {
+  return memoryBlock.match(/<note\s/g)?.length ?? 0
+}
+
+function buildMcpDebugSnapshot(servers: ExternalMcpServerConfig[]) {
+  return servers.map((server) => ({
+    id: server.id,
+    name: server.name,
+    trust: server.trust,
+    envKeys: Object.keys(server.env).sort(),
+  }))
+}
+
+function buildAttachmentDebugSnapshot(attachments: AdapterAttachment[]): AgentRunDebugAttachment[] {
+  return attachments.map((attachment) => ({
+    id: attachment.id,
+    kind: attachment.kind,
+    fileName: attachment.fileName,
+    size: attachment.size ?? 0,
+    mimeType: attachment.mimeType,
+  }))
 }
 
 /** 按 agent 的 adapter/provider 选对应字段。Claude Code 走 anthropic，Codex 走 openai，custom 按 modelProvider 走。 */
@@ -2394,12 +2517,13 @@ function buildAgentHubToolGuidance(
   const isSdkAgent = agent.adapterName === 'claude-code' || agent.adapterName === 'codex'
   if (isSdkAgent) {
     const sdkAgentHubTools = tools.has('plan_tasks')
-      ? ['read_artifact', 'read_attachment', 'fs_list', ASK_USER_TOOL_NAME]
+      ? ['read_artifact', 'read_attachment', 'fs_list', 'web_fetch', ASK_USER_TOOL_NAME]
       : [
           'write_artifact',
           'read_artifact',
           'deploy_artifact',
           'deploy_workspace',
+          'web_fetch',
           ASK_USER_TOOL_NAME,
           REPORT_TASK_RESULT_TOOL_NAME,
         ]
@@ -2443,6 +2567,16 @@ function buildAgentHubToolGuidance(
       '当前 workspace 是用户绑定的真实本地文件夹，但这个 agent 没有文件/命令工具，不能直接修改本地项目。',
       '- 如果用户要求写入本地项目源码，应说明当前 agent 缺少 fs_read / fs_write / bash 或 SDK 本地工具，而不是用 write_artifact 假装已经落盘。',
       '- 只有用户明确要求 artifact / 可预览原型 / 独立 demo / 文档交接时，才使用 write_artifact。',
+    ])
+  }
+
+  if (tools.has('web_fetch')) {
+    add([
+      '### web_fetch',
+      '用途：读取公开 HTTPS 网页或文档 URL 的文本内容；联网必须走 AgentHub web_fetch，不要使用原生 WebFetch/WebSearch 或 shell/curl/wget 作为替代。',
+      '安全边界：只支持 GET + https://；会拒绝 URL 凭据、localhost、私网/回环/link-local IP、metadata endpoint、跳转到受限地址、非文本响应和超限响应。',
+      '正确案例：web_fetch({ url: "https://example.com/docs", maxChars: 12000, timeoutMs: 10000 })。',
+      '常见错误：抓取需要登录/cookie/header 的页面、传 http:// URL、请求本机服务、下载图片/PDF/压缩包、或自行编造网页内容。',
     ])
   }
 

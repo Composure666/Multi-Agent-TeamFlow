@@ -2,7 +2,7 @@ import { and, desc, eq, gt, inArray, ne } from 'drizzle-orm'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 
 import { db, schema } from '@/db/client'
-import type { AgentRow, ArtifactRow, MessageRow } from '@/db/schema'
+import type { AgentRow, ArtifactRow, ContextSummaryRow, MessageRow } from '@/db/schema'
 import { estimateTokens } from '@/shared/model-registry'
 import type { DeployStatusRecord, MessagePart } from '@/shared/types'
 
@@ -33,6 +33,34 @@ export interface BuildHistoryOptions {
   tokenBudget?: number
 }
 
+export interface PromptContextSnapshotItem {
+  sourceId: string
+  sourceType: 'summary' | 'message'
+  isPinned: boolean
+  tokens: number
+  messages: ChatCompletionMessageParam[]
+  included: boolean
+}
+
+export interface PromptContextSnapshot {
+  conversationId: string
+  agentId: string
+  latestSummary: ContextSummaryRow | null
+  items: PromptContextSnapshotItem[]
+  messages: ChatCompletionMessageParam[]
+  tokenBudget?: number
+  tokenEstimate: number
+  trimmedTokenEstimate: number
+}
+
+interface PromptContextItem {
+  sourceId: string
+  sourceType: 'summary' | 'message'
+  isPinned: boolean
+  serialized: ChatCompletionMessageParam[]
+  tokens: number
+}
+
 const DEFAULT_MAX_TURNS = 20
 
 export async function buildHistoryFor(
@@ -40,6 +68,15 @@ export async function buildHistoryFor(
   conversationId: string,
   options: BuildHistoryOptions = {},
 ): Promise<ChatCompletionMessageParam[]> {
+  const snapshot = await buildPromptContextSnapshot(agentId, conversationId, options)
+  return snapshot.messages
+}
+
+export async function buildPromptContextSnapshot(
+  agentId: string,
+  conversationId: string,
+  options: BuildHistoryOptions = {},
+): Promise<PromptContextSnapshot> {
   const maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS
   const includePinned = options.includePinned ?? true
   const excludeMessageId = options.excludeMessageId
@@ -113,19 +150,15 @@ export async function buildHistoryFor(
   const artifactTitles = await loadArtifactTitles(artifactIds)
 
   // 先序列化全量，再按 token 预算从老往新丢非 pinned 项
-  const items: Array<{
-    msgId: string
-    isPinned: boolean
-    serialized: ChatCompletionMessageParam[]
-    tokens: number
-  }> = []
+  const items: PromptContextItem[] = []
   if (latestSummary) {
     const summaryMessage: ChatCompletionMessageParam = {
       role: 'user',
       content: renderConversationSummaryBlock(latestSummary),
     }
     items.push({
-      msgId: latestSummary.id,
+      sourceId: latestSummary.id,
+      sourceType: 'summary',
       isPinned: true,
       serialized: [summaryMessage],
       tokens: estimateChatMessageTokens(summaryMessage),
@@ -135,25 +168,55 @@ export async function buildHistoryFor(
     const serialized = serializeMessage(msg, agentId, artifactTitles, agentNames)
     if (!serialized) continue
     const tokens = serialized.reduce((sum, m) => sum + estimateChatMessageTokens(m), 0)
-    items.push({ msgId: msg.id, isPinned: pinnedIdSet.has(msg.id), serialized, tokens })
+    items.push({
+      sourceId: msg.id,
+      sourceType: 'message',
+      isPinned: pinnedIdSet.has(msg.id),
+      serialized,
+      tokens,
+    })
   }
 
+  const tokenEstimate = items.reduce((s, it) => s + it.tokens, 0)
+  const included = new Set<string>()
+  for (const it of items) included.add(it.sourceId)
+
   if (tokenBudget !== undefined && tokenBudget > 0) {
-    let total = items.reduce((s, it) => s + it.tokens, 0)
+    let total = tokenEstimate
     // 超预算时，从老到新（按 items 顺序）丢非 pinned，直到符合预算
-    for (let i = 0; i < items.length && total > tokenBudget; i++) {
-      if (items[i].isPinned) continue
-      total -= items[i].tokens
-      items[i].tokens = -1 // 标记丢弃；保留 isPinned/order 但稍后过滤
+    for (const item of items) {
+      if (total <= tokenBudget) break
+      if (item.isPinned) continue
+      total -= item.tokens
+      included.delete(item.sourceId)
     }
   }
 
   const out: ChatCompletionMessageParam[] = []
   for (const it of items) {
-    if (it.tokens < 0) continue
+    if (!included.has(it.sourceId)) continue
     out.push(...it.serialized)
   }
-  return out
+
+  const snapshotItems = items.map((it): PromptContextSnapshotItem => ({
+    sourceId: it.sourceId,
+    sourceType: it.sourceType,
+    isPinned: it.isPinned,
+    tokens: it.tokens,
+    messages: it.serialized,
+    included: included.has(it.sourceId),
+  }))
+
+  return {
+    conversationId,
+    agentId,
+    latestSummary,
+    items: snapshotItems,
+    messages: out,
+    ...(tokenBudget === undefined ? {} : { tokenBudget }),
+    tokenEstimate,
+    trimmedTokenEstimate: snapshotItems.reduce((sum, it) => sum + (it.included ? it.tokens : 0), 0),
+  }
 }
 
 // ─── token 估算（粗粒度，4 字符≈1 token） ─────────────────

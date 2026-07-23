@@ -256,6 +256,33 @@ Drives 列表通过 `statSync('A:\\')` … `statSync('Z:\\')` 探测可用盘符
 
 ---
 
+## 网络请求安全（web_fetch）
+
+`src/server/tools/web-fetch.ts` 提供 AgentHub-managed `web_fetch`，用于读取公开 HTTPS 文本页面。该工具不是通用 HTTP client，不能访问本机服务、内网服务、metadata endpoint 或需要认证的页面。
+
+### URL / 主机校验
+
+- 只允许 `https:`，拒绝 `http:`、`file:`、`data:`、`ftp:` 等协议。
+- 拒绝 URL username/password。
+- 拒绝 `localhost`、`*.localhost`、`metadata.google.internal`、常见 cloud metadata host alias。
+- 拒绝 IP literal：IPv4 loopback/private/link-local/unspecified/multicast、IPv6 loopback/unspecified/unique-local/link-local/multicast，以及 metadata IP。
+- 普通域名 fetch 前必须 `dns.lookup(hostname, { all: true })`，所有 A/AAAA 结果都必须通过同一 IP 安全校验。
+- redirect 必须手动处理，每一跳重新校验 URL、hostname、DNS 与 IP；最多 3 跳。
+
+### 响应限制
+
+- 只支持 GET，不支持自定义 headers、cookies、POST、auth 或二进制下载。
+- 只接受文本类 content-type：`text/*`、`application/json`、`application/xml`、`application/xhtml+xml`、`application/javascript`、`application/x-yaml` 等。
+- 响应体最多读取 1,000,000 bytes；返回文本按 `maxChars`（默认 12,000，上限 20,000）截断。
+- HTML 只做基础清洗：提取 title、移除 script/style/noscript、去标签、decode 常见 entity、压缩空白；不执行 JS，不下载子资源，不保留 cookie。
+- 工具必须尊重 `ctx.abortSignal`，并设置内部 timeout（默认 10s，上限 30s）。
+
+### 已知边界
+
+DNS rebinding 无法在当前 `fetch` 抽象下完全消除；AgentHub 通过 IP literal 检查、DNS 预解析、redirect 重校验和禁止非公开地址降低 SSRF 风险。外部 MCP server 自带的 fetch/search 工具不继承这些策略，只受外部 MCP 显式 opt-in 与 trust 模型约束。
+
+---
+
 ## Workspace 清理重试
 
 `conversation-service.ts` 的 `rmSync(workspace.rootPath, { recursive: true, force: true })` 在 Windows 经常抛 `EBUSY` / `EPERM` / `ENOTEMPTY`：

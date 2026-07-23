@@ -32,7 +32,7 @@ import {
   isAbortLikeError,
 } from './adapter-utils'
 import { adapterSessionKey, codexSessions } from './session-store'
-import type { AdapterInput, AgentPlatformAdapter } from './types'
+import type { AdapterInput, AgentPlatformAdapter, ExternalMcpServerConfig } from './types'
 
 const DEFAULT_MODEL = 'gpt-5-codex'
 const PLAN_TASKS_TOOL_NAME = 'plan_tasks'
@@ -40,6 +40,7 @@ const CODEX_PLAN_STAGE_AGENTHUB_TOOLS = [
   PLAN_TASKS_TOOL_NAME,
   'ask_user',
   'fs_list',
+  'web_fetch',
   'read_artifact',
   'read_attachment',
 ]
@@ -83,6 +84,7 @@ export class CodexAdapter implements AgentPlatformAdapter {
             args: [getCodexMcpBridgePath()],
             env: buildCodexMcpEnv(input, codexEnv),
           },
+          ...buildExternalCodexMcpServers(input.externalMcpServers),
         },
       },
     })
@@ -189,7 +191,7 @@ function buildCodexDeveloperInstructions(systemPrompt: string, isPlanStage: bool
       systemPrompt,
       '',
       '## AgentHub MCP tools',
-      'You are in the Orchestrator planning stage. Inspect context with fs_list/read_artifact/read_attachment when needed, ask finite blocking questions with ask_user, then call plan_tasks exactly once.',
+      'You are in the Orchestrator planning stage. Inspect context with fs_list/read_artifact/read_attachment when needed, use web_fetch only for public HTTPS requirement or documentation URLs, ask finite blocking questions with ask_user, then call plan_tasks exactly once.',
       'Do not write files, run commands, deploy, or complete child work in the planning stage. AgentHub will execute the approved plan.',
     ].join('\n')
   }
@@ -201,6 +203,7 @@ function buildCodexDeveloperInstructions(systemPrompt: string, isPlanStage: bool
     'When a visual explanation would clarify a flow, architecture, sequence, or dependency graph, create a diagram artifact with write_artifact type "diagram" and content { syntax: "mermaid", source: "flowchart TD..." }. Quote Mermaid labels containing Chinese, math, parentheses, or punctuation as A["..."], omit Markdown fences, and if write_artifact returns Invalid Mermaid diagram, fix the source and call the tool again.',
     'When you build a local workspace web project, deploy the generated static output directory with deploy_workspace, for example path "dist", "build", "out", or "client/dist". Do not create a web_app artifact just to deploy files that already exist on disk.',
     'Use fs_list to inspect AgentHub workspace directories before reading specific files. Prefer it over shell-specific listing commands.',
+    'When you need public web page text, use AgentHub MCP web_fetch. Codex native network and web search are disabled; do not use shell/curl/wget as a web_fetch substitute. web_fetch only accepts public HTTPS URLs and blocks localhost, private IP ranges, metadata endpoints, redirects to restricted addresses, and binary responses.',
     'When progress depends on the user choosing from a finite set of options, use ask_user to present structured choices instead of asking only in plain text. Do not use ask_user for open-ended discussion or non-blocking details.',
     'When you are executing an AgentHub dispatched sub-task, call report_task_result exactly once at the end to report whether the task is complete, failed, or blocked.',
     'deploy_artifact returns previewPath as a local relative path for the current AgentHub instance. Do not convert it into an absolute public URL and do not invent hostnames. In user-facing summaries, tell the user to use the deployment card buttons or quote previewPath exactly.',
@@ -268,6 +271,23 @@ function getAgentHubInternalBaseUrl(): string {
 
 function getCodexMcpBridgePath(): string {
   return path.join(/* turbopackIgnore: true */ process.cwd(), 'scripts', 'agenthub-codex-mcp.mjs')
+}
+
+export function buildExternalCodexMcpServers(
+  servers: readonly ExternalMcpServerConfig[] | undefined,
+): Record<string, { command: string; args?: string[]; env?: Record<string, string> }> {
+  return Object.fromEntries(
+    (servers ?? [])
+      .filter((server) => server.trust === 'always')
+      .map((server) => [
+        server.name,
+        {
+          command: server.command,
+          args: server.args,
+          env: server.env,
+        },
+      ]),
+  )
 }
 
 async function loadArtifactRecord(artifactId: string): Promise<ArtifactRecord | null> {

@@ -28,6 +28,7 @@ export const AVAILABLE_AGENT_TOOLS = [
   'fs_read',
   'fs_write',
   'bash',
+  'web_fetch',
 ] as const
 
 export type AgentToolName = (typeof AVAILABLE_AGENT_TOOLS)[number]
@@ -80,6 +81,7 @@ export const AGENT_TOOL_META: Record<AgentToolName, { label: string; desc: strin
   fs_read: { label: '读取文件', desc: '读取工作区内的文件（源码 / 配置等），仅限沙箱目录' },
   fs_write: { label: '写入文件', desc: '在工作区内新建 / 修改文件；review 模式下需用户批准' },
   bash: { label: '执行命令', desc: '在工作区内运行命令行；受命令黑名单与沙箱目录约束' },
+  web_fetch: { label: '读取网页', desc: '读取公开 HTTPS 网页文本；会阻断 localhost、私网、metadata endpoint 和二进制响应' },
 }
 
 export interface AgentDraftAssumption {

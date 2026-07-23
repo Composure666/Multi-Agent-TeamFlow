@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { AddAgentDialog } from '@/components/add-agent-dialog'
 import { AgentInfoPopover } from '@/components/agent-info-popover'
+import { AgentRunDebugButton } from '@/components/agent-run-debug-button'
 import { AskUserQuestionDialog } from '@/components/ask-user-question-dialog'
 import { ArtifactLibrary } from '@/components/artifact-library'
 import { ConversationOutline } from '@/components/conversation-outline'
@@ -12,6 +13,7 @@ import { FileLibraryDialog } from '@/components/file-library-dialog'
 import { FileTab } from '@/components/file-tab'
 import { PendingWriteDiffTab } from '@/components/pending-write-diff-tab'
 import { PendingBashCommandsPanel } from '@/components/pending-bash-commands-panel'
+import { PendingMcpToolApprovalsPanel } from '@/components/pending-mcp-tool-approvals-panel'
 import { PendingWritesPanel } from '@/components/pending-writes-panel'
 import { diffTabPendingId, isDiffTabId } from '@/components/pending-writes-panel'
 import { PinnedMessagesBar } from '@/components/pinned-messages-bar'
@@ -27,6 +29,7 @@ import {
 import { MessageInput } from '@/components/message-input'
 import { MessageList } from '@/components/message-list'
 import { UsageBadge } from '@/components/usage-badge'
+import { WorkspaceMemoryButton } from '@/components/workspace-memory-button'
 import type { AgentRow } from '@/db/schema'
 import { fetchPendingDispatchPlans } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -181,6 +184,8 @@ export function ChatPanel() {
           >
             <UserPlus className="size-4" />
           </Button>
+          <WorkspaceMemoryButton conversationId={conv.id} />
+          <AgentRunDebugButton conversationId={conv.id} />
           <UsageBadge conversationId={conv.id} />
           <Badge variant={streamConnected ? 'default' : 'outline'} className={cn('ml-1 gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors', streamConnected ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-slate-50 text-slate-500')}>
             <span
@@ -235,6 +240,7 @@ export function ChatPanel() {
         <>
           <PinnedMessagesBar conversationId={conv.id} />
           <MessageList conversationId={conv.id} />
+          <PendingMcpToolApprovalsPanel conversationId={conv.id} />
           <PendingBashCommandsPanel conversationId={conv.id} />
           <PendingWritesPanel conversationId={conv.id} />
           <MessageInput conversationId={conv.id} />

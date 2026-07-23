@@ -15,6 +15,7 @@ import type { WorkspaceRow } from '@/db/schema'
 import { recordRunFileWrite } from '@/server/dispatch-run-evidence'
 import { readIfExists } from '@/server/fs-service'
 import { newMessageId, newToolCallId } from '@/server/ids'
+import { pendingMcpToolApprovals } from '@/server/pending-mcp-tool-approvals'
 import { pendingWrites } from '@/server/pending-writes'
 import { currentPlatform } from '@/server/platform'
 import { findBannedPattern } from '@/server/security'
@@ -26,7 +27,7 @@ import type { DeployStatusRecord, StreamEvent } from '@/shared/types'
 
 import { buildChildProcessEnv, createAdapterEvent } from './adapter-utils'
 import { claudeCodeSessions } from './session-store'
-import type { AdapterInput, AgentPlatformAdapter } from './types'
+import type { AdapterInput, AgentPlatformAdapter, ExternalMcpServerConfig } from './types'
 
 /**
  * ClaudeCodeAdapter —— 使用 `@anthropic-ai/claude-agent-sdk`，复用 Claude Code 一整套能力：
@@ -61,6 +62,7 @@ const CLAUDE_PLAN_STAGE_AGENTHUB_TOOLS = new Set([
   PLAN_TASKS_TOOL_NAME,
   'ask_user',
   'fs_list',
+  'web_fetch',
   'read_artifact',
   'read_attachment',
 ])
@@ -74,6 +76,21 @@ async function executeAgentHubMcpTool(toolName: string, args: unknown, ctx: Tool
     content: [{ type: 'text' as const, text: result.promptText }],
     ...(result.ok ? {} : { isError: true }),
   }
+}
+
+function buildExternalClaudeMcpServers(
+  servers: readonly ExternalMcpServerConfig[] | undefined,
+): NonNullable<Options['mcpServers']> {
+  const entries = (servers ?? []).map((server) => [
+    server.name,
+    {
+      type: 'stdio' as const,
+      command: server.command,
+      args: server.args,
+      env: server.env,
+    },
+  ])
+  return Object.fromEntries(entries)
 }
 
 export class ClaudeCodeAdapter implements AgentPlatformAdapter {
@@ -271,6 +288,16 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
           async (args) => executeAgentHubMcpTool(REPORT_TASK_RESULT_TOOL_NAME, args, toolCtx),
         ),
         tool(
+          'web_fetch',
+          'Fetch a public HTTPS URL through AgentHub safety checks. Only GET is supported; localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, redirects to restricted addresses, and binary responses are blocked.',
+          {
+            url: z.string(),
+            maxChars: z.number().int().positive().optional(),
+            timeoutMs: z.number().int().positive().optional(),
+          },
+          async (args) => executeAgentHubMcpTool('web_fetch', args, toolCtx),
+        ),
+        tool(
           'ask_user',
           'Ask the user one or more structured multiple-choice questions with 2-4 options. Prefer this over plain text when progress depends on a finite user choice, such as scope, target platform, design direction, implementation route, destructive action, or acceptance criteria. Do not use it for open-ended discussion or non-blocking details. Returns answers keyed by question text.',
           {
@@ -302,8 +329,8 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
       name: 'agenthub',
       version: '1.0.0',
       instructions: isPlanStage
-        ? 'AgentHub Orchestrator planning tools: inspect context with fs_list/read_artifact/read_attachment when needed, ask finite blocking questions with ask_user, then call plan_tasks exactly once. Do not write files, run commands, deploy, or complete child work in the planning stage.'
-        : '内置 AgentHub 工具：用 write_artifact 创建可预览产物（网页 / 文档 / 图片 / PPT / Mermaid 图），流程、架构、时序、依赖关系优先用 type="diagram" 且 content 为 { syntax: "mermaid", source }；Mermaid 图会在写入时做预检，中文/数学/括号等 label 写成 A["..."]，不要传 ```mermaid fence，若工具返回 Invalid Mermaid diagram 必须修正 source 后重试；PPT 优先使用 semantic blocks（heading、paragraph、bullets、metric、quote、timeline、columns、callout、divider、spacer），不要在 PPT JSON 中嵌入 base64/data URI 大资产；用 read_artifact 读其他 Agent 的产物，用 fs_list 查看 AgentHub workspace 目录，用 deploy_artifact 为 web_app artifact 生成本地预览路径，用 deploy_workspace 为当前 workspace 内 dist/build/out 等静态目录生成部署卡。需要用户在有限方案中选择时，用 ask_user 发起结构化问答，不要只在普通文本里提问。被分派为子任务时，结束前必须调用 report_task_result 上报真实任务结果。部署工具返回的 previewPath 是当前 AgentHub 实例下的相对路径；不要把它改写成公网域名或自造完整 URL，面向用户时让用户点击部署卡片按钮或原样引用 previewPath。',
+        ? 'AgentHub Orchestrator planning tools: inspect context with fs_list/read_artifact/read_attachment when needed, use web_fetch only for public HTTPS requirement or documentation URLs, ask finite blocking questions with ask_user, then call plan_tasks exactly once. Do not write files, run commands, deploy, or complete child work in the planning stage.'
+        : '内置 AgentHub 工具：用 write_artifact 创建可预览产物（网页 / 文档 / 图片 / PPT / Mermaid 图），流程、架构、时序、依赖关系优先用 type="diagram" 且 content 为 { syntax: "mermaid", source }；Mermaid 图会在写入时做预检，中文/数学/括号等 label 写成 A["..."]，不要传 ```mermaid fence，若工具返回 Invalid Mermaid diagram 必须修正 source 后重试；PPT 优先使用 semantic blocks（heading、paragraph、bullets、metric、quote、timeline、columns、callout、divider、spacer），不要在 PPT JSON 中嵌入 base64/data URI 大资产；用 read_artifact 读其他 Agent 的产物，用 fs_list 查看 AgentHub workspace 目录，用 web_fetch 读取公开 HTTPS 网页文本（不要使用原生 WebFetch/WebSearch 绕过 AgentHub 安全策略），用 deploy_artifact 为 web_app artifact 生成本地预览路径，用 deploy_workspace 为当前 workspace 内 dist/build/out 等静态目录生成部署卡。需要用户在有限方案中选择时，用 ask_user 发起结构化问答，不要只在普通文本里提问。被分派为子任务时，结束前必须调用 report_task_result 上报真实任务结果。部署工具返回的 previewPath 是当前 AgentHub 实例下的相对路径；不要把它改写成公网域名或自造完整 URL，面向用户时让用户点击部署卡片按钮或原样引用 previewPath。',
       tools: filterAgentHubMcpToolsForRun(input.toolNames, mcpTools),
     })
 
@@ -321,9 +348,9 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
         append: input.systemPrompt,
       },
       tools: isPlanStage ? CLAUDE_PLAN_STAGE_BUILTIN_TOOLS : { type: 'preset', preset: 'claude_code' },
-      // 禁用 SDK 内置 AskUserQuestion —— 我们用统一的 mcp__agenthub__ask_user 提供等价 UI
-      disallowedTools: ['AskUserQuestion'],
-      mcpServers: { agenthub: agenthubMcpServer },
+      // 禁用 SDK 内置 AskUserQuestion 和原生联网工具 —— 统一走 AgentHub MCP ask_user / web_fetch
+      disallowedTools: ['AskUserQuestion', 'WebFetch', 'WebSearch'],
+      mcpServers: { agenthub: agenthubMcpServer, ...buildExternalClaudeMcpServers(input.externalMcpServers) },
       includePartialMessages: true,
       // 'project' = 只读绑定目录里的 CLAUDE.md（项目级上下文），不读用户全局 ~/.claude 设定（避免污染）
       settingSources: ['project'],
@@ -801,11 +828,67 @@ async function bridgePermission(
     return deny('NotebookEdit approval not yet supported in Review mode; switch to Auto mode.')
   }
 
-  // 5. 默认放行（Read / Grep / Glob / WebFetch / WebSearch / Task / TodoWrite / ...）
+  // 5. 外部 MCP trust=ask 审批门
+  const externalMcpTool = parseExternalMcpToolName(toolName, ctx.input.externalMcpServers)
+  if (externalMcpTool) {
+    const { server, sdkToolName } = externalMcpTool
+    if (server.trust === 'always') return allow()
+    if (pendingMcpToolApprovals.isApproved(ctx.input.conversationId, sdkToolName)) return allow()
+
+    const pending = pendingMcpToolApprovals.register({
+      conversationId: ctx.input.conversationId,
+      agentId: ctx.input.agentId,
+      runId: ctx.input.runId,
+      serverId: server.id,
+      serverName: server.name,
+      toolName: externalMcpTool.toolName,
+      namespacedToolName: sdkToolName,
+      args: toolInput,
+    })
+
+    const decision = await new Promise<{ approved: boolean }>((resolve) => {
+      let settled = false
+      const finish = (decision: { approved: boolean }) => {
+        if (settled) return
+        settled = true
+        ctx.signal.removeEventListener('abort', onAbort)
+        resolve(decision)
+      }
+      const onAbort = () => {
+        pendingMcpToolApprovals.cancel(pending.id)
+        finish({ approved: false })
+      }
+
+      pendingMcpToolApprovals.attachResolver(pending.id, finish)
+      if (ctx.signal.aborted) onAbort()
+      else ctx.signal.addEventListener('abort', onAbort, { once: true })
+    })
+
+    if (!decision.approved) {
+      return deny(`User rejected external MCP tool call: ${sdkToolName}`)
+    }
+    return allow()
+  }
+
+  // 6. 默认放行（Read / Grep / Glob / WebFetch / WebSearch / Task / TodoWrite / ...）
   return allow()
 }
 
-/** 把 Write/Edit 的输入转成「应用后的完整文件内容」用于 diff viewer。 */
+export function parseExternalMcpToolName(
+  sdkToolName: string,
+  servers: readonly ExternalMcpServerConfig[] | undefined,
+): { server: ExternalMcpServerConfig; toolName: string; sdkToolName: string } | null {
+  const prefix = 'mcp__'
+  if (!sdkToolName.startsWith(prefix)) return null
+  for (const server of servers ?? []) {
+    const serverPrefix = `${prefix}${server.name}__`
+    if (!sdkToolName.startsWith(serverPrefix)) continue
+    const toolName = sdkToolName.slice(serverPrefix.length)
+    if (!toolName) return null
+    return { server, toolName, sdkToolName }
+  }
+  return null
+}
 function computeNewContent(
   toolName: string,
   input: Record<string, unknown>,

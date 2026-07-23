@@ -35,6 +35,66 @@ AgentHub MUST provide a normalized execution result for AgentHub-managed tools t
 - **THEN** the event result contains the structured execution `output`
 - **AND** the adapter sends `promptText` back to the model instead of serializing the persisted output itself.
 
+### Requirement: External MCP stdio servers SHALL be explicit opt-in tool sources
+
+AgentHub MUST treat external stdio MCP servers as separate tool sources from AgentHub-managed `toolRegistry` tools. External MCP servers MUST be globally configured, explicitly enabled, and explicitly selected by each Agent before they are passed to SDK adapters.
+
+#### Scenario: Agent enables an external MCP server
+- **WHEN** an Agent references an enabled MCP server id
+- **AND** the Agent uses a Claude Code or Codex SDK adapter
+- **THEN** AgentHub passes the stdio server config to the adapter alongside the internal `agenthub` MCP server
+- **AND** the external server does not replace or override the internal `agenthub` server.
+
+#### Scenario: External MCP server is not enabled for an Agent
+- **WHEN** a server is disabled or is not referenced by the Agent
+- **THEN** AgentHub MUST NOT pass that server to the adapter.
+
+#### Scenario: Orchestrator plan stage runs
+- **WHEN** AgentRunner builds an adapter input for an override prompt or override system prompt stage
+- **THEN** external MCP servers are omitted from that run.
+
+#### Scenario: External MCP server exposes host capabilities
+- **WHEN** a user configures a stdio MCP server
+- **THEN** AgentHub stores command and args separately instead of shell-concatenating them
+- **AND** list APIs do not expose secret env values in plain text
+- **AND** documentation states that external MCP servers run outside AgentHub's workspace-tool sandbox guarantees.
+
+#### Scenario: Claude Code uses ask-trusted external MCP tools
+- **WHEN** a Claude Code agent calls `mcp__<server>__<tool>` from an external MCP server whose trust is `ask`
+- **THEN** AgentHub MUST create an MCP tool approval pending item before the tool executes
+- **AND** approval is remembered for the same `conversationId + namespacedToolName`
+- **AND** rejection denies that tool call without remembering approval.
+
+#### Scenario: Codex receives external MCP servers
+- **WHEN** AgentHub builds Codex MCP config
+- **THEN** it MUST include only external MCP servers whose trust is `always`
+- **AND** it MUST NOT silently upgrade `ask` servers to executable Codex MCP config until a verified pre-call permission hook exists.
+
+### Requirement: AgentHub SHALL provide a secure public web fetch tool
+
+AgentHub MUST provide an AgentHub-managed `web_fetch` tool for reading public HTTPS web pages. The tool MUST execute through `toolRegistry` / `executeStructured()` and MUST be the only supported managed network-read path exposed by Custom agents and internal AgentHub MCP bridges.
+
+#### Scenario: Agent fetches a public HTTPS page
+- **WHEN** an enabled agent calls `web_fetch` with a public `https://` URL
+- **THEN** AgentHub fetches the page with GET only
+- **AND** returns structured output containing `url`, `finalUrl`, `status`, `contentType`, `text`, `truncated`, and `bytesRead`
+- **AND** returns extracted text bounded by the requested `maxChars` limit.
+
+#### Scenario: Agent attempts SSRF or non-public access
+- **WHEN** `web_fetch` receives a non-HTTPS URL, URL credentials, localhost, loopback/private/link-local IP, metadata endpoint, or a domain that resolves to restricted addresses
+- **THEN** AgentHub rejects the request before returning response content.
+
+#### Scenario: Redirect targets a restricted address
+- **WHEN** a public URL redirects to another URL
+- **THEN** AgentHub revalidates every redirect target
+- **AND** rejects redirects to non-HTTPS or restricted hosts/addresses.
+
+#### Scenario: SDK adapter needs web access
+- **WHEN** Claude Code or Codex needs public web page text
+- **THEN** AgentHub exposes `web_fetch` through the internal `agenthub` MCP server
+- **AND** Codex native network/web search remains disabled
+- **AND** Claude Code is instructed to use AgentHub `web_fetch` instead of native WebFetch/WebSearch.
+
 ### Requirement: Attachments SHALL be read through safe tool extraction
 
 `read_attachment` MUST read user-uploaded attachments scoped to the current conversation. Text-like files and PDFs with extractable text SHALL return plain text with bounded length; unsupported binary formats SHALL return metadata instead of raw bytes.

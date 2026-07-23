@@ -194,6 +194,103 @@ export type ModelProvider =
   | 'volcano-ark'
   | 'openai-compatible'
 
+export interface AgentRunDebugSnapshot {
+  runId: string
+  conversationId: string
+  agent: {
+    id: string
+    name: string
+    adapterName: AdapterName
+    modelProvider: ModelProvider | null
+    modelId: string | null
+    isOrchestrator: boolean
+  }
+  workspace: {
+    mode: 'sandbox' | 'local'
+    effectiveCwd: string
+    boundPath: string | null
+  }
+  prompt: {
+    overridePrompt: boolean
+    overrideSystemPrompt: boolean
+    userPromptChars: number
+    effectivePromptChars: number
+    systemPromptChars: number
+    systemPromptSections: AgentRunDebugPromptSection[]
+  }
+  context: {
+    summaryInjected: boolean
+    summaryId: string | null
+    workspaceMemoryInjected: boolean
+    workspaceMemoryNoteCount: number
+    historyInjected: boolean
+    historyMessageCount: number
+    historyTokenBudget: number | null
+    historyTokenEstimate: number | null
+  }
+  tools: {
+    toolNames: string[]
+    externalMcpServers: AgentRunDebugMcpServer[]
+  }
+  attachments: AgentRunDebugAttachment[]
+}
+
+export type AgentRunDebugPromptSectionKind =
+  | 'workspace_info'
+  | 'workspace_memory'
+  | 'agent_system'
+  | 'tool_guidance'
+  | 'group_note'
+  | 'override_system'
+
+export interface AgentRunDebugPromptSection {
+  kind: AgentRunDebugPromptSectionKind
+  chars: number
+  tokenEstimate: number
+  present: boolean
+}
+
+export interface AgentRunDebugMcpServer {
+  id: string
+  name: string
+  trust: 'always' | 'ask'
+  envKeys: string[]
+}
+
+export interface AgentRunDebugAttachment {
+  id: string
+  kind: 'image' | 'file'
+  fileName: string
+  size: number
+  mimeType: string
+}
+
+export interface AgentRunDebugListItem {
+  id: string
+  conversationId: string
+  agentId: string
+  agentName: string | null
+  adapterName: AdapterName | null
+  modelId: string | null
+  triggerMessageId: string | null
+  parentRunId: string | null
+  status: 'queued' | 'running' | 'complete' | 'failed' | 'aborted'
+  error: string | null
+  usage: RunUsageEvent | null
+  startedAt: number
+  finishedAt: number | null
+  hasDebugSnapshot: boolean
+}
+
+export interface AgentRunDebugDetail {
+  agentRun: AgentRunDebugListItem
+  snapshot: AgentRunDebugSnapshot | null
+  triggerMessage: MessageRecord | null
+  outputMessages: MessageRecord[]
+  childrenRuns: AgentRunDebugListItem[]
+  parentRun: AgentRunDebugListItem | null
+}
+
 // ─── 调度 plan ────────────────────────────────────────────
 export interface DispatchPlanItem {
   id: string
@@ -349,6 +446,19 @@ export interface PendingBashCommand {
   createdAt: number
 }
 
+export interface PendingMcpToolApproval {
+  id: string
+  conversationId: string
+  agentId: string
+  runId: string
+  serverId: string
+  serverName: string
+  toolName: string
+  namespacedToolName: string
+  args: unknown
+  createdAt: number
+}
+
 export interface DeployStatusRecord {
   id: string
   artifactId: string
@@ -461,6 +571,8 @@ export type StreamEvent = BaseEvent &
     | { type: 'fs_write.resolved'; pendingId: string; applied: boolean }
     | { type: 'bash_command.pending'; pendingCommand: PendingBashCommand }
     | { type: 'bash_command.resolved'; pendingId: string; approved: boolean }
+    | { type: 'mcp_tool.pending'; pendingApproval: PendingMcpToolApproval }
+    | { type: 'mcp_tool.resolved'; pendingId: string; approved: boolean }
     | { type: 'ask_user.pending'; pendingQuestion: PendingQuestion }
     | { type: 'ask_user.resolved'; pendingId: string; answered: boolean }
     | { type: 'notification.created'; notification: AppNotification }

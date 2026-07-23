@@ -44,7 +44,7 @@ L1 Persistence                          src/db/**（Drizzle+SQLite） + workspac
 - **`StreamEvent` 联合类型**是粘合全系统的事件协议（`specs/02`）。
 - **Message = parts 数组**（text / thinking / tool_use / artifact_ref …），不是 markdown 字符串（`specs/03`）。
 - **Artifact 独立于 Message**,有自己的生命周期与版本链（`specs/04`）。
-- **Orchestrator 是特殊 Agent**,走同一个 AgentRunner,只是多了 `dispatch_to_agent`/`plan_tasks` 工具与不同 system prompt（`specs/06`）。
+- **Orchestrator 是特殊 Agent**,走同一个 AgentRunner,通过 `plan_tasks` 输出结构化调度计划（早期 `dispatch_to_agent` 命名已统一），并使用不同 system prompt（`specs/06`）。
 
 ### 3. 功能现状矩阵
 

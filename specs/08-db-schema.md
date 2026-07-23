@@ -1,8 +1,8 @@
 # Spec 08 — 数据库 Schema
 
-> Drizzle ORM + SQLite。本 spec 描述 11 张表的字段、索引、外键级联策略，是 Spec 01 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
+> Drizzle ORM + SQLite。本 spec 描述核心业务表、自动化表、上下文基础设施表、外部 MCP 表、Workspace Memory 表、Agent Run 调试快照表与全局设置表的字段、索引、外键级联策略，是 Spec 01/16/17 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
 >
-> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`app_settings` 是单行配置表，不对应实体。
+> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`agent_run_debug_snapshots` 是 run 调试快照表；`app_settings` 是单行配置表，不对应实体。
 
 源文件：`src/db/schema.ts`
 
@@ -35,6 +35,7 @@ agents {
   api_key         text              // 该 agent 单独的 key；NULL 走 env
   api_base_url    text              // 该 agent 单独的 endpoint；NULL 走 SDK 默认
   tool_names      text JSON         // string[]，引用 Spec 07
+  mcp_server_ids  text JSON         // string[]，引用 mcp_servers.id，默认 []
   is_builtin      int  bool default 0
   is_orchestrator int  bool default 0
   supports_vision int  bool default 0
@@ -201,7 +202,31 @@ INDEX idx_runs_parent ON (parent_run_id)
 
 ---
 
-## 8. automations
+## 8. agent_run_debug_snapshots
+
+```ts
+agent_run_debug_snapshots {
+  id              text PK           // rdbg_<nanoid>
+  run_id          text NOT NULL FK→agent_runs.id ON DELETE CASCADE
+  conversation_id text NOT NULL FK→conversations.id ON DELETE CASCADE
+  agent_id        text NOT NULL FK→agents.id
+  snapshot        text JSON NOT NULL // AgentRunDebugSnapshot，见 Spec 17
+  created_at      int NOT NULL
+}
+INDEX idx_run_debug_run ON (run_id)
+INDEX idx_run_debug_conv_created ON (conversation_id, created_at)
+```
+
+**约束**：
+- 只保存运行时 metadata / 统计，不保存 API key、auth token、MCP resolved env value、完整 prompt 文本或附件内容。
+- `run_id` 逻辑上按 run 唯一；服务层写入时发现已有 snapshot 直接返回已有行。
+- 删除 conversation 或 agent_run 时级联删除 debug snapshot。
+
+**索引说明**：`idx_run_debug_run` 用于 run detail 查询；`idx_run_debug_conv_created` 用于会话调试面板列表辅助查询。
+
+---
+
+## 9. automations
 
 ```ts
 automations {
@@ -312,7 +337,64 @@ INDEX idx_context_summaries_conv_created ON (conversation_id, created_at)
 
 ---
 
-## 11. app_settings
+## 12. mcp_servers
+
+```ts
+mcp_servers {
+  id          text PK              // mcp_<nanoid>
+  name        text UNIQUE NOT NULL // [a-z0-9_]+，禁止 agenthub
+  transport   text NOT NULL default 'stdio'
+  command     text NOT NULL        // stdio server command，不拼 shell 字符串
+  args        text JSON default []  // string[]
+  env         text JSON default {}  // Record<string,string>，列表 API 脱敏
+  trust       text NOT NULL default 'ask' // 'ask'|'always'
+  enabled     int bool default 1
+  created_at  int NOT NULL
+  updated_at  int NOT NULL
+}
+INDEX idx_mcp_servers_enabled ON (enabled)
+```
+
+**约束**：
+- 首版只支持 `transport='stdio'`，SSE / HTTP / OAuth 延后。
+- `name='agenthub'` 保留给内部 AgentHub MCP server，外部配置不可覆盖。
+- 外部 MCP server 不进入 `toolRegistry`；Agent 通过 `agents.mcp_server_ids` 显式 opt-in。
+- `env` 可使用 `${ENV_NAME}` 占位，运行时只解析被引用的环境变量；列表接口不返回明文 secret。
+
+---
+
+## 12. workspace_memories
+
+```ts
+workspace_memories {
+  id                  text PK           // mem_<nanoid>
+  conversation_id     text NOT NULL FK→conversations.id ON DELETE CASCADE
+  title               text NOT NULL
+  content             text NOT NULL
+  source              text NOT NULL default 'user' // 'user'|'agent'|'system'
+  created_by_agent_id text FK→agents.id
+  pinned              int bool NOT NULL default 0
+  created_at          int NOT NULL
+  updated_at          int NOT NULL
+}
+INDEX idx_workspace_memories_conv_updated ON (conversation_id, updated_at)
+INDEX idx_workspace_memories_conv_pinned ON (conversation_id, pinned, updated_at)
+```
+
+**语义**：Workspace Memory 是当前 conversation/workspace 的长期项目备注，供后续普通 Agent run 作为有界 `<workspace_memory>` system prompt 块注入。它不是聊天记录，不进入 `messages`，也不参与 conversation compaction。
+
+**约束**：
+- 随 conversation 删除级联删除；不跨 conversation 共享，不做全局用户记忆。
+- Phase 7 只允许 UI/API 创建 `source='user'` 的 memory；`agent` / `system` 预留。
+- `title` 最长 80 字符，`content` 最长 4000 字符，单 conversation 最多 50 条（service 层 enforce）。
+- Prompt 注入由 `workspace-memory-service.buildWorkspaceMemoryBlock` 有界构建：pinned 优先，其次 `updated_at DESC`，最多 12 条，约 2000 token 预算。
+- Memory 修改后清理 Claude Code / Codex session，避免旧 SDK session 继续使用过期 system prompt。
+
+**索引说明**：`idx_workspace_memories_conv_updated` 用于列表按更新时间展示；`idx_workspace_memories_conv_pinned` 用于 prompt 注入时 pinned 优先排序。
+
+---
+
+## 13. app_settings
 
 ```ts
 app_settings {
@@ -364,7 +446,8 @@ conversations  ─── CASCADE ──┬─► messages
                              ├─► workspaces  (1:1)
                              ├─► attachments
                              ├─► agent_runs
-                             └─► conversation_context_summaries
+                             ├─► conversation_context_summaries
+                             └─► workspace_memories
 
 automations ─── CASCADE ───────► automation_runs
 
@@ -392,6 +475,7 @@ app_settings ──(独立，无外键)── 单行表，与任何业务表都�
 | `messages.parts` | `MessagePart[]` | 见 Spec 03 |
 | `messages.mentioned_agent_ids` | `string[]` | @ 的 agent |
 | `artifacts.content` | `ArtifactContent` | 见 Spec 04，按 type 分发的可辨联合 |
+| `workspace_memories` | 无 JSON 列 | Memory title/content 是普通 text，由 service 校验长度与转义 |
 
 **修改 JSON 列结构时**：旧数据按旧 schema 解析仍合法（向后兼容），否则需要写 migration 脚本（见下节）。
 
@@ -417,6 +501,8 @@ app_settings ──(独立，无外键)── 单行表，与任何业务表都�
 | Attachment | `att_` | `att_qWeR...` |
 | AgentRun | `run_` | `run_xT9m...` |
 | ContextSummary | `ctx_` | `ctx_mN4p...` |
+| WorkspaceMemory | `mem_` | `mem_s7Kp...` |
+| AgentRunDebugSnapshot | `rdbg_` | `rdbg_aB3c...` |
 | Automation | `auto_` | `auto_xY8k...` |
 | AutomationRun | `arun_` | `arun_pQ2s...` |
 | ToolCall (内存中) | `call_` | `call_aBc...` |

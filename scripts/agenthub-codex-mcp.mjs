@@ -157,6 +157,20 @@ registerTool(
 )
 
 registerTool(
+  'web_fetch',
+  {
+    description:
+      'Fetch a public HTTPS URL through AgentHub safety checks. Only GET is supported; localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, redirects to restricted addresses, and binary responses are blocked.',
+    inputSchema: {
+      url: z.string().describe('Public HTTPS URL to fetch.'),
+      maxChars: z.number().int().positive().optional().describe('Maximum number of text characters to return.'),
+      timeoutMs: z.number().int().positive().optional().describe('Request timeout in milliseconds.'),
+    },
+  },
+  async (args) => callAgentHubTool('web_fetch', args),
+)
+
+registerTool(
   'ask_user',
   {
     description:

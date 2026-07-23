@@ -6,8 +6,11 @@ import type {
   ConversationWithMeta,
   ContextSummaryRow,
   MessageRow,
+  WorkspaceMemoryRow,
 } from '@/db/schema'
 import type {
+  AgentRunDebugDetail,
+  AgentRunDebugListItem,
   AskUserAnswer,
   AppNotification,
   AppNotificationCategory,
@@ -15,6 +18,7 @@ import type {
   DeployStatusRecord,
   PendingBashCommand,
   PendingDispatchPlan,
+  PendingMcpToolApproval,
   PendingQuestion,
   PendingWrite,
 } from '@/shared/types'
@@ -134,6 +138,7 @@ export interface CreateAgentBody {
   /** custom: required；SDK adapter: 可选，默认 SDK 默认模型 */
   modelId?: string
   toolNames: string[]
+  mcpServerIds?: string[]
   supportsVision?: boolean
   apiKey?: string
   /** 自定义 API base URL。Claude/Codex 对 endpoint 协议兼容性要求不同；空走默认 */
@@ -186,6 +191,127 @@ export async function updateAgent(agentId: string, patch: UpdateAgentBody): Prom
 
 export async function deleteAgent(agentId: string): Promise<void> {
   await json<{ ok: true }>(fetch(`/api/agents/${agentId}`, { method: 'DELETE' }))
+}
+
+export interface McpServerListItem {
+  id: string
+  name: string
+  transport: 'stdio'
+  command: string
+  args: string[]
+  env: Record<string, string>
+  trust: 'always' | 'ask'
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface SaveMcpServerBody {
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  trust?: 'always' | 'ask'
+  enabled?: boolean
+}
+
+export async function fetchMcpServers(): Promise<McpServerListItem[]> {
+  const { servers } = await json<{ servers: McpServerListItem[] }>(fetch('/api/mcp-servers'))
+  return servers
+}
+
+export async function createMcpServer(body: SaveMcpServerBody): Promise<McpServerListItem> {
+  const { server } = await json<{ server: McpServerListItem }>(
+    fetch('/api/mcp-servers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+  return server
+}
+
+export async function updateMcpServer(
+  serverId: string,
+  patch: Partial<SaveMcpServerBody>,
+): Promise<McpServerListItem> {
+  const { server } = await json<{ server: McpServerListItem }>(
+    fetch(`/api/mcp-servers/${serverId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  )
+  return server
+}
+
+export async function deleteMcpServer(serverId: string): Promise<void> {
+  await json<{ ok: true }>(fetch(`/api/mcp-servers/${serverId}`, { method: 'DELETE' }))
+}
+
+export interface WorkspaceMemoryBody {
+  title: string
+  content: string
+  pinned?: boolean
+}
+
+export async function fetchWorkspaceMemories(conversationId: string): Promise<WorkspaceMemoryRow[]> {
+  const { memories } = await json<{ memories: WorkspaceMemoryRow[] }>(
+    fetch(`/api/conversations/${conversationId}/workspace-memory`),
+  )
+  return memories
+}
+
+export async function createWorkspaceMemory(
+  conversationId: string,
+  body: WorkspaceMemoryBody,
+): Promise<WorkspaceMemoryRow> {
+  const { memory } = await json<{ memory: WorkspaceMemoryRow }>(
+    fetch(`/api/conversations/${conversationId}/workspace-memory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+  return memory
+}
+
+export async function updateWorkspaceMemory(
+  conversationId: string,
+  memoryId: string,
+  patch: Partial<WorkspaceMemoryBody>,
+): Promise<WorkspaceMemoryRow> {
+  const { memory } = await json<{ memory: WorkspaceMemoryRow }>(
+    fetch(`/api/conversations/${conversationId}/workspace-memory/${memoryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  )
+  return memory
+}
+
+export async function deleteWorkspaceMemory(conversationId: string, memoryId: string): Promise<void> {
+  await json<{ ok: true }>(
+    fetch(`/api/conversations/${conversationId}/workspace-memory/${memoryId}`, { method: 'DELETE' }),
+  )
+}
+
+export async function fetchAgentRuns(conversationId: string): Promise<AgentRunDebugListItem[]> {
+  const { runs } = await json<{ runs: AgentRunDebugListItem[] }>(
+    fetch(`/api/conversations/${conversationId}/agent-runs`),
+  )
+  return runs
+}
+
+export async function fetchAgentRunDebugDetail(
+  conversationId: string,
+  runId: string,
+): Promise<AgentRunDebugDetail> {
+  const { detail } = await json<{ detail: AgentRunDebugDetail }>(
+    fetch(`/api/conversations/${conversationId}/agent-runs/${runId}/debug`),
+  )
+  return detail
 }
 
 export async function optimizePrompt(prompt: string): Promise<{ enhancedText: string }> {
@@ -486,6 +612,42 @@ export async function rejectPendingBashCommand(
 ): Promise<void> {
   await json<{ ok: true }>(
     fetch(`/api/conversations/${conversationId}/pending-bash-commands/${pendingId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject' }),
+    }),
+  )
+}
+
+// ─── Pending MCP tool approvals ─────
+export async function fetchPendingMcpToolApprovals(
+  conversationId: string,
+): Promise<PendingMcpToolApproval[]> {
+  const { pendingApprovals } = await json<{ pendingApprovals: PendingMcpToolApproval[] }>(
+    fetch(`/api/conversations/${conversationId}/pending-mcp-tool-approvals`),
+  )
+  return pendingApprovals
+}
+
+export async function approvePendingMcpToolApproval(
+  conversationId: string,
+  pendingId: string,
+): Promise<void> {
+  await json<{ ok: true }>(
+    fetch(`/api/conversations/${conversationId}/pending-mcp-tool-approvals/${pendingId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve' }),
+    }),
+  )
+}
+
+export async function rejectPendingMcpToolApproval(
+  conversationId: string,
+  pendingId: string,
+): Promise<void> {
+  await json<{ ok: true }>(
+    fetch(`/api/conversations/${conversationId}/pending-mcp-tool-approvals/${pendingId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'reject' }),

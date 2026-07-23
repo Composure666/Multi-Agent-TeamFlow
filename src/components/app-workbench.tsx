@@ -4668,7 +4668,7 @@ function formatToolName(toolName: string) {
     ask_user: '询问用户',
     bash: '运行命令',
     create_artifact: '创建产物',
-    dispatch_to_agent: '调度 Agent',
+    dispatch_to_agent: '调度 Agent（旧版）',
     fs_list: '浏览文件',
     fs_read: '读取文件',
     fs_write: '写入文件',

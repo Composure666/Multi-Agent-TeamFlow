@@ -104,6 +104,17 @@ export const toolRegistry = buildRegistry()
 - `tool_result.result` 与 `StreamEvent.tool.result.result` 存 `ToolExecutionResult.output`，不是整个 `ToolExecutionResult`。
 - Phase 1 不改变 DB schema、`MessagePart` 或 `StreamEvent` 形状；`events` / `artifacts` 字段只作为后续 side-effect metadata 预留，当前 artifact / deploy 事件仍由 Adapter 既有逻辑发布。
 
+### 外部 MCP 工具边界
+
+外部 MCP server 提供的工具不是 AgentHub-managed tools：
+
+- 不注册进 `toolRegistry`，也不使用 `ToolDef.handler`。
+- 配置存于 `mcp_servers`，Agent 通过 `agents.mcp_server_ids` 显式 opt-in。
+- 首版只支持 stdio MCP，并只接入 Claude Code / Codex SDK adapter；Custom adapter 的 MCP client 延后。
+- 外部 MCP 调用复用 `tool.call` / `tool.result` 事件；`trust='ask'` 的审批生命周期使用 `mcp_tool.pending` / `mcp_tool.resolved`。
+- 外部 MCP 审批粒度是 `conversationId + mcp__server__tool`；Claude Code 首次调用时等待用户批准，批准后同会话同工具免再次询问，拒绝只阻断本次调用。Codex 仅接收 `trust='always'` server，避免在缺少 pre-call hook 时执行 `ask` server。
+- 外部 stdio MCP server 以本机 AgentHub 进程权限启动，不继承 AgentHub 内置 `bash` / `fs_write` 的 workspace 沙箱与审批保证；UI/API 必须要求用户显式配置和 opt-in。
+
 **重要**：`toolRegistry` 是**模块级单例**，但**不**用 `globalThis` 跨 HMR 缓存。原因：工具集是静态的（不持有 DB 连接、不订阅事件、无内存状态），每次模块重载重建即可，新增工具在 dev 模式自动生效。这与 `EventBus`（需要跨 HMR 保持订阅）的处理不同，详见 Spec 02 注。
 
 ---
@@ -123,6 +134,7 @@ export const toolRegistry = buildRegistry()
 | `fs_read` | 读 workspace 内文本文件 | 读文件系统 | 需要看用户项目代码的 agent |
 | `fs_write` | 写 workspace 内文本文件 | 写文件系统 | 需要生成 / 修改文件的 agent |
 | `bash` | 在 workspace 内跑 shell 命令 | 进程 / 文件系统 | 需要 git / 编译 / 测试的 agent |
+| `web_fetch` | 读取公开 HTTPS 网页文本 | 出站 GET 网络请求 | 需要读取公开网页、规范或文档 URL 的 agent |
 
 ### write_artifact
 
@@ -230,6 +242,56 @@ write_artifact({
 - 其他二进制（docx / zip 等）：仅返回 metadata + note，不把原始二进制塞进 prompt
 
 **容量**：`MAX_TEXT_CHARS = 50_000`。
+
+### web_fetch
+
+源文件：`src/server/tools/web-fetch.ts`
+
+**用途**：读取公开 HTTPS 网页或文档 URL 的文本内容。`web_fetch` 是 AgentHub-managed tool，不是 Adapter 私有联网能力；Custom Agent 通过 `toolRegistry` 调用，Claude Code / Codex 通过 internal `agenthub` MCP 暴露，最终仍走 `toolRegistry.executeStructured()`。
+
+**入参**：
+
+```typescript
+{
+  url: string
+  maxChars?: number    // clamp 到 1..20_000，默认 12_000
+  timeoutMs?: number   // clamp 到 1_000..30_000，默认 10_000
+}
+```
+
+**返回值**：
+
+```typescript
+{
+  url: string
+  finalUrl: string
+  status: number
+  contentType: string
+  title?: string
+  text: string
+  truncated: boolean
+  bytesRead: number
+}
+```
+
+**安全策略**：
+
+- 仅支持 `https://` + GET；不支持自定义 headers、cookies、POST、auth、二进制下载或执行网页 JS。
+- 拒绝 URL username/password。
+- 拒绝 localhost、`*.localhost`、cloud metadata host、metadata IP。
+- 拒绝 IP literal 与 DNS 解析结果中的 loopback、private、link-local、unspecified、multicast 等地址。
+- `redirect: 'manual'`，最多 3 跳；每一跳重新执行 URL / hostname / DNS / IP 校验。
+- 只接受文本类 content-type：`text/*`、`application/json`、`application/xml`、`application/xhtml+xml`、`application/javascript`、`application/x-yaml` 等。
+- 响应体最多读取 1,000,000 bytes；输出文本再按 `maxChars` 截断并设置 `truncated`。
+- HTML 只做基础文本抽取：提取 `<title>`，移除 `script/style/noscript`，去标签、decode 常见 HTML entity、压缩空白。
+- handler 必须尊重 `ctx.abortSignal`，并用内部 timeout 避免 run 悬挂。
+
+**Adapter 暴露**：
+
+- Custom Agent：只有 `agent.toolNames` 包含 `web_fetch` 才暴露。
+- Claude Code：internal AgentHub MCP 暴露 `web_fetch`，并禁用 / 提示不要使用原生 `WebFetch` / `WebSearch` 绕过 AgentHub 安全策略。
+- Codex：internal stdio MCP bridge 暴露 `web_fetch`；Codex 原生 `networkAccessEnabled=false`、`webSearchMode='disabled'` 保持不变。
+- Orchestrator plan stage：可用 `web_fetch` 读取公开 HTTPS 需求 / 文档 URL，但不能用它访问本地服务或私有网络。
 
 ### ask_user
 
@@ -532,13 +594,9 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 **`getBannedPatterns(platform)` 跨 adapter / 工具共享**：定义在 `src/server/security.ts`，由 `findBannedPattern(command, platform?)` 暴露（platform 省略时取 `currentPlatform()`）。`bash` 工具和 `ClaudeCodeAdapter`（用 SDK Bash 工具时）都走同一份名单，新增模式同步 Spec 11 「命令黑名单」节并只改 `security.ts` 这一处。
 
-**TODO 工具（CLAUDE.md 提到但仍未实装）**：
+**bash / fs_read / fs_write / web_fetch 已实装**（详见上方各自小节）。
 
-- `web_fetch` —— 抓取 URL 内容（SSRF 防护：禁止 localhost / 内网 IP / file://）
-
-**bash / fs_read / fs_write 已实装**（详见上方各自小节）。
-
-新人不要以为未实装的工具已经存在；要么先实现，要么按 Spec 07 §「新增工具步骤」走。
+新人不要以为其它规划中的工具已经存在；要么先实现，要么按 Spec 07 §「新增工具步骤」走。
 
 ---
 
@@ -554,7 +612,7 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 **副作用**：sandbox 模式 quota（`SANDBOX_TOTAL_BYTES` / `SANDBOX_TOTAL_FILES`）对 Claude Code agent 失效（SDK 自己写盘绕过 quota 检查）。Claude Code agent 实际场景都是 `workspace.mode === 'local'`（绑真实项目），quota 不适用，可接受。
 
-**AgentHub MCP 工具**：Claude Code adapter 通过 SDK in-process MCP server 暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result`。其中 `write_artifact` 的结果会被 adapter 翻译为 `artifact.create`，`deploy_artifact` / `deploy_workspace` 的结果会被翻译为 `deploy.status`。
+**AgentHub MCP 工具**：Claude Code adapter 通过 SDK in-process MCP server 暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。其中 `write_artifact` 的结果会被 adapter 翻译为 `artifact.create`，`deploy_artifact` / `deploy_workspace` 的结果会被翻译为 `deploy.status`。`web_fetch` 是默认联网读取路径；原生 `WebFetch` / `WebSearch` 应禁用或通过提示约束避免绕过 AgentHub 安全策略。
 
 ---
 
@@ -562,7 +620,7 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 `adapterName === 'codex'` 的 agent 不消费上面的「内置工具清单」。它通过 `@openai/codex-sdk` 暴露 Codex 自身的本地命令、文件变更、MCP、web search、todo/plan 等事件。
 
-AgentHub 额外给 Codex 注入一个 stdio MCP bridge，只暴露 allowlist：`write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result`。bridge 通过受保护的内部 API 调用 `toolRegistry`，不会把 `bash` / `fs_write` 等 AgentHub 工具开放给 Codex。
+AgentHub 额外给 Codex 注入一个 stdio MCP bridge，只暴露 allowlist：`write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。bridge 通过受保护的内部 API 调用 `toolRegistry`，不会把 `bash` / `fs_write` 等 AgentHub 工具开放给 Codex。
 
 **审批策略**：当前 Codex TypeScript SDK 没有 Claude `canUseTool` 等价 hook。AgentHub 因此不在 Review 模式下开放自动写盘：
 
