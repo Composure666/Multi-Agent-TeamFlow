@@ -14,6 +14,27 @@ AgentHub-managed tools MUST be registered through `toolRegistry` with name, desc
 - **WHEN** an agent's `toolNames` includes `fs_read`
 - **THEN** CustomAgentAdapter resolves the tool definition from `toolRegistry`.
 
+### Requirement: AgentHub-managed tool execution SHALL expose normalized structured results
+
+AgentHub MUST provide a normalized execution result for AgentHub-managed tools that separates structured output from model-facing prompt text while preserving the legacy `ToolResult` handler contract.
+
+#### Scenario: Tool succeeds with structured output
+- **WHEN** a registered AgentHub-managed tool returns an object or array value
+- **THEN** structured execution preserves that value as `output`
+- **AND** provides deterministic JSON `promptText` for the model-facing tool response.
+
+#### Scenario: Tool fails during structured execution
+- **WHEN** a registered tool returns `{ ok: false, error }` or the handler throws
+- **THEN** structured execution returns `output` as `{ error }`
+- **AND** marks the execution as failed
+- **AND** provides `promptText` prefixed with `Error: `
+- **AND** includes an error diagnostic.
+
+#### Scenario: Adapter persists a tool result
+- **WHEN** an adapter emits `tool.result` for an AgentHub-managed tool
+- **THEN** the event result contains the structured execution `output`
+- **AND** the adapter sends `promptText` back to the model instead of serializing the persisted output itself.
+
 ### Requirement: Attachments SHALL be read through safe tool extraction
 
 `read_attachment` MUST read user-uploaded attachments scoped to the current conversation. Text-like files and PDFs with extractable text SHALL return plain text with bounded length; unsupported binary formats SHALL return metadata instead of raw bytes.

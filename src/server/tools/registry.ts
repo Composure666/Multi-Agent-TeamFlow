@@ -9,7 +9,7 @@ import { planTasksTool } from './plan-tasks'
 import { readArtifactTool } from './read-artifact'
 import { readAttachmentTool } from './read-attachment'
 import { reportTaskResultTool } from './report-task-result'
-import type { ToolContext, ToolDef, ToolResult } from './types'
+import type { ToolContext, ToolDef, ToolExecutionResult, ToolResult } from './types'
 import { writeArtifactTool } from './write-artifact'
 
 /**
@@ -19,7 +19,7 @@ import { writeArtifactTool } from './write-artifact'
  * 时从这里查出 ToolDef。
  */
 
-class ToolRegistry {
+export class ToolRegistry {
   private tools = new Map<string, ToolDef>()
 
   register(tool: ToolDef): void {
@@ -57,6 +57,34 @@ class ToolRegistry {
       }
     }
   }
+
+  async executeStructured(toolName: string, args: unknown, ctx: ToolContext): Promise<ToolExecutionResult> {
+    return normalizeToolResult(await this.execute(toolName, args, ctx))
+  }
+}
+
+function normalizeToolResult(result: ToolResult): ToolExecutionResult {
+  if (result.ok) {
+    return {
+      ok: true,
+      output: result.value,
+      promptText: stringifyToolPromptText(result.value),
+    }
+  }
+
+  return {
+    ok: false,
+    output: { error: result.error },
+    promptText: `Error: ${result.error}`,
+    error: result.error,
+    diagnostics: [{ level: 'error', message: result.error }],
+  }
+}
+
+function stringifyToolPromptText(value: unknown): string {
+  if (typeof value === 'string') return value
+  const json = JSON.stringify(value)
+  return json === undefined ? String(value) : json
 }
 
 function buildRegistry(): ToolRegistry {
@@ -80,4 +108,4 @@ function buildRegistry(): ToolRegistry {
 // 每次模块加载重建一次即可，添加新工具后 dev 模式自动生效，不必重启。
 export const toolRegistry = buildRegistry()
 
-export type { ToolContext, ToolDef, ToolResult } from './types'
+export type { ToolContext, ToolDef, ToolExecutionDiagnostic, ToolExecutionResult, ToolResult } from './types'

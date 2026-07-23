@@ -265,8 +265,8 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
           args,
         })
 
-        const result = await toolRegistry.execute(tc.name, args, ctx)
-        const value = result.ok ? result.value : { error: result.error }
+        const result = await toolRegistry.executeStructured(tc.name, args, ctx)
+        const value = result.output
 
         yield baseEvent(input, {
           type: 'tool.result',
@@ -318,7 +318,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
         messages.push({
           role: 'tool',
           tool_call_id: tc.id,
-          content: JSON.stringify(value),
+          content: result.promptText,
         })
       }
 

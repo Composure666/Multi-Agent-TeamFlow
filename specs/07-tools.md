@@ -36,6 +36,41 @@ interface ToolContext {
 type ToolResult =
   | { ok: true; value: unknown }
   | { ok: false; error: string }
+
+interface ToolExecutionDiagnostic {
+  level: 'info' | 'warning' | 'error'
+  message: string
+  code?: string
+  details?: unknown
+}
+
+interface ToolExecutionArtifactRef {
+  artifactId: string
+  outputKey?: string
+}
+
+type ToolExecutionEvent =
+  | { type: 'artifact.create'; artifactId: string }
+  | { type: 'deploy.status'; deployment: unknown }
+
+type ToolExecutionResult =
+  | {
+      ok: true
+      output: unknown
+      promptText: string
+      events?: ToolExecutionEvent[]
+      artifacts?: ToolExecutionArtifactRef[]
+      diagnostics?: ToolExecutionDiagnostic[]
+    }
+  | {
+      ok: false
+      output: unknown
+      promptText: string
+      error: string
+      events?: ToolExecutionEvent[]
+      artifacts?: ToolExecutionArtifactRef[]
+      diagnostics?: ToolExecutionDiagnostic[]
+    }
 ```
 
 **约束**：
@@ -55,10 +90,19 @@ class ToolRegistry {
   get(name): ToolDef | undefined        // 不存在返回 undefined
   resolve(names: string[]): ToolDef[]   // 任一不存在 throw
   execute(name, args, ctx): Promise<ToolResult>  // 不存在/handler throw → ok:false
+  executeStructured(name, args, ctx): Promise<ToolExecutionResult>
 }
 
 export const toolRegistry = buildRegistry()
 ```
+
+`execute()` 保留 legacy handler contract，返回原始 `ToolResult`。`executeStructured()` 是 runtime 归一化入口：
+
+- 成功时 `output = ToolResult.value`，保留对象 / 数组等结构化值给持久化和 UI 使用。
+- 成功时 `promptText` 是返回给模型的文本；字符串原样返回，其他值使用 `JSON.stringify()`，无法 stringify 时退化为 `String(value)`。
+- 失败时 `output = { error }`，`promptText = "Error: ..."`，并附带 `diagnostics: [{ level:'error', message:error }]`。
+- `tool_result.result` 与 `StreamEvent.tool.result.result` 存 `ToolExecutionResult.output`，不是整个 `ToolExecutionResult`。
+- Phase 1 不改变 DB schema、`MessagePart` 或 `StreamEvent` 形状；`events` / `artifacts` 字段只作为后续 side-effect metadata 预留，当前 artifact / deploy 事件仍由 Adapter 既有逻辑发布。
 
 **重要**：`toolRegistry` 是**模块级单例**，但**不**用 `globalThis` 跨 HMR 缓存。原因：工具集是静态的（不持有 DB 连接、不订阅事件、无内存状态），每次模块重载重建即可，新增工具在 dev 模式自动生效。这与 `EventBus`（需要跨 HMR 保持订阅）的处理不同，详见 Spec 02 注。
 

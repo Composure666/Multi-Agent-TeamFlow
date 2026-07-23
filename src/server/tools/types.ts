@@ -16,6 +16,41 @@ export type ToolResult =
   | { ok: true; value: unknown }
   | { ok: false; error: string }
 
+export interface ToolExecutionDiagnostic {
+  level: 'info' | 'warning' | 'error'
+  message: string
+  code?: string
+  details?: unknown
+}
+
+export interface ToolExecutionArtifactRef {
+  artifactId: string
+  outputKey?: string
+}
+
+export type ToolExecutionEvent =
+  | { type: 'artifact.create'; artifactId: string }
+  | { type: 'deploy.status'; deployment: unknown }
+
+export type ToolExecutionResult =
+  | {
+      ok: true
+      output: unknown
+      promptText: string
+      events?: ToolExecutionEvent[]
+      artifacts?: ToolExecutionArtifactRef[]
+      diagnostics?: ToolExecutionDiagnostic[]
+    }
+  | {
+      ok: false
+      output: unknown
+      promptText: string
+      error: string
+      events?: ToolExecutionEvent[]
+      artifacts?: ToolExecutionArtifactRef[]
+      diagnostics?: ToolExecutionDiagnostic[]
+    }
+
 export interface ToolDef {
   name: string
   description: string

@@ -68,6 +68,14 @@ const CLAUDE_PLAN_STAGE_AGENTHUB_TOOLS = new Set([
 type CanUseToolFn = NonNullable<Options['canUseTool']>
 type PermissionResult = Awaited<ReturnType<CanUseToolFn>>
 
+async function executeAgentHubMcpTool(toolName: string, args: unknown, ctx: ToolContext) {
+  const result = await toolRegistry.executeStructured(toolName, args, ctx)
+  return {
+    content: [{ type: 'text' as const, text: result.promptText }],
+    ...(result.ok ? {} : { isError: true }),
+  }
+}
+
 export class ClaudeCodeAdapter implements AgentPlatformAdapter {
   readonly name = 'claude-code' as const
 
@@ -167,18 +175,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
               )
               .min(1),
           },
-          async (args) => {
-            const result = await toolRegistry.execute(PLAN_TASKS_TOOL_NAME, args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool(PLAN_TASKS_TOOL_NAME, args, toolCtx),
         ),
         tool(
           'write_artifact',
@@ -190,104 +187,31 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
             outputKey: z.string().optional(),
             parentArtifactId: z.string().optional(),
           },
-          async (args) => {
-            const result = await toolRegistry.execute('write_artifact', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            // 不在这里 publish artifact.create —— 由 adapter 主循环检测到对应 tool_result 时
-            // 从 generator yield 出去，让 AgentRunner.consumeStream 触发 artifact_ref 注入。
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('write_artifact', args, toolCtx),
         ),
         tool(
           'read_artifact',
           'Read the full content of an existing artifact in the current conversation by id.',
           { artifactId: z.string() },
-          async (args) => {
-            const result = await toolRegistry.execute('read_artifact', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text:
-                    typeof result.value === 'string'
-                      ? result.value
-                      : JSON.stringify(result.value),
-                },
-              ],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('read_artifact', args, toolCtx),
         ),
         tool(
           'read_attachment',
           'Read a user-uploaded attachment in the current conversation by attachmentId. Use this when planning depends on uploaded file contents.',
           { attachmentId: z.string() },
-          async (args) => {
-            const result = await toolRegistry.execute('read_attachment', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text:
-                    typeof result.value === 'string'
-                      ? result.value
-                      : JSON.stringify(result.value),
-                },
-              ],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('read_attachment', args, toolCtx),
         ),
         tool(
           'fs_list',
           'List files and directories inside the current AgentHub workspace. Prefer this before reading files when exploring project structure.',
           { path: z.string().optional() },
-          async (args) => {
-            const result = await toolRegistry.execute('fs_list', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('fs_list', args, toolCtx),
         ),
         tool(
           'deploy_artifact',
           'Create a ready local preview deployment for a web_app artifact. The returned previewPath is a relative path for the current AgentHub instance; do not invent or print a public hostname. Use this after write_artifact when the user should receive a deployment card with open/copy/download actions.',
           { artifactId: z.string() },
-          async (args) => {
-            const result = await toolRegistry.execute('deploy_artifact', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('deploy_artifact', args, toolCtx),
         ),
         tool(
           'deploy_workspace',
@@ -297,18 +221,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
             title: z.string().optional(),
             entry: z.string().optional(),
           },
-          async (args) => {
-            const result = await toolRegistry.execute('deploy_workspace', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('deploy_workspace', args, toolCtx),
         ),
         tool(
           REPORT_TASK_RESULT_TOOL_NAME,
@@ -355,18 +268,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
               .optional(),
             blockers: z.array(z.string()).optional(),
           },
-          async (args) => {
-            const result = await toolRegistry.execute(REPORT_TASK_RESULT_TOOL_NAME, args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool(REPORT_TASK_RESULT_TOOL_NAME, args, toolCtx),
         ),
         tool(
           'ask_user',
@@ -393,18 +295,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
               .min(1)
               .max(4),
           },
-          async (args) => {
-            const result = await toolRegistry.execute('ask_user', args, toolCtx)
-            if (!result.ok) {
-              return {
-                content: [{ type: 'text' as const, text: `Error: ${result.error}` }],
-                isError: true,
-              }
-            }
-            return {
-              content: [{ type: 'text' as const, text: JSON.stringify(result.value) }],
-            }
-          },
+          async (args) => executeAgentHubMcpTool('ask_user', args, toolCtx),
         ),
       ]
     const agenthubMcpServer = createSdkMcpServer({

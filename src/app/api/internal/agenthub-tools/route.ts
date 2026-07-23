@@ -12,6 +12,7 @@ import { planTasksTool } from '@/server/tools/plan-tasks'
 import { readArtifactTool } from '@/server/tools/read-artifact'
 import { readAttachmentTool } from '@/server/tools/read-attachment'
 import { reportTaskResultTool } from '@/server/tools/report-task-result'
+import { toolRegistry } from '@/server/tools/registry'
 import type { ToolContext } from '@/server/tools/types'
 import { writeArtifactTool } from '@/server/tools/write-artifact'
 import { getEffectiveCwd } from '@/server/workspace-utils'
@@ -70,7 +71,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    return NextResponse.json(await tool.handler(args, ctx))
+    const result = await toolRegistry.executeStructured(tool.name, args, ctx)
+    if (!result.ok) return NextResponse.json({ ok: false, error: result.error })
+    return NextResponse.json({ ok: true, value: result.output })
   } catch (err) {
     return NextResponse.json({
       ok: false,
