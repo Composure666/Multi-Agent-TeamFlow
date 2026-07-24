@@ -111,6 +111,7 @@ const DDL: string[] = [
     api_base_url TEXT,
     tool_names TEXT NOT NULL,
     mcp_server_ids TEXT NOT NULL DEFAULT '[]',
+    skill_ids TEXT NOT NULL DEFAULT '[]',
     is_builtin INTEGER NOT NULL DEFAULT 0,
     is_orchestrator INTEGER NOT NULL DEFAULT 0,
     supports_vision INTEGER NOT NULL DEFAULT 0,
@@ -210,7 +211,7 @@ const DDL: string[] = [
     snapshot TEXT NOT NULL,
     created_at INTEGER NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_run_debug_run ON agent_run_debug_snapshots(run_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_run_debug_run ON agent_run_debug_snapshots(run_id)`,
   `CREATE INDEX IF NOT EXISTS idx_run_debug_conv_created ON agent_run_debug_snapshots(conversation_id, created_at)`,
 
   // ─── automations ───────────────────────────────
@@ -329,10 +330,28 @@ const DDL: string[] = [
     env TEXT NOT NULL DEFAULT '{}',
     trust TEXT NOT NULL DEFAULT 'ask',
     enabled INTEGER NOT NULL DEFAULT 1,
+    last_checked_at INTEGER,
+    last_check_status TEXT,
+    last_check_message TEXT,
+    last_tool_count INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)`,
+
+  // ─── skills ────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL,
+    content TEXT,
+    source_path TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_skills_enabled ON skills(enabled)`,
 
   // ─── app_settings ──────────────────────────────
   `CREATE TABLE IF NOT EXISTS app_settings (
@@ -364,6 +383,11 @@ function ensureSchema(sqlite: Database.Database): void {
     sqlite.exec(stmt)
   }
   safeAlter(sqlite, `ALTER TABLE agents ADD COLUMN mcp_server_ids TEXT NOT NULL DEFAULT '[]'`)
+  safeAlter(sqlite, `ALTER TABLE agents ADD COLUMN skill_ids TEXT NOT NULL DEFAULT '[]'`)
+  safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_checked_at INTEGER`)
+  safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_check_status TEXT`)
+  safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_check_message TEXT`)
+  safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_tool_count INTEGER`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN companion_mode TEXT NOT NULL DEFAULT 'off'`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN mobile_device_token TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN deployment_publish_enabled INTEGER NOT NULL DEFAULT 0`)
@@ -416,11 +440,11 @@ function ensureBuiltinAgents(sqlite: Database.Database): void {
     INSERT INTO agents (
       id, name, avatar, description, capabilities, system_prompt,
       adapter_name, model_provider, model_id, api_key, api_base_url,
-      tool_names, mcp_server_ids, is_builtin, is_orchestrator, supports_vision, created_at
+      tool_names, mcp_server_ids, skill_ids, is_builtin, is_orchestrator, supports_vision, created_at
     ) VALUES (
       @id, @name, @avatar, @description, @capabilities, @system_prompt,
       @adapter_name, @model_provider, @model_id, @api_key, @api_base_url,
-      @tool_names, @mcp_server_ids, @is_builtin, @is_orchestrator, @supports_vision, @created_at
+      @tool_names, @mcp_server_ids, @skill_ids, @is_builtin, @is_orchestrator, @supports_vision, @created_at
     )
   `)
 
@@ -440,6 +464,7 @@ function ensureBuiltinAgents(sqlite: Database.Database): void {
         api_base_url: a.apiBaseUrl ?? null,
         tool_names: JSON.stringify(a.toolNames),
         mcp_server_ids: '[]',
+        skill_ids: '[]',
         is_builtin: a.isBuiltin ? 1 : 0,
         is_orchestrator: a.isOrchestrator ? 1 : 0,
         supports_vision: a.supportsVision ? 1 : 0,

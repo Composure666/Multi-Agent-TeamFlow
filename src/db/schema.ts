@@ -5,7 +5,7 @@
  */
 
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type {
   AppNotificationCategory,
   AppNotificationLevel,
@@ -50,6 +50,10 @@ export const agents = sqliteTable('agents', {
 
   toolNames: text('tool_names', { mode: 'json' }).$type<string[]>().notNull(),
   mcpServerIds: text('mcp_server_ids', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  skillIds: text('skill_ids', { mode: 'json' })
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
@@ -244,7 +248,7 @@ export const agentRunDebugSnapshots = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [
-    index('idx_run_debug_run').on(t.runId),
+    uniqueIndex('idx_run_debug_run').on(t.runId),
     index('idx_run_debug_conv_created').on(t.conversationId, t.createdAt),
   ],
 )
@@ -415,6 +419,8 @@ export const workspaceMemories = sqliteTable(
   ],
 )
 
+export type McpCheckStatus = 'ok' | 'failed'
+
 // ─── External MCP Servers ───────────────────────────────────
 export const mcpServers = sqliteTable(
   'mcp_servers',
@@ -427,10 +433,31 @@ export const mcpServers = sqliteTable(
     env: text('env', { mode: 'json' }).$type<Record<string, string>>().notNull().default(sql`'{}'`),
     trust: text('trust', { enum: ['always', 'ask'] }).notNull().default('ask'),
     enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    lastCheckedAt: integer('last_checked_at'),
+    lastCheckStatus: text('last_check_status').$type<McpCheckStatus>(),
+    lastCheckMessage: text('last_check_message'),
+    lastToolCount: integer('last_tool_count'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
   (t) => [index('idx_mcp_servers_enabled').on(t.enabled)],
+)
+
+// ─── Skills ─────────────────────────────────────────────────
+export const skills = sqliteTable(
+  'skills',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull().unique(),
+    description: text('description').notNull(),
+    content: text('content'),
+    sourcePath: text('source_path').notNull(),
+    tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [index('idx_skills_enabled').on(t.enabled)],
 )
 
 // ─── AppSettings (全局 API key / endpoint) ──────────────────
@@ -472,6 +499,9 @@ export type AgentRunDebugSnapshotInsert = typeof agentRunDebugSnapshots.$inferIn
 
 export type McpServerRow = typeof mcpServers.$inferSelect
 export type McpServerInsert = typeof mcpServers.$inferInsert
+
+export type SkillRow = typeof skills.$inferSelect
+export type SkillInsert = typeof skills.$inferInsert
 
 export type AppSettingsRow = typeof appSettings.$inferSelect
 export type AppSettingsInsert = typeof appSettings.$inferInsert

@@ -113,8 +113,22 @@ export interface AutomationDashboard {
 async function json<T>(req: Promise<Response>): Promise<T> {
   const res = await req
   if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`HTTP ${res.status}: ${body || res.statusText}`)
+    const contentType = res.headers.get('content-type') ?? ''
+    if (contentType.includes('text/html')) {
+      // Next.js 默认 404/500 页面 —— 通常是路由未注册或 Turbopack 编译问题
+      const is404 = res.status === 404
+      throw new Error(
+        `HTTP ${res.status}: ${is404 ? 'API route not found (Next.js fallback page)' : 'Server error page'}. ` +
+        `URL=${res.url}. This often means the route module failed to compile in Turbopack — try restarting the dev server or clearing .next.`,
+      )
+    }
+    if (contentType.includes('application/json')) {
+      const json = await res.json().catch(() => null)
+      const message = (json as Record<string, unknown> | null)?.error ?? (json as Record<string, unknown> | null)?.message
+      throw new Error(`HTTP ${res.status}: ${String(message ?? res.statusText)}`)
+    }
+    const body = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${body.slice(0, 200) || res.statusText}`)
   }
   return res.json() as Promise<T>
 }
@@ -139,6 +153,7 @@ export interface CreateAgentBody {
   modelId?: string
   toolNames: string[]
   mcpServerIds?: string[]
+  skillIds?: string[]
   supportsVision?: boolean
   apiKey?: string
   /** 自定义 API base URL。Claude/Codex 对 endpoint 协议兼容性要求不同；空走默认 */
@@ -202,6 +217,10 @@ export interface McpServerListItem {
   env: Record<string, string>
   trust: 'always' | 'ask'
   enabled: boolean
+  lastCheckedAt: number | null
+  lastCheckStatus: 'ok' | 'failed' | null
+  lastCheckMessage: string | null
+  lastToolCount: number | null
   createdAt: number
   updatedAt: number
 }
@@ -247,6 +266,143 @@ export async function updateMcpServer(
 
 export async function deleteMcpServer(serverId: string): Promise<void> {
   await json<{ ok: true }>(fetch(`/api/mcp-servers/${serverId}`, { method: 'DELETE' }))
+}
+
+export interface McpConnectionTestResult {
+  status: 'ok' | 'failed'
+  message: string
+  checkedAt: number
+  tools: Array<{ name: string; description?: string }>
+}
+
+export async function testMcpServer(serverId: string): Promise<McpConnectionTestResult> {
+  const { result } = await json<{ result: McpConnectionTestResult }>(
+    fetch(`/api/mcp-servers/${serverId}/test`, { method: 'POST' }),
+  )
+  return result
+}
+
+export interface SkillListItem {
+  id: string
+  name: string
+  description: string
+  content: string | null
+  sourcePath: string
+  tags: string[]
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export type ToolSearchType = 'all' | 'skill' | 'mcp_server'
+export type ToolSearchSource = 'github'
+
+export interface SearchAgentToolsParams {
+  keyword?: string
+  q?: string
+  type?: ToolSearchType
+  source?: ToolSearchSource
+  page?: number
+  pageSize?: number
+}
+
+export interface ToolSearchResult {
+  id: string
+  name: string
+  description: string
+  type: Exclude<ToolSearchType, 'all'>
+  kind: Exclude<ToolSearchType, 'all'>
+  source: ToolSearchSource
+  githubUrl: string | null
+  installUrl: string | null
+  manifestUrl: string | null
+  tags: string[]
+  status: 'remote'
+  compatibility: Record<string, 'supported' | 'unsupported'>
+}
+
+export interface ToolSearchResponse {
+  results: ToolSearchResult[]
+  page: number
+  pageSize: number
+  total: number | null
+  nextPage: number | null
+  sourceStatus: Record<ToolSearchSource, 'ok' | 'rate_limited' | 'unauthorized' | 'failed'>
+}
+
+export interface ConfigureAgentToolBody {
+  action: 'attach' | 'detach'
+  kind?: Exclude<ToolSearchType, 'all'>
+  type?: Exclude<ToolSearchType, 'all'>
+  source?: 'local' | ToolSearchSource
+  id?: string
+  installUrl?: string | null
+  manifestUrl?: string | null
+  githubUrl?: string | null
+}
+
+export async function fetchSkills(): Promise<SkillListItem[]> {
+  const { skills } = await json<{ skills: SkillListItem[] }>(fetch('/api/skills'))
+  return skills
+}
+
+export async function updateSkill(skillId: string, patch: { enabled?: boolean }): Promise<SkillListItem> {
+  const { skill } = await json<{ skill: SkillListItem }>(
+    fetch(`/api/skills/${skillId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  )
+  return skill
+}
+
+export async function refreshSkills(): Promise<SkillListItem[]> {
+  const { skills } = await json<{ skills: SkillListItem[] }>(fetch('/api/skills/refresh', { method: 'POST' }))
+  return skills
+}
+
+export async function searchAgentTools(params: SearchAgentToolsParams | string): Promise<ToolSearchResponse> {
+  const query = typeof params === 'string' ? { keyword: params } : params
+  const searchParams = new URLSearchParams()
+  const keyword = (query.keyword ?? query.q ?? '').trim()
+  if (keyword) searchParams.set('keyword', keyword)
+  if (query.type) searchParams.set('type', query.type)
+  searchParams.set('source', query.source ?? 'github')
+  if (query.page) searchParams.set('page', String(query.page))
+  if (query.pageSize) searchParams.set('pageSize', String(query.pageSize))
+  return json<ToolSearchResponse>(fetch(`/api/search/tools?${searchParams.toString()}`))
+}
+
+export interface ConfigureAgentToolResult {
+  agent: AgentRow
+  configured?: {
+    id: string
+    type: Exclude<ToolSearchType, 'all'>
+    source: 'local' | ToolSearchSource
+    imported: boolean
+  }
+}
+
+export async function configureAgentToolResult(
+  agentId: string,
+  body: ConfigureAgentToolBody,
+): Promise<ConfigureAgentToolResult> {
+  return json<ConfigureAgentToolResult>(
+    fetch(`/api/agents/${agentId}/tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+}
+
+export async function configureAgentTool(
+  agentId: string,
+  body: ConfigureAgentToolBody,
+): Promise<AgentRow> {
+  const { agent } = await configureAgentToolResult(agentId, body)
+  return agent
 }
 
 export interface WorkspaceMemoryBody {

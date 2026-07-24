@@ -113,6 +113,10 @@ interface AppState {
 
 **Agent Run 调试**：Run 调试面板不走 SSE；`AgentRunDebugButton` 打开时 lazy fetch `GET /api/conversations/:id/agent-runs`，选择 run 时 fetch `GET /api/conversations/:id/agent-runs/:runId/debug`。`agentRunDebugByConv` / `agentRunDebugDetailsByRun` 是只读调试缓存；live `runsByConv` 继续服务流式运行状态与中止按钮。删除 conversation 时清理对应 debug list 和 detail bucket。
 
+**External MCP 与 Skills 管理**：设置面板新增「外部 MCP」与「Skills」tab。MCP 管理 UI 通过 REST lazy fetch 全局 server 列表，支持创建/编辑/删除/启用/禁用、测试连接与工具预览；列表、搜索与测试响应只能展示 env key 或脱敏值。Skills 管理 UI 通过 REST lazy fetch 本地 Skills metadata，支持刷新索引与启用/禁用；不执行 Skill，不展示 secret 文件内容。
+
+**Skills/MCP 联网搜索与 Agent 配置**：前端提供独立的远程 Skills/MCP 搜索入口，调用 `GET /api/search/tools` 检索 GitHub 上的 `skill` 与 `mcp_server` 候选。该入口不得呈现为 Agent 搜索，也不得描述为搜索本地 Skills/MCP catalog。结果展示 GitHub 来源、`githubUrl`、`installUrl`、`manifestUrl`、tags 与 adapter 兼容性。用户选择目标 Agent 并点击导入配置后，前端调用 Agent tools API；服务端先导入远程候选为本地 Skill/MCP row，再写入 `agents.skillIds` 或 `agents.mcpServerIds` 并执行 adapter 兼容性校验。前端禁用不兼容项只是提示，不能作为唯一约束。
+
 **幂等性**：`message.start` / `run.start` 在 id 已存在时仍 idempotent（覆盖写）；`messageIdsByConv` 用 `includes` 检查防重复。这样支持事件重放（未来重连补发）。
 
 **部署卡片**：`DeployStatusPart` 根据 `DeployStatusRecord.deploymentType` 区分本地静态部署与外部静态发布，根据 `sourceType` 区分 artifact 版本与 workspace 目录来源。`external_static` 时，`previewPath` 是公开 URL，卡片必须继续提供打开 / 复制操作，并在 `localPreviewPath` 存在时显示本地回退路径。源码包 / 容器包下载仍来自本地 deployment id。
@@ -217,7 +221,8 @@ app/page.tsx
     │   ├── <ConversationItem />  ── 单条会话 + hover 置顶/归档/重命名/删除
     │   ├── <ArtifactLibrary />
     │   ├── <AgentLibrary />
-    │   │   └── <CreateAgentDialog />    ── 顶部 radio 选 adapterName（'custom' / 'claude-code' / 'codex'）；SDK adapter 模式下隐藏 provider/工具集，Codex 使用 AgentHub 隔离 CODEX_HOME
+    │   │   ├── <CreateAgentDialog />    ── 顶部 radio 选 adapterName（'custom' / 'claude-code' / 'codex'）；SDK adapter 模式下隐藏 provider/内置工具集，支持选择兼容的 MCP servers 与 Skills
+    │   │   └── <AgentToolSearchDialog /> ── 搜索 Skills / MCP 并配置给指定 Agent
     │   └── <RenameInput />       ── 内联重命名
     ├── <ChatPanel />             ── 当前会话主区
     │   ├── header: 头像堆 + AgentInfoPopover + 文件树/产物预览 toggle + FileLibraryDialog + AddAgentDialog + WorkspaceMemoryButton + AgentRunDebugButton + UsageBadge（点开 popover 看 token 拆分）

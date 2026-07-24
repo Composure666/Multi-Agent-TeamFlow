@@ -211,6 +211,7 @@ function buildSnapshot(runId: string, conversationId: string, agentId: string) {
       externalMcpServers: [
         { id: 'mcp_1', name: 'github', trust: 'ask' as const, envKeys: ['API_TOKEN'] },
       ],
+      skills: [],
     },
     attachments: [],
   }

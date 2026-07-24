@@ -80,6 +80,7 @@ describe('mcp server service', () => {
       apiBaseUrl: null,
       toolNames: [],
       mcpServerIds: [disabled.id, enabled.id],
+      skillIds: [],
       isBuiltin: false,
       isOrchestrator: false,
       supportsVision: false,
@@ -118,6 +119,7 @@ describe('mcp server service', () => {
       apiBaseUrl: null,
       toolNames: [],
       mcpServerIds: [server.id],
+      skillIds: [],
       isBuiltin: false,
       isOrchestrator: false,
       supportsVision: false,
@@ -128,5 +130,34 @@ describe('mcp server service', () => {
     await expect(
       service.resolveAgentMcpServers({ ...baseAgent, adapterName: 'claude-code' as const, modelProvider: null, isOrchestrator: true }),
     ).resolves.toEqual([])
+  })
+
+  it('records health summary and exposes safe catalog metadata', async () => {
+    const server = await service.createMcpServer({
+      name: 'health_test',
+      command: 'node',
+      env: { SECRET_TOKEN: 'secret-token-value-1234567890' },
+      trust: 'always',
+    })
+
+    const updated = await service.recordMcpServerHealth(server.id, {
+      status: 'ok',
+      message: 'Connected; discovered 2 tools',
+      toolCount: 2,
+      checkedAt: 123,
+    })
+    const catalog = await service.listMcpCatalogItems()
+    const item = catalog.find((entry) => entry.id === server.id)
+
+    expect(updated.lastCheckStatus).toBe('ok')
+    expect(updated.lastToolCount).toBe(2)
+    expect(item).toMatchObject({
+      id: server.id,
+      name: 'health_test',
+      status: 'enabled',
+      lastToolCount: 2,
+    })
+    expect(item?.compatibility.codex).toBe('supported')
+    expect(JSON.stringify(item)).not.toContain('secret-token-value')
   })
 })

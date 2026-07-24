@@ -8,6 +8,11 @@ interface RouteContext {
 
 export async function GET(_req: Request, ctx: RouteContext) {
   const { id } = await ctx.params
-  const runs = await listAgentRunsForConversation(id)
-  return NextResponse.json({ runs })
+  try {
+    const runs = await listAgentRunsForConversation(id)
+    return NextResponse.json({ runs })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }

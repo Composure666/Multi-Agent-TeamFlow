@@ -1,7 +1,7 @@
 import { asc, eq, inArray } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
-import type { AgentRow, McpServerRow } from '@/db/schema'
+import type { AgentRow, McpCheckStatus, McpServerRow } from '@/db/schema'
 import { newMcpServerId } from '@/server/ids'
 
 export type McpTransport = 'stdio'
@@ -34,6 +34,10 @@ export interface McpServerListItem {
   env: Record<string, string>
   trust: McpTrust
   enabled: boolean
+  lastCheckedAt: number | null
+  lastCheckStatus: McpCheckStatus | null
+  lastCheckMessage: string | null
+  lastToolCount: number | null
   createdAt: number
   updatedAt: number
 }
@@ -48,6 +52,24 @@ export interface ResolvedMcpStdioServer {
   trust: McpTrust
 }
 
+export interface McpServerHealthInput {
+  status: McpCheckStatus
+  message: string
+  toolCount: number | null
+  checkedAt?: number
+}
+
+export interface McpCatalogItem {
+  id: string
+  name: string
+  description: string
+  trust: McpTrust
+  enabled: boolean
+  status: 'enabled' | 'disabled' | 'failed' | 'unknown'
+  lastToolCount: number | null
+  compatibility: Record<AgentRow['adapterName'], 'supported' | 'unsupported'>
+}
+
 const MCP_NAME_RE = /^[a-z0-9_]+$/
 const SECRET_KEY_RE = /(key|token|secret|password|authorization|auth)/i
 
@@ -58,6 +80,10 @@ export async function createMcpServer(input: McpServerInput): Promise<McpServerL
     id: newMcpServerId(),
     transport: 'stdio' as const,
     ...normalized,
+    lastCheckedAt: null,
+    lastCheckStatus: null,
+    lastCheckMessage: null,
+    lastToolCount: null,
     createdAt: now,
     updatedAt: now,
   }
@@ -96,6 +122,36 @@ export async function deleteMcpServer(id: string): Promise<void> {
 export async function listMcpServers(): Promise<McpServerListItem[]> {
   const rows = await db.query.mcpServers.findMany({ orderBy: [asc(schema.mcpServers.name)] })
   return rows.map(toMcpServerListItem)
+}
+
+export async function getMcpServer(id: string): Promise<McpServerRow | null> {
+  return (await db.query.mcpServers.findFirst({ where: eq(schema.mcpServers.id, id) })) ?? null
+}
+
+export async function recordMcpServerHealth(id: string, input: McpServerHealthInput): Promise<McpServerListItem> {
+  const existing = await getMcpServer(id)
+  if (!existing) throw new Error(`MCP server not found: ${id}`)
+
+  const checkedAt = input.checkedAt ?? Date.now()
+  await db
+    .update(schema.mcpServers)
+    .set({
+      lastCheckedAt: checkedAt,
+      lastCheckStatus: input.status,
+      lastCheckMessage: input.message.slice(0, 500),
+      lastToolCount: input.toolCount,
+      updatedAt: checkedAt,
+    })
+    .where(eq(schema.mcpServers.id, id))
+
+  const updated = await getMcpServer(id)
+  if (!updated) throw new Error(`MCP server health update succeeded but row missing: ${id}`)
+  return toMcpServerListItem(updated)
+}
+
+export async function listMcpCatalogItems(): Promise<McpCatalogItem[]> {
+  const rows = await db.query.mcpServers.findMany({ orderBy: [asc(schema.mcpServers.name)] })
+  return rows.map(toMcpCatalogItem)
 }
 
 export async function resolveAgentMcpServers(agent: AgentRow): Promise<ResolvedMcpStdioServer[]> {
@@ -180,9 +236,38 @@ function toMcpServerListItem(row: McpServerRow): McpServerListItem {
     env: maskMcpEnv(row.env),
     trust: row.trust,
     enabled: row.enabled,
+    lastCheckedAt: row.lastCheckedAt,
+    lastCheckStatus: row.lastCheckStatus ?? null,
+    lastCheckMessage: row.lastCheckMessage,
+    lastToolCount: row.lastToolCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+function toMcpCatalogItem(row: McpServerRow): McpCatalogItem {
+  return {
+    id: row.id,
+    name: row.name,
+    description: `${row.command}${row.args.length ? ` ${row.args.join(' ')}` : ''}`,
+    trust: row.trust,
+    enabled: row.enabled,
+    status: getMcpCatalogStatus(row),
+    lastToolCount: row.lastToolCount,
+    compatibility: {
+      'claude-code': row.enabled ? 'supported' : 'unsupported',
+      codex: row.enabled && row.trust === 'always' ? 'supported' : 'unsupported',
+      custom: 'unsupported',
+      mock: 'unsupported',
+    },
+  }
+}
+
+function getMcpCatalogStatus(row: McpServerRow): McpCatalogItem['status'] {
+  if (!row.enabled) return 'disabled'
+  if (row.lastCheckStatus === 'failed') return 'failed'
+  if (row.lastCheckStatus === 'ok') return 'enabled'
+  return 'unknown'
 }
 
 function shouldMaskEnv(key: string, value: string): boolean {

@@ -70,6 +70,49 @@ AgentHub MUST treat external stdio MCP servers as separate tool sources from Age
 - **THEN** it MUST include only external MCP servers whose trust is `always`
 - **AND** it MUST NOT silently upgrade `ask` servers to executable Codex MCP config until a verified pre-call permission hook exists.
 
+### Requirement: External MCP and Skills SHALL be searchable and assignable to Agents
+
+AgentHub MUST expose a unified remote-search catalog for Skills and external MCP servers. The catalog search endpoint MUST use `GET /api/search/tools` with `keyword`/`q`, `type='all'|'skill'|'mcp_server'`, `source='github'`, `page`, and `pageSize` query parameters. Search responses MUST contain safe remote metadata only: `id`, `name`, `description`, `type`, `kind`, `source`, `githubUrl`, `installUrl`, `manifestUrl`, `tags`, `status`, and compatibility metadata. Remote search MUST be clearly presented as GitHub/network search, not as local Agent search or local DB search.
+
+#### Scenario: User searches remote Skills and MCP servers
+- **WHEN** the user searches the tool catalog
+- **THEN** AgentHub queries GitHub-backed remote sources and returns matching `skill` and `mcp_server` entries with source URLs, install/manifest URLs, status, and compatibility metadata
+- **AND** it MUST NOT return raw MCP env values, resolved env placeholders, tool call arguments, tool outputs, secret file contents, or GitHub authentication tokens.
+
+#### Scenario: User assigns a remote search result to an Agent
+- **WHEN** the user selects a GitHub Skill or MCP result and chooses a target Agent
+- **THEN** AgentHub imports the remote result into a local Skill or MCP DB row after server-side validation
+- **AND** then updates `agents.skillIds` for Skills or `agents.mcpServerIds` for MCP servers
+- **AND** the API enforces adapter compatibility instead of relying only on disabled UI controls.
+
+#### Scenario: Remote MCP result is imported
+- **WHEN** the selected result is `kind='mcp_server'`
+- **THEN** AgentHub MUST fetch and validate a GitHub MCP manifest over HTTPS from an allowed GitHub host
+- **AND** it MUST store command, args, env, and trust as a local stdio MCP server
+- **AND** it MUST NOT execute or connection-test the MCP server during import.
+
+#### Scenario: Remote Skill result is imported
+- **WHEN** the selected result is `kind='skill'`
+- **THEN** AgentHub MUST fetch a GitHub Skill manifest or Skill markdown over HTTPS from an allowed GitHub host
+- **AND** it MUST store safe metadata as a local Skill row before binding it to the Agent
+- **AND** Skills do not bypass existing tool protocols, approvals, or workspace security boundaries.
+
+#### Scenario: Codex assignment filters ask-trusted MCP servers
+- **WHEN** the selected target Agent uses the Codex adapter
+- **AND** the selected MCP server has `trust='ask'`
+- **THEN** AgentHub rejects the assignment or omits the server from Codex runtime config
+- **AND** it MUST NOT silently upgrade the server to `trust='always'`.
+
+#### Scenario: Custom or Mock assignment receives external MCP
+- **WHEN** the selected target Agent uses Custom or Mock adapter
+- **AND** the selected result is an external MCP server
+- **THEN** AgentHub rejects the assignment because Custom/Mock external MCP execution is out of scope for P1.
+
+#### Scenario: Agent receives enabled Skills
+- **WHEN** an Agent has enabled `skillIds`
+- **THEN** AgentRunner injects safe Skill metadata/instructions as a separate prompt section
+- **AND** Skills do not bypass existing tool protocols, approvals, or workspace security boundaries.
+
 ### Requirement: AgentHub SHALL provide a secure public web fetch tool
 
 AgentHub MUST provide an AgentHub-managed `web_fetch` tool for reading public HTTPS web pages. The tool MUST execute through `toolRegistry` / `executeStructured()` and MUST be the only supported managed network-read path exposed by Custom agents and internal AgentHub MCP bridges.

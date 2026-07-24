@@ -21,11 +21,11 @@ agent_run_debug_snapshots {
   snapshot        text JSON NOT NULL // AgentRunDebugSnapshot
   created_at      int NOT NULL
 }
-INDEX idx_run_debug_run ON (run_id)
+UNIQUE INDEX idx_run_debug_run ON (run_id)
 INDEX idx_run_debug_conv_created ON (conversation_id, created_at)
 ```
 
-`run_id` 逻辑上按 run 唯一：`recordAgentRunDebugSnapshot` 若发现已有 snapshot，应直接返回已有记录，避免重复写入。
+`run_id` 按 run 唯一：`recordAgentRunDebugSnapshot` 若发现已有 snapshot，应直接返回已有记录，避免重复写入。
 
 ---
 

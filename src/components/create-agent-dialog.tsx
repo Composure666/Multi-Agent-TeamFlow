@@ -19,8 +19,12 @@ import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow } from '@/db/schema'
 import {
   createAgent,
+  fetchMcpServers,
+  fetchSkills,
   updateAgent,
   type CreateAgentBody,
+  type McpServerListItem,
+  type SkillListItem,
   type UpdateAgentBody,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -83,6 +87,10 @@ export function CreateAgentDialog({
   const [provider, setProvider] = useState<Provider>('deepseek')
   const [modelId, setModelId] = useState(PROVIDER_DEFAULTS.deepseek.defaultModel)
   const [toolNames, setToolNames] = useState<Set<string>>(new Set(DEFAULT_CUSTOM_AGENT_TOOLS))
+  const [mcpServerIds, setMcpServerIds] = useState<Set<string>>(new Set())
+  const [skillIds, setSkillIds] = useState<Set<string>>(new Set())
+  const [mcpServers, setMcpServers] = useState<McpServerListItem[]>([])
+  const [skills, setSkills] = useState<SkillListItem[]>([])
   const [supportsVision, setSupportsVision] = useState(true)
   const [apiKey, setApiKey] = useState('')
   const [apiBaseUrl, setApiBaseUrl] = useState('')
@@ -91,6 +99,22 @@ export function CreateAgentDialog({
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<AgentTab>('basic')
   const [createStep, setCreateStep] = useState<CreateStep>('choose')
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void Promise.all([fetchMcpServers(), fetchSkills()])
+      .then(([servers, skillList]) => {
+        if (!cancelled) {
+          setMcpServers(servers)
+          setSkills(skillList)
+        }
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+    return () => {
+      cancelled = true
+    }
+  }, [open])
 
   // 每次打开 / 切换 agent 时，重置表单到该 agent 的当前值（或创建态的默认）。
   useEffect(() => {
@@ -118,6 +142,8 @@ export function CreateAgentDialog({
               : PROVIDER_DEFAULTS[p].defaultModel),
       )
       setToolNames(new Set(agent.toolNames))
+      setMcpServerIds(new Set(agent.mcpServerIds))
+      setSkillIds(new Set(agent.skillIds))
       setSupportsVision(agent.supportsVision)
       setApiKey(agent.apiKey ?? '')
       setApiBaseUrl(agent.apiBaseUrl ?? '')
@@ -130,6 +156,8 @@ export function CreateAgentDialog({
       setProvider('deepseek')
       setModelId(PROVIDER_DEFAULTS.deepseek.defaultModel)
       setToolNames(new Set(DEFAULT_CUSTOM_AGENT_TOOLS))
+      setMcpServerIds(new Set())
+      setSkillIds(new Set())
       setSupportsVision(true)
       setApiKey('')
       setApiBaseUrl('')
@@ -167,6 +195,16 @@ export function CreateAgentDialog({
       else next.add(t)
       return next
     })
+  }
+
+  const toggleMcpServer = (server: McpServerListItem) => {
+    if (!isMcpServerCompatible(server, adapterKind)) return
+    setMcpServerIds((prev) => toggleSetValue(prev, server.id))
+  }
+
+  const toggleSkill = (skill: SkillListItem) => {
+    if (!skill.enabled) return
+    setSkillIds((prev) => toggleSetValue(prev, skill.id))
   }
 
   const applyToolPreset = (tools: readonly ToolName[]) => {
@@ -223,6 +261,8 @@ export function CreateAgentDialog({
         modelProvider: isSdkAgent ? undefined : draft.modelProvider,
         modelId: draft.modelId?.trim() || undefined,
         toolNames: isSdkAgent ? [] : draft.toolNames,
+        mcpServerIds: [],
+        skillIds: [],
         supportsVision: draft.supportsVision,
       }
       const created = await createAgent(body)
@@ -273,6 +313,10 @@ export function CreateAgentDialog({
       const isClaudeCode = adapterKind === 'claude-code'
       const isCodex = adapterKind === 'codex'
       const isSdkAgent = isClaudeCode || isCodex
+      const selectedMcpServerIds = mcpServers
+        .filter((server) => mcpServerIds.has(server.id) && isMcpServerCompatible(server, adapterKind))
+        .map((server) => server.id)
+      const selectedSkillIds = skills.filter((skill) => skill.enabled && skillIds.has(skill.id)).map((skill) => skill.id)
       if (isEdit && agent) {
         const patch: UpdateAgentBody = {
           name: trimmed,
@@ -283,6 +327,8 @@ export function CreateAgentDialog({
           modelProvider: isSdkAgent ? undefined : provider,
           modelId: isSdkAgent ? modelId.trim() || null : modelId.trim(),
           toolNames: isSdkAgent ? [] : Array.from(toolNames),
+          mcpServerIds: selectedMcpServerIds,
+          skillIds: selectedSkillIds,
           supportsVision,
           apiKey: trimmedApiKey || null,
           apiBaseUrl: trimmedApiBaseUrl || null,
@@ -300,6 +346,8 @@ export function CreateAgentDialog({
           modelProvider: isSdkAgent ? undefined : provider,
           modelId: modelId.trim() || undefined,
           toolNames: isSdkAgent ? [] : Array.from(toolNames),
+          mcpServerIds: selectedMcpServerIds,
+          skillIds: selectedSkillIds,
           supportsVision,
           apiKey: trimmedApiKey || undefined,
           apiBaseUrl: trimmedApiBaseUrl || undefined,
@@ -724,6 +772,80 @@ export function CreateAgentDialog({
                 )}
 
                 <div className="grid grid-cols-[80px_1fr] items-start gap-3">
+                  <Label>Skills</Label>
+                  <div className="grid gap-1.5">
+                    {skills.length === 0 ? (
+                      <div className="rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">暂无 Skills；可在设置里刷新 Skills 索引。</div>
+                    ) : (
+                      skills.map((skill) => (
+                        <label
+                          key={skill.id}
+                          className={cn(
+                            'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+                            skillIds.has(skill.id) && 'border-primary bg-primary/5',
+                            !skill.enabled && 'cursor-not-allowed opacity-50',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={skillIds.has(skill.id)}
+                            disabled={!skill.enabled}
+                            onChange={() => toggleSkill(skill)}
+                            className="mt-0.5 accent-primary"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium">{skill.name}</div>
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">{skill.description}</div>
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[80px_1fr] items-start gap-3">
+                  <Label>MCP</Label>
+                  <div className="grid gap-1.5">
+                    {(adapterKind === 'custom' || mcpServers.length === 0) && (
+                      <div className="rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                        {adapterKind === 'custom' ? 'Custom adapter 当前暂不支持外部 MCP。' : '暂无 MCP server；可在设置里添加。'}
+                      </div>
+                    )}
+                    {adapterKind !== 'custom' && mcpServers.map((server) => {
+                      const compatible = isMcpServerCompatible(server, adapterKind)
+                      return (
+                        <label
+                          key={server.id}
+                          className={cn(
+                            'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+                            mcpServerIds.has(server.id) && compatible && 'border-primary bg-primary/5',
+                            !compatible && 'cursor-not-allowed opacity-50',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={mcpServerIds.has(server.id) && compatible}
+                            disabled={!compatible}
+                            onChange={() => toggleMcpServer(server)}
+                            className="mt-0.5 accent-primary"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-xs font-medium">
+                              <span>{server.name}</span>
+                              <code className="text-[10px] text-muted-foreground">{server.trust}</code>
+                            </div>
+                            <div className="mt-0.5 text-[10px] text-muted-foreground">
+                              {server.command} {server.args.join(' ')}
+                              {adapterKind === 'codex' && server.trust === 'ask' ? ' · Codex 仅支持 always' : ''}
+                            </div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[80px_1fr] items-start gap-3">
                   <Label required>System Prompt</Label>
                   <Textarea
                     value={systemPrompt}
@@ -825,6 +947,20 @@ function CreateModeChoice({
       </div>
     </div>
   )
+}
+
+function toggleSetValue<T>(prev: Set<T>, value: T): Set<T> {
+  const next = new Set(prev)
+  if (next.has(value)) next.delete(value)
+  else next.add(value)
+  return next
+}
+
+function isMcpServerCompatible(server: McpServerListItem, adapterKind: AdapterKind): boolean {
+  if (!server.enabled) return false
+  if (adapterKind === 'custom') return false
+  if (adapterKind === 'codex') return server.trust === 'always'
+  return adapterKind === 'claude-code'
 }
 
 function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {

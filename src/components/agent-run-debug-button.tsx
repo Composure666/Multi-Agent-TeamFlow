@@ -25,14 +25,13 @@ export function AgentRunDebugButton({ conversationId }: { conversationId: string
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const runs = useAgentRunDebugList(conversationId)
-  const detail = useAgentRunDebugDetail(selectedRunId)
-  const setAgentRunDebugList = useAppStore((s) => s.setAgentRunDebugList)
-  const setAgentRunDebugDetail = useAppStore((s) => s.setAgentRunDebugDetail)
-
   const selectedRun = useMemo(
     () => runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null,
     [runs, selectedRunId],
   )
+  const detail = useAgentRunDebugDetail(selectedRun?.id ?? null)
+  const setAgentRunDebugList = useAppStore((s) => s.setAgentRunDebugList)
+  const setAgentRunDebugDetail = useAppStore((s) => s.setAgentRunDebugDetail)
 
   const loadRuns = useCallback(async () => {
     setLoadingList(true)
@@ -40,7 +39,7 @@ export function AgentRunDebugButton({ conversationId }: { conversationId: string
     try {
       const list = await fetchAgentRuns(conversationId)
       setAgentRunDebugList(conversationId, list)
-      setSelectedRunId((current) => current ?? list[0]?.id ?? null)
+      setSelectedRunId((current) => list.find((run) => run.id === current)?.id ?? list[0]?.id ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -215,6 +214,18 @@ function RunDetail({ detail }: { detail: AgentRunDebugDetail }) {
           <Section title="Tools">
             <KeyValue label="Tool names" value={snapshot.tools.toolNames.length ? snapshot.tools.toolNames.join(', ') : '-'} />
             <div className="space-y-2">
+              {snapshot.tools.skills.length === 0 ? (
+                <div className="text-slate-500">无 Skills</div>
+              ) : (
+                snapshot.tools.skills.map((skill) => (
+                  <div key={skill.id} className="rounded-lg border bg-slate-50 px-3 py-2">
+                    <div className="font-medium text-slate-800">{skill.name}</div>
+                    <div className="mt-1 text-slate-500">tags: {skill.tags.join(', ') || '-'}</div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-2 space-y-2">
               {snapshot.tools.externalMcpServers.length === 0 ? (
                 <div className="text-slate-500">无外部 MCP</div>
               ) : (

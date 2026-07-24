@@ -20,6 +20,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { McpServersSettings } from '@/components/mcp-servers-settings'
+import { SkillsSettings } from '@/components/skills-settings'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -281,7 +283,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] max-w-xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription className="sr-only">AgentHub 设置</DialogDescription>
@@ -292,9 +294,9 @@ export function SettingsDialog({
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <Tabs value={tab} onValueChange={setTab} className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <TabsList>
+          <Tabs value={tab} onValueChange={setTab} className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <TabsList className="h-auto max-w-full flex-wrap justify-start overflow-x-auto">
                 <TabsTrigger value="keys">
                   <KeyRound className="size-3.5" />
                   供应商 Key
@@ -310,6 +312,14 @@ export function SettingsDialog({
                 <TabsTrigger value="notifications">
                   <Bell className="size-3.5" />
                   通知
+                </TabsTrigger>
+                <TabsTrigger value="mcp">
+                  <Network className="size-3.5" />
+                  MCP
+                </TabsTrigger>
+                <TabsTrigger value="skills">
+                  <SparklesIcon />
+                  Skills
                 </TabsTrigger>
               </TabsList>
               {tab === 'keys' && (
@@ -331,7 +341,7 @@ export function SettingsDialog({
               )}
             </div>
 
-            <div className="min-h-0 overflow-y-auto pr-1">
+            <div className="min-h-0 min-w-0 overflow-y-auto pr-1">
               <TabsContent value="keys" className="mt-0 flex flex-col gap-3 py-1">
                 <KeyField
                   label="Anthropic API Key"
@@ -415,6 +425,14 @@ export function SettingsDialog({
                   onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
                 />
               </TabsContent>
+
+              <TabsContent value="mcp" className="mt-0 py-1">
+                <McpServersSettings />
+              </TabsContent>
+
+              <TabsContent value="skills" className="mt-0 py-1">
+                <SkillsSettings />
+              </TabsContent>
             </div>
           </Tabs>
         )}
@@ -430,6 +448,10 @@ export function SettingsDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+function SparklesIcon() {
+  return <SettingsIcon className="size-3.5" />
 }
 
 function MobileConnectionHints({

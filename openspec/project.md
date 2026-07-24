@@ -26,6 +26,7 @@ OpenSpec capability specs under `openspec/specs/` are the concise, testable cont
 | `mobile-companion` | `specs/14-mobile-remote.md` |
 | `workspace-memory` | `specs/16-workspace-memory.md` |
 | `agent-run-debugging` | `specs/17-agent-run-debugging.md` |
+| `skills` | `specs/18-skills.md` |
 
 ## Technology
 

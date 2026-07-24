@@ -9,6 +9,7 @@ import type { AgentRow, ArtifactRow, MessageRow, WorkspaceRow } from '@/db/schem
 import type {
   AgentRunDebugAttachment,
   AgentRunDebugPromptSection,
+  AgentRunDebugSkill,
   ArtifactContent,
   DispatchExpectedOutputType,
   DispatchExpectedOutput,
@@ -47,6 +48,7 @@ import {
 import { formatDispatchProgressMessage } from './dispatch-progress-message'
 import { publishNotification } from './notification-service'
 import { resolveAgentMcpServers } from './mcp-server-service'
+import { discoverWorkspaceSkills, listEnabledSkillsByIds, type SkillListItem } from './skill-service'
 import { evaluateWorkspaceEvidence } from './dispatch-workspace-evidence'
 import {
   buildReplanContext,
@@ -2259,6 +2261,27 @@ async function buildAdapterInput(
       systemPromptSections.push(createPromptSection('workspace_memory', memoryBlock))
     }
   }
+  const enabledSkills = args.overridePrompt || args.overrideSystemPrompt
+    ? []
+    : await listEnabledSkillsByIds(agent.skillIds).catch((err) => {
+        console.warn('[agent-runner] listEnabledSkillsByIds failed; continuing without skills', err)
+        return []
+      })
+  // 合并 workspace skills/ 目录中由 Agent 下载的 SKILL.md 文件
+  const wsSkills = args.overridePrompt || args.overrideSystemPrompt
+    ? []
+    : await discoverWorkspaceSkills(effectiveCwd).catch((err) => {
+        console.warn('[agent-runner] discoverWorkspaceSkills failed; continuing without workspace skills', err)
+        return []
+      })
+  const mergedSkills = mergeSkills(enabledSkills, wsSkills)
+  // 将 workspace 发现的内容回写到 DB，使 DB 技能后续运行时直接有 content
+  void backfillDbSkillsContent(enabledSkills, wsSkills)
+  const skillsBlock = buildSkillsBlock(mergedSkills)
+  if (skillsBlock) {
+    systemPromptParts.push(skillsBlock)
+    systemPromptSections.push(createPromptSection('skills', skillsBlock))
+  }
   systemPromptParts.push(baseSystemPrompt)
   systemPromptSections.push(createPromptSection(systemPromptOverride ? 'override_system' : 'agent_system', baseSystemPrompt))
   let systemPromptWithWorkspace = systemPromptParts.join('\n\n')
@@ -2397,6 +2420,7 @@ async function buildAdapterInput(
       tools: {
         toolNames,
         externalMcpServers: buildMcpDebugSnapshot(externalMcpServers),
+        skills: buildSkillDebugSnapshot(mergedSkills),
       },
       attachments: buildAttachmentDebugSnapshot(attachments),
     },
@@ -2405,6 +2429,88 @@ async function buildAdapterInput(
   })
 
   return adapterInput
+}
+
+const MAX_SKILL_RULES_CHARS = 4000
+
+async function backfillDbSkillsContent(dbSkills: SkillListItem[], wsSkills: SkillListItem[]): Promise<void> {
+  const wsWithContent = wsSkills.filter((s) => s.content)
+  if (wsWithContent.length === 0) return
+  const wsByName = new Map(wsWithContent.map((s) => [s.name, s]))
+  for (const dbSkill of dbSkills) {
+    if (dbSkill.content) continue
+    const ws = wsByName.get(dbSkill.name)
+    if (!ws?.content) continue
+    try {
+      await db
+        .update(schema.skills)
+        .set({ content: ws.content, description: ws.description, updatedAt: Date.now() })
+        .where(eq(schema.skills.id, dbSkill.id))
+    } catch {
+      // 非关键路径，静默失败
+    }
+  }
+}
+
+
+function mergeSkills(dbSkills: SkillListItem[], wsSkills: SkillListItem[]): SkillListItem[] {
+  if (wsSkills.length === 0) return dbSkills
+  // 按 name 建立 workspace skill 索引，用于填充 DB skill 的空 content
+  const wsByName = new Map<string, SkillListItem>()
+  for (const ws of wsSkills) {
+    wsByName.set(ws.name, ws)
+  }
+  const seen = new Set(dbSkills.map((s) => s.name))
+  const wsWithContent = wsSkills.filter((s) => s.content)
+  const fallbackContent = wsWithContent.length > 0
+    ? `This skill includes ${wsWithContent.length} sub-skills: ${wsWithContent.map((s) => s.name).join(', ')}. See individual skill entries below for full rules.`
+    : null
+
+  const merged = dbSkills.map((db) => {
+    if (!db.content) {
+      const ws = wsByName.get(db.name)
+      if (ws?.content) {
+        return { ...db, content: ws.content, description: db.description === db.name ? ws.description : db.description }
+      }
+      // 无同名 workspace skill 但有其他已发现的 workspace skills，生成摘要 content 并修正 description
+      if (fallbackContent && db.description === db.name) {
+        return {
+          ...db,
+          description: `Includes ${wsWithContent.length} sub-skills`,
+          content: fallbackContent,
+        }
+      }
+    }
+    return db
+  })
+  for (const ws of wsSkills) {
+    if (!seen.has(ws.name)) {
+      seen.add(ws.name)
+      merged.push(ws)
+    }
+  }
+  return merged
+}
+
+function buildSkillsBlock(skills: SkillListItem[]): string | null {
+  if (skills.length === 0) return null
+  return [
+    '<skills>',
+    '  <instruction>These Skills are user-enabled guidance templates for this Agent. Treat the behavioral rules below as mandatory constraints on how you work. They do not grant tool execution permissions and must not bypass AgentHub tool approvals or workspace security boundaries.</instruction>',
+    ...skills.map((skill) => {
+      const rules = skill.content?.trim()
+      return [
+        `  <skill id="${escapeXmlText(skill.id)}">`,
+        `    <name>${escapeXmlText(skill.name)}</name>`,
+        `    <description>${escapeXmlText(skill.description)}</description>`,
+        `    <tags>${escapeXmlText(skill.tags.join(', '))}</tags>`,
+        rules
+          ? `    <rules>\n${escapeXmlText(rules.slice(0, MAX_SKILL_RULES_CHARS))}\n    </rules>`
+          : '',
+      ].filter(Boolean).join('\n')
+    }),
+    '</skills>',
+  ].join('\n')
 }
 
 function createPromptSection(
@@ -2430,6 +2536,24 @@ function buildMcpDebugSnapshot(servers: ExternalMcpServerConfig[]) {
     trust: server.trust,
     envKeys: Object.keys(server.env).sort(),
   }))
+}
+
+function buildSkillDebugSnapshot(skills: SkillListItem[]): AgentRunDebugSkill[] {
+  return skills.map((skill) => ({
+    id: skill.id,
+    name: skill.name,
+    tags: skill.tags,
+    sourcePath: skill.sourcePath,
+  }))
+}
+
+function escapeXmlText(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
 }
 
 function buildAttachmentDebugSnapshot(attachments: AdapterAttachment[]): AgentRunDebugAttachment[] {

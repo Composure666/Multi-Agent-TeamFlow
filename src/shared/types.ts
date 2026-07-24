@@ -231,6 +231,7 @@ export interface AgentRunDebugSnapshot {
   tools: {
     toolNames: string[]
     externalMcpServers: AgentRunDebugMcpServer[]
+    skills: AgentRunDebugSkill[]
   }
   attachments: AgentRunDebugAttachment[]
 }
@@ -238,6 +239,7 @@ export interface AgentRunDebugSnapshot {
 export type AgentRunDebugPromptSectionKind =
   | 'workspace_info'
   | 'workspace_memory'
+  | 'skills'
   | 'agent_system'
   | 'tool_guidance'
   | 'group_note'
@@ -255,6 +257,13 @@ export interface AgentRunDebugMcpServer {
   name: string
   trust: 'always' | 'ask'
   envKeys: string[]
+}
+
+export interface AgentRunDebugSkill {
+  id: string
+  name: string
+  tags: string[]
+  sourcePath: string
 }
 
 export interface AgentRunDebugAttachment {

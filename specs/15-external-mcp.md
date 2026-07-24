@@ -120,20 +120,34 @@ createdAt     integer
 
 ---
 
-## 8. 配置 UI(出口,细节另议)
+## 8. 配置 UI 与产品化 P1
 
-- **设置面板**(spec 09):MCP server 管理——增/删/改 + 「测试连接」(connect + listTools 预览)。敏感字段(headers 里的 key)按现有 key 管理思路存 DB(不引 keychain,见 CLAUDE.md §5.4)。
-- **Agent builder**(spec 10):勾选本 Agent 启用哪些 server(形如 `AVAILABLE_TOOLS` 的多选)。
+- **设置面板**(spec 09):MCP server 管理——增/删/改 + 启用/禁用 + 「测试连接」(connect + listTools 预览)。列表、搜索、debug 与测试响应只显示 env key 或脱敏值，不返回 resolved secret。
+- **Agent builder**(spec 10):勾选本 Agent 启用哪些 server。Claude Code 可选 `ask`/`always`；Codex 只允许 `always`；Custom/Mock P1 不支持外部 MCP。
+- **健康摘要**(spec 08):`mcp_servers` 持久化最近一次连接测试的 `last_checked_at`、`last_check_status`、`last_check_message`、`last_tool_count`；不保存工具 schema、调用参数、调用输出或 resolved env。
+- **统一联网搜索**:Skills/MCP 搜索 API 使用 `GET /api/search/tools` 从 GitHub 搜索远程候选，参数包含 `keyword`/`q`、`type='all'|'skill'|'mcp_server'`、`source='github'`、`page`、`pageSize`。结果返回 `id`、`type`/`kind`、`source`、`githubUrl`、`installUrl`、`manifestUrl`、tags、状态与 adapter 兼容性。用户从结果点击 MCP 时，服务端必须先拉取并校验 GitHub MCP manifest，导入为本地 `mcp_servers` row，再写入 `agents.mcp_server_ids`；服务端必须二次校验兼容性。导入时不得执行或自动测试远程 MCP server。
 
 ---
 
-## 9. 影响面 / 需同步的 spec
+## 9. Skills 协同
+
+Skills 是本地能力说明/任务模板，不是 MCP server，也不进入 `toolRegistry`。P1 将 Skills 管理与 MCP 管理放入同一产品化阶段：
+
+- 设置面板新增 Skills 管理：本地扫描、刷新索引、启用/禁用。
+- 统一联网搜索同时返回 `kind='skill'` 与 `kind='mcp_server'`，并标明 `source='github'`。
+- 点击远程 Skill 搜索结果时，服务端先拉取 GitHub Skill manifest 或 markdown，导入为本地 `skills` row，再配置给指定 Agent，写入 `agents.skill_ids`。
+- AgentRunner 运行时将 enabled Skills 作为独立 prompt section 注入；不执行 Skill 文件，不读取 secret 文件内容，不绕过工具审批/沙箱。
+
+---
+
+## 10. 影响面 / 需同步的 spec
 
 - `05-adapter-interface` — 三 adapter 的 MCP 接入方式
 - `07-tools` — MCP 工具命名空间 + 与内置工具的关系
-- `08-db-schema` — `mcp_servers` 表 + `agents.mcpServerIds` 列(需 `pnpm db:push`)
-- `10-agent-builder` — Agent 勾选 MCP server
-- `09-frontend-architecture` — 设置面板 MCP 管理
+- `08-db-schema` — `mcp_servers` 表 + 健康摘要字段 + `agents.mcpServerIds` / `agents.skillIds` 列(需 `pnpm db:push`)
+- `10-agent-builder` — Agent 勾选 MCP server 与 Skills；搜索结果配置到 Agent
+- `09-frontend-architecture` — 设置面板 MCP/Skills 管理与统一搜索 UI
+- `18-skills` — 本地 Skills metadata、搜索与 Agent 绑定
 - `11-platform` — stdio MCP 子进程的跨平台启动/清理
 - `CLAUDE.md §5` — 安全约束新增「外部 MCP 信任模型」(改安全约束需讨论)
 

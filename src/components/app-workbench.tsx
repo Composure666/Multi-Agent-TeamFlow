@@ -44,6 +44,7 @@ import { nanoid } from 'nanoid'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
+import { AgentToolSearchDialog } from '@/components/agent-tool-search-dialog'
 import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
 import { ChatPanel } from '@/components/chat-panel'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
@@ -2512,6 +2513,7 @@ function AgentWorkspace({
               <p className="mt-1 text-sm text-slate-500">发现、配置和复用你的协作 Agent</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <AgentToolSearchDialog agents={agents} />
               <Button onClick={() => setFormOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
                 <Plus className="mr-2 size-4" />
                 创建 Agent

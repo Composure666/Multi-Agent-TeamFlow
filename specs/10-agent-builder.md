@@ -38,6 +38,8 @@
 | `apiKey` | string | — | `''` | 命名 provider 留空走 env var；`openai-compatible` 必填 per-agent key |
 | `apiBaseUrl` | string | — | `''` | Claude Code 可填 Anthropic 兼容 endpoint；Codex 仅可填 Codex/Responses 兼容 endpoint；Custom `openai-compatible` 必填 Chat Completions 兼容 endpoint |
 | `toolNames` | string[] | — | 全栈通用预设 | 当前可勾选：`write_artifact` / `deploy_artifact` / `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` / `fs_read` / `fs_write` / `bash` / `web_fetch` |
+| `mcpServerIds` | string[] | — | `[]` | SDK adapter 可选外部 MCP server；Claude Code 支持 `ask`/`always`，Codex 仅 `always`，Custom/Mock 不支持外部 MCP |
+| `skillIds` | string[] | — | `[]` | Agent 显式启用的本地 Skills；运行时作为独立 prompt section 注入，不作为可执行代码 |
 | `supportsVision` | boolean | — | `true` | 决定是否把图片 base64 注入 messages |
 | `avatar` | string | — | `'🤖'` | service 层默认（UI 当前不暴露） |
 | `isBuiltin` | boolean | — | `false` | service 写死，UI 不可改 |
@@ -122,6 +124,29 @@ UI 当前允许勾选产物、附件、workspace 和安全公开网页读取相�
 | 审查验证 | `read_artifact` / `read_attachment` / `ask_user` / `fs_read` / `bash` | 读取产物或本地代码并运行检查，不默认写文件 |
 
 **新增工具时**：除了在 `src/server/tools/registry.ts` 注册，还要在 `src/shared/agent-builder-config.ts` 的 `AVAILABLE_AGENT_TOOLS` 加上、并在 `AGENT_TOOL_META` 补一条文案，才能在 UI 正常勾选（详见 Spec 07 「新增工具步骤」）。
+
+---
+
+## 能力扩展：MCP 与 Skills
+
+除 AgentHub-managed `toolNames` 外，Agent 还可以显式绑定外部 MCP server 与本地 Skills：
+
+- `mcpServerIds`：引用全局 `mcp_servers.id`。Claude Code 可绑定 `trust='ask' | 'always'`；Codex 只可绑定 `trust='always'`；Custom/Mock 在 P1 不支持外部 MCP。服务端必须执行兼容性校验，不能只依赖 UI 禁用。
+- `skillIds`：引用 `skills.id`。所有非 Orchestrator Agent 均可绑定 enabled Skills；运行时只注入 Skill metadata/instructions，不执行 Skill 文件，不绕过工具审批或 workspace 沙箱。
+
+Agent 创建/编辑 UI 需要加载 enabled MCP servers 与 enabled Skills：
+
+- 编辑已有 Agent 时回填 `mcpServerIds` 与 `skillIds`。
+- adapter 切换时过滤不兼容 MCP server；Skills 保留。
+- UI 必须展示外部 MCP 安全提示：server 是本机进程，权限不等同于 AgentHub 内置 workspace 工具沙箱。
+
+统一联网搜索入口可从 GitHub Skills/MCP 搜索结果导入并配置到目标 Agent：
+
+1. 用户输入关键词，选择全部 / Skill / MCP 类型筛选。
+2. 前端调用 `GET /api/search/tools?keyword=...&type=...&source=github&page=1&pageSize=20`。
+3. UI 展示远程候选的 GitHub 来源、安装地址、manifest 地址与兼容性，并选择目标 Agent。
+4. 前端调用 Agent tools API，提交远程候选的 `id`、`type`/`kind`、`source='github'`、`installUrl`、`manifestUrl`、`githubUrl`。
+5. 服务端先导入远程 Skill/MCP 为本地 DB row，再写入 `agents.skillIds` 或 `agents.mcpServerIds`，并返回更新后的 AgentRow。
 
 ---
 

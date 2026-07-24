@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
+import { AgentToolSearchDialog } from '@/components/agent-tool-search-dialog'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,7 +65,7 @@ export function AgentLibrary() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 px-3 pt-3">
+      <div className="shrink-0 space-y-2 px-3 pt-3">
         <Button
           className="w-full justify-start gap-2"
           variant="outline"
@@ -73,6 +74,7 @@ export function AgentLibrary() {
           <Plus className="size-4" />
           创建 Agent
         </Button>
+        <AgentToolSearchDialog agents={agents} />
       </div>
 
       <ScrollArea className="min-h-0 flex-1">

@@ -31,6 +31,8 @@ export interface CreateAgentArgs {
   toolNames: string[]
   /** 外部 MCP server opt-in，SDK adapter 首阶段消费；custom 暂不消费 */
   mcpServerIds?: string[]
+  /** 本地 Skills opt-in，运行时作为 prompt section 注入 */
+  skillIds?: string[]
   supportsVision?: boolean
   apiKey?: string | null
   /** 自定义 API base URL。Claude/Codex 对 endpoint 协议兼容性要求不同；NULL 走默认 */
@@ -67,6 +69,7 @@ export async function createCustomAgent(args: CreateAgentArgs) {
     // SDK adapter 走各自内置工具集，不消费 toolNames；强制空数组避免 UI 残留
     toolNames: adapterName === 'custom' ? args.toolNames : [],
     mcpServerIds: args.mcpServerIds ?? [],
+    skillIds: args.skillIds ?? [],
     isBuiltin: false,
     isOrchestrator: false,
     supportsVision: args.supportsVision ?? false,
@@ -105,6 +108,7 @@ export interface UpdateAgentPatch {
   modelId?: string | null
   toolNames?: string[]
   mcpServerIds?: string[]
+  skillIds?: string[]
   supportsVision?: boolean
   /** 传 null 显式清除自定义 key（fallback 回 env）；undefined 表示不动 */
   apiKey?: string | null
@@ -145,6 +149,7 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   if (patch.modelId !== undefined) updates.modelId = patch.modelId?.trim() || null
   if (patch.supportsVision !== undefined) updates.supportsVision = patch.supportsVision
   if (patch.mcpServerIds !== undefined) updates.mcpServerIds = patch.mcpServerIds
+  if (patch.skillIds !== undefined) updates.skillIds = patch.skillIds
   if (patch.apiKey !== undefined) updates.apiKey = patch.apiKey?.trim() || null
   if (patch.apiBaseUrl !== undefined) updates.apiBaseUrl = patch.apiBaseUrl?.trim() || null
 
@@ -173,6 +178,44 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   const updated = await db.query.agents.findFirst({ where: eq(schema.agents.id, agentId) })
   if (!updated) throw new Error('Update succeeded but row missing afterwards')
   return updated
+}
+
+export async function configureAgentTool(
+  agentId: string,
+  input: { action: 'attach' | 'detach'; kind: 'skill' | 'mcp_server'; id: string },
+) {
+  const agent = await db.query.agents.findFirst({ where: eq(schema.agents.id, agentId) })
+  if (!agent) throw new Error(`Agent not found: ${agentId}`)
+
+  if (input.kind === 'skill') {
+    const skill = await db.query.skills.findFirst({ where: eq(schema.skills.id, input.id) })
+    if (!skill) throw new Error(`Skill not found: ${input.id}`)
+    if (!skill.enabled && input.action === 'attach') throw new Error(`Skill is disabled: ${input.id}`)
+    return updateCustomAgent(agentId, {
+      skillIds: updateIdList(agent.skillIds, input.id, input.action),
+    })
+  }
+
+  const server = await db.query.mcpServers.findFirst({ where: eq(schema.mcpServers.id, input.id) })
+  if (!server) throw new Error(`MCP server not found: ${input.id}`)
+  if (!server.enabled && input.action === 'attach') throw new Error(`MCP server is disabled: ${input.id}`)
+  if (input.action === 'attach') {
+    if (agent.adapterName === 'custom' || agent.adapterName === 'mock') {
+      throw new Error(`External MCP is not supported by ${agent.adapterName} agents`)
+    }
+    if (agent.adapterName === 'codex' && server.trust !== 'always') {
+      throw new Error('Codex agents can only attach MCP servers with trust=always')
+    }
+  }
+
+  return updateCustomAgent(agentId, {
+    mcpServerIds: updateIdList(agent.mcpServerIds, input.id, input.action),
+  })
+}
+
+function updateIdList(ids: string[], id: string, action: 'attach' | 'detach'): string[] {
+  if (action === 'detach') return ids.filter((item) => item !== id)
+  return ids.includes(id) ? ids : [...ids, id]
 }
 
 export async function listAgentsOrdered() {

@@ -36,6 +36,7 @@ agents {
   api_base_url    text              // 该 agent 单独的 endpoint；NULL 走 SDK 默认
   tool_names      text JSON         // string[]，引用 Spec 07
   mcp_server_ids  text JSON         // string[]，引用 mcp_servers.id，默认 []
+  skill_ids       text JSON         // string[]，引用 skills.id，默认 []
   is_builtin      int  bool default 0
   is_orchestrator int  bool default 0
   supports_vision int  bool default 0
@@ -213,13 +214,13 @@ agent_run_debug_snapshots {
   snapshot        text JSON NOT NULL // AgentRunDebugSnapshot，见 Spec 17
   created_at      int NOT NULL
 }
-INDEX idx_run_debug_run ON (run_id)
+UNIQUE INDEX idx_run_debug_run ON (run_id)
 INDEX idx_run_debug_conv_created ON (conversation_id, created_at)
 ```
 
 **约束**：
 - 只保存运行时 metadata / 统计，不保存 API key、auth token、MCP resolved env value、完整 prompt 文本或附件内容。
-- `run_id` 逻辑上按 run 唯一；服务层写入时发现已有 snapshot 直接返回已有行。
+- `run_id` 按 run 唯一；服务层写入时发现已有 snapshot 直接返回已有行。
 - 删除 conversation 或 agent_run 时级联删除 debug snapshot。
 
 **索引说明**：`idx_run_debug_run` 用于 run detail 查询；`idx_run_debug_conv_created` 用于会话调试面板列表辅助查询。
@@ -341,16 +342,20 @@ INDEX idx_context_summaries_conv_created ON (conversation_id, created_at)
 
 ```ts
 mcp_servers {
-  id          text PK              // mcp_<nanoid>
-  name        text UNIQUE NOT NULL // [a-z0-9_]+，禁止 agenthub
-  transport   text NOT NULL default 'stdio'
-  command     text NOT NULL        // stdio server command，不拼 shell 字符串
-  args        text JSON default []  // string[]
-  env         text JSON default {}  // Record<string,string>，列表 API 脱敏
-  trust       text NOT NULL default 'ask' // 'ask'|'always'
-  enabled     int bool default 1
-  created_at  int NOT NULL
-  updated_at  int NOT NULL
+  id                  text PK              // mcp_<nanoid>
+  name                text UNIQUE NOT NULL // [a-z0-9_]+，禁止 agenthub
+  transport           text NOT NULL default 'stdio'
+  command             text NOT NULL        // stdio server command，不拼 shell 字符串
+  args                text JSON default []  // string[]
+  env                 text JSON default {}  // Record<string,string>，列表 API 脱敏
+  trust               text NOT NULL default 'ask' // 'ask'|'always'
+  enabled             int bool default 1
+  last_checked_at     int                  // 最近一次测试连接时间
+  last_check_status   text                 // 'ok'|'failed'
+  last_check_message  text                 // 最近一次测试摘要，不含 secret
+  last_tool_count     int                  // 最近一次 listTools 工具数量
+  created_at          int NOT NULL
+  updated_at          int NOT NULL
 }
 INDEX idx_mcp_servers_enabled ON (enabled)
 ```
@@ -359,11 +364,40 @@ INDEX idx_mcp_servers_enabled ON (enabled)
 - 首版只支持 `transport='stdio'`，SSE / HTTP / OAuth 延后。
 - `name='agenthub'` 保留给内部 AgentHub MCP server，外部配置不可覆盖。
 - 外部 MCP server 不进入 `toolRegistry`；Agent 通过 `agents.mcp_server_ids` 显式 opt-in。
-- `env` 可使用 `${ENV_NAME}` 占位，运行时只解析被引用的环境变量；列表接口不返回明文 secret。
+- 从 GitHub 搜索结果导入 MCP 时，服务端必须先拉取并校验 manifest，再创建或更新本地 `mcp_servers` row；导入过程不得执行或自动测试远程 command。
+- `env` 可使用 `${ENV_NAME}` 占位，运行时只解析被引用的环境变量；列表、搜索、debug 与测试接口不返回明文 secret。
+- 健康字段只保存连接测试摘要；不持久化工具 schema、工具调用参数、工具输出或 resolved env。
 
 ---
 
-## 12. workspace_memories
+## 13. skills
+
+```ts
+skills {
+  id           text PK              // skill_<nanoid> 或稳定本地 id
+  name         text UNIQUE NOT NULL
+  description  text NOT NULL
+  source_path  text NOT NULL        // 本地路径，或 GitHub 导入来源标识 github://...
+  tags         text JSON default []  // string[]
+  enabled      int bool default 1
+  created_at   int NOT NULL
+  updated_at   int NOT NULL
+}
+INDEX idx_skills_enabled ON (enabled)
+```
+
+**语义**：Skills 是本地可发现或从 GitHub 导入的能力模板/指导说明。Agent 通过 `agents.skill_ids` 显式 opt-in；运行时由 AgentRunner 将已启用 Skills 作为独立 prompt section 注入，不作为可执行代码，不绕过工具协议。
+
+**约束**：
+- 本地 Skills 由项目 `skills/` 目录扫描；远程 Skills 只能通过 GitHub 搜索结果导入。
+- `source_path` 对本地 Skill 必须位于允许的 skills 目录或经过服务层校验的本地路径；对 GitHub Skill 可保存 `github://...` 来源标识或 GitHub URL。
+- 本地扫描不得读取 `.env.local`、密钥文件或 workspace 外敏感目录；GitHub 导入只允许 HTTPS GitHub hosts。
+- 列表与搜索接口只返回 metadata，不返回 secret 文件内容或 GitHub token。
+- 删除或禁用 Skill 后，AgentRunner 不再注入该 Skill；已有 `agents.skill_ids` 中的无效 id 在运行时忽略。
+
+---
+
+## 14. workspace_memories
 
 ```ts
 workspace_memories {
@@ -394,7 +428,7 @@ INDEX idx_workspace_memories_conv_pinned ON (conversation_id, pinned, updated_at
 
 ---
 
-## 13. app_settings
+## 15. app_settings
 
 ```ts
 app_settings {
