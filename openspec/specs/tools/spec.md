@@ -94,7 +94,9 @@ AgentHub MUST expose a unified remote-search catalog for Skills and external MCP
 #### Scenario: Remote Skill result is imported
 - **WHEN** the selected result is `kind='skill'`
 - **THEN** AgentHub MUST fetch a GitHub Skill manifest or Skill markdown over HTTPS from an allowed GitHub host
-- **AND** it MUST store safe metadata as a local Skill row before binding it to the Agent
+- **AND** if a repository fallback has no root `SKILL.md`, AgentHub SHOULD inspect the GitHub repository tree for nested `SKILL.md` or `skills/**/*.md` files
+- **AND** it MUST store safe metadata plus markdown guidance content as a local Skill row before binding it to the Agent
+- **AND** imported Skill guidance content MUST be injected into runtime `<rules>` when present
 - **AND** Skills do not bypass existing tool protocols, approvals, or workspace security boundaries.
 
 #### Scenario: Codex assignment filters ask-trusted MCP servers
@@ -111,6 +113,8 @@ AgentHub MUST expose a unified remote-search catalog for Skills and external MCP
 #### Scenario: Agent receives enabled Skills
 - **WHEN** an Agent has enabled `skillIds`
 - **THEN** AgentRunner injects safe Skill metadata/instructions as a separate prompt section
+- **AND** Skill markdown content MUST be represented in `<rules>` when available
+- **AND** workspace-discovered nested Skill files MAY supplement shallow DB metadata for imported GitHub Skill bundles
 - **AND** Skills do not bypass existing tool protocols, approvals, or workspace security boundaries.
 
 ### Requirement: AgentHub SHALL provide a secure public web fetch tool

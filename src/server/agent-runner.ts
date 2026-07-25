@@ -2431,20 +2431,23 @@ async function buildAdapterInput(
   return adapterInput
 }
 
-const MAX_SKILL_RULES_CHARS = 4000
+const MAX_SKILL_RULES_CHARS = 8000
 
 async function backfillDbSkillsContent(dbSkills: SkillListItem[], wsSkills: SkillListItem[]): Promise<void> {
   const wsWithContent = wsSkills.filter((s) => s.content)
   if (wsWithContent.length === 0) return
   const wsByName = new Map(wsWithContent.map((s) => [s.name, s]))
+  const aggregateContent = buildAggregateSkillContent(wsWithContent)
   for (const dbSkill of dbSkills) {
     if (dbSkill.content) continue
     const ws = wsByName.get(dbSkill.name)
-    if (!ws?.content) continue
+    const content = ws?.content ?? aggregateContent
+    const description = ws?.description ?? buildAggregateSkillDescription(wsWithContent)
+    if (!content) continue
     try {
       await db
         .update(schema.skills)
-        .set({ content: ws.content, description: ws.description, updatedAt: Date.now() })
+        .set({ content, description, updatedAt: Date.now() })
         .where(eq(schema.skills.id, dbSkill.id))
     } catch {
       // 非关键路径，静默失败
@@ -2462,9 +2465,8 @@ function mergeSkills(dbSkills: SkillListItem[], wsSkills: SkillListItem[]): Skil
   }
   const seen = new Set(dbSkills.map((s) => s.name))
   const wsWithContent = wsSkills.filter((s) => s.content)
-  const fallbackContent = wsWithContent.length > 0
-    ? `This skill includes ${wsWithContent.length} sub-skills: ${wsWithContent.map((s) => s.name).join(', ')}. See individual skill entries below for full rules.`
-    : null
+  const aggregateContent = buildAggregateSkillContent(wsWithContent)
+  const aggregateDescription = buildAggregateSkillDescription(wsWithContent)
 
   const merged = dbSkills.map((db) => {
     if (!db.content) {
@@ -2472,12 +2474,11 @@ function mergeSkills(dbSkills: SkillListItem[], wsSkills: SkillListItem[]): Skil
       if (ws?.content) {
         return { ...db, content: ws.content, description: db.description === db.name ? ws.description : db.description }
       }
-      // 无同名 workspace skill 但有其他已发现的 workspace skills，生成摘要 content 并修正 description
-      if (fallbackContent && db.description === db.name) {
+      if (aggregateContent && isPlaceholderSkillDescription(db.description, db.name)) {
         return {
           ...db,
-          description: `Includes ${wsWithContent.length} sub-skills`,
-          content: fallbackContent,
+          description: aggregateDescription,
+          content: aggregateContent,
         }
       }
     }
@@ -2490,6 +2491,36 @@ function mergeSkills(dbSkills: SkillListItem[], wsSkills: SkillListItem[]): Skil
     }
   }
   return merged
+}
+
+function buildAggregateSkillContent(skills: SkillListItem[]): string | null {
+  const sections = skills
+    .filter((skill) => skill.content?.trim())
+    .map((skill) => [
+      `## ${skill.name}`,
+      skill.description,
+      `Source: ${skill.sourcePath}`,
+      skill.content?.trim(),
+    ].filter(Boolean).join('\n\n'))
+  if (sections.length === 0) return null
+  return [
+    'This imported Skill is a bundle. Apply the following sub-skill rules, workflows, templates, and examples whenever they match the task.',
+    ...sections,
+  ].join('\n\n---\n\n')
+}
+
+function buildAggregateSkillDescription(skills: SkillListItem[]): string {
+  const names = skills.map((skill) => skill.name).filter(Boolean).slice(0, 6).join(', ')
+  return names ? `Includes workflow guidance for ${names}` : 'Includes imported Skill workflow guidance'
+}
+
+function isPlaceholderSkillDescription(description: string, name: string): boolean {
+  const normalizedDescription = description.trim().toLowerCase()
+  const normalizedName = name.trim().toLowerCase()
+  return !normalizedDescription
+    || normalizedDescription === normalizedName
+    || normalizedDescription === 'github skill'
+    || normalizedDescription === 'skill'
 }
 
 function buildSkillsBlock(skills: SkillListItem[]): string | null {
@@ -2507,6 +2538,7 @@ function buildSkillsBlock(skills: SkillListItem[]): string | null {
         rules
           ? `    <rules>\n${escapeXmlText(rules.slice(0, MAX_SKILL_RULES_CHARS))}\n    </rules>`
           : '',
+        '  </skill>',
       ].filter(Boolean).join('\n')
     }),
     '</skills>',

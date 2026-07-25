@@ -377,6 +377,7 @@ skills {
   id           text PK              // skill_<nanoid> 或稳定本地 id
   name         text UNIQUE NOT NULL
   description  text NOT NULL
+  content      text                 // markdown rules / workflow guide / imported bundle content
   source_path  text NOT NULL        // 本地路径，或 GitHub 导入来源标识 github://...
   tags         text JSON default []  // string[]
   enabled      int bool default 1
@@ -386,7 +387,7 @@ skills {
 INDEX idx_skills_enabled ON (enabled)
 ```
 
-**语义**：Skills 是本地可发现或从 GitHub 导入的能力模板/指导说明。Agent 通过 `agents.skill_ids` 显式 opt-in；运行时由 AgentRunner 将已启用 Skills 作为独立 prompt section 注入，不作为可执行代码，不绕过工具协议。
+**语义**：Skills 是本地可发现或从 GitHub 导入的能力模板/指导说明。Agent 通过 `agents.skill_ids` 显式 opt-in；运行时由 AgentRunner 将已启用 Skills 作为独立 prompt section 注入，不作为可执行代码，不绕过工具协议。`content` 保存从 markdown body、manifest content URL 或 GitHub 仓库内嵌套 Skill 文件聚合出的 rules、流程模板与示例说明，用于运行时 `<rules>` 注入；为空表示只有 metadata。
 
 **约束**：
 - 本地 Skills 由项目 `skills/` 目录扫描；远程 Skills 只能通过 GitHub 搜索结果导入。

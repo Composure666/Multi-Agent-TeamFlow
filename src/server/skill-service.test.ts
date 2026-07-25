@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -39,6 +39,43 @@ describe('skill service', () => {
     expect(disabled.enabled).toBe(false)
     expect(item?.status).toBe('disabled')
     expect(item?.compatibility.custom).toBe('unsupported')
+  })
+
+  it('discovers nested workspace skills with distinct ids and rules content', async () => {
+    const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'agenthub-workspace-skills-'))
+    try {
+      const firstDir = path.join(workspaceRoot, 'repo', 'skills', 'brainstorming')
+      const secondDir = path.join(workspaceRoot, 'repo', 'skills', 'testing')
+      mkdirSync(firstDir, { recursive: true })
+      mkdirSync(secondDir, { recursive: true })
+      writeFileSync(path.join(firstDir, 'SKILL.md'), [
+        '--- ',
+        'name: Brainstorming',
+        'description: Requires design approval before file writes.',
+        'tags: planning hard-gate',
+        '---',
+        '# Brainstorming',
+        'Hard Gate: wait for user approval before writing files.',
+      ].join('\n'))
+      writeFileSync(path.join(secondDir, 'SKILL.md'), [
+        '---',
+        'name: Testing',
+        'description: Verifies changes after implementation.',
+        'tags: testing verification',
+        '---',
+        '# Testing',
+        'Run targeted tests and summarize evidence.',
+      ].join('\n'))
+
+      const skills = await service.discoverWorkspaceSkills(workspaceRoot)
+
+      expect(skills).toHaveLength(2)
+      expect(new Set(skills.map((skill) => skill.id)).size).toBe(2)
+      expect(skills.find((skill) => skill.name === 'Brainstorming')?.content).toContain('Hard Gate')
+      expect(skills.find((skill) => skill.name === 'Brainstorming')?.tags).toContain('hard-gate')
+    } finally {
+      rmSync(workspaceRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    }
   })
 
   it('rejects skill files outside the skills directory', () => {

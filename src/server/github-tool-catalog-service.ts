@@ -55,6 +55,8 @@ export interface ImportGithubToolOutput {
 
 const GITHUB_API = 'https://api.github.com'
 const MAX_FETCH_CHARS = 200_000
+const MAX_BUNDLE_CONTENT_CHARS = 24_000
+const MAX_BUNDLE_FILES = 12
 const DEFAULT_BRANCH = 'main'
 
 const GithubRepository = z.object({
@@ -75,6 +77,13 @@ const GithubCodeItem = z.object({
 const GithubSearchResponse = z.object({
   total_count: z.number().optional(),
   items: z.array(z.unknown()),
+})
+
+const GithubTreeResponse = z.object({
+  tree: z.array(z.object({
+    path: z.string(),
+    type: z.string(),
+  })),
 })
 
 const GithubSkillManifest = z.object({
@@ -306,27 +315,145 @@ async function resolveGithubSkillMarkdown(
 ): Promise<SkillImportData> {
   const repoName = extractRepoName(input.githubUrl ?? input.remoteId ?? 'GitHub Skill')
 
-  if (!installUrl) {
-    return { name: repoName, description: repoName, content: null, tags: ['github', 'skill'] }
+  if (installUrl) {
+    try {
+      const raw = await fetchGithubText(installUrl, signal)
+      return parseGitHubSkillMarkdown(raw, repoName)
+    } catch (err) {
+      if (!(err instanceof Error && err.message.includes('GitHub fetch failed (404)'))) throw err
+    }
   }
 
-  try {
-    const raw = await fetchGithubText(installUrl, signal)
-    return parseGitHubSkillMarkdown(raw, repoName)
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('GitHub fetch failed (404)')) {
-      return { name: repoName, description: repoName, content: null, tags: ['github', 'skill'] }
-    }
-    throw err
+  const bundle = await tryResolveRepositorySkillBundle(input, repoName, signal)
+  if (bundle) return bundle
+
+  return {
+    name: repoName,
+    description: `Imported GitHub Skill repository ${repoName}. No SKILL.md content was found during import.`,
+    content: null,
+    tags: inferGitHubTags(repoName, input.githubUrl ?? input.remoteId ?? repoName),
   }
 }
 
 function extractRepoName(source: string): string {
-  const match = source.match(/github\.com\/([^/]+\/[^/]+)/)
-  if (match) {
-    return match[1]?.split('/').pop() ?? source
-  }
+  const repo = extractGithubRepo(source)
+  if (repo) return repo.split('/').pop() ?? source
   return source.split('/').pop() ?? source
+}
+
+function extractGithubRepo(source: string | null | undefined): string | null {
+  if (!source) return null
+  const githubMatch = source.match(/github\.com\/([^/]+\/[^/#?]+)/)
+  if (githubMatch?.[1]) return githubMatch[1].replace(/\.git$/, '')
+  const rawMatch = source.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/)
+  if (rawMatch?.[1]) return rawMatch[1].replace(/\.git$/, '')
+  const remoteIdMatch = source.match(/^github:(?:skill|mcp_server):([^:]+\/[^:]+):/)
+  if (remoteIdMatch?.[1]) return remoteIdMatch[1].replace(/\.git$/, '')
+  return null
+}
+
+function extractGithubBranch(input: ImportGithubToolInput): string {
+  const rawSource = input.installUrl ?? input.manifestUrl
+  if (!rawSource) return DEFAULT_BRANCH
+  const match = rawSource.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/([^/]+)/)
+  return match?.[1] ?? DEFAULT_BRANCH
+}
+
+async function tryResolveRepositorySkillBundle(
+  input: ImportGithubToolInput,
+  fallbackName: string,
+  signal?: AbortSignal,
+): Promise<SkillImportData | null> {
+  const repo = extractGithubRepo(input.githubUrl ?? input.remoteId ?? input.installUrl ?? input.manifestUrl)
+  if (!repo) return null
+  const branch = extractGithubBranch(input)
+  const skillPaths = await listRepositorySkillPaths(repo, branch, signal)
+  if (skillPaths.length === 0) return null
+
+  const parsedSkills: Array<SkillImportData & { path: string }> = []
+  for (const skillPath of skillPaths.slice(0, MAX_BUNDLE_FILES)) {
+    const raw = await fetchGithubText(toRawGithubUrl(repo, branch, skillPath), signal)
+    parsedSkills.push({ ...parseGitHubSkillMarkdown(raw, titleFromPath(skillPath, fallbackName)), path: skillPath })
+  }
+  if (parsedSkills.length === 0) return null
+
+  const primary = parsedSkills.find((skill) => skill.name.toLowerCase() === fallbackName.toLowerCase()) ?? parsedSkills[0]
+  const description = primary?.description && !isPlaceholderDescription(primary.description, fallbackName)
+    ? primary.description
+    : buildBundleDescription(parsedSkills)
+  const content = buildBundleContent(parsedSkills)
+  const tags = buildBundleTags(parsedSkills, repo)
+  return {
+    name: fallbackName,
+    description,
+    content,
+    tags,
+  }
+}
+
+async function listRepositorySkillPaths(repo: string, branch: string, signal?: AbortSignal): Promise<string[]> {
+  const url = `${GITHUB_API}/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`
+  const response = await githubFetchJson(url, signal)
+  if (response.status !== 'ok') return []
+  const parsed = GithubTreeResponse.safeParse(response.data)
+  if (!parsed.success) return []
+  const paths = parsed.data.tree
+    .filter((entry) => entry.type === 'blob')
+    .map((entry) => entry.path)
+    .filter((entryPath) => isSkillMarkdownPath(entryPath))
+  return sortSkillPaths(paths)
+}
+
+function isSkillMarkdownPath(filePath: string): boolean {
+  const lower = filePath.toLowerCase()
+  return lower === 'skill.md'
+    || lower.endsWith('/skill.md')
+    || /^skills\/.+\.md$/i.test(filePath)
+}
+
+function sortSkillPaths(paths: string[]): string[] {
+  return [...new Set(paths)].sort((a, b) => {
+    const aRoot = a.toLowerCase() === 'skill.md' ? -1 : 0
+    const bRoot = b.toLowerCase() === 'skill.md' ? -1 : 0
+    if (aRoot !== bRoot) return aRoot - bRoot
+    return a.localeCompare(b)
+  })
+}
+
+function buildBundleDescription(skills: Array<SkillImportData & { path: string }>): string {
+  const firstDescriptions = skills
+    .map((skill) => skill.description)
+    .filter((description) => !isPlaceholderDescription(description, 'skill'))
+    .slice(0, 3)
+  if (firstDescriptions.length === 0) return `Imported Skill bundle with ${skills.length} workflow guides`
+  return firstDescriptions.join(' ')
+}
+
+function buildBundleContent(skills: Array<SkillImportData & { path: string }>): string {
+  const sections = skills.map((skill) => [
+    `## ${skill.name}`,
+    skill.description,
+    `Source: ${skill.path}`,
+    skill.content,
+  ].filter(Boolean).join('\n\n'))
+  return sections.join('\n\n---\n\n').slice(0, MAX_BUNDLE_CONTENT_CHARS)
+}
+
+function buildBundleTags(skills: Array<SkillImportData & { path: string }>, repo: string): string[] {
+  const tags = new Set<string>(['github', 'skill'])
+  for (const part of repo.split(/[\W_]+/)) {
+    if (part) tags.add(part.toLowerCase())
+  }
+  for (const skill of skills) {
+    for (const tag of skill.tags) tags.add(tag.toLowerCase())
+  }
+  return [...tags].slice(0, 16)
+}
+
+function isPlaceholderDescription(description: string, fallbackName: string): boolean {
+  const normalized = description.trim().toLowerCase()
+  const fallback = fallbackName.trim().toLowerCase()
+  return !normalized || normalized === fallback || normalized === 'skill' || normalized === 'github skill'
 }
 
 function parseGitHubSkillMarkdown(raw: string, fallbackName: string): SkillImportData {

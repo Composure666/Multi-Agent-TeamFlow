@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import path from 'node:path'
 
 import { asc, eq, inArray } from 'drizzle-orm'
@@ -98,7 +99,7 @@ export async function discoverWorkspaceSkills(workspaceRootPath: string): Promis
       if (parsed.description === 'Skill' && !parsed.content) continue
 
       discovered.push({
-        id: `ws_skill_${baseName.replace(/[^a-zA-Z0-9_]/g, '_')}`,
+        id: `ws_skill_${workspaceSkillId(workspaceRootPath, filePath)}`,
         name: parsed.name,
         description: parsed.description,
         content: parsed.content,
@@ -230,7 +231,7 @@ interface YamlFrontmatter {
 }
 
 function extractYamlFrontmatter(text: string): YamlFrontmatter | null {
-  const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  const match = text.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---/)
   if (!match) return null
   const raw = match[1] ?? ''
   const fields: YamlFrontmatter['fields'] = {}
@@ -276,6 +277,13 @@ export function parseSkillFile(filePath: string): Omit<SkillListItem, 'enabled' 
     sourcePath: resolved,
     tags: parsed.tags,
   }
+}
+
+function workspaceSkillId(workspaceRootPath: string, filePath: string): string {
+  const relative = path.relative(workspaceRootPath, filePath).replace(/\\/g, '/')
+  const label = relative.replace(/[^a-zA-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48)
+  const hash = createHash('sha1').update(relative).digest('hex').slice(0, 10)
+  return `${label || 'skill'}_${hash}`
 }
 
 function inferTags(baseName: string, content: string): string[] {

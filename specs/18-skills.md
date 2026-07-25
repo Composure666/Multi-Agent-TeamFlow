@@ -45,6 +45,7 @@ Skill metadata 至少包含：
   id: string
   name: string
   description: string
+  content: string | null
   sourcePath: string
   tags: string[]
   enabled: boolean
@@ -55,9 +56,10 @@ Skill metadata 至少包含：
 发现规则：
 
 1. P1 优先扫描项目 `skills/` 目录。
-2. 读取 markdown front matter 或标题/首段作为 metadata；格式不足时生成保守描述。
-3. 不读取 `.env.local`、密钥文件、隐藏凭据目录或 workspace 外敏感目录。
-4. 刷新索引只更新 metadata，不执行 Skill 内容。
+2. 读取 markdown front matter 或标题/首段作为 metadata；markdown body 作为 `content`，用于运行时 `<rules>` 注入。
+3. 工作区内由 Agent 下载的 Skill 文件也可在运行时递归发现：匹配任意 `SKILL.md`，以及 `skills/` 目录下的 markdown 文件；发现结果按相对路径生成稳定 id，避免多个嵌套 `SKILL.md` 冲突。
+4. 不读取 `.env.local`、密钥文件、隐藏凭据目录或 workspace 外敏感目录。
+5. 刷新索引只更新 metadata/content，不执行 Skill 内容。
 
 ---
 
@@ -185,7 +187,7 @@ GitHub 配置 body 使用远程候选字段：
 
 - Agent 存在。
 - `type`/`kind` 存在且合法。
-- GitHub 导入只允许 `action='attach'`，且必须提供 `installUrl` 或 `manifestUrl`。
+- GitHub 导入只允许 `action='attach'`，且必须提供 `installUrl`、`manifestUrl`、`githubUrl` 或远程候选 `id` 中可解析出的 GitHub 仓库信息。
 - GitHub URL 只允许 HTTPS GitHub hosts。
 - 远程 Skill/MCP 先导入或更新为本地 DB row，再把本地 id 写入 Agent。
 - 目标 Skill/MCP 存在且 enabled。
@@ -200,9 +202,11 @@ AgentRunner 构建 AdapterInput 时：
 
 1. 读取 Agent 绑定的 `skillIds`。
 2. 过滤 disabled/missing Skill。
-3. 构造独立 system prompt section，例如 `<skills>`。
-4. 只注入 Skill 的名称、描述、tags 与必要指导内容。
-5. Agent Run Debug snapshot 只记录 Skill 安全元数据，不记录 secret。
+3. 递归发现当前 workspace 内的 Skill markdown，并与 DB Skill 合并。
+4. 对 GitHub 仓库型 Skill，如果 DB 行只有浅层 metadata，则用同名 workspace Skill 或已发现的子 Skill 聚合内容补齐 description/content。
+5. 构造独立 system prompt section，例如 `<skills>`，每个 Skill 必须包含闭合的 `<skill>` 元素；有 `content` 时注入 `<rules>`。
+6. 只注入 Skill 的名称、描述、tags 与必要指导内容。
+7. Agent Run Debug snapshot 只记录 Skill 安全元数据，不记录 secret。
 
 Skills 注入是提示上下文，不代表执行权限。Agent 如需读写文件、运行命令或调用 MCP，仍必须通过现有工具与审批链路。
 
