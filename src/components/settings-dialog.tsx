@@ -283,7 +283,7 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-2xl">
+      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription className="sr-only">AgentHub 设置</DialogDescription>
@@ -486,7 +486,7 @@ function MobileConnectionHints({
   const enabled = companionMode !== 'off'
 
   return (
-    <section className="rounded-lg border bg-muted/30 p-3">
+    <section className="rounded-xl border bg-muted/30 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Smartphone className="size-4 text-muted-foreground" />
@@ -619,7 +619,7 @@ function DeploymentPublishSettings({
   onPublicBaseUrlChange: (value: string) => void
 }) {
   return (
-    <section className="rounded-lg border bg-muted/30 p-3">
+    <section className="rounded-xl border bg-muted/30 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <FolderUp className="size-4 text-muted-foreground" />
@@ -672,7 +672,7 @@ function NotificationPreferenceSettings({
   onChange: (patch: Partial<SettingsForm>) => void
 }) {
   return (
-    <section className="rounded-lg border bg-muted/30 p-3">
+    <section className="rounded-xl border bg-muted/30 p-3">
       <div className="mb-3 flex items-center gap-2">
         <Bell className="size-4 text-muted-foreground" />
         <div>

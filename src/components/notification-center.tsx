@@ -28,22 +28,22 @@ const LEVEL_META: Record<AppNotification['level'], {
 }> = {
   success: {
     icon: CheckCircle2,
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-950 shadow-emerald-950/10',
-    iconClassName: 'text-emerald-600',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-950 shadow-emerald-950/10 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100',
+    iconClassName: 'text-emerald-600 dark:text-emerald-300',
   },
   error: {
     icon: XCircle,
-    className: 'border-rose-200 bg-rose-50 text-rose-950 shadow-rose-950/10',
-    iconClassName: 'text-rose-600',
+    className: 'border-rose-200 bg-rose-50 text-rose-950 shadow-rose-950/10 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100',
+    iconClassName: 'text-rose-600 dark:text-rose-300',
   },
   warning: {
     icon: AlertTriangle,
-    className: 'border-amber-200 bg-amber-50 text-amber-950 shadow-amber-950/10',
-    iconClassName: 'text-amber-600',
+    className: 'border-amber-200 bg-amber-50 text-amber-950 shadow-amber-950/10 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100',
+    iconClassName: 'text-amber-600 dark:text-amber-300',
   },
   info: {
     icon: Info,
-    className: 'border-slate-200 bg-white text-slate-950 shadow-slate-950/10',
+    className: 'border-slate-200 bg-white text-slate-950 shadow-slate-950/10 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-100',
     iconClassName: 'text-[var(--agenthub-accent)]',
   },
 }
@@ -162,10 +162,10 @@ function NotificationToast({
   return (
     <div
       className={cn(
-        'pointer-events-auto rounded-2xl border p-3 shadow-lg backdrop-blur transition duration-200',
-        canOpen && 'cursor-pointer hover:-translate-y-0.5 hover:shadow-xl',
+        'pointer-events-auto rounded-xl border p-3 shadow-lg backdrop-blur transition',
+        canOpen && 'cursor-pointer hover:border-[var(--agenthub-accent-border)]',
         meta.className,
-        notification.urgent && 'animate-pulse ring-2 ring-rose-200',
+        notification.urgent && 'animate-pulse ring-2 ring-rose-200 dark:ring-rose-500/40',
       )}
       role="status"
       tabIndex={canOpen ? 0 : undefined}
@@ -192,7 +192,7 @@ function NotificationToast({
                   event.stopPropagation()
                   onOpen()
                 }}
-                className="h-7 rounded-lg bg-white/60 px-2 text-xs"
+                className="h-7 rounded-lg bg-white/60 px-2 text-xs dark:bg-white/10"
               >
                 {openLabel}
               </Button>
@@ -219,7 +219,7 @@ function NotificationToast({
             event.stopPropagation()
             onClose()
           }}
-          className="-mr-1 -mt-1 size-7 rounded-lg opacity-60 hover:bg-black/5 hover:opacity-100"
+          className="-mr-1 -mt-1 size-7 rounded-lg opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
           aria-label="关闭通知"
         >
           <X className="size-3.5" />

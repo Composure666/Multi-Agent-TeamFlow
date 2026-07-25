@@ -6,6 +6,7 @@ import { AlertTriangle, Bell, CheckCircle2, Info, Settings, Trash2 } from 'lucid
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { EmptyState, InlineError, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import {
   deleteNotification,
   fetchNotifications,
@@ -189,90 +190,85 @@ export function InformationCenterWorkspace() {
   const emptyState = getEmptyState(filter, query, notifications.length)
 
   return (
-    <div className="min-h-screen bg-[var(--agenthub-surface-muted)] p-3 sm:p-4 lg:p-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 lg:gap-5">
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-neutral-900 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-                <Bell className="size-5 text-[var(--agenthub-accent)]" />
-                信息中心
-              </div>
-              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                查看任务结果、异常告警和系统消息。当前未读 {unreadCount} 条。
-              </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={() => openSettingsTarget('notifications')} className="w-fit">
-              <Settings className="size-3.5" />
-              通知设置
-            </Button>
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-neutral-900 sm:p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="-mx-1 overflow-x-auto px-1">
-              <div className="flex min-w-max gap-2">
-                {FILTERS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setFilter(item.id)}
-                    className={cn(
-                      'rounded-full border px-3 py-1.5 text-sm transition',
-                      filter === item.id
-                        ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300',
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:items-center">
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索标题、正文、分类或来源"
-                className="h-9 rounded-2xl border-slate-200 bg-white sm:min-w-[260px] dark:border-white/10 dark:bg-neutral-900"
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()} disabled={unreadCount === 0}>
-                  全部已读
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => void deleteRead()} disabled={readVisibleCount === 0}>
-                  删除已读 {readVisibleCount > 0 ? readVisibleCount : ''}
-                </Button>
-                <Button type="button" variant="destructive" size="sm" onClick={() => void clearVisible()} disabled={visibleNotifications.length === 0}>
-                  {clearLabel}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
+    <PageShell>
+      <PageHeader
+        icon={Bell}
+        title="信息中心"
+        description={`查看任务结果、异常告警和系统消息。当前未读 ${unreadCount} 条。`}
+        actions={(
+          <Button type="button" variant="outline" size="sm" onClick={() => openSettingsTarget('notifications')}>
+            <Settings className="size-3.5" />
+            通知设置
+          </Button>
         )}
+      />
 
-        <ScrollArea className="max-h-[calc(100vh-260px)] min-h-[360px] rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-900">
+      <PageCard className="p-3 sm:p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="-mx-1 overflow-x-auto px-1">
+            <div className="flex min-w-max gap-2">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-sm transition',
+                    filter === item.id
+                      ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-white dark:text-neutral-950'
+                      : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-600 hover:border-slate-300 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/20',
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:items-center">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索标题、正文、分类或来源"
+              className="h-9 rounded-lg sm:min-w-[260px]"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()} disabled={unreadCount === 0}>
+                全部已读
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => void deleteRead()} disabled={readVisibleCount === 0}>
+                删除已读 {readVisibleCount > 0 ? readVisibleCount : ''}
+              </Button>
+              <Button type="button" variant="destructive" size="sm" onClick={() => void clearVisible()} disabled={visibleNotifications.length === 0}>
+                {clearLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </PageCard>
+
+      {error && <InlineError message={error} onRetry={() => void load()} />}
+
+      <PageCard className="overflow-hidden p-0">
+        <ScrollArea className="max-h-[calc(100vh-300px)] min-h-[360px]">
           <div className="divide-y divide-slate-100 dark:divide-white/10">
             {loading && visibleNotifications.length === 0 && (
-              <div className="p-8 text-center text-sm text-slate-500">正在加载通知...</div>
+              <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">正在加载通知...</div>
             )}
             {!loading && visibleNotifications.length === 0 && (
               <EmptyState
+                icon={Bell}
                 title={emptyState.title}
                 description={emptyState.description}
-                action={emptyState.action}
-                onClear={() => {
-                  setQuery('')
-                  setFilter('all')
-                }}
+                action={emptyState.action
+                  ? {
+                      label: emptyState.action,
+                      onClick: () => {
+                        setQuery('')
+                        setFilter('all')
+                      },
+                    }
+                  : undefined}
               />
             )}
             {visibleNotifications.map((notification) => (
@@ -286,8 +282,8 @@ export function InformationCenterWorkspace() {
             ))}
           </div>
         </ScrollArea>
-      </div>
-    </div>
+      </PageCard>
+    </PageShell>
   )
 }
 
@@ -311,7 +307,7 @@ function NotificationRow({
   return (
     <div className={cn('relative flex flex-col gap-3 p-4 transition hover:bg-slate-50 dark:hover:bg-white/5 sm:flex-row', !notification.readAt && 'bg-blue-50/40 dark:bg-blue-950/10')}>
       <span className={cn('absolute bottom-4 left-0 top-4 w-1 rounded-r-full', urgent ? 'bg-rose-500' : meta.bar, notification.readAt && 'opacity-30')} />
-      <div className={cn('relative mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl', meta.icon)}>
+      <div className={cn('relative mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl', meta.icon)}>
         <Icon className="size-4" />
         {!notification.readAt && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-[var(--agenthub-accent)]" />}
       </div>
@@ -345,35 +341,6 @@ function NotificationRow({
           <Trash2 className="size-4" />
         </Button>
       </div>
-    </div>
-  )
-}
-
-function EmptyState({
-  title,
-  description,
-  action,
-  onClear,
-}: {
-  title: string
-  description: string
-  action?: string
-  onClear: () => void
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 p-10 text-center">
-      <div className="flex size-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-neutral-800">
-        <Bell className="size-5" />
-      </div>
-      <div>
-        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{title}</div>
-        <div className="mt-1 max-w-sm text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</div>
-      </div>
-      {action && (
-        <Button type="button" variant="outline" size="sm" onClick={onClear}>
-          {action}
-        </Button>
-      )}
     </div>
   )
 }

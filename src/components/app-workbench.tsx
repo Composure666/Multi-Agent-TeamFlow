@@ -4467,93 +4467,92 @@ function AnalyticsWorkspace() {
   const maxTrend = Math.max(...ANALYTICS_TREND.map((point) => point.value))
 
   return (
-    <div className="h-full p-4 xl:p-6">
-      <section className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
-        <div className="shrink-0 border-b border-slate-100 p-4 xl:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="h-full overflow-y-auto p-4 lg:p-6">
+      <section className="mx-auto flex max-w-6xl flex-col gap-4">
+        <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">分析</h1>
-              <p className="mt-1 text-sm text-slate-500">自动化任务运行分析，观察任务质量、成功率与近期趋势</p>
+              <div className="flex items-center gap-2 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                <BarChart3 className="size-5 shrink-0 text-[var(--agenthub-accent)]" />
+                分析
+              </div>
+              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">自动化任务运行分析，观察任务质量、成功率与近期趋势</p>
             </div>
-            <Button variant="outline" className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
-              <Clock3 className="mr-1.5 size-3.5" />
+            <Button variant="outline" size="sm" className="w-fit">
+              <Clock3 className="size-3.5" />
               近 7 天
             </Button>
           </div>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-5 p-4 xl:p-5">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {ANALYTICS_KPIS.map((kpi) => (
-                <AnalyticsKpiCard key={kpi.label} kpi={kpi} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {ANALYTICS_KPIS.map((kpi) => (
+            <AnalyticsKpiCard key={kpi.label} kpi={kpi} />
+          ))}
+        </div>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+          <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">运行趋势</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">近 7 天自动化任务触发次数</p>
+              </div>
+              <BarChart3 className="size-4 text-slate-400" />
+            </div>
+            <div className="mt-5 flex h-56 items-end gap-3 rounded-xl border border-[var(--agenthub-border)] bg-slate-50 p-4 dark:bg-neutral-950/40 sm:gap-5">
+              {ANALYTICS_TREND.map((point) => (
+                <div key={point.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                  <div className="flex w-full flex-1 items-end justify-center">
+                    <div className="w-full max-w-8 rounded-t-lg bg-[var(--agenthub-accent)] transition hover:bg-[var(--agenthub-accent-hover)]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{point.value}</div>
+                    <div className="text-[10px] text-slate-400">{point.label}</div>
+                  </div>
+                </div>
               ))}
             </div>
-
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-950">运行趋势</h2>
-                    <p className="mt-1 text-xs text-slate-500">近 7 天自动化任务触发次数</p>
-                  </div>
-                  <BarChart3 className="size-4 text-slate-400" />
-                </div>
-                <div className="mt-5 flex h-56 items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:gap-5">
-                  {ANALYTICS_TREND.map((point) => (
-                    <div key={point.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                      <div className="flex w-full flex-1 items-end justify-center">
-                        <div className="w-full max-w-8 rounded-t-2xl bg-[var(--agenthub-accent)] transition hover:bg-[var(--agenthub-accent-hover)]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
-                      </div>
-                      <div className="text-center">
-                        <div className="text-[11px] font-medium text-slate-700">{point.value}</div>
-                        <div className="text-[10px] text-slate-400">{point.label}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-950">任务类型分布</h2>
-                    <p className="mt-1 text-xs text-slate-500">按本周运行次数统计</p>
-                  </div>
-                  <Layers className="size-4 text-slate-400" />
-                </div>
-                <div className="mt-5 space-y-4">
-                  {ANALYTICS_DISTRIBUTION.map((item) => (
-                    <div key={item.label}>
-                      <div className="mb-1.5 flex items-center justify-between text-xs">
-                        <span className="text-slate-600">{item.label}</span>
-                        <span className="font-medium text-slate-900">{item.value}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-slate-100">
-                        <div className={cn('h-full rounded-full', item.className)} style={{ width: `${item.value}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-950">最近运行记录</h2>
-                  <p className="mt-1 text-xs text-slate-500">包含状态、耗时和任务类型，用于快速排查异常</p>
-                </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">{ANALYTICS_RECENT_RUNS.length} 条记录</span>
-              </div>
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-                {ANALYTICS_RECENT_RUNS.map((run) => (
-                  <AutomationRunRow key={run.id} run={run} table />
-                ))}
-              </div>
-            </section>
           </div>
-        </ScrollArea>
+
+          <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">任务类型分布</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">按本周运行次数统计</p>
+              </div>
+              <Layers className="size-4 text-slate-400" />
+            </div>
+            <div className="mt-5 space-y-4">
+              {ANALYTICS_DISTRIBUTION.map((item) => (
+                <div key={item.label}>
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">{item.value}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 dark:bg-white/10">
+                    <div className={cn('h-full rounded-full', item.className)} style={{ width: `${item.value}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">最近运行记录</h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">包含状态、耗时和任务类型，用于快速排查异常</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-white/10 dark:text-slate-400">{ANALYTICS_RECENT_RUNS.length} 条记录</span>
+          </div>
+          <div className="mt-4 overflow-hidden rounded-xl border border-[var(--agenthub-border)]">
+            {ANALYTICS_RECENT_RUNS.map((run) => (
+              <AutomationRunRow key={run.id} run={run} table />
+            ))}
+          </div>
+        </section>
       </section>
     </div>
   )
@@ -4563,37 +4562,37 @@ function AnalyticsKpiCard({ kpi }: { kpi: AnalyticsKpi }) {
   const Icon = kpi.icon
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[var(--agenthub-accent-border)] hover:shadow-md">
+    <article className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm transition hover:border-[var(--agenthub-accent-border)] dark:bg-neutral-900">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs text-slate-500">{kpi.label}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{kpi.value}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{kpi.label}</div>
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{kpi.value}</div>
         </div>
-        <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-2xl', kpi.toneClassName)}>
+        <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', kpi.toneClassName)}>
           <Icon className="size-5" />
         </div>
       </div>
-      <p className="mt-3 text-xs text-slate-500">{kpi.caption}</p>
+      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{kpi.caption}</p>
     </article>
   )
 }
 
 function AutomationRunRow({ run, table = false }: { run: AnalyticsRunRecord; table?: boolean }) {
   const statusClassName = run.status === '成功'
-    ? 'bg-emerald-50 text-emerald-600'
+    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
     : run.status === '运行中'
       ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-      : 'bg-rose-50 text-rose-600'
+      : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
 
   return (
-    <div className={cn('grid gap-3 border-slate-100 bg-white p-3 transition hover:bg-[var(--agenthub-accent-soft)]/40 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center', table ? 'border-b last:border-b-0' : 'rounded-2xl border')}>
+    <div className={cn('grid gap-3 border-slate-100 bg-[var(--agenthub-surface)] p-3 transition hover:bg-[var(--agenthub-accent-soft)]/40 dark:border-white/10 dark:bg-neutral-900 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center', table ? 'border-b last:border-b-0' : 'rounded-xl border')}>
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-slate-900">{run.title}</div>
-        <div className="mt-0.5 text-xs text-slate-500 sm:hidden">{run.category} · {run.duration} · {run.time}</div>
+        <div className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{run.title}</div>
+        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 sm:hidden">{run.category} · {run.duration} · {run.time}</div>
       </div>
-      <div className="hidden truncate text-xs text-slate-500 sm:block">{run.category}</div>
-      <div className="hidden text-xs text-slate-500 sm:block">{run.duration}</div>
-      <div className="hidden text-xs text-slate-500 sm:block">{run.time}</div>
+      <div className="hidden truncate text-xs text-slate-500 dark:text-slate-400 sm:block">{run.category}</div>
+      <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{run.duration}</div>
+      <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{run.time}</div>
       <span className={cn('w-fit rounded-full px-2 py-1 text-[10px] font-medium', statusClassName)}>{run.status}</span>
     </div>
   )

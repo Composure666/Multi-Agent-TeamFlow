@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { EmptyState, InlineError } from '@/components/workbench-primitives'
 import {
   createMcpServer,
   deleteMcpServer,
@@ -14,6 +15,7 @@ import {
   type McpConnectionTestResult,
   type McpServerListItem,
 } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 interface McpForm {
   name: string
@@ -128,53 +130,128 @@ export function McpServersSettings() {
   }
 
   return (
-    <section className="min-w-0 space-y-3 overflow-hidden rounded-lg border bg-muted/30 p-3">
-      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+    <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border bg-card p-3">
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         <ShieldAlert className="mt-0.5 size-4 flex-none" />
-        <p className="min-w-0 break-words text-[11px] leading-4">外部 MCP server 是本机进程，不受 AgentHub 内置 workspace 工具沙箱保护。只添加信任来源；env 在列表中会脱敏。</p>
+        <p className="min-w-0 break-words text-[11px] leading-4">
+          外部 MCP server 是本机进程，不受 AgentHub 内置 workspace 工具沙箱保护。只添加信任来源；env 在列表中会脱敏。
+        </p>
       </div>
 
-      <div className="grid min-w-0 gap-2 rounded-md border bg-background p-2">
+      <div className="grid min-w-0 gap-2 rounded-xl border bg-background p-3">
         <div className="grid gap-2 sm:grid-cols-2">
           <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="name: filesystem" />
           <Input value={form.command} onChange={(e) => setForm((f) => ({ ...f, command: e.target.value }))} placeholder="command: npx" />
         </div>
         <Input value={form.argsText} onChange={(e) => setForm((f) => ({ ...f, argsText: e.target.value }))} placeholder="args，用空格分隔" />
-        <textarea value={form.envText} onChange={(e) => setForm((f) => ({ ...f, envText: e.target.value }))} placeholder="ENV_KEY=value，每行一个" className="min-h-16 w-full resize-y break-all rounded-md border bg-background px-2 py-1 text-xs" />
+        <textarea
+          value={form.envText}
+          onChange={(e) => setForm((f) => ({ ...f, envText: e.target.value }))}
+          placeholder="ENV_KEY=value，每行一个"
+          className="min-h-16 w-full resize-y break-all rounded-lg border bg-background px-2 py-1.5 text-xs"
+        />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} />启用</label>
-          <select value={form.trust} onChange={(e) => setForm((f) => ({ ...f, trust: e.target.value as McpForm['trust'] }))} className="rounded-md border bg-background px-2 py-1 text-xs">
-            <option value="ask">ask</option>
-            <option value="always">always</option>
-          </select>
-          <Button type="button" size="sm" disabled={busy} onClick={() => void submit()}>{editingId ? '保存 MCP' : '新增 MCP'}</Button>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} />
+            启用
+          </label>
+          <div className="flex items-center gap-2">
+            <select
+              value={form.trust}
+              onChange={(e) => setForm((f) => ({ ...f, trust: e.target.value as McpForm['trust'] }))}
+              className="rounded-lg border bg-background px-2 py-1 text-xs"
+            >
+              <option value="ask">ask（每次调用前确认）</option>
+              <option value="always">always（自动允许）</option>
+            </select>
+            <Button type="button" size="sm" disabled={busy} onClick={() => void submit()}>
+              {editingId ? '保存 MCP' : '新增 MCP'}
+            </Button>
+          </div>
         </div>
+        {form.trust === 'always' && (
+          <p className="text-[11px] leading-4 text-amber-600 dark:text-amber-300">
+            trust=always 会在不弹确认的情况下直接执行该 MCP 工具，请只用于完全信任的来源。
+          </p>
+        )}
       </div>
 
-      {error && <div className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-800">{error}</div>}
+      {error && <InlineError message={error} onRetry={() => void load()} />}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-medium">MCP Servers</h3>
-        <Button type="button" size="sm" variant="outline" onClick={() => void load()} disabled={loading}>{loading ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCw className="size-3.5" />}刷新</Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+          {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCw className="size-3.5" />}
+          刷新
+        </Button>
       </div>
+
+      {!loading && !error && servers.length === 0 && (
+        <EmptyState title="暂无 MCP Servers" description="在上方表单中添加一个 stdio MCP server，或在 Agent 库中联网搜索并导入 GitHub MCP。" />
+      )}
+
       <div className="grid min-w-0 gap-2">
         {servers.map((server) => {
           const result = testResults[server.id]
           return (
-            <div key={server.id} className="min-w-0 rounded-md border bg-background p-2">
+            <div key={server.id} className="min-w-0 rounded-xl border bg-background p-3">
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium"><span className="break-all">{server.name}</span><code className="text-[10px] text-muted-foreground">{server.trust}</code>{!server.enabled && <span className="text-[10px] text-muted-foreground">disabled</span>}</div>
-                  <p className="break-all font-mono text-[11px] text-muted-foreground">{server.command} {server.args.join(' ')}</p>
-                  <p className="break-words text-[10px] text-muted-foreground">env: {Object.keys(server.env).join(', ') || 'none'} · health: {server.lastCheckStatus ?? 'unknown'} · tools: {server.lastToolCount ?? '-'}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
+                    <span className="break-all">{server.name}</span>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                        server.trust === 'always'
+                          ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300'
+                          : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      trust: {server.trust}
+                    </span>
+                    {!server.enabled && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">已禁用</span>
+                    )}
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                        server.lastCheckStatus === 'ok'
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
+                          : server.lastCheckStatus
+                            ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
+                            : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {server.lastCheckStatus === 'ok' ? '连接正常' : server.lastCheckStatus ? `状态: ${server.lastCheckStatus}` : '未检测'}
+                    </span>
+                  </div>
+                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{server.command} {server.args.join(' ')}</p>
+                  <p className="mt-1 break-words text-[10px] text-muted-foreground">
+                    env: {Object.keys(server.env).join(', ') || 'none'} · tools: {server.lastToolCount ?? '-'}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-1 sm:flex-nowrap">
                   <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void runTest(server.id)}>测试</Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => edit(server)}>编辑</Button>
-                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void remove(server.id)}>删除</Button>
+                  <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => void remove(server.id)}>删除</Button>
                 </div>
               </div>
-              {result && <div className="mt-2 min-w-0 break-words rounded bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">{result.status}: {result.message}{result.tools.length > 0 && <div className="break-all">tools: {result.tools.map((tool) => tool.name).join(', ')}</div>}</div>}
+              {result && (
+                <div
+                  className={cn(
+                    'mt-2 min-w-0 break-words rounded-lg border px-3 py-2 text-[11px]',
+                    result.status === 'ok'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
+                      : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300',
+                  )}
+                >
+                  <div className="font-medium">{result.status === 'ok' ? '连接成功' : '连接失败'}</div>
+                  <div className="mt-0.5">{result.message}</div>
+                  {result.tools.length > 0 && (
+                    <div className="mt-1 break-all">tools: {result.tools.map((tool) => tool.name).join(', ')}</div>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
