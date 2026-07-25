@@ -12,13 +12,15 @@ import { cn } from '@/lib/utils'
 export function PageShell({
   children,
   className,
+  contentClassName,
 }: {
   children: ReactNode
   className?: string
+  contentClassName?: string
 }) {
   return (
     <div className={cn('h-full min-h-0 overflow-y-auto p-4 lg:p-6', className)}>
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 lg:gap-5">{children}</div>
+      <div className={cn('mx-auto flex max-w-5xl flex-col gap-4 lg:gap-5', contentClassName)}>{children}</div>
     </div>
   )
 }

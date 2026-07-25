@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useCallback, type ComponentType } from 'react'
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react'
+import { useEffect, useCallback } from 'react'
+import { X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { getNotificationOpenLabel, getNotificationOpenTitle, NOTIFICATION_LEVEL_META } from '@/components/notification-meta'
 import { clearNativeUrgentNotification, showNativeNotification } from '@/lib/notifications'
 import { markNotificationRead } from '@/lib/api'
 import type { AppNotification, AppNotificationTarget } from '@/shared/types'
@@ -20,33 +21,6 @@ type NotificationClickPayload = {
 
 const AUTO_DISMISS_MS = 5200
 const URGENT_DISMISS_MS = 9000
-
-const LEVEL_META: Record<AppNotification['level'], {
-  icon: ComponentType<{ className?: string }>
-  className: string
-  iconClassName: string
-}> = {
-  success: {
-    icon: CheckCircle2,
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-950 shadow-emerald-950/10 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100',
-    iconClassName: 'text-emerald-600 dark:text-emerald-300',
-  },
-  error: {
-    icon: XCircle,
-    className: 'border-rose-200 bg-rose-50 text-rose-950 shadow-rose-950/10 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100',
-    iconClassName: 'text-rose-600 dark:text-rose-300',
-  },
-  warning: {
-    icon: AlertTriangle,
-    className: 'border-amber-200 bg-amber-50 text-amber-950 shadow-amber-950/10 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100',
-    iconClassName: 'text-amber-600 dark:text-amber-300',
-  },
-  info: {
-    icon: Info,
-    className: 'border-slate-200 bg-white text-slate-950 shadow-slate-950/10 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-100',
-    iconClassName: 'text-[var(--agenthub-accent)]',
-  },
-}
 
 export function NotificationCenter() {
   const notifications = useAppStore((state) => state.notifications)
@@ -152,12 +126,12 @@ function NotificationToast({
   onMarkRead: () => void
   onClose: () => void
 }) {
-  const meta = LEVEL_META[notification.level]
+  const meta = NOTIFICATION_LEVEL_META[notification.level]
   const Icon = meta.icon
 
   const canOpen = Boolean(notification.target ?? notification.conversationId)
-  const openLabel = getToastOpenLabel(notification)
-  const openTitle = getToastOpenTitle(notification)
+  const openLabel = getNotificationOpenLabel(notification)
+  const openTitle = getNotificationOpenTitle(notification)
 
   return (
     <div
@@ -227,20 +201,4 @@ function NotificationToast({
       </div>
     </div>
   )
-}
-
-function getToastOpenLabel(notification: AppNotification): string {
-  const type = notification.target?.type ?? (notification.conversationId ? 'conversation' : undefined)
-  if (type === 'settings') return '去设置'
-  if (type === 'automation') return '查看任务'
-  if (type === 'artifact') return '查看产物'
-  return '查看结果'
-}
-
-function getToastOpenTitle(notification: AppNotification): string {
-  const type = notification.target?.type ?? (notification.conversationId ? 'conversation' : undefined)
-  if (type === 'settings') return '打开相关设置'
-  if (type === 'automation') return '打开自动化任务'
-  if (type === 'artifact') return '打开相关产物'
-  return '打开结果会话'
 }

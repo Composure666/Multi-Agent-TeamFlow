@@ -3,9 +3,9 @@ import { ElectronTitleBar } from '@/components/electron-title-bar'
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--agenthub-surface-muted)]">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
       <ElectronTitleBar />
-      <div className="flex-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <AppWorkbench />
       </div>
     </div>

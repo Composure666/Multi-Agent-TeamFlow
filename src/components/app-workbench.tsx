@@ -2,16 +2,17 @@
 
 import {
   BarChart3,
+  AlertTriangle,
   Bell,
+  BookOpen,
   Bot,
+  Boxes,
   CalendarClock,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
-  Clock3,
   Coins,
   FileCode2,
   FileText,
@@ -25,7 +26,6 @@ import {
   MoreHorizontal,
   Newspaper,
   Paperclip,
-  PlayCircle,
   Plus,
   RefreshCw,
   Search,
@@ -45,21 +45,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
 import { AgentToolSearchDialog } from '@/components/agent-tool-search-dialog'
+import { AnalyticsWorkspace, AutomationRunRow, mapAutomationRun } from '@/components/analytics-workspace'
 import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
 import { ChatPanel } from '@/components/chat-panel'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
 import { FileExplorerPanel } from '@/components/file-explorer-panel'
 import { InformationCenterWorkspace } from '@/components/information-center-workspace'
+import { McpServersSettings } from '@/components/mcp-servers-settings'
 import { MessageHighlightLayer } from '@/components/message-highlight-layer'
 import { PromptEnhanceModal } from '@/components/prompt-enhance-modal'
 import { SelectionPopover } from '@/components/selection-popover'
 import { SettingsDialog } from '@/components/settings-dialog'
+import { SkillsSettings } from '@/components/skills-settings'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
+import { InlineError, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import type { AgentRow } from '@/db/schema'
 import {
   createConversation,
@@ -76,6 +80,8 @@ import {
   fetchAutomationDashboard,
   fetchAutomationRuns,
   fetchConversations,
+  fetchMcpServers,
+  fetchSkills,
   fetchUsageSummary,
   optimizePrompt,
   runAutomationNow,
@@ -88,10 +94,11 @@ import {
   type AutomationIconKey,
   type AutomationListItem,
   type AutomationRunDetailItem,
-  type AutomationRunListItem,
   type AutomationScheduleType,
   type AutomationStatus,
+  type McpServerListItem,
   type SaveAutomationBody,
+  type SkillListItem,
   type UsageSummary,
 } from '@/lib/api'
 import { groupArtifactVersions } from '@/lib/artifact-groups'
@@ -106,6 +113,7 @@ const navItems: Array<{ id: WorkbenchView; label: string; icon: React.ComponentT
   { id: 'conversations', label: '对话', icon: MessageSquare },
   { id: 'information-center', label: '信息中心', icon: Bell },
   { id: 'agents', label: 'Agent 库', icon: Bot },
+  { id: 'capability-center', label: '能力中心', icon: Boxes },
   { id: 'artifacts', label: '产物库', icon: Layers },
   { id: 'automation', label: '自动化', icon: Workflow },
   { id: 'analytics', label: '分析', icon: BarChart3 },
@@ -217,66 +225,6 @@ const AUTOMATION_ICON_STYLES: Record<AutomationIconKey, Pick<AutomationTaskPrese
   video: { icon: Video, iconWrapClassName: 'bg-orange-50', iconClassName: 'text-orange-600' },
   history: { icon: History, iconWrapClassName: 'bg-cyan-50', iconClassName: 'text-cyan-600' },
 }
-
-type AnalyticsKpi = {
-  label: string
-  value: string
-  caption: string
-  icon: React.ComponentType<{ className?: string }>
-  toneClassName: string
-}
-
-type AnalyticsTrendPoint = {
-  label: string
-  value: number
-}
-
-type AnalyticsRunRecord = {
-  id: string
-  title: string
-  category: string
-  status: '成功' | '失败' | '运行中'
-  duration: string
-  time: string
-}
-
-type AnalyticsDistributionItem = {
-  label: string
-  value: number
-  className: string
-}
-
-const ANALYTICS_KPIS: AnalyticsKpi[] = [
-  { label: '任务总数', value: '5', caption: '已配置自动化任务', icon: Workflow, toneClassName: 'bg-slate-100 text-slate-600' },
-  { label: '今日运行次数', value: '18', caption: '较昨日 +4 次', icon: PlayCircle, toneClassName: 'bg-slate-100 text-slate-600' },
-  { label: '成功率', value: '96.8%', caption: '近 7 天稳定运行', icon: CheckCircle2, toneClassName: 'bg-slate-100 text-slate-600' },
-  { label: '失败次数', value: '2', caption: '需复查输入源', icon: CircleAlert, toneClassName: 'bg-rose-50 text-rose-600' },
-]
-
-const ANALYTICS_TREND: AnalyticsTrendPoint[] = [
-  { label: '周一', value: 12 },
-  { label: '周二', value: 18 },
-  { label: '周三', value: 15 },
-  { label: '周四', value: 22 },
-  { label: '周五', value: 28 },
-  { label: '周六', value: 10 },
-  { label: '周日', value: 14 },
-]
-
-const ANALYTICS_DISTRIBUTION: AnalyticsDistributionItem[] = [
-  { label: '内容推送', value: 42, className: 'bg-[var(--agenthub-accent,#2F5FD0)]' },
-  { label: '学习提醒', value: 24, className: 'bg-slate-500' },
-  { label: '项目报告', value: 20, className: 'bg-slate-400' },
-  { label: '兴趣推荐', value: 14, className: 'bg-slate-300' },
-]
-
-const ANALYTICS_RECENT_RUNS: AnalyticsRunRecord[] = [
-  { id: 'run-ai-news', title: '每日 AI 新闻推送', category: '内容推送', status: '成功', duration: '36s', time: '08:30' },
-  { id: 'run-english', title: '每日 5 个英语单词', category: '学习提醒', status: '运行中', duration: '12s', time: '07:45' },
-  { id: 'run-report', title: '每周工作周报', category: '项目报告', status: '成功', duration: '2m 18s', time: '上周五' },
-  { id: 'run-movie', title: '经典电影推荐', category: '兴趣推荐', status: '失败', duration: '8s', time: '昨日' },
-  { id: 'run-history', title: '历史上的今天', category: '内容推送', status: '成功', duration: '24s', time: '今日' },
-]
 
 const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
   {
@@ -954,14 +902,15 @@ export function AppWorkbench() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px))] bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
+    <div className="flex h-full min-h-0 bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
-      <main className="min-w-0 flex-1 overflow-visible">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
-        <div className="overflow-visible">
+        <div className="h-full min-h-0 overflow-hidden">
           {view === 'new-task' && <NewTaskView onOpenConversations={() => setView('conversations')} />}
           {view === 'conversations' && <ConversationWorkspace />}
           {view === 'agents' && <AgentWorkspace onOpenConversations={() => setView('conversations')} onOpenTeamDetail={openTeamDetail} />}
+          {view === 'capability-center' && <CapabilityCenterWorkspace />}
           {view === 'artifacts' && <ArtifactWorkspace onOpenConversations={() => setView('conversations')} />}
           {view === 'automation' && <AutomationWorkspace />}
           {view === 'information-center' && <InformationCenterWorkspace />}
@@ -1339,7 +1288,7 @@ function MobileWorkbenchDrawer({
 
         <div className="space-y-2 border-t border-slate-100 p-3 dark:border-white/10">
           {accountOpen && (
-            <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} />
+            <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           )}
 
           <button
@@ -1397,10 +1346,12 @@ function UserAccountOverview({
   usage,
   onReload,
   onOpenSettings,
+  onClose,
 }: {
   usage: { data: UsageSummary | null; loading: boolean; error: string | null }
   onReload: () => void
   onOpenSettings: () => void
+  onClose?: () => void
 }) {
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
   const topModels = usage.data?.byModel.slice(0, 2) ?? []
@@ -1408,12 +1359,28 @@ function UserAccountOverview({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">个人账户</div>
-          <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-neutral-800">A</div>
+          <div className="min-w-0">
+            <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">Agenter</div>
+            <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
+          </div>
         </div>
-        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">已连接</span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">已连接</span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+              aria-label="关闭账户概览"
+              title="关闭账户概览"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {usage.loading && !usage.data ? (
@@ -1427,15 +1394,16 @@ function UserAccountOverview({
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <Meta label="今日 Token" value={formatTok(usage.data.today.totalTokens)} />
-            <Meta label="今日运行" value={`${usage.data.today.runs} 次`} />
             <Meta label="本周 Token" value={formatTok(usage.data.week.totalTokens)} />
-            <Meta label="全部运行" value={`${usage.data.allTime.runs} 次`} />
           </div>
 
           {topModels.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">常用模型</div>
-              {topModels.map((model) => (
+              <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                <span>常用模型</span>
+                <span>{usage.data.today.runs} 次今日运行</span>
+              </div>
+              {topModels.slice(0, 1).map((model) => (
                 <UsageBarRow key={model.model} label={model.model} value={model.totalTokens} runs={model.runs} max={topModels[0].totalTokens} />
               ))}
             </div>
@@ -1443,8 +1411,8 @@ function UserAccountOverview({
 
           {topConversations.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">高频会话</div>
-              {topConversations.map((conversation) => (
+              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">最近高频会话</div>
+              {topConversations.slice(0, 2).map((conversation) => (
                 <button
                   key={conversation.id}
                   type="button"
@@ -1529,7 +1497,7 @@ function WorkbenchNav({
   const usage = useUsageSummary(accountOpen && !collapsed)
 
   return (
-    <aside className={cn('sticky top-[var(--agenthub-titlebar-height,0px)] hidden h-[calc(100vh-var(--agenthub-titlebar-height,0px))] shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', collapsed ? 'w-[88px]' : view === 'conversations' ? 'w-[288px]' : 'w-[236px]')}>
+    <aside className={cn('hidden h-full min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', collapsed ? 'w-[88px]' : view === 'conversations' ? 'w-[288px]' : 'w-[236px]')}>
       <div className={cn('mb-3 flex items-center gap-2 px-2', collapsed && 'flex-col px-0')}>
         <button
           type="button"
@@ -1594,7 +1562,7 @@ function WorkbenchNav({
         {!collapsed && <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl + N</span>}
       </button>
 
-      <nav className="space-y-1">
+      <nav className="shrink-0 space-y-1">
         {navItems.filter((item) => item.id !== 'new-task').map((item) => {
           const Icon = item.icon
           const active = view === item.id || (item.id === 'conversations' && view === 'new-task')
@@ -1636,9 +1604,11 @@ function WorkbenchNav({
         </div>
       )}
 
-      <div className={cn('mt-auto space-y-2', !collapsed && view === 'conversations' && 'mt-4')}>
+      {(!collapsed && view !== 'conversations') && <div className="min-h-3 flex-1" />}
+
+      <div className="shrink-0 space-y-2 pt-3">
         {accountOpen && !collapsed && (
-          <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} />
+          <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
         )}
 
         <button
@@ -2513,7 +2483,6 @@ function AgentWorkspace({
               <p className="mt-1 text-sm text-slate-500">发现、配置和复用你的协作 Agent</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <AgentToolSearchDialog agents={agents} />
               <Button onClick={() => setFormOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
                 <Plus className="mr-2 size-4" />
                 创建 Agent
@@ -2734,6 +2703,388 @@ function AgentWorkspace({
   )
 }
 
+function CapabilityCenterWorkspace() {
+  const agents = useAgentList()
+  const setWorkbenchView = useAppStore((s) => s.setWorkbenchView)
+  const [skills, setSkills] = useState<SkillListItem[]>([])
+  const [mcpServers, setMcpServers] = useState<McpServerListItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeCapabilityTab, setActiveCapabilityTab] = useState<'skills' | 'mcp'>('skills')
+  const [bindingView, setBindingView] = useState<'capability' | 'agent'>('capability')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [nextSkills, nextMcpServers] = await Promise.all([fetchSkills(), fetchMcpServers()])
+      setSkills(nextSkills)
+      setMcpServers(nextMcpServers)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const skillBindings = useMemo(() => buildCapabilityBindings(agents, skills, 'skillIds'), [agents, skills])
+  const mcpBindings = useMemo(() => buildCapabilityBindings(agents, mcpServers, 'mcpServerIds'), [agents, mcpServers])
+  const agentBindings = useMemo(() => buildAgentCapabilityBindings(agents, skills, mcpServers), [agents, skills, mcpServers])
+  const brokenBindingCount = [...skillBindings, ...mcpBindings].filter((item) => item.missing).length
+  const boundAgentIds = new Set<string>()
+  for (const item of [...skillBindings, ...mcpBindings]) {
+    for (const agent of item.agents) boundAgentIds.add(agent.id)
+  }
+  const totalBindings = skillBindings.reduce((sum, item) => sum + item.agents.length, 0) + mcpBindings.reduce((sum, item) => sum + item.agents.length, 0)
+
+  return (
+    <PageShell className="p-2 lg:p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" contentClassName="w-full max-w-none gap-2.5 lg:gap-3">
+      <PageHeader
+        icon={Boxes}
+        title="能力中心"
+        description="管理可复用 Skills、MCP Servers 与 Agent 绑定关系。"
+        actions={<AgentToolSearchDialog agents={agents} />}
+      />
+
+      {error && <InlineError message={error} onRetry={() => void load()} />}
+
+      <PageCard className="overflow-hidden p-0">
+        <div className="grid gap-0 divide-y divide-[var(--agenthub-border)] md:grid-cols-[minmax(0,1fr)_280px] md:divide-x md:divide-y-0">
+          <div className="p-2.5 sm:p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">能力概览</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">查看本地能力数量、绑定范围，并通过统一入口导入新能力。</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="flex h-8 w-fit items-center gap-2 rounded-lg border border-[var(--agenthub-border)] px-3 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-neutral-800"
+              >
+                <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+                刷新索引
+              </button>
+            </div>
+            <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+              <CapabilityStat icon={BookOpen} label="Skills" value={`${skills.length}`} caption="规则、流程与提示词能力" />
+              <CapabilityStat icon={Workflow} label="MCP Servers" value={`${mcpServers.length}`} caption="本机 stdio 工具服务" />
+              <CapabilityStat icon={Bot} label="已绑定 Agent" value={`${boundAgentIds.size}`} caption={`${totalBindings} 条能力绑定`} />
+            </div>
+          </div>
+          <div className="flex flex-col justify-between gap-2.5 bg-[var(--agenthub-surface-muted)] p-2.5 dark:bg-neutral-950/30 sm:p-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <Search className="size-4 text-[var(--agenthub-accent)]" />
+                联网搜索
+              </div>
+              <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">从 GitHub 搜索可安装的 Skill / MCP，导入后再配置给目标 Agent。</p>
+            </div>
+            <div className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+              主入口位于页面右上角。导入完成后请刷新索引查看最新绑定状态。
+            </div>
+          </div>
+        </div>
+      </PageCard>
+
+      {loading && !error && skills.length === 0 && mcpServers.length === 0 && (
+        <PageCard className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">正在加载能力索引...</PageCard>
+      )}
+
+      <section className="grid gap-2.5 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+        <PageCard className="p-2.5 sm:p-3">
+          <div className="mb-2.5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">本地能力管理</h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">维护已导入或本地创建的 Skills 与 MCP Servers。</p>
+            </div>
+            <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-xs text-[var(--agenthub-accent)]">{skills.length + mcpServers.length} 项</span>
+          </div>
+
+          <div className="mb-2.5 flex rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-1 dark:bg-neutral-950/30">
+            {[
+              { id: 'skills' as const, label: 'Skills', count: skills.length },
+              { id: 'mcp' as const, label: 'MCP Servers', count: mcpServers.length },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveCapabilityTab(tab.id)}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition',
+                  activeCapabilityTab === tab.id
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-neutral-900 dark:text-slate-100'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+                )}
+              >
+                {tab.label}
+                <span className="text-[10px] text-slate-400">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <section className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-2.5 dark:bg-neutral-950/30">
+            <div className="mb-2.5 flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100">
+              {activeCapabilityTab === 'skills' ? <BookOpen className="size-4 text-slate-400" /> : <Workflow className="size-4 text-slate-400" />}
+              {activeCapabilityTab === 'skills' ? 'Skills' : 'MCP Servers'}
+            </div>
+            {activeCapabilityTab === 'skills' ? <SkillsSettings /> : <McpServersSettings />}
+          </section>
+        </PageCard>
+
+        <PageCard className="p-2.5 sm:p-3">
+          <div className="mb-2.5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Agent 绑定关系</h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">按能力或 Agent 查看使用范围，快速定位重复或失效绑定。</p>
+            </div>
+            <Bot className="size-4 text-slate-400" />
+          </div>
+
+          {brokenBindingCount > 0 && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              有 {brokenBindingCount} 个绑定引用了不存在的能力，请检查对应 Agent 配置。
+            </div>
+          )}
+
+          <div className="mb-2.5 flex rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-1 dark:bg-neutral-950/30">
+            {[
+              { id: 'capability' as const, label: '按能力' },
+              { id: 'agent' as const, label: '按 Agent' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setBindingView(tab.id)}
+                className={cn(
+                  'flex flex-1 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium transition',
+                  bindingView === tab.id
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-neutral-900 dark:text-slate-100'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {bindingView === 'capability' ? (
+            <div className="space-y-3">
+              <CapabilityBindingList title="Skill 绑定" empty="暂无 Skill 绑定" items={skillBindings} onOpenAgent={() => setWorkbenchView('agents')} />
+              <CapabilityBindingList title="MCP 绑定" empty="暂无 MCP 绑定" items={mcpBindings} onOpenAgent={() => setWorkbenchView('agents')} />
+            </div>
+          ) : (
+            <AgentCapabilityBindingList items={agentBindings} onOpenAgent={() => setWorkbenchView('agents')} />
+          )}
+        </PageCard>
+      </section>
+    </PageShell>
+  )
+}
+
+function CapabilityStat({
+  icon: Icon,
+  label,
+  value,
+  caption,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  value: string
+  caption: string
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3 dark:bg-neutral-950/30">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
+          <div className="mt-1.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{value}</div>
+        </div>
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+          <Icon className="size-4" />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{caption}</p>
+    </div>
+  )
+}
+
+type CapabilityBindingItem = {
+  id: string
+  name: string
+  agents: AgentRow[]
+  missing: boolean
+}
+
+type AgentCapabilityBindingItem = {
+  agent: AgentRow
+  skills: Array<{ id: string; name: string; missing: boolean }>
+  mcpServers: Array<{ id: string; name: string; missing: boolean }>
+}
+
+function buildCapabilityBindings<T extends { id: string; name: string }>(
+  agents: AgentRow[],
+  capabilities: T[],
+  field: 'skillIds' | 'mcpServerIds',
+): CapabilityBindingItem[] {
+  const capabilityById = new Map(capabilities.map((capability) => [capability.id, capability]))
+  const ids = new Set<string>()
+  for (const agent of agents) {
+    for (const id of agent[field] ?? []) ids.add(id)
+  }
+
+  return Array.from(ids).map((id) => {
+    const capability = capabilityById.get(id)
+    return {
+      id,
+      name: capability?.name ?? `未找到能力：${id}`,
+      agents: agents.filter((agent) => (agent[field] ?? []).includes(id)),
+      missing: !capability,
+    }
+  }).sort((a, b) => b.agents.length - a.agents.length)
+}
+
+function buildAgentCapabilityBindings(
+  agents: AgentRow[],
+  skills: SkillListItem[],
+  mcpServers: McpServerListItem[],
+): AgentCapabilityBindingItem[] {
+  const skillById = new Map(skills.map((skill) => [skill.id, skill]))
+  const mcpById = new Map(mcpServers.map((server) => [server.id, server]))
+  return agents
+    .map((agent) => ({
+      agent,
+      skills: (agent.skillIds ?? []).map((id) => {
+        const skill = skillById.get(id)
+        return { id, name: skill?.name ?? `未找到能力：${id}`, missing: !skill }
+      }),
+      mcpServers: (agent.mcpServerIds ?? []).map((id) => {
+        const server = mcpById.get(id)
+        return { id, name: server?.name ?? `未找到能力：${id}`, missing: !server }
+      }),
+    }))
+    .filter((item) => item.skills.length > 0 || item.mcpServers.length > 0)
+    .sort((a, b) => (b.skills.length + b.mcpServers.length) - (a.skills.length + a.mcpServers.length))
+}
+function CapabilityBindingList({
+  title,
+  empty,
+  items,
+  onOpenAgent,
+}: {
+  title: string
+  empty: string
+  items: CapabilityBindingItem[]
+  onOpenAgent: () => void
+}) {
+  const bindingCount = items.reduce((sum, item) => sum + item.agents.length, 0)
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">{title}</div>
+        <span className="text-[11px] text-slate-400">{bindingCount} 条</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-4 text-center text-xs text-slate-500 dark:bg-neutral-950/30 dark:text-slate-400">{empty}</div>
+      ) : (
+        <div className="max-h-[320px] space-y-1.5 overflow-y-auto pr-1">
+          {items.map((item) => (
+            <div key={item.id} className={cn('rounded-xl border bg-[var(--agenthub-surface-muted)] px-3 py-2.5 transition hover:border-[var(--agenthub-accent-border)] dark:bg-neutral-950/30', item.missing ? 'border-amber-300 bg-amber-50/60 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-[var(--agenthub-border)]')}>
+              <div className="flex items-center justify-between gap-2">
+                <div className={cn('flex min-w-0 flex-1 items-center gap-1.5 truncate text-xs font-medium', item.missing ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-slate-100')} title={item.id}>
+                  {item.missing && <AlertTriangle className="size-3.5 shrink-0" />}
+                  <span className="truncate">{item.name}</span>
+                </div>
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-[var(--agenthub-border)] dark:bg-neutral-900 dark:text-slate-400">{item.agents.length}</span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {item.agents.slice(0, 4).map((agent) => (
+                  <button key={agent.id} type="button" onClick={onOpenAgent} className="max-w-[120px] truncate rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-600 ring-1 ring-[var(--agenthub-border)] transition hover:text-[var(--agenthub-accent)] hover:ring-[var(--agenthub-accent-border)] dark:bg-neutral-900 dark:text-slate-300" title={`打开 Agent 库：${agent.name}`}>
+                    {agent.name}
+                  </button>
+                ))}
+                {item.agents.length > 4 && (
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-400 ring-1 ring-[var(--agenthub-border)] dark:bg-neutral-900">+{item.agents.length - 4}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgentCapabilityBindingList({
+  items,
+  onOpenAgent,
+}: {
+  items: AgentCapabilityBindingItem[]
+  onOpenAgent: () => void
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-4 text-center text-xs text-slate-500 dark:bg-neutral-950/30 dark:text-slate-400">
+        暂无 Agent 绑定能力
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-h-[660px] space-y-1.5 overflow-y-auto pr-1">
+      {items.map((item) => (
+        <div key={item.agent.id} className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2.5 dark:bg-neutral-950/30">
+          <div className="flex items-center justify-between gap-2">
+            <button type="button" onClick={onOpenAgent} className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-slate-900 transition hover:text-[var(--agenthub-accent)] dark:text-slate-100" title={`打开 Agent 库：${item.agent.name}`}>
+              {item.agent.name}
+            </button>
+            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-500 ring-1 ring-[var(--agenthub-border)] dark:bg-neutral-900 dark:text-slate-400">
+              {item.skills.length + item.mcpServers.length} 项
+            </span>
+          </div>
+          <AgentCapabilityChips label="Skills" items={item.skills} />
+          <AgentCapabilityChips label="MCP" items={item.mcpServers} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AgentCapabilityChips({
+  label,
+  items,
+}: {
+  label: string
+  items: Array<{ id: string; name: string; missing: boolean }>
+}) {
+  if (items.length === 0) return null
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-[10px] font-medium text-slate-400">{label}</span>
+      {items.slice(0, 5).map((item) => (
+        <span
+          key={item.id}
+          className={cn(
+            'max-w-[150px] truncate rounded-full px-2 py-0.5 text-[10px] ring-1',
+            item.missing
+              ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30'
+              : 'bg-white text-slate-600 ring-[var(--agenthub-border)] dark:bg-neutral-900 dark:text-slate-300',
+          )}
+          title={item.id}
+        >
+          {item.name}
+        </span>
+      ))}
+      {items.length > 5 && <span className="text-[10px] text-slate-400">+{items.length - 5}</span>}
+    </div>
+  )
+}
 function getPresetDisplayName(preset: ResourceAgentPreset) {
   const names: Record<string, string> = {
     'workbuddy-explore': '代码探索助手',
@@ -3756,26 +4107,6 @@ function mapAutomationTask(item: AutomationListItem): AutomationTaskPreset {
   }
 }
 
-function mapAutomationRun(item: AutomationRunListItem): AnalyticsRunRecord {
-  return {
-    id: item.id,
-    title: item.title,
-    category: item.category,
-    status: item.status === 'success' ? '成功' : item.status === 'running' ? '运行中' : '失败',
-    duration: item.status === 'running' ? '进行中' : formatDuration(item.durationMs),
-    time: formatRelativeRunTime(item.startedAt),
-  }
-}
-
-function formatDuration(value: number | null): string {
-  if (value === null) return '—'
-  const totalSeconds = Math.max(0, Math.round(value / 1000))
-  if (totalSeconds < 60) return `${totalSeconds}s`
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`
-}
-
 function formatRelativeRunTime(value: number): string {
   const now = new Date()
   const target = new Date(value)
@@ -3842,13 +4173,13 @@ function buildAutomationPromptEnhanceInput(form: AutomationFormState): string {
           : '手动触发'
 
   return [
-    '请为一个 AgentHub 自动化任务生成可直接保存执行的任务提示词。',
+    '请根据以下信息，改写或生成一段适合自动化任务执行的提示词。',
     `任务标题：${form.title.trim() || '未命名自动化任务'}`,
     `任务分类：${form.category.trim() || '自定义任务'}`,
-    form.description.trim() ? `任务描述：${form.description.trim()}` : '',
+    form.description.trim() ? `任务说明：${form.description.trim()}` : '',
     `触发方式：${scheduleLabel}`,
-    form.prompt.trim() ? `当前提示词草稿：${form.prompt.trim()}` : '',
-    '要求：输出中文；说明清楚目标、输入范围、执行步骤和最终输出格式；不要输出额外解释。',
+    form.prompt.trim() ? `现有草稿：${form.prompt.trim()}` : '',
+    '请直接输出可保存的最终提示词，语气自然、简洁、专业；补足必要的目标、上下文、边界和结果要求，但不要强行套用固定模板，也不要解释你做了什么。',
   ].filter((line) => line.length > 0).join('\n')
 }
 
@@ -4460,141 +4791,6 @@ function AutomationTaskCard({
         <Meta label="最近运行" value={task.latestRun} />
       </div>
     </button>
-  )
-}
-
-function AnalyticsWorkspace() {
-  const maxTrend = Math.max(...ANALYTICS_TREND.map((point) => point.value))
-
-  return (
-    <div className="h-full overflow-y-auto p-4 lg:p-6">
-      <section className="mx-auto flex max-w-6xl flex-col gap-4">
-        <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-                <BarChart3 className="size-5 shrink-0 text-[var(--agenthub-accent)]" />
-                分析
-              </div>
-              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">自动化任务运行分析，观察任务质量、成功率与近期趋势</p>
-            </div>
-            <Button variant="outline" size="sm" className="w-fit">
-              <Clock3 className="size-3.5" />
-              近 7 天
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {ANALYTICS_KPIS.map((kpi) => (
-            <AnalyticsKpiCard key={kpi.label} kpi={kpi} />
-          ))}
-        </div>
-
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-          <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">运行趋势</h2>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">近 7 天自动化任务触发次数</p>
-              </div>
-              <BarChart3 className="size-4 text-slate-400" />
-            </div>
-            <div className="mt-5 flex h-56 items-end gap-3 rounded-xl border border-[var(--agenthub-border)] bg-slate-50 p-4 dark:bg-neutral-950/40 sm:gap-5">
-              {ANALYTICS_TREND.map((point) => (
-                <div key={point.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                  <div className="flex w-full flex-1 items-end justify-center">
-                    <div className="w-full max-w-8 rounded-t-lg bg-[var(--agenthub-accent)] transition hover:bg-[var(--agenthub-accent-hover)]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
-                  </div>
-                  <div className="text-center">
-                    <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{point.value}</div>
-                    <div className="text-[10px] text-slate-400">{point.label}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">任务类型分布</h2>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">按本周运行次数统计</p>
-              </div>
-              <Layers className="size-4 text-slate-400" />
-            </div>
-            <div className="mt-5 space-y-4">
-              {ANALYTICS_DISTRIBUTION.map((item) => (
-                <div key={item.label}>
-                  <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
-                    <span className="font-medium text-slate-900 dark:text-slate-100">{item.value}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100 dark:bg-white/10">
-                    <div className={cn('h-full rounded-full', item.className)} style={{ width: `${item.value}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">最近运行记录</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">包含状态、耗时和任务类型，用于快速排查异常</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-white/10 dark:text-slate-400">{ANALYTICS_RECENT_RUNS.length} 条记录</span>
-          </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-[var(--agenthub-border)]">
-            {ANALYTICS_RECENT_RUNS.map((run) => (
-              <AutomationRunRow key={run.id} run={run} table />
-            ))}
-          </div>
-        </section>
-      </section>
-    </div>
-  )
-}
-
-function AnalyticsKpiCard({ kpi }: { kpi: AnalyticsKpi }) {
-  const Icon = kpi.icon
-
-  return (
-    <article className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm transition hover:border-[var(--agenthub-accent-border)] dark:bg-neutral-900">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">{kpi.label}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">{kpi.value}</div>
-        </div>
-        <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', kpi.toneClassName)}>
-          <Icon className="size-5" />
-        </div>
-      </div>
-      <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{kpi.caption}</p>
-    </article>
-  )
-}
-
-function AutomationRunRow({ run, table = false }: { run: AnalyticsRunRecord; table?: boolean }) {
-  const statusClassName = run.status === '成功'
-    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
-    : run.status === '运行中'
-      ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-      : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
-
-  return (
-    <div className={cn('grid gap-3 border-slate-100 bg-[var(--agenthub-surface)] p-3 transition hover:bg-[var(--agenthub-accent-soft)]/40 dark:border-white/10 dark:bg-neutral-900 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center', table ? 'border-b last:border-b-0' : 'rounded-xl border')}>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{run.title}</div>
-        <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 sm:hidden">{run.category} · {run.duration} · {run.time}</div>
-      </div>
-      <div className="hidden truncate text-xs text-slate-500 dark:text-slate-400 sm:block">{run.category}</div>
-      <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{run.duration}</div>
-      <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{run.time}</div>
-      <span className={cn('w-fit rounded-full px-2 py-1 text-[10px] font-medium', statusClassName)}>{run.status}</span>
-    </div>
   )
 }
 
