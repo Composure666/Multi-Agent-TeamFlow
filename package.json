@@ -1,6 +1,19 @@
 {
   "name": "bytedance-agenthub",
   "version": "0.1.0",
+  "description": "Local-first multi-agent workspace with IM-style collaboration, artifacts, approvals, and Electron desktop support.",
+  "keywords": [
+    "agenthub",
+    "multi-agent",
+    "ai-agent",
+    "nextjs",
+    "electron",
+    "sqlite"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/Composure666/agent-hub.git"
+  },
   "license": "AGPL-3.0-only",
   "private": true,
   "main": "dist-electron/main.js",
