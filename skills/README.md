@@ -11,5 +11,8 @@
 | [新增一个工具](add-tool.md) | 给 Agent 加一个内置工具(LLM 可调用的 function) | `specs/07` |
 | [新增一种 MessagePart 类型](add-message-part.md) | 消息里要渲染一种新内容块(且 markdown 表达不了) | `specs/03`(+ `02`) |
 | [新增一种 Artifact 类型](add-artifact-type.md) | 产物面板要支持一种新产物(如激活 diff、新增图表) | `specs/04` |
+| [Finesse UI 审计](finesse-skill/SKILL.md) | 审查界面层级、任务路径、响应式和可访问性 | `openspec/specs/frontend/spec.md` |
+| [Finesse 工作台 Brief](finesse-brief/SKILL.md) | 设计或重构页面级工作台与领域边界 | `openspec/project.md` |
+| [Frame Smith 产品动效](frame-smith/SKILL.md) | 设计运行态、转场和反馈动效 | `openspec/specs/frontend/spec.md` |
 
 > ⚠️ **行号会随代码漂移**。每份指南里的 `file:line` 是写作时(基线 commit 见各文件)的快照;若对不上,**以文中的符号名 / 函数名为准**搜索定位。指南与代码冲突时,按 `CLAUDE.md §9`「以 spec 为准,先改对一边并写明」。

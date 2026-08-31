@@ -1,14 +1,13 @@
 'use client'
 
-import { AlertTriangle, FilePenLine, FolderOpen, FolderTree, Layers, Menu, MessagesSquare, UserPlus, X } from 'lucide-react'
+import { AlertTriangle, FilePenLine, Layers, Menu, MessagesSquare, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { AddAgentDialog } from '@/components/add-agent-dialog'
 import { AgentInfoPopover } from '@/components/agent-info-popover'
-import { AgentRunDebugButton } from '@/components/agent-run-debug-button'
 import { AskUserQuestionDialog } from '@/components/ask-user-question-dialog'
 import { ArtifactLibrary } from '@/components/artifact-library'
-import { ConversationOutline } from '@/components/conversation-outline'
+import { ChatToolbar } from '@/components/chat-toolbar'
 import { FileLibraryDialog } from '@/components/file-library-dialog'
 import { FileTab } from '@/components/file-tab'
 import { PendingWriteDiffTab } from '@/components/pending-write-diff-tab'
@@ -17,7 +16,6 @@ import { PendingMcpToolApprovalsPanel } from '@/components/pending-mcp-tool-appr
 import { PendingWritesPanel } from '@/components/pending-writes-panel'
 import { diffTabPendingId, isDiffTabId } from '@/components/pending-writes-panel'
 import { PinnedMessagesBar } from '@/components/pinned-messages-bar'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -28,8 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { MessageInput } from '@/components/message-input'
 import { MessageList } from '@/components/message-list'
-import { UsageBadge } from '@/components/usage-badge'
-import { WorkspaceMemoryButton } from '@/components/workspace-memory-button'
+import { RunStatusSummary } from '@/components/run-status-summary'
 import type { AgentRow } from '@/db/schema'
 import { fetchPendingDispatchPlans } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -44,7 +41,6 @@ import {
 export function ChatPanel() {
   const conv = useActiveConversation()
   const agents = useAppStore((s) => s.agents)
-  const streamConnected = useAppStore((s) => s.streamConnected)
   const fileExplorerOpen = useAppStore((s) => s.fileExplorerOpen)
   const previewArtifactId = useAppStore((s) => s.previewArtifactId)
   const setFileExplorerOpen = useAppStore((s) => s.setFileExplorerOpen)
@@ -144,57 +140,19 @@ export function ChatPanel() {
             </div>
           </div>
         </div>
-        <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-          {/* 右侧面板切换（文件树 / 产物预览，互斥）。点同一个再关掉。 */}
-          <Button
-            size="icon-sm"
-            variant={fileExplorerOpen ? 'default' : 'ghost'}
-            onClick={() => setFileExplorerOpen(!fileExplorerOpen)}
-            title={fileExplorerOpen ? '关闭工作区' : '打开工作区'}
-            className={cn('rounded-lg transition', fileExplorerOpen ? 'bg-blue-50 text-[#3370ff] hover:bg-blue-100' : 'text-slate-500 hover:bg-slate-100')}
-          >
-            <FolderTree className="size-4" />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant={artifactsOpen || previewArtifactId ? 'default' : 'ghost'}
-            onClick={() => setArtifactsOpen(true)}
-            title="本会话产物库"
-            className={cn('rounded-lg transition', artifactsOpen || previewArtifactId ? 'bg-blue-50 text-[#3370ff] hover:bg-blue-100' : 'text-slate-500 hover:bg-slate-100')}
-          >
-            <Layers className="size-4" />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => setFilesOpen(true)}
-            title="会话文件库"
-            className="rounded-lg text-slate-500 transition hover:bg-slate-100"
-          >
-            <FolderOpen className="size-4" />
-          </Button>
-          <div className="mx-1 h-4 w-px bg-slate-200"></div>
-          <ConversationOutline conversationId={conv.id} />
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => setAddOpen(true)}
-            title="添加 Agent"
-            className="rounded-lg text-slate-500 transition hover:bg-slate-100"
-          >
-            <UserPlus className="size-4" />
-          </Button>
-          <WorkspaceMemoryButton conversationId={conv.id} />
-          <AgentRunDebugButton conversationId={conv.id} />
-          <UsageBadge conversationId={conv.id} />
-          <Badge variant={streamConnected ? 'default' : 'outline'} className={cn('ml-1 gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors', streamConnected ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-slate-50 text-slate-500')}>
-            <span
-              className={cn('size-1.5 rounded-full', streamConnected ? 'bg-emerald-500' : 'bg-slate-300')}
-            />
-            {streamConnected ? '已连接' : '断开'}
-          </Badge>
-        </div>
+        <ChatToolbar
+          conversationId={conv.id}
+          fileExplorerOpen={fileExplorerOpen}
+          artifactsOpen={artifactsOpen}
+          previewArtifactId={previewArtifactId}
+          onToggleFileExplorer={() => setFileExplorerOpen(!fileExplorerOpen)}
+          onOpenArtifacts={() => setArtifactsOpen(true)}
+          onOpenFiles={() => setFilesOpen(true)}
+          onAddAgent={() => setAddOpen(true)}
+        />
       </header>
+
+      <RunStatusSummary conversationId={conv.id} />
 
       {/* Tab bar：仅在有打开的文件 / diff 时显示（避免单 chat tab 时浪费空间） */}
       {openFiles.length > 0 && (

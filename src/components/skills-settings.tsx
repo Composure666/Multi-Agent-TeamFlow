@@ -4,9 +4,8 @@ import { Loader2, RotateCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { EmptyState, InlineError } from '@/components/workbench-primitives'
+import { StatusBadge, WorkspaceStateView } from '@/components/workbench-primitives'
 import { fetchSkills, refreshSkills, updateSkill, type SkillListItem } from '@/lib/api'
-import { cn } from '@/lib/utils'
 
 export function SkillsSettings() {
   const [skills, setSkills] = useState<SkillListItem[]>([])
@@ -55,6 +54,8 @@ export function SkillsSettings() {
     }
   }
 
+  const state = error ? 'error' : loading && skills.length === 0 ? 'loading' : skills.length === 0 ? 'empty' : 'ready'
+
   return (
     <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border bg-card p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -69,32 +70,24 @@ export function SkillsSettings() {
           刷新索引
         </Button>
       </div>
-      {error && <InlineError message={error} onRetry={() => void load()} />}
-      {!loading && !error && skills.length === 0 && (
-        <EmptyState title="暂无 Skills" description="点击右上角刷新索引扫描本地 skills/ 目录，或在 Agent 库中联网搜索并导入 GitHub Skill。" />
-      )}
-      <div className="grid min-w-0 gap-2">
-        {skills.map((skill) => {
-          const hasContent = Boolean(skill.content?.trim())
-          return (
-            <div key={skill.id} className="min-w-0 rounded-xl border bg-background p-3">
+      <WorkspaceStateView
+        state={state}
+        title="暂无 Skills"
+        emptyDescription="刷新索引可扫描本地 skills/ 目录，也可以从能力中心联网搜索并导入 GitHub Skill。"
+        errorDescription={error ?? undefined}
+        action={error ? { label: '重试', onClick: () => void load() } : undefined}
+      >
+        <div className="grid min-w-0 gap-2">
+          {skills.map((skill, index) => {
+            const hasContent = Boolean(skill.content?.trim())
+            return (
+            <div key={skill.id} className="agenthub-motion-item min-w-0 rounded-xl border bg-background p-3" style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
                     <span className="break-words">{skill.name}</span>
-                    {!skill.enabled && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">已禁用</span>
-                    )}
-                    <span
-                      className={cn(
-                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
-                        hasContent
-                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
-                          : 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300',
-                      )}
-                    >
-                      {hasContent ? '内容完整' : '仅元数据'}
-                    </span>
+                    <StatusBadge tone={skill.enabled ? 'success' : 'neutral'}>{skill.enabled ? '已启用' : '已禁用'}</StatusBadge>
+                    <StatusBadge tone={hasContent ? 'success' : 'warning'}>{hasContent ? '内容完整' : '仅元数据'}</StatusBadge>
                   </div>
                   <p className="mt-1 break-words text-[11px] text-muted-foreground">{skill.description}</p>
                   <p className="mt-1 truncate text-[10px] text-muted-foreground/70" title={skill.sourcePath}>
@@ -115,9 +108,10 @@ export function SkillsSettings() {
                 </Button>
               </div>
             </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      </WorkspaceStateView>
     </section>
   )
 }

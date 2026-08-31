@@ -85,7 +85,7 @@ function PendingBashCommandCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg border border-orange-200 bg-card px-3 py-2 text-xs shadow-sm',
+        'agenthub-motion-enter flex items-center gap-3 rounded-lg border border-orange-200 bg-card px-3 py-2 text-xs shadow-sm',
         'dark:border-orange-900/50',
       )}
     >

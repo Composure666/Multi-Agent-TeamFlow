@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { EmptyState, InlineError } from '@/components/workbench-primitives'
+import { StatusBadge, WorkspaceStateView } from '@/components/workbench-primitives'
 import {
   createMcpServer,
   deleteMcpServer,
@@ -129,6 +129,8 @@ export function McpServersSettings() {
     }
   }
 
+  const state = error ? 'error' : loading && servers.length === 0 ? 'loading' : servers.length === 0 ? 'empty' : 'ready'
+
   return (
     <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border bg-card p-3">
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
@@ -176,8 +178,6 @@ export function McpServersSettings() {
         )}
       </div>
 
-      {error && <InlineError message={error} onRetry={() => void load()} />}
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-medium">MCP Servers</h3>
         <Button type="button" size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
@@ -186,44 +186,27 @@ export function McpServersSettings() {
         </Button>
       </div>
 
-      {!loading && !error && servers.length === 0 && (
-        <EmptyState title="暂无 MCP Servers" description="在上方表单中添加一个 stdio MCP server，或在 Agent 库中联网搜索并导入 GitHub MCP。" />
-      )}
-
+      <WorkspaceStateView
+        state={state}
+        title="暂无 MCP Servers"
+        emptyDescription="在上方添加一个 stdio MCP server，也可以从能力中心联网搜索并导入 GitHub MCP。"
+        errorDescription={error ?? undefined}
+        action={error ? { label: '重试', onClick: () => void load() } : undefined}
+      >
       <div className="grid min-w-0 gap-2">
-        {servers.map((server) => {
+        {servers.map((server, index) => {
           const result = testResults[server.id]
           return (
-            <div key={server.id} className="min-w-0 rounded-xl border bg-background p-3">
+            <div key={server.id} className="agenthub-motion-item min-w-0 rounded-xl border bg-background p-3" style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
                     <span className="break-all">{server.name}</span>
-                    <span
-                      className={cn(
-                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
-                        server.trust === 'always'
-                          ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300'
-                          : 'bg-muted text-muted-foreground',
-                      )}
-                    >
-                      trust: {server.trust}
-                    </span>
-                    {!server.enabled && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">已禁用</span>
-                    )}
-                    <span
-                      className={cn(
-                        'rounded-full px-2 py-0.5 text-[10px] font-medium',
-                        server.lastCheckStatus === 'ok'
-                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
-                          : server.lastCheckStatus
-                            ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
-                            : 'bg-muted text-muted-foreground',
-                      )}
-                    >
+                    <StatusBadge tone={server.trust === 'always' ? 'warning' : 'neutral'}>trust: {server.trust}</StatusBadge>
+                    <StatusBadge tone={server.enabled ? 'success' : 'neutral'}>{server.enabled ? '已启用' : '已禁用'}</StatusBadge>
+                    <StatusBadge tone={server.lastCheckStatus === 'ok' ? 'success' : server.lastCheckStatus ? 'danger' : 'neutral'}>
                       {server.lastCheckStatus === 'ok' ? '连接正常' : server.lastCheckStatus ? `状态: ${server.lastCheckStatus}` : '未检测'}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{server.command} {server.args.join(' ')}</p>
                   <p className="mt-1 break-words text-[10px] text-muted-foreground">
@@ -256,6 +239,7 @@ export function McpServersSettings() {
           )
         })}
       </div>
+      </WorkspaceStateView>
     </section>
   )
 }

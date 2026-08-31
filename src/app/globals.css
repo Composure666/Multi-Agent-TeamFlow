@@ -97,6 +97,12 @@
   --agenthub-titlebar-button-active: rgba(15, 23, 42, 0.12);
   --agenthub-titlebar-close-hover: #E81123;
   --agenthub-titlebar-close-fg-hover: #FFFFFF;
+  --agenthub-motion-fast: 140ms;
+  --agenthub-motion-normal: 220ms;
+  --agenthub-motion-slow: 420ms;
+  --agenthub-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --agenthub-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --agenthub-ease-linear: linear;
 }
 
 .dark {
@@ -148,6 +154,12 @@
   --agenthub-titlebar-button-active: rgba(255, 255, 255, 0.12);
   --agenthub-titlebar-close-hover: #DC2626;
   --agenthub-titlebar-close-fg-hover: #FFFFFF;
+  --agenthub-motion-fast: 140ms;
+  --agenthub-motion-normal: 220ms;
+  --agenthub-motion-slow: 420ms;
+  --agenthub-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --agenthub-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --agenthub-ease-linear: linear;
   color-scheme: dark;
 }
 
@@ -473,7 +485,60 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+
   .theme-toggle-icon {
     animation: none;
   }
 }
+
+@keyframes agenthub-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes agenthub-slide-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.motion-safe\:animate-ah-fade-in {
+  animation: agenthub-fade-in var(--agenthub-motion-normal) var(--agenthub-ease-standard) both;
+}
+
+.agenthub-motion-enter {
+  animation: agenthub-fade-in var(--agenthub-motion-normal) var(--agenthub-ease-standard) both;
+}
+
+.agenthub-motion-item {
+  animation: agenthub-slide-in var(--agenthub-motion-normal) var(--agenthub-ease-standard) both;
+}
+
+.agenthub-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.25rem;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.agenthub-status-neutral { background: var(--agenthub-surface-muted); color: var(--muted-foreground); }
+.agenthub-status-info { background: color-mix(in srgb, var(--agenthub-accent) 10%, transparent); color: var(--agenthub-accent); }
+.agenthub-status-success { background: color-mix(in srgb, #10b981 12%, transparent); color: #047857; }
+.agenthub-status-warning { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #b45309; }
+.agenthub-status-danger { background: color-mix(in srgb, #ef4444 12%, transparent); color: #b91c1c; }
+
+.dark .agenthub-status-success { color: #6ee7b7; }
+.dark .agenthub-status-warning { color: #fcd34d; }
+.dark .agenthub-status-danger { color: #fda4af; }

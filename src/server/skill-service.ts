@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
@@ -168,18 +168,20 @@ function findMdFilesRecursive(dir: string): string[] {
 export async function refreshSkillsFromDisk(): Promise<SkillListItem[]> {
   if (!existsSync(SKILLS_DIR)) return []
   const now = Date.now()
-  const files = readdirSync(SKILLS_DIR)
-    .filter((file) => file.endsWith('.md'))
-    .map((file) => path.join(SKILLS_DIR, file))
-    .filter((filePath) => statSync(filePath).isFile())
+  const files = findMdFilesRecursive(SKILLS_DIR)
 
   for (const filePath of files) {
     const parsed = parseSkillFile(filePath)
-    const existing = await db.query.skills.findFirst({ where: eq(schema.skills.id, parsed.id) })
+    const relative = path.relative(SKILLS_DIR, filePath)
+    const id = path.dirname(relative) === '.'
+      ? parsed.id
+      : `skill_${workspaceSkillId(SKILLS_DIR, filePath)}`
+    const existing = await db.query.skills.findFirst({ where: eq(schema.skills.id, id) })
     if (existing) {
       await db
         .update(schema.skills)
         .set({
+          id,
           name: parsed.name,
           description: parsed.description,
           content: parsed.content,
@@ -187,10 +189,11 @@ export async function refreshSkillsFromDisk(): Promise<SkillListItem[]> {
           tags: parsed.tags,
           updatedAt: now,
         })
-        .where(eq(schema.skills.id, parsed.id))
+        .where(eq(schema.skills.id, existing.id))
     } else {
       await db.insert(schema.skills).values({
         ...parsed,
+        id,
         enabled: true,
         createdAt: now,
         updatedAt: now,

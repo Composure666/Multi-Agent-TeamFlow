@@ -70,7 +70,7 @@ function DispatchPlanReviewCard({
   }
 
   return (
-    <Card className="overflow-hidden border-amber-300/70 bg-amber-50/50 animate-in fade-in slide-in-from-top-2 duration-300 dark:border-amber-900/50 dark:bg-amber-950/15">
+    <Card className="agenthub-motion-enter overflow-hidden border-amber-300/70 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/15">
       <div className="space-y-3 p-3">
         <div className="flex items-center gap-2">
           <Network className="size-4 text-amber-600" />
@@ -144,8 +144,8 @@ function PlanTaskList({ dispatch }: { dispatch: DispatchState }) {
             style={{ animationDelay: `${idx * 60}ms` }}
             className={cn(
               'flex items-start gap-2 rounded-md border bg-card px-2 py-1.5 text-xs',
-              'animate-in fade-in slide-in-from-left-2 fill-mode-both duration-300',
-              'transition-[border-color,box-shadow,background-color] duration-300',
+              'agenthub-motion-item',
+              'transition-[border-color,box-shadow,background-color] duration-[var(--agenthub-motion-normal)]',
               status === 'running' &&
                 'border-amber-300 bg-amber-50/40 ring-2 ring-amber-200/60 dark:bg-amber-950/20',
               status === 'complete' && 'border-emerald-200 dark:border-emerald-900/40',
@@ -259,7 +259,7 @@ function DispatchPlanReadOnlyCard({ dispatch }: { dispatch: DispatchState }) {
   return (
     <Card
       className={cn(
-        'overflow-hidden border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-top-2 duration-300',
+        'agenthub-motion-enter overflow-hidden border-primary/20 bg-primary/5',
         rejected && 'border-zinc-300 bg-muted/40 dark:border-zinc-800',
       )}
     >
@@ -281,7 +281,7 @@ function DispatchPlanReadOnlyCard({ dispatch }: { dispatch: DispatchState }) {
         <div className="h-1 overflow-hidden rounded-full bg-primary/10">
           <div
             className={cn(
-              'h-full rounded-full transition-all duration-500 ease-out',
+              'h-full rounded-full transition-all duration-[var(--agenthub-motion-slow)] ease-out',
               allDone && hasFailed && 'bg-red-500',
               allDone && !hasFailed && hasSkipped && 'bg-zinc-400',
               allDone && !hasFailed && !hasSkipped && 'bg-emerald-500',

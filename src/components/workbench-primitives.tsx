@@ -1,4 +1,4 @@
-import { AlertTriangle, Inbox, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Inbox, Loader2, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -120,4 +120,56 @@ export function InlineError({
       )}
     </div>
   )
+}
+
+export type WorkspaceState = 'loading' | 'refreshing' | 'empty' | 'error' | 'ready'
+
+export function WorkspaceStateView({
+  state,
+  title,
+  description,
+  emptyDescription,
+  errorDescription,
+  action,
+  children,
+}: {
+  state: WorkspaceState
+  title?: string
+  description?: string
+  emptyDescription?: string
+  errorDescription?: string
+  action?: { label: string; onClick: () => void }
+  children?: ReactNode
+}) {
+  if (state === 'ready') return <>{children}</>
+  if (state === 'loading' || state === 'refreshing') {
+    return (
+      <PageCard className="flex min-h-32 items-center justify-center gap-2 text-sm text-muted-foreground motion-safe:animate-ah-fade-in">
+        <Loader2 className="size-4 motion-safe:animate-spin" />
+        {state === 'refreshing' ? '正在刷新…' : '正在加载…'}
+      </PageCard>
+    )
+  }
+  if (state === 'error') {
+    return <InlineError message={errorDescription ?? description ?? '加载失败'} onRetry={action?.onClick} />
+  }
+  return <EmptyState title={title ?? '暂无内容'} description={emptyDescription ?? description} action={action} />
+}
+
+export function ToolbarGroup({ children, label }: { children: ReactNode; label?: string }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-1 shadow-[var(--agenthub-shadow-card)]" aria-label={label}>
+      {children}
+    </div>
+  )
+}
+
+export function StatusBadge({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+  children: ReactNode
+}) {
+  return <span className={cn('agenthub-status-badge', `agenthub-status-${tone}`)}>{children}</span>
 }

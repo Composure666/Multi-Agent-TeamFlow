@@ -108,7 +108,7 @@ function PendingWriteCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-xs shadow-sm transition',
+        'agenthub-motion-enter flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-xs shadow-sm transition-[border-color,box-shadow,background-color] duration-[var(--agenthub-motion-normal)]',
         isViewing && 'border-[#3370FF]/50 ring-1 ring-[#3370FF]/20',
       )}
     >

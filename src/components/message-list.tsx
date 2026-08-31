@@ -217,7 +217,7 @@ export function MessageList({ conversationId }: { conversationId: string }) {
 
   return (
     <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
-      <div className="space-y-4 p-4">
+      <div className="agenthub-motion-enter space-y-4 p-4">
         {hasMore && (
           <div className="flex justify-center">
             <Button
