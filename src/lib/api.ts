@@ -78,6 +78,8 @@ export interface AutomationRunListItem {
   category: string
   status: AutomationRunStatus
   trigger: AutomationRunTrigger
+  agentRunId: string | null
+  conversationId: string | null
   durationMs: number | null
   startedAt: number
   finishedAt: number | null

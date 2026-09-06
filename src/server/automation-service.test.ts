@@ -115,6 +115,37 @@ describe('automation service bindings and notifications', () => {
     expect(notification.notification.body).toContain('结果已生成在')
   })
 
+  it('includes the linked agent run target in dashboard recent runs', async () => {
+    sendMessageMock.mockResolvedValueOnce({ messageId: 'msg_test', runIds: ['run_agent_dashboard'] })
+    const automation = await service.createAutomation({
+      title: '展板下钻自动化测试',
+      prompt: '生成可下钻 run',
+      scheduleType: 'manual',
+    })
+
+    await dbClient.db.insert(dbClient.schema.agentRuns).values({
+      id: 'run_agent_dashboard',
+      conversationId: automation.conversationId!,
+      agentId: automation.agentId!,
+      triggerMessageId: null,
+      status: 'complete',
+      error: null,
+      parentRunId: null,
+      usage: null,
+      startedAt: Date.now(),
+      finishedAt: Date.now(),
+    })
+
+    const run = await service.runAutomation(automation.id, { trigger: 'manual' })
+    const dashboard = await service.getAutomationDashboard()
+
+    expect(dashboard.recentRuns[0]).toMatchObject({
+      id: run.id,
+      conversationId: automation.conversationId,
+      agentRunId: 'run_agent_dashboard',
+    })
+  })
+
   it('publishes an urgent error notification after a scheduled automation failure', async () => {
     sendMessageMock.mockRejectedValueOnce(new Error('adapter unavailable'))
     const automation = await service.createAutomation({

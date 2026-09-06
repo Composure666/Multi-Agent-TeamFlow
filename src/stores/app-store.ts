@@ -24,7 +24,7 @@ import type {
 
 enableMapSet()
 
-export type AppWorkbenchView = 'new-task' | 'conversations' | 'agents' | 'capability-center' | 'artifacts' | 'automation' | 'analytics' | 'information-center'
+export type AppWorkbenchView = 'new-task' | 'conversations' | 'agents' | 'capability-center' | 'artifacts' | 'automation' | 'run-board' | 'analytics' | 'information-center'
 
 export type SettingsSection = 'api-keys' | 'providers' | 'workspaces' | 'notifications'
 
@@ -71,6 +71,8 @@ interface AppState {
   activeArtifactId: string | null
   activeAutomationId: string | null
   activeAutomationRunId: string | null
+  activeRunBoardConversationId: string | null
+  activeRunBoardRunId: string | null
   settingsOpen: boolean
   activeSettingsSection: SettingsSection | null
 
@@ -144,6 +146,8 @@ interface AppState {
   openSettingsTarget(section?: string | null): void
   closeSettingsTarget(): void
   openAutomationTarget(target: { automationId: string; runId?: string | null }): void
+  openRunBoardTarget(target: { conversationId: string; runId?: string | null }): void
+  clearRunBoardTarget(): void
   openArtifactTarget(target: { artifactId: string; conversationId?: string | null; messageId?: string | null }): void
   consumePendingMessageJump(): { conversationId: string; messageId: string } | null
   addNotification(notification: AppNotification): void
@@ -255,6 +259,8 @@ export const useAppStore = create<AppState>()(
     activeArtifactId: null,
     activeAutomationId: null,
     activeAutomationRunId: null,
+    activeRunBoardConversationId: null,
+    activeRunBoardRunId: null,
     settingsOpen: false,
     activeSettingsSection: null,
     fileExplorerOpen: false,
@@ -358,7 +364,26 @@ export const useAppStore = create<AppState>()(
         s.workbenchView = 'automation'
         s.activeAutomationId = target.automationId
         s.activeAutomationRunId = target.runId ?? null
+        s.activeRunBoardConversationId = null
+        s.activeRunBoardRunId = null
         s.mobileSidebarOpen = false
+      }),
+
+    openRunBoardTarget: (target) =>
+      set((s) => {
+        s.workbenchView = 'run-board'
+        s.activeConversationId = target.conversationId
+        s.activeRunBoardConversationId = target.conversationId
+        s.activeRunBoardRunId = target.runId ?? null
+        s.activeAutomationId = null
+        s.activeAutomationRunId = null
+        s.mobileSidebarOpen = false
+      }),
+
+    clearRunBoardTarget: () =>
+      set((s) => {
+        s.activeRunBoardConversationId = null
+        s.activeRunBoardRunId = null
       }),
 
     openArtifactTarget: (target) =>

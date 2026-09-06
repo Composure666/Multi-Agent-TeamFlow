@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart3, Bot, CheckCircle2, Coins, Layers, RefreshCw, Workflow } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { EmptyState, InlineError, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
+import { EmptyState, InlineError, PageCard, PageShell } from '@/components/workbench-primitives'
 import {
   fetchAutomationDashboard,
   fetchUsageSummary,
@@ -13,6 +13,7 @@ import {
   type UsageSummary,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useAppStore } from '@/stores/app-store'
 
 type AnalyticsKpi = {
   label: string
@@ -29,6 +30,8 @@ type AnalyticsTrendPoint = {
 
 type AnalyticsRunRecord = {
   id: string
+  conversationId: string | null
+  agentRunId: string | null
   title: string
   category: string
   status: '成功' | '失败' | '运行中'
@@ -49,6 +52,7 @@ export function AnalyticsWorkspace() {
   const [dashboard, setDashboard] = useState<AutomationDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const openRunBoardTarget = useAppStore((state) => state.openRunBoardTarget)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -82,6 +86,10 @@ export function AnalyticsWorkspace() {
   const distribution = useMemo(() => buildAnalyticsDistribution(dashboard?.recentRuns ?? []), [dashboard?.recentRuns])
   const successRate = calculateSuccessRate(dashboard?.recentRuns ?? [])
   const failedRuns = dashboard?.recentRuns.filter((run) => run.status === 'failed').length ?? 0
+  const openRunTarget = useCallback((run: AnalyticsRunRecord) => {
+    if (!run.conversationId) return
+    openRunBoardTarget({ conversationId: run.conversationId, runId: run.agentRunId ?? undefined })
+  }, [openRunBoardTarget])
   const kpis: AnalyticsKpi[] = [
     { label: 'Agent 运行', value: `${usageData?.allTime.runs ?? 0}`, caption: `本周 ${usageData?.week.runs ?? 0} 次 · 今日 ${usageData?.today.runs ?? 0} 次`, icon: Bot, toneClassName: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]' },
     { label: 'Token 用量', value: formatTok(usageData?.week.totalTokens ?? 0), caption: `今日 ${formatTok(usageData?.today.totalTokens ?? 0)} · 全部 ${formatTok(usageData?.allTime.totalTokens ?? 0)}`, icon: Coins, toneClassName: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300' },
@@ -91,98 +99,106 @@ export function AnalyticsWorkspace() {
   const isInitialLoading = (loading || usageLoading) && !dashboard && !usageData
   const loadError = error ?? usageError
 
-  return (
-    <PageShell className="p-2 lg:p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" contentClassName="w-full max-w-none gap-2.5 lg:gap-3">
-      <PageHeader
-        icon={BarChart3}
-        title="分析"
-        description="接入真实 usage、Agent 运行与自动化运行数据，观察任务质量、成功率与近期趋势。"
-        actions={(
-          <Button variant="outline" size="sm" className="w-fit" disabled={loading || usageLoading} onClick={() => void load()}>
-            <RefreshCw className={cn('size-3.5', (loading || usageLoading) && 'animate-spin')} />
-            刷新数据
-          </Button>
-        )}
-      />
-
-      {loadError && <InlineError message={loadError} onRetry={() => void load()} />}
-      {isInitialLoading && <PageCard className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">正在加载分析数据...</PageCard>}
-
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <AnalyticsKpiCard key={kpi.label} kpi={kpi} />
-        ))}
+  const header = (
+    <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+          <BarChart3 className="size-5 shrink-0 text-[var(--agenthub-accent)]" />
+          数据概览
+        </div>
       </div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" className="w-fit" disabled={loading || usageLoading} onClick={() => void load()}>
+          <RefreshCw className={cn('size-3.5', (loading || usageLoading) && 'animate-spin')} />
+          刷新数据
+        </Button>
+      </div>
+    </div>
+  )
 
-      <section className="grid gap-2.5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-        <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 shadow-sm dark:bg-neutral-900">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">运行趋势</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">近 7 天自动化任务触发次数</p>
-            </div>
-            <BarChart3 className="size-4 text-slate-400" />
-          </div>
-          <div className="mt-3 flex h-48 items-end gap-2.5 rounded-xl border border-[var(--agenthub-border)] bg-slate-50 p-3 dark:bg-neutral-950/40 sm:gap-4">
-            {trend.map((point) => (
-              <div key={point.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                <div className="flex w-full flex-1 items-end justify-center">
-                  <div className="w-full max-w-8 rounded-t-lg bg-[var(--agenthub-accent)] transition hover:bg-[var(--agenthub-accent-hover)]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
-                </div>
-                <div className="text-center">
-                  <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{point.value}</div>
-                  <div className="text-[10px] text-slate-400">{point.label}</div>
-                </div>
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {header}
+      <PageShell className="min-h-0 flex-1 p-2 lg:p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" contentClassName="w-full max-w-none gap-2.5 lg:gap-3">
+        {loadError && <InlineError message={loadError} onRetry={() => void load()} />}
+        {isInitialLoading && <PageCard className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">正在加载分析数据...</PageCard>}
+
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map((kpi) => (
+            <AnalyticsKpiCard key={kpi.label} kpi={kpi} />
+          ))}
+        </div>
+
+        <section className="grid gap-2.5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+          <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 shadow-sm dark:bg-neutral-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">运行趋势</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">近 7 天自动化任务触发次数</p>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 shadow-sm dark:bg-neutral-900">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">任务类型分布</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">按近期自动化运行记录统计</p>
+              <BarChart3 className="size-4 text-slate-400" />
             </div>
-            <Layers className="size-4 text-slate-400" />
-          </div>
-          <div className="mt-3 space-y-3">
-            {distribution.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--agenthub-border)] px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">暂无自动化运行分布数据。</div>
-            ) : distribution.map((item) => (
-              <div key={item.label}>
-                <div className="mb-1.5 flex items-center justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{item.value}%</span>
+            <div className="mt-3 flex h-48 items-end gap-2.5 rounded-xl border border-[var(--agenthub-border)] bg-slate-50 p-3 dark:bg-neutral-950/40 sm:gap-4">
+              {trend.map((point) => (
+                <div key={point.label} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                  <div className="flex w-full flex-1 items-end justify-center">
+                    <div className="w-full max-w-8 rounded-t-lg bg-[var(--agenthub-accent)] transition hover:bg-[var(--agenthub-accent-hover)]" style={{ height: `${Math.max(14, (point.value / maxTrend) * 100)}%` }} />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300">{point.value}</div>
+                    <div className="text-[10px] text-slate-400">{point.label}</div>
+                  </div>
                 </div>
-                <div className="h-2 rounded-full bg-slate-100 dark:bg-white/10">
-                  <div className={cn('h-full rounded-full', item.className)} style={{ width: `${item.value}%` }} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
 
-      <section className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 shadow-sm dark:bg-neutral-900">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">最近运行记录</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">包含状态、耗时和任务类型，用于快速排查异常</p>
+          <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 shadow-sm dark:bg-neutral-900">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">任务类型分布</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">按近期自动化运行记录统计</p>
+              </div>
+              <Layers className="size-4 text-slate-400" />
+            </div>
+            <div className="mt-3 space-y-3">
+              {distribution.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[var(--agenthub-border)] px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">暂无自动化运行分布数据。</div>
+              ) : distribution.map((item) => (
+                <div key={item.label}>
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">{item.label}</span>
+                    <span className="font-medium text-slate-900 dark:text-slate-100">{item.value}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100 dark:bg-white/10">
+                    <div className={cn('h-full rounded-full', item.className)} style={{ width: `${item.value}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-white/10 dark:text-slate-400">{recentRuns.length} 条记录</span>
-        </div>
-        {recentRuns.length === 0 ? (
-          <EmptyState title="暂无运行记录" description="自动化任务运行后会显示在这里。" />
-        ) : (
-          <div className="mt-3 overflow-hidden rounded-xl border border-[var(--agenthub-border)]">
-            {recentRuns.map((run) => (
-              <AutomationRunRow key={run.id} run={run} table />
-            ))}
+        </section>
+
+        <section className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 shadow-sm dark:bg-neutral-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">最近运行记录</h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">包含状态、耗时和任务类型，用于快速排查异常</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-white/10 dark:text-slate-400">{recentRuns.length} 条记录</span>
           </div>
-        )}
-      </section>
-    </PageShell>
+          {recentRuns.length === 0 ? (
+            <EmptyState title="暂无运行记录" description="自动化任务运行后会显示在这里。" />
+          ) : (
+            <div className="mt-3 overflow-hidden rounded-xl border border-[var(--agenthub-border)]">
+              {recentRuns.map((run) => (
+                <AutomationRunRow key={run.id} run={run} table onOpenRun={openRunTarget} />
+              ))}
+            </div>
+          )}
+        </section>
+      </PageShell>
+    </div>
   )
 }
 
@@ -231,7 +247,15 @@ function AnalyticsKpiCard({ kpi }: { kpi: AnalyticsKpi }) {
   )
 }
 
-export function AutomationRunRow({ run, table = false }: { run: AnalyticsRunRecord; table?: boolean }) {
+export function AutomationRunRow({
+  run,
+  table = false,
+  onOpenRun,
+}: {
+  run: AnalyticsRunRecord
+  table?: boolean
+  onOpenRun?: (run: AnalyticsRunRecord) => void
+}) {
   const statusClassName = run.status === '成功'
     ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
     : run.status === '运行中'
@@ -239,7 +263,14 @@ export function AutomationRunRow({ run, table = false }: { run: AnalyticsRunReco
       : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
 
   return (
-    <div className={cn('grid gap-3 border-slate-100 bg-[var(--agenthub-surface)] p-3 transition hover:bg-[var(--agenthub-accent-soft)]/40 dark:border-white/10 dark:bg-neutral-900 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center', table ? 'border-b last:border-b-0' : 'rounded-xl border')}>
+    <button
+      type="button"
+      onClick={() => onOpenRun?.(run)}
+      className={cn(
+        'grid w-full gap-3 border-slate-100 bg-[var(--agenthub-surface)] p-3 text-left transition hover:bg-[var(--agenthub-accent-soft)]/40 dark:border-white/10 dark:bg-neutral-900 sm:grid-cols-[minmax(0,1.3fr)_120px_88px_88px_80px] sm:items-center',
+        table ? 'border-b last:border-b-0' : 'rounded-xl border',
+      )}
+    >
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{run.title}</div>
         <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 sm:hidden">{run.category} · {run.duration} · {run.time}</div>
@@ -248,13 +279,15 @@ export function AutomationRunRow({ run, table = false }: { run: AnalyticsRunReco
       <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{run.duration}</div>
       <div className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{run.time}</div>
       <span className={cn('w-fit rounded-full px-2 py-1 text-[10px] font-medium', statusClassName)}>{run.status}</span>
-    </div>
+    </button>
   )
 }
 
 export function mapAutomationRun(item: AutomationRunListItem): AnalyticsRunRecord {
   return {
     id: item.id,
+    conversationId: item.conversationId,
+    agentRunId: item.agentRunId,
     title: item.title,
     category: item.category,
     status: item.status === 'success' ? '成功' : item.status === 'running' ? '运行中' : '失败',

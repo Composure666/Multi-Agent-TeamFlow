@@ -1,0 +1,5 @@
+[0906/170134.646:ERROR:net\base\network_change_notifier_win.cc:200] WSALookupServiceBegin failed with: -1
+[0906/172615.491:ERROR:net\base\network_change_notifier_win.cc:200] WSALookupServiceBegin failed with: -1
+[0906/172939.668:ERROR:net\base\network_change_notifier_win.cc:200] WSALookupServiceBegin failed with: -1
+[0906/173239.970:ERROR:net\base\network_change_notifier_win.cc:200] WSALookupServiceBegin failed with: -1
+[0906/173651.408:ERROR:net\base\network_change_notifier_win.cc:200] WSALookupServiceBegin failed with: -1

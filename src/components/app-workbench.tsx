@@ -19,9 +19,10 @@ import {
   X
 } from 'lucide-react'
 import { nanoid } from 'nanoid'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
+import { AgentRunDebugBoard } from '@/components/agent-run-debug-board'
 import {
   SUMMON_SCENE_CATEGORIES,
   SUMMON_TEAMS,
@@ -80,6 +81,7 @@ export function AppWorkbench() {
   const [selectedTeam, setSelectedTeam] = useState<SummonableTeam | null>(null)
   const [teamDialogOpen, setTeamDialogOpen] = useState(false)
   const [summoningTeamId, setSummoningTeamId] = useState<string | null>(null)
+  const [analyticsFocusMode, setAnalyticsFocusMode] = useState(false)
   const agents = useAgentList()
   const setConversations = useAppStore((s) => s.setConversations)
   const setAgents = useAppStore((s) => s.setAgents)
@@ -93,6 +95,10 @@ export function AppWorkbench() {
     fetchConversations().then(setConversations).catch(console.error)
     fetchAgents().then(setAgents).catch(console.error)
   }, [setAgents, setConversations])
+
+  useEffect(() => {
+    if (view !== 'analytics') setAnalyticsFocusMode(false)
+  }, [view])
 
   const openTeamDetail = (team: SummonableTeam) => {
     setSelectedTeam(team)
@@ -140,7 +146,7 @@ export function AppWorkbench() {
     <div className="flex h-full min-h-0 bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        {view !== 'conversations' && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
+        {view !== 'conversations' && !analyticsFocusMode && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
         <WorkbenchViewRouter
           view={view}
           renderers={{
@@ -151,6 +157,7 @@ export function AppWorkbench() {
             artifacts: () => <ArtifactWorkspace onOpenConversations={() => setView('conversations')} />,
             automation: () => <AutomationWorkspace />,
             'information-center': () => <InformationCenterWorkspace />,
+            'run-board': () => <AgentRunDebugBoard onFocusChange={setAnalyticsFocusMode} />,
             analytics: () => <AnalyticsWorkspace />,
           }}
         />
@@ -673,32 +680,38 @@ function WorkbenchNav({
   onOpenSettings: () => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [navHovered, setNavHovered] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const hasAutomationResultNotice = useAppStore((s) => Object.keys(s.automationResultNotices).length > 0)
   const unreadNotificationCount = useAppStore((s) => s.unreadNotificationCount)
-  const usage = useUsageSummary(accountOpen && !collapsed)
+  const compact = collapsed || ((view === 'analytics' || view === 'run-board') && !navHovered)
+  const usage = useUsageSummary(accountOpen && !compact)
 
   return (
-    <aside className={cn('hidden h-full min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', collapsed ? 'w-[88px]' : view === 'conversations' ? 'w-[288px]' : 'w-[260px]')}>
-      <div className={cn('mb-3 flex items-center gap-2 px-2', collapsed && 'flex-col px-0')}>
+    <aside
+      onMouseEnter={() => (view === 'analytics' || view === 'run-board') && !collapsed && setNavHovered(true)}
+      onMouseLeave={() => (view === 'analytics' || view === 'run-board') && setNavHovered(false)}
+      className={cn('hidden h-full min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' ? 'w-[288px]' : 'w-[260px]')}
+    >
+      <div className={cn('mb-3 flex items-center gap-2 px-2', compact && 'flex-col px-0')}>
         <button
           type="button"
           onClick={() => onViewChange('new-task')}
-          className={cn('flex min-w-0 items-center gap-2 text-left', collapsed ? 'w-full flex-col justify-center' : 'flex-1')}
-          title={collapsed ? 'AgentHub' : undefined}
+          className={cn('flex min-w-0 items-center gap-2 text-left', compact ? 'w-full flex-col justify-center' : 'flex-1')}
+          title={compact ? 'AgentHub' : undefined}
         >
           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
             <Sparkles className="size-4" />
           </div>
-          {collapsed && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">AgentHub</span>}
-          {!collapsed && (
+          {compact && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">AgentHub</span>}
+          {!compact && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">AgentHub</div>
               <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">Multi-Agent Workspace</div>
             </div>
           )}
         </button>
-        {!collapsed && (
+        {!compact && (
           <div className="flex shrink-0 items-center gap-1">
             <ThemeToggle className="size-8 rounded-lg text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-100" />
             <button
@@ -719,7 +732,7 @@ function WorkbenchNav({
             </button>
           </div>
         )}
-        {collapsed && (
+        {compact && (
           <button
             type="button"
             onClick={() => setCollapsed(false)}
@@ -736,12 +749,12 @@ function WorkbenchNav({
         onClick={() => onViewChange('new-task')}
         className={cn(
           'mb-2 flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
-          collapsed && 'px-0',
+          compact && 'px-0',
         )}
       >
         <Plus className="size-4" />
-        {!collapsed && <span className="min-w-0 flex-1 text-left">新建任务</span>}
-        {!collapsed && <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl + N</span>}
+        {!compact && <span className="min-w-0 flex-1 text-left">新建任务</span>}
+        {!compact && <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl + N</span>}
       </button>
 
       <nav className="shrink-0 space-y-1">
@@ -751,58 +764,65 @@ function WorkbenchNav({
           const showAutomationResultNotice = item.id === 'conversations' && hasAutomationResultNotice && !active
           const showUnreadNotifications = item.id === 'information-center' && unreadNotificationCount > 0
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onViewChange(item.id)}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                'relative flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm transition',
-                collapsed && 'justify-center px-0',
-                active
-                  ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
-                  : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
-                showAutomationResultNotice && 'animate-pulse ring-1 ring-[var(--agenthub-accent-border)]',
+            <Fragment key={item.id}>
+              {item.id === 'run-board' && !compact && (
+                <div className="mb-1 mt-3 border-t border-slate-100 px-3 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
+                  分析
+                </div>
               )}
-            >
-              <Icon className={cn('size-4 shrink-0 stroke-[2.2]', active && 'stroke-[2.5]')} />
-              {!collapsed && item.label}
-              {showAutomationResultNotice && (
-                <span className={cn('ml-auto size-2 rounded-full bg-[var(--agenthub-accent)]', collapsed && 'absolute right-2 top-2')} title="有自动化任务结果生成" />
-              )}
-              {showUnreadNotifications && (
-                <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white', collapsed && 'absolute right-1 top-1 px-1')} title="未读通知">
-                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => onViewChange(item.id)}
+                title={compact ? item.label : undefined}
+                className={cn(
+                  'relative flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm transition',
+                  compact && 'justify-center px-0',
+                  item.id === 'run-board' && !compact && 'pl-5',
+                  active
+                    ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
+                    : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+                  showAutomationResultNotice && 'animate-pulse ring-1 ring-[var(--agenthub-accent-border)]',
+                )}
+              >
+                <Icon className={cn('size-4 shrink-0 stroke-[2.2]', active && 'stroke-[2.5]')} />
+                {!compact && item.label}
+                {showAutomationResultNotice && (
+                  <span className={cn('ml-auto size-2 rounded-full bg-[var(--agenthub-accent)]', compact && 'absolute right-2 top-2')} title="有自动化任务结果生成" />
+                )}
+                {showUnreadNotifications && (
+                  <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white', compact && 'absolute right-1 top-1 px-1')} title="未读通知">
+                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  </span>
+                )}
+              </button>
+            </Fragment>
           )
         })}
       </nav>
 
-      {!collapsed && view === 'conversations' && (
+      {!compact && view === 'conversations' && (
         <div className="mt-2 min-h-0 flex-1 overflow-hidden border-t border-slate-100 pt-3 dark:border-white/10">
           <ConversationListPanel variant="embedded" />
         </div>
       )}
 
-      {(!collapsed && view !== 'conversations') && <div className="min-h-3 flex-1" />}
+      {(!compact && view !== 'conversations') && <div className="min-h-3 flex-1" />}
 
       <div className="shrink-0 space-y-2 pt-3">
-        {accountOpen && !collapsed && (
+        {accountOpen && !compact && (
           <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
         )}
 
         <button
           type="button"
-          onClick={() => collapsed ? setCollapsed(false) : setAccountOpen((open) => !open)}
-          aria-expanded={accountOpen && !collapsed}
-          className={cn('w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', collapsed && 'px-2')}
-          title={collapsed ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
+          onClick={() => compact ? setCollapsed(false) : setAccountOpen((open) => !open)}
+          aria-expanded={accountOpen && !compact}
+          className={cn('w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact && 'px-2')}
+          title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
         >
-          <div className={cn('flex items-center gap-2', collapsed && 'justify-center')}>
+          <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
-            {!collapsed && (
+            {!compact && (
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <div className="truncate text-xs font-medium">Agenter</div>
@@ -814,7 +834,7 @@ function WorkbenchNav({
                 </div>
               </div>
             )}
-            {!collapsed && <ChevronDown className={cn('size-4 shrink-0 text-slate-400 transition-transform', accountOpen && 'rotate-180')} />}
+            {!compact && <ChevronDown className={cn('size-4 shrink-0 text-slate-400 transition-transform', accountOpen && 'rotate-180')} />}
           </div>
         </button>
       </div>

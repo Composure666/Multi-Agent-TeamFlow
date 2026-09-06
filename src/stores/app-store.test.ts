@@ -310,6 +310,18 @@ describe('app-store agent run debug reducers', () => {
     expect(useAppStore.getState().agentRunDebugByConv.conv_debug).toBeUndefined()
     expect(useAppStore.getState().agentRunDebugDetailsByRun.run_debug).toBeUndefined()
   })
+
+  it('opens the run board with a conversation and run target', () => {
+    useAppStore.getState().openRunBoardTarget({
+      conversationId: 'conv_debug',
+      runId: 'run_debug',
+    })
+
+    expect(useAppStore.getState().workbenchView).toBe('run-board')
+    expect(useAppStore.getState().activeConversationId).toBe('conv_debug')
+    expect(useAppStore.getState().activeRunBoardConversationId).toBe('conv_debug')
+    expect(useAppStore.getState().activeRunBoardRunId).toBe('run_debug')
+  })
 })
 
 

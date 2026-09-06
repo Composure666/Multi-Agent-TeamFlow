@@ -1,7 +1,7 @@
 import { FolderOpen, FolderTree, Layers, MoreHorizontal, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 
-import { AgentRunDebugButton } from '@/components/agent-run-debug-button'
+import { AgentRunDebugBoardButton } from '@/components/agent-run-debug-board'
 import { ConversationOutline } from '@/components/conversation-outline'
 import { WorkspaceMemoryButton } from '@/components/workspace-memory-button'
 import { Button } from '@/components/ui/button'
@@ -71,7 +71,7 @@ export function ChatToolbar({
 
       <div className="mx-0.5 h-4 w-px bg-slate-200 dark:bg-white/10" />
       <WorkspaceMemoryButton conversationId={conversationId} />
-      <AgentRunDebugButton conversationId={conversationId} />
+      <AgentRunDebugBoardButton conversationId={conversationId} />
       <UsageBadge conversationId={conversationId} />
       <span className={cn('hidden items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors lg:inline-flex', streamConnected ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-slate-400')}>
         <span className={cn('size-1.5 rounded-full', streamConnected ? 'bg-emerald-500' : 'bg-slate-300')} />

@@ -42,6 +42,8 @@ export interface AutomationRunListItem {
   category: string
   status: AutomationRunStatus
   trigger: AutomationRunTrigger
+  agentRunId: string | null
+  conversationId: string | null
   durationMs: number | null
   startedAt: number
   finishedAt: number | null
@@ -147,6 +149,8 @@ export async function getAutomationDashboard(): Promise<AutomationDashboard> {
       category: schema.automations.category,
       status: schema.automationRuns.status,
       trigger: schema.automationRuns.trigger,
+      agentRunId: schema.automationRuns.agentRunId,
+      conversationId: schema.automationRuns.conversationId,
       durationMs: schema.automationRuns.durationMs,
       startedAt: schema.automationRuns.startedAt,
       finishedAt: schema.automationRuns.finishedAt,

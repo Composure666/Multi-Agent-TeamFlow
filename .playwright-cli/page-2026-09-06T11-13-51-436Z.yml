@@ -1,0 +1,203 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e4]:
+    - main [ref=f2e5]:
+      - generic [ref=f2e6]:
+        - button "打开菜单" [ref=f2e7]
+        - generic [ref=f2e13]:
+          - generic [ref=f2e14]: AgentHub
+          - generic [ref=f2e15]: 分析
+        - button "信息中心" [ref=f2e16]
+        - button "切换主题" [ref=f2e146]
+      - generic [ref=f2e166]:
+        - generic [ref=f2e167]:
+          - generic [ref=f2e168]:
+            - generic [ref=f2e169]: 分析
+            - paragraph [ref=f2e172]: 从运行流程和统计数据观察 Agent 工作。
+          - tablist [ref=f2e175]:
+            - tab "运行展板" [selected] [ref=f2e176]
+            - tab "数据概览" [ref=f2e177]
+        - generic [ref=f2e179]:
+          - generic [ref=f2e180]:
+            - generic [ref=f2e181]:
+              - heading "运行展板" [level=1] [ref=f2e185]
+              - paragraph [ref=f2e186]: github搜索最新工具 · 阶段化展示 Agent 运行过程
+            - button "刷新" [ref=f2e188]
+          - main [ref=f2e190]:
+            - generic [ref=f2e191]:
+              - generic [ref=f2e192]:
+                - generic [ref=f2e193]: Run run_R7NlJt…
+                - generic [ref=f2e194]: 34 个 run · 最新 run 默认展开
+              - generic [ref=f2e195]: 完成
+            - combobox [ref=f2e197]:
+              - option "github搜索最新工具" [selected]
+              - option "请你配合我测试AgentHub的skills导入…"
+              - option "配合我测试AgentHubbug"
+              - option "历史上的今天"
+              - option "与 技能安装助手 的对话"
+              - option "每周工作周报"
+              - option "git代码分析"
+              - option "每日 5 个英语单词"
+              - option "我想使用「本地项目协作团队」完成一个任务。 场景…"
+              - option "日常协作小队"
+              - option "我想使用「金融投研团队」完成一个任务。 场景：金…"
+              - option "日常协作小队"
+              - option "我想使用「日常协作小队」完成一个任务。 场景：日…"
+              - option "日常协作小队"
+              - option "与 产品文案助手 的对话"
+              - option "与 实施规划助手 的对话"
+              - option "与 前端工程师 的对话"
+              - option "，，，"
+              - option "与 UI 设计师 的对话"
+              - option "代码工程师 / UI 设计师 / 前端工程师 / Orchestrator / PM 小灰 / Reviewer"
+              - option "Smoke Test"
+            - application [ref=f2e200]:
+              - generic [ref=f2e202]:
+                - generic:
+                  - generic:
+                    - img:
+                      - group "Edge from stage-trigger to stage-context"
+                    - img:
+                      - group "Edge from stage-context to stage-plan" [ref=f2e203] [cursor=pointer]
+                    - img:
+                      - group "Edge from stage-plan to stage-execute"
+                    - img:
+                      - group "Edge from stage-execute to stage-output"
+                  - generic:
+                    - group [active] [ref=f2e206] [cursor=pointer]:
+                      - generic [ref=f2e208]:
+                        - generic [ref=f2e209]:
+                          - generic [ref=f2e210]: 触发
+                          - generic [ref=f2e213]: 完成
+                        - generic [ref=f2e214]: 用户消息已进入当前 run
+                        - generic [ref=f2e215]: 1 条触发消息
+                    - group [ref=f2e217] [cursor=pointer]:
+                      - generic [ref=f2e219]:
+                        - generic [ref=f2e220]:
+                          - generic [ref=f2e221]: 上下文
+                          - generic [ref=f2e224]: 完成
+                        - generic [ref=f2e225]: 运行时上下文快照已加载
+                        - generic [ref=f2e226]: 2 类上下文
+                    - group [ref=f2e228] [cursor=pointer]:
+                      - generic [ref=f2e230]:
+                        - generic [ref=f2e231]:
+                          - generic [ref=f2e232]: 规划
+                          - generic [ref=f2e235]: 不可用
+                        - generic [ref=f2e236]: 当前 run 没有可识别的拆分计划
+                        - generic [ref=f2e237]: 无拆分计划
+                    - group [ref=f2e239] [cursor=pointer]:
+                      - generic [ref=f2e241]:
+                        - generic [ref=f2e242]:
+                          - generic [ref=f2e243]: 执行
+                          - generic [ref=f2e246]: 不可用
+                        - generic [ref=f2e247]: 当前 run 尚未产生可识别执行轨迹
+                        - generic [ref=f2e248]: 0 次调用 · 0 个子 Agent
+                    - group [ref=f2e250] [cursor=pointer]:
+                      - generic [ref=f2e252]:
+                        - generic [ref=f2e253]:
+                          - generic [ref=f2e254]: 产出
+                          - generic [ref=f2e257]: 不可用
+                        - generic [ref=f2e258]: 当前 run 尚未产生可识别产出
+                        - generic [ref=f2e259]: 0 个产物
+              - generic "Control Panel" [ref=f2e261]:
+                - button "Zoom In" [ref=f2e262] [cursor=pointer]
+                - button "Zoom Out" [disabled]
+                - button "Fit View" [ref=f2e265] [cursor=pointer]
+              - img "Mini Map" [ref=f2e269]
+            - button "历史 Run 33 个" [ref=f2e272]:
+              - generic [ref=f2e278]: 历史 Run
+              - generic [ref=f2e279]: 33 个
+            - complementary [ref=f2e294]:
+              - generic [ref=f2e296]:
+                - generic [ref=f2e297]:
+                  - generic [ref=f2e298]: Selected Stage
+                  - heading "触发" [level=2] [ref=f2e303]
+                  - paragraph [ref=f2e304]: 用户消息已进入当前 run
+                - button "关闭详情" [ref=f2e305]
+              - generic [ref=f2e309]:
+                - generic [ref=f2e310]:
+                  - generic [ref=f2e311]:
+                    - generic [ref=f2e312]: 状态
+                    - generic [ref=f2e313]: 完成
+                  - generic [ref=f2e314]:
+                    - generic [ref=f2e315]: Run
+                    - generic [ref=f2e316]: run_R7NlJt…
+                - generic [ref=f2e317]:
+                  - heading "运行信息" [level=3] [ref=f2e318]
+                  - generic [ref=f2e319]:
+                    - generic [ref=f2e320]: Agent
+                    - generic [ref=f2e321]: Orchestrator
+                  - generic [ref=f2e322]:
+                    - generic [ref=f2e323]: 模型
+                    - generic [ref=f2e324]: deepseek-v4-flash
+                  - generic [ref=f2e325]:
+                    - generic [ref=f2e326]: Run 状态
+                    - generic [ref=f2e327]: complete
+                  - generic [ref=f2e328]:
+                    - generic [ref=f2e329]: 工具调用
+                    - generic [ref=f2e330]: 0 次
+                - generic [ref=f2e331]:
+                  - heading "执行证据" [level=3] [ref=f2e332]
+                  - generic [ref=f2e333]:
+                    - generic [ref=f2e334]: 文件
+                    - generic [ref=f2e335]: 0 条
+                  - generic [ref=f2e336]:
+                    - generic [ref=f2e337]: 命令
+                    - generic [ref=f2e338]: 0 条
+                  - generic [ref=f2e339]:
+                    - generic [ref=f2e340]: 网络
+                    - generic [ref=f2e341]: 0 条
+                  - generic [ref=f2e342]:
+                    - generic [ref=f2e343]: 子 Run
+                    - generic [ref=f2e344]: 0 个
+                - generic [ref=f2e345]:
+                  - heading "关联消息" [level=3] [ref=f2e346]
+                  - generic [ref=f2e347]:
+                    - generic [ref=f2e348]: 触发消息
+                    - generic [ref=f2e349]: 可用
+                  - generic [ref=f2e350]:
+                    - generic [ref=f2e351]: 输出消息
+                    - generic [ref=f2e352]: 1 条
+                  - generic [ref=f2e353]:
+                    - generic [ref=f2e354]: Parent Run
+                    - generic [ref=f2e355]: "-"
+    - complementary [aria-hidden] [ref=f2e280]:
+      - generic [ref=f2e56]:
+        - button [ref=f2e281]:
+          - generic [ref=f2e62]:
+            - generic [ref=f2e63]: AgentHub
+            - generic [ref=f2e64]: 个人多 Agent 工作区
+        - button [ref=f2e282]
+      - generic [ref=f2e69]:
+        - generic [ref=f2e70]:
+          - generic [ref=f2e71]: 个人工作区
+          - paragraph [ref=f2e75]: 管理本地会话、Agent、产物与自动化任务。
+        - button [ref=f2e283]:
+          - generic [ref=f2e78]: 新建任务
+        - navigation [ref=f2e284]:
+          - generic [ref=f2e80]:
+            - generic [ref=f2e81]: 协作
+            - button [ref=f2e285]:
+              - generic [ref=f2e85]: 对话
+            - button [ref=f2e286]:
+              - generic [ref=f2e90]: 信息中心
+          - generic [ref=f2e91]:
+            - generic [ref=f2e92]: 工作区
+            - button [ref=f2e287]:
+              - generic [ref=f2e97]: Agent 库
+            - button [ref=f2e288]:
+              - generic [ref=f2e109]: 能力中心
+            - button [ref=f2e289]:
+              - generic [ref=f2e115]: 产物库
+            - button [ref=f2e290]:
+              - generic [ref=f2e121]: 自动化
+            - button [ref=f2e291]:
+              - generic [ref=f2e125]: 分析
+      - button [ref=f2e292]:
+        - generic [ref=f2e128]: A
+        - generic [ref=f2e129]:
+          - generic [ref=f2e130]:
+            - generic [ref=f2e131]: Agenter
+            - generic [ref=f2e132]: 个人
+          - generic [ref=f2e133]: 本地模式
+  - button "Open Next.js Dev Tools" [ref=f2e142] [cursor=pointer]
+  - alert [ref=f2e151]
