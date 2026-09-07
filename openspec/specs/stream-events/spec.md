@@ -83,3 +83,12 @@ Failures MUST be represented in both AgentRun status and conversation-visible me
 - **THEN** AgentRunner marks streaming messages as `error`
 - **AND** persists and publishes error `tool_result` events for unresolved tool calls in the run
 - **AND** appends or creates a visible `[失败]` message.
+
+### Requirement: Run debug events SHALL support live replay
+
+AgentRunner SHALL publish bounded `run.debug.*` events at run, dispatch, and tool boundaries, and subscribers SHALL be able to apply them idempotently by event id.
+
+#### Scenario: A tool call runs during an Agent run
+- **WHEN** AgentRunner observes `tool.call` and `tool.result`
+- **THEN** it publishes `run.debug.tool.started` and `run.debug.tool.completed`
+- **AND** those events include only summary payloads, not raw secrets or full prompt text.

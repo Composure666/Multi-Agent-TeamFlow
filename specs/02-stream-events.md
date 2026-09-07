@@ -42,6 +42,13 @@ type StreamEvent = BaseEvent & (
   | { type: 'tool.call',   messageId: string, callId: string, toolName: string, args: any }
   | { type: 'tool.result', messageId: string, callId: string, result: any, isError: boolean }
 
+  // —— Run Debug 摘要事件（append-only，可回放）——
+  | { type: 'run.debug.step.started', runId: string, agentId?: string, parentRunId?: string | null, taskId?: string | null, stepId?: string | null, status?: DebugEventStatus | null, payload?: Record<string, unknown>, debugEventId?: string }
+  | { type: 'run.debug.step.completed', runId: string, agentId?: string, parentRunId?: string | null, taskId?: string | null, stepId?: string | null, status?: DebugEventStatus | null, payload?: Record<string, unknown>, debugEventId?: string }
+  | { type: 'run.debug.tool.started', runId: string, agentId?: string, stepId?: string | null, toolCallId?: string | null, status?: DebugEventStatus | null, toolName?: string, argsSummary?: string, payload?: Record<string, unknown>, debugEventId?: string }
+  | { type: 'run.debug.tool.completed', runId: string, agentId?: string, stepId?: string | null, toolCallId?: string | null, status?: DebugEventStatus | null, toolName?: string, outputSummary?: string, durationMs?: number, error?: string, payload?: Record<string, unknown>, debugEventId?: string }
+  | { type: 'run.debug.terminal.output', runId: string, agentId?: string, stepId?: string | null, toolCallId?: string | null, status?: DebugEventStatus | null, stream?: 'stdout' | 'stderr', text?: string, payload?: Record<string, unknown>, debugEventId?: string }
+
   // —— 产物 ——
   | { type: 'artifact.create', artifact: Artifact }
   | { type: 'artifact.update', artifactId: string, patch: Partial<ArtifactContent> }
@@ -78,6 +85,15 @@ type StreamEvent = BaseEvent & (
   // —— 心跳 ——
   | { type: 'heartbeat' }
 )
+
+type DebugEventStatus =
+  | 'queued'
+  | 'running'
+  | 'complete'
+  | 'failed'
+  | 'aborted'
+  | 'skipped'
+  | 'blocked'
 
 interface AppNotification {
   id: string                    // ntf_<nanoid>
@@ -270,6 +286,7 @@ dispatch.end      (parentRunId=r1, taskId=t3, status='skipped', error='Upstream 
 | `part.end` | ❌ 透传 | parts 状态由 part.start/delta 已足够 |
 | `tool.call` | ✅ 写为 message.parts 里的 tool_use part | |
 | `tool.result` | ✅ 写为 message.parts 里的 tool_result part | run 失败 / 中止时，AgentRunner 会为未配对 `tool_result` 的 `tool_use` 补发 `isError=true` 结果 |
+| `run.debug.*` | ✅ 落到 `agent_run_debug_events` 表并透传 SSE | 只保存摘要 payload；写入失败只 warn，不阻断 run；成功时事件带 `debugEventId` 便于前端去重 |
 | `artifact.*` | ✅ 落到 `artifacts` 表 | |
 | `dispatch.*` | ❌ 透传（信息来自 plan_tasks 工具调用 + agent_runs 表） | |
 | `fs_write.pending` | ❌ 透传 | pending 队列存于内存单例（`src/server/pending-writes.ts`）；dev server 重启丢失，前端 mount 时拉一次兜底 |

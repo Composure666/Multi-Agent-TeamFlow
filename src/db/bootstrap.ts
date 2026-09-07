@@ -214,6 +214,26 @@ const DDL: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_run_debug_run ON agent_run_debug_snapshots(run_id)`,
   `CREATE INDEX IF NOT EXISTS idx_run_debug_conv_created ON agent_run_debug_snapshots(conversation_id, created_at)`,
 
+  // ─── agent_run_debug_events ────────────────────
+  `CREATE TABLE IF NOT EXISTS agent_run_debug_events (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+    parent_run_id TEXT,
+    agent_id TEXT REFERENCES agents(id),
+    task_id TEXT,
+    step_id TEXT,
+    tool_call_id TEXT,
+    type TEXT NOT NULL,
+    status TEXT,
+    payload TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_run_debug_events_conv_run_created ON agent_run_debug_events(conversation_id, run_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_run_debug_events_run_agent_created ON agent_run_debug_events(run_id, agent_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_run_debug_events_run_task_created ON agent_run_debug_events(run_id, task_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_run_debug_events_run_tool ON agent_run_debug_events(run_id, tool_call_id)`,
+
   // ─── automations ───────────────────────────────
   `CREATE TABLE IF NOT EXISTS automations (
     id TEXT PRIMARY KEY,

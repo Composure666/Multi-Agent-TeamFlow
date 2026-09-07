@@ -27,6 +27,7 @@ afterAll(() => {
 
 beforeEach(async () => {
   await dbClient.db.delete(dbClient.schema.agentRunDebugSnapshots)
+  await dbClient.db.delete(dbClient.schema.agentRunDebugEvents)
   await dbClient.db.delete(dbClient.schema.messages)
   await dbClient.db.delete(dbClient.schema.agentRuns)
   await dbClient.db.delete(dbClient.schema.conversations)
@@ -64,6 +65,28 @@ describe('agent run debug service', () => {
     expect(JSON.stringify(detail.snapshot)).not.toContain('secret-value')
   })
 
+  it('pages recent runs without dropping older history', async () => {
+    await seedAgent(dbClient, 'ag_debug')
+    await seedConversation(dbClient, 'conv_debug', ['ag_debug'])
+    await seedRun(dbClient, 'run_4', 'conv_debug', 'ag_debug', null, { startedAt: 400, finishedAt: 401 })
+    await seedRun(dbClient, 'run_3', 'conv_debug', 'ag_debug', null, { startedAt: 300, finishedAt: 301 })
+    await seedRun(dbClient, 'run_2', 'conv_debug', 'ag_debug', null, { startedAt: 200, finishedAt: 201 })
+    await seedRun(dbClient, 'run_1', 'conv_debug', 'ag_debug', null, { startedAt: 100, finishedAt: 101 })
+
+    const firstPage = await service.listAgentRunsForConversationPage('conv_debug', { limit: 2 })
+    expect(firstPage.runs.map((run) => run.id)).toEqual(['run_4', 'run_3'])
+    expect(firstPage.hasMore).toBe(true)
+    expect(firstPage.nextCursor).toEqual({ startedAt: 300, runId: 'run_3' })
+
+    const secondPage = await service.listAgentRunsForConversationPage('conv_debug', {
+      limit: 2,
+      before: firstPage.nextCursor ?? undefined,
+    })
+    expect(secondPage.runs.map((run) => run.id)).toEqual(['run_2', 'run_1'])
+    expect(secondPage.hasMore).toBe(false)
+    expect(secondPage.nextCursor).toBeNull()
+  })
+
   it('rejects cross-conversation detail access', async () => {
     await seedAgent(dbClient, 'ag_scope')
     await seedConversation(dbClient, 'conv_owner', ['ag_scope'])
@@ -85,6 +108,100 @@ describe('agent run debug service', () => {
     expect(detail.snapshot).toBeNull()
     expect(detail.triggerMessage?.id).toBe('msg_trigger')
     expect(detail.outputMessages.map((message) => message.id)).toEqual(['msg_output'])
+  })
+
+  it('records append-only debug events and lists them for the run scope', async () => {
+    await seedAgent(dbClient, 'ag_debug')
+    await seedConversation(dbClient, 'conv_debug', ['ag_debug'])
+    await seedRun(dbClient, 'run_debug', 'conv_debug', 'ag_debug')
+
+    const first = await service.recordAgentRunDebugEvent({
+      conversationId: 'conv_debug',
+      runId: 'run_debug',
+      type: 'run.debug.step.started',
+      agentId: 'ag_debug',
+      stepId: 'step_run',
+      status: 'running',
+      payload: { label: 'run' },
+      createdAt: 10,
+    })
+    const second = await service.recordAgentRunDebugEvent({
+      conversationId: 'conv_debug',
+      runId: 'run_debug',
+      type: 'run.debug.tool.started',
+      agentId: 'ag_debug',
+      stepId: 'step_run',
+      toolCallId: 'call_1',
+      status: 'running',
+      payload: { toolName: 'bash', argsSummary: 'pnpm lint' },
+      createdAt: 20,
+    })
+
+    expect(first.id).not.toBe(second.id)
+
+    const events = await service.getAgentRunDebugEvents('conv_debug', 'run_debug')
+    expect(events.map((event) => event.type)).toEqual([
+      'run.debug.step.started',
+      'run.debug.tool.started',
+    ])
+    expect(events[0]?.payload).toMatchObject({ label: 'run' })
+    expect(events[1]?.toolCallId).toBe('call_1')
+  })
+
+  it('lists debug events for the whole conversation without leaking other conversations', async () => {
+    await seedAgent(dbClient, 'ag_debug')
+    await seedConversation(dbClient, 'conv_debug', ['ag_debug'])
+    await seedConversation(dbClient, 'conv_other', ['ag_debug'])
+    await seedRun(dbClient, 'run_first', 'conv_debug', 'ag_debug')
+    await seedRun(dbClient, 'run_second', 'conv_debug', 'ag_debug')
+    await seedRun(dbClient, 'run_other', 'conv_other', 'ag_debug')
+
+    await service.recordAgentRunDebugEvent({
+      conversationId: 'conv_debug',
+      runId: 'run_second',
+      type: 'run.debug.step.started',
+      status: 'running',
+      payload: { label: 'second' },
+      createdAt: 20,
+    })
+    await service.recordAgentRunDebugEvent({
+      conversationId: 'conv_debug',
+      runId: 'run_first',
+      type: 'run.debug.step.started',
+      status: 'running',
+      payload: { label: 'first' },
+      createdAt: 10,
+    })
+    await service.recordAgentRunDebugEvent({
+      conversationId: 'conv_other',
+      runId: 'run_other',
+      type: 'run.debug.step.started',
+      status: 'running',
+      payload: { label: 'other' },
+      createdAt: 5,
+    })
+
+    const events = await service.getAgentRunDebugEventsForConversation('conv_debug')
+
+    expect(events.map((event) => event.runId)).toEqual(['run_first', 'run_second'])
+    expect(events.map((event) => event.payload.label)).toEqual(['first', 'second'])
+  })
+
+  it('rejects cross-conversation debug event access', async () => {
+    await seedAgent(dbClient, 'ag_scope')
+    await seedConversation(dbClient, 'conv_owner', ['ag_scope'])
+    await seedConversation(dbClient, 'conv_other', ['ag_scope'])
+    await seedRun(dbClient, 'run_owner', 'conv_owner', 'ag_scope')
+    await service.recordAgentRunDebugEvent({
+      conversationId: 'conv_owner',
+      runId: 'run_owner',
+      type: 'run.debug.step.started',
+      status: 'running',
+      payload: { label: 'run' },
+      createdAt: 10,
+    })
+
+    await expect(service.getAgentRunDebugEvents('conv_other', 'run_owner')).rejects.toThrow('not found')
   })
 })
 
@@ -132,6 +249,7 @@ async function seedRun(
   conversationId: string,
   agentId: string,
   triggerMessageId: string | null = null,
+  options: { startedAt?: number; finishedAt?: number } = {},
 ) {
   await dbClient.db.insert(dbClient.schema.agentRuns).values({
     id,
@@ -142,8 +260,8 @@ async function seedRun(
     error: null,
     parentRunId: null,
     usage: null,
-    startedAt: 1,
-    finishedAt: 2,
+    startedAt: options.startedAt ?? 1,
+    finishedAt: options.finishedAt ?? 2,
   })
 }
 

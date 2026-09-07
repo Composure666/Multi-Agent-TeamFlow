@@ -9,6 +9,7 @@ import type {
   WorkspaceMemoryRow,
 } from '@/db/schema'
 import type {
+  AgentRunDebugEventRecord,
   AgentRunDebugDetail,
   AgentRunDebugListItem,
   AskUserAnswer,
@@ -455,11 +456,42 @@ export async function deleteWorkspaceMemory(conversationId: string, memoryId: st
   )
 }
 
-export async function fetchAgentRuns(conversationId: string): Promise<AgentRunDebugListItem[]> {
-  const { runs } = await json<{ runs: AgentRunDebugListItem[] }>(
-    fetch(`/api/conversations/${conversationId}/agent-runs`),
+export interface AgentRunDebugListCursor {
+  startedAt: number
+  runId: string
+}
+
+export interface AgentRunDebugListPage {
+  runs: AgentRunDebugListItem[]
+  hasMore: boolean
+  nextCursor: AgentRunDebugListCursor | null
+}
+
+export async function fetchAgentRunsPage(
+  conversationId: string,
+  opts: { limit?: number; before?: AgentRunDebugListCursor | null } = {},
+): Promise<AgentRunDebugListPage> {
+  const params = new URLSearchParams()
+  if (opts.limit) params.set('limit', String(opts.limit))
+  if (opts.before) {
+    params.set('beforeStartedAt', String(opts.before.startedAt))
+    params.set('beforeRunId', opts.before.runId)
+  }
+  const qs = params.toString()
+  return json<AgentRunDebugListPage>(
+    fetch(`/api/conversations/${conversationId}/agent-runs${qs ? `?${qs}` : ''}`),
   )
-  return runs
+}
+
+export async function fetchAgentRuns(conversationId: string): Promise<AgentRunDebugListItem[]> {
+  const runs: AgentRunDebugListItem[] = []
+  let before: AgentRunDebugListCursor | null = null
+  for (;;) {
+    const page = await fetchAgentRunsPage(conversationId, { limit: 100, before })
+    runs.push(...page.runs)
+    if (!page.hasMore || page.nextCursor === null) return runs
+    before = page.nextCursor
+  }
 }
 
 export async function fetchAgentRunDebugDetail(
@@ -470,6 +502,25 @@ export async function fetchAgentRunDebugDetail(
     fetch(`/api/conversations/${conversationId}/agent-runs/${runId}/debug`),
   )
   return detail
+}
+
+export async function fetchAgentRunDebugEvents(
+  conversationId: string,
+  runId: string,
+): Promise<AgentRunDebugEventRecord[]> {
+  const { events } = await json<{ events: AgentRunDebugEventRecord[] }>(
+    fetch(`/api/conversations/${conversationId}/agent-runs/${runId}/debug-events`),
+  )
+  return events
+}
+
+export async function fetchConversationAgentRunDebugEvents(
+  conversationId: string,
+): Promise<AgentRunDebugEventRecord[]> {
+  const { events } = await json<{ events: AgentRunDebugEventRecord[] }>(
+    fetch(`/api/conversations/${conversationId}/agent-run-debug-events`),
+  )
+  return events
 }
 
 export async function optimizePrompt(prompt: string): Promise<{ enhancedText: string }> {

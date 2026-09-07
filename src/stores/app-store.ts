@@ -7,6 +7,7 @@ import { immer } from 'zustand/middleware/immer'
 import type { AgentRunRow, AgentRow, ArtifactRow, AttachmentRow, ConversationWithMeta, MessageRow, WorkspaceMemoryRow } from '@/db/schema'
 import type {
   AgentRunDebugDetail,
+  AgentRunDebugEventRecord,
   AgentRunDebugListItem,
   AppNotification,
   AppNotificationTarget,
@@ -117,6 +118,7 @@ interface AppState {
   // ─── Agent Run Debug（面板 lazy fetch）─
   agentRunDebugByConv: Record<string, AgentRunDebugListItem[]>
   agentRunDebugDetailsByRun: Record<string, AgentRunDebugDetail>
+  agentRunDebugEventsByRun: Record<string, AgentRunDebugEventRecord[]>
 
   // ─── Agent ask_user 结构化问答等待队列（按 conversationId 分桶）─
   pendingQuestionsByConv: Record<string, PendingQuestion[]>
@@ -218,7 +220,9 @@ interface AppState {
   removeWorkspaceMemory(conversationId: string, memoryId: string): void
 
   setAgentRunDebugList(conversationId: string, runs: AgentRunDebugListItem[]): void
+  upsertAgentRunDebugList(conversationId: string, runs: AgentRunDebugListItem[]): void
   setAgentRunDebugDetail(runId: string, detail: AgentRunDebugDetail): void
+  setAgentRunDebugEvents(runId: string, events: AgentRunDebugEventRecord[]): void
 
   setPendingQuestionsForConversation(conversationId: string, list: PendingQuestion[]): void
 
@@ -274,6 +278,7 @@ export const useAppStore = create<AppState>()(
     workspaceMemoriesByConv: {},
     agentRunDebugByConv: {},
     agentRunDebugDetailsByRun: {},
+    agentRunDebugEventsByRun: {},
     pendingQuestionsByConv: {},
     unreadByConv: {},
     mobileSidebarOpen: false,
@@ -490,6 +495,11 @@ export const useAppStore = create<AppState>()(
             delete s.agentRunDebugDetailsByRun[runId]
           }
         }
+        for (const runId in s.agentRunDebugEventsByRun) {
+          if (s.agentRunDebugEventsByRun[runId].some((event) => event.conversationId === id)) {
+            delete s.agentRunDebugEventsByRun[runId]
+          }
+        }
         delete s.pendingQuestionsByConv[id]
         if (s.activeConversationId === id) s.activeConversationId = null
       }),
@@ -659,6 +669,11 @@ export const useAppStore = create<AppState>()(
             delete s.agentRunDebugDetailsByRun[runId]
           }
         }
+        for (const runId in s.agentRunDebugEventsByRun) {
+          if (s.agentRunDebugEventsByRun[runId].some((event) => event.conversationId === conversationId)) {
+            delete s.agentRunDebugEventsByRun[runId]
+          }
+        }
         delete s.pendingQuestionsByConv[conversationId]
         delete s.unreadByConv[conversationId]
         if (s.highlightedMessageId && messageIds.has(s.highlightedMessageId)) {
@@ -750,12 +765,29 @@ export const useAppStore = create<AppState>()(
     setAgentRunDebugList: (conversationId, runs) =>
       set((s) => {
         if (runs.length === 0) delete s.agentRunDebugByConv[conversationId]
-        else s.agentRunDebugByConv[conversationId] = runs
+        else s.agentRunDebugByConv[conversationId] = sortAgentRunDebugList(runs)
+      }),
+
+    upsertAgentRunDebugList: (conversationId, runs) =>
+      set((s) => {
+        const existing = s.agentRunDebugByConv[conversationId] ?? []
+        const next = sortAgentRunDebugList([...existing, ...runs])
+        if (next.length === 0) delete s.agentRunDebugByConv[conversationId]
+        else s.agentRunDebugByConv[conversationId] = next
       }),
 
     setAgentRunDebugDetail: (runId, detail) =>
       set((s) => {
         s.agentRunDebugDetailsByRun[runId] = detail
+      }),
+
+    setAgentRunDebugEvents: (runId, events) =>
+      set((s) => {
+        if (events.length === 0) {
+          delete s.agentRunDebugEventsByRun[runId]
+          return
+        }
+        s.agentRunDebugEventsByRun[runId] = dedupeAndSortDebugEvents(events)
       }),
 
     setPendingQuestionsForConversation: (conversationId, list) =>
@@ -1210,6 +1242,31 @@ export const useAppStore = create<AppState>()(
             return
           }
 
+          case 'run.debug.step.started':
+          case 'run.debug.step.completed':
+          case 'run.debug.tool.started':
+          case 'run.debug.tool.completed':
+          case 'run.debug.terminal.output': {
+            const nextEvent: AgentRunDebugEventRecord = {
+              id: event.debugEventId ?? buildDebugEventFallbackId(event),
+              conversationId: event.conversationId,
+              runId: event.runId,
+              parentRunId: event.parentRunId ?? null,
+              agentId: event.agentId ?? null,
+              taskId: event.taskId ?? null,
+              stepId: event.stepId ?? null,
+              toolCallId: event.toolCallId ?? null,
+              type: event.type,
+              status: event.status ?? null,
+              payload: event.payload ?? buildDebugEventPayload(event),
+              createdAt: event.timestamp,
+            }
+            const list = s.agentRunDebugEventsByRun[event.runId] ?? []
+            if (list.some((item) => item.id === nextEvent.id)) return
+            s.agentRunDebugEventsByRun[event.runId] = dedupeAndSortDebugEvents([...list, nextEvent])
+            return
+          }
+
           default:
             return
         }
@@ -1250,6 +1307,12 @@ function findLatestAgentMessageIdForRun(
 
 function sortWorkspaceMemories(list: WorkspaceMemoryRow[]): WorkspaceMemoryRow[] {
   return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)
+}
+
+function sortAgentRunDebugList(list: AgentRunDebugListItem[]): AgentRunDebugListItem[] {
+  const byId = new Map<string, AgentRunDebugListItem>()
+  for (const run of list) byId.set(run.id, run)
+  return [...byId.values()].sort((a, b) => b.startedAt - a.startedAt || b.id.localeCompare(a.id))
 }
 
 function attachDispatchToMessageForRun(
@@ -1405,6 +1468,53 @@ function areUnknownValuesEquivalent(a: unknown, b: unknown): boolean {
   }
 }
 
+function buildDebugEventPayload(event: StreamEvent): Record<string, unknown> {
+  if (
+    event.type !== 'run.debug.step.started' &&
+    event.type !== 'run.debug.step.completed' &&
+    event.type !== 'run.debug.tool.started' &&
+    event.type !== 'run.debug.tool.completed' &&
+    event.type !== 'run.debug.terminal.output'
+  ) {
+    return {}
+  }
+  return {
+    ...(event.toolName ? { toolName: event.toolName } : {}),
+    ...(event.argsSummary ? { argsSummary: event.argsSummary } : {}),
+    ...(event.outputSummary ? { outputSummary: event.outputSummary } : {}),
+    ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
+    ...(event.error ? { error: event.error } : {}),
+    ...(event.stream ? { stream: event.stream } : {}),
+    ...(event.text ? { text: event.text } : {}),
+  }
+}
+
+function buildDebugEventFallbackId(event: StreamEvent): string {
+  if (
+    event.type !== 'run.debug.step.started' &&
+    event.type !== 'run.debug.step.completed' &&
+    event.type !== 'run.debug.tool.started' &&
+    event.type !== 'run.debug.tool.completed' &&
+    event.type !== 'run.debug.terminal.output'
+  ) {
+    return `event_${Date.now()}`
+  }
+  return [
+    event.type,
+    event.runId,
+    event.taskId ?? '',
+    event.stepId ?? '',
+    event.toolCallId ?? '',
+    event.timestamp,
+  ].join(':')
+}
+
+function dedupeAndSortDebugEvents(events: AgentRunDebugEventRecord[]): AgentRunDebugEventRecord[] {
+  const byId = new Map<string, AgentRunDebugEventRecord>()
+  for (const event of events) byId.set(event.id, event)
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+}
+
 import { useMemo } from 'react'
 
 export const useMessagesForConversation = (conversationId: string) =>
@@ -1552,6 +1662,13 @@ export const useAgentRunDebugList = (conversationId: string | null): AgentRunDeb
 
 export const useAgentRunDebugDetail = (runId: string | null): AgentRunDebugDetail | null =>
   useAppStore((s) => (runId ? s.agentRunDebugDetailsByRun[runId] ?? null : null))
+
+export const useAgentRunDebugEvents = (runId: string | null): AgentRunDebugEventRecord[] =>
+  useAppStore(
+    useShallow((s) =>
+      runId ? s.agentRunDebugEventsByRun[runId] ?? [] : [],
+    ),
+  )
 
 /** 该会话当前所有待回答的 ask_user（agent 通过结构化问答让用户选）。 */
 export const usePendingQuestions = (conversationId: string | null): PendingQuestion[] =>

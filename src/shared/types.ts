@@ -300,6 +300,58 @@ export interface AgentRunDebugDetail {
   parentRun: AgentRunDebugListItem | null
 }
 
+export type AgentRunDebugEventType =
+  | 'run.debug.step.started'
+  | 'run.debug.step.completed'
+  | 'run.debug.tool.started'
+  | 'run.debug.tool.completed'
+  | 'run.debug.terminal.output'
+
+export type AgentRunDebugEventStatus =
+  | 'queued'
+  | 'running'
+  | 'complete'
+  | 'failed'
+  | 'aborted'
+  | 'skipped'
+  | 'blocked'
+
+export type AgentRunDebugEventPayload = Record<string, unknown>
+
+export interface AgentRunDebugEventRecord {
+  id: string
+  conversationId: string
+  runId: string
+  parentRunId: string | null
+  agentId: string | null
+  taskId: string | null
+  stepId: string | null
+  toolCallId: string | null
+  type: AgentRunDebugEventType
+  status: AgentRunDebugEventStatus | null
+  payload: AgentRunDebugEventPayload
+  createdAt: number
+}
+
+export interface AgentRunDebugStreamFields {
+  runId: string
+  parentRunId?: string | null
+  agentId?: string | null
+  taskId?: string | null
+  stepId?: string | null
+  toolCallId?: string | null
+  status?: AgentRunDebugEventStatus | null
+  payload?: AgentRunDebugEventPayload
+  debugEventId?: string
+  toolName?: string
+  argsSummary?: string
+  outputSummary?: string
+  durationMs?: number
+  error?: string
+  stream?: 'stdout' | 'stderr'
+  text?: string
+}
+
 // ─── 调度 plan ────────────────────────────────────────────
 export interface DispatchPlanItem {
   id: string
@@ -585,6 +637,7 @@ export type StreamEvent = BaseEvent &
     | { type: 'ask_user.pending'; pendingQuestion: PendingQuestion }
     | { type: 'ask_user.resolved'; pendingId: string; answered: boolean }
     | { type: 'notification.created'; notification: AppNotification }
+    | ({ type: AgentRunDebugEventType } & AgentRunDebugStreamFields)
     | { type: 'heartbeat' }
   )
 

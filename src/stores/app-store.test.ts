@@ -37,6 +37,7 @@ function resetStore(): void {
     workspaceMemoriesByConv: {},
     agentRunDebugByConv: {},
     agentRunDebugDetailsByRun: {},
+    agentRunDebugEventsByRun: {},
     pendingQuestionsByConv: {},
     unreadByConv: {},
     mobileSidebarOpen: false,
@@ -321,6 +322,84 @@ describe('app-store agent run debug reducers', () => {
     expect(useAppStore.getState().activeConversationId).toBe('conv_debug')
     expect(useAppStore.getState().activeRunBoardConversationId).toBe('conv_debug')
     expect(useAppStore.getState().activeRunBoardRunId).toBe('run_debug')
+  })
+
+  it('appends paged agent run debug lists without duplicates', () => {
+    const baseRun = {
+      conversationId: 'conv_debug',
+      agentId: 'ag_debug',
+      agentName: 'Debug Agent',
+      adapterName: 'custom' as const,
+      modelId: 'gpt-test',
+      triggerMessageId: null,
+      parentRunId: null,
+      status: 'complete' as const,
+      error: null,
+      usage: null,
+      finishedAt: 2,
+      hasDebugSnapshot: false,
+    }
+
+    useAppStore.getState().setAgentRunDebugList('conv_debug', [
+      { ...baseRun, id: 'run_3', startedAt: 3 },
+      { ...baseRun, id: 'run_2', startedAt: 2 },
+    ])
+    useAppStore.getState().upsertAgentRunDebugList('conv_debug', [
+      { ...baseRun, id: 'run_2', startedAt: 2, hasDebugSnapshot: true },
+      { ...baseRun, id: 'run_1', startedAt: 1 },
+    ])
+
+    const runs = useAppStore.getState().agentRunDebugByConv.conv_debug
+    expect(runs.map((run) => run.id)).toEqual(['run_3', 'run_2', 'run_1'])
+    expect(runs.find((run) => run.id === 'run_2')?.hasDebugSnapshot).toBe(true)
+  })
+
+  it('appends debug events to the run bucket', () => {
+    useAppStore.getState().applyEvent({
+      type: 'run.debug.step.started',
+      conversationId: 'conv_debug',
+      timestamp: 10,
+      runId: 'run_debug',
+      agentId: 'ag_debug',
+      stepId: 'step_run',
+      status: 'running',
+      payload: { label: 'run' },
+    })
+
+    useAppStore.getState().applyEvent({
+      type: 'run.debug.tool.completed',
+      conversationId: 'conv_debug',
+      timestamp: 20,
+      runId: 'run_debug',
+      toolCallId: 'call_1',
+      status: 'complete',
+      outputSummary: 'ok',
+      payload: { toolName: 'bash' },
+    })
+
+    expect(useAppStore.getState().agentRunDebugEventsByRun.run_debug).toEqual([
+      expect.objectContaining({ type: 'run.debug.step.started', stepId: 'step_run' }),
+      expect.objectContaining({ type: 'run.debug.tool.completed', toolCallId: 'call_1' }),
+    ])
+  })
+
+  it('dedupes live debug events by persisted event id', () => {
+    const event = {
+      type: 'run.debug.step.started' as const,
+      conversationId: 'conv_debug',
+      timestamp: 10,
+      runId: 'run_debug',
+      agentId: 'ag_debug',
+      stepId: 'step_run',
+      status: 'running' as const,
+      payload: { label: 'run' },
+      debugEventId: 'rde_debug',
+    }
+
+    useAppStore.getState().applyEvent(event)
+    useAppStore.getState().applyEvent(event)
+
+    expect(useAppStore.getState().agentRunDebugEventsByRun.run_debug).toHaveLength(1)
   })
 })
 

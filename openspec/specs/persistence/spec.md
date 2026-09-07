@@ -53,3 +53,12 @@ Global API settings MUST be stored in the single-row `app_settings` table and SH
 - **WHEN** the settings API receives `deployment_publish_enabled`, `deployment_publish_dir`, or `deployment_public_base_url`
 - **THEN** it normalizes empty strings to null
 - **AND** stores the values in the single `app_settings` row.
+
+### Requirement: Run debug events SHALL be append-only
+
+The database SHALL persist run debug events in an append-only table scoped by conversation id and run id. Event payloads SHALL be bounded summaries.
+
+#### Scenario: Debugger reloads a completed run
+- **WHEN** the client requests debug events for a run under its conversation
+- **THEN** the API returns that run's events ordered by creation time
+- **AND** access under any other conversation is rejected as not found.

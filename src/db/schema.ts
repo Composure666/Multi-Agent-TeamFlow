@@ -19,6 +19,9 @@ import type {
   MessagePart,
   ModelProvider,
   AgentRunDebugSnapshot,
+  AgentRunDebugEventPayload,
+  AgentRunDebugEventStatus,
+  AgentRunDebugEventType,
 } from '@/shared/types'
 
 // ─── Agents ──────────────────────────────────────────────────
@@ -250,6 +253,35 @@ export const agentRunDebugSnapshots = sqliteTable(
   (t) => [
     uniqueIndex('idx_run_debug_run').on(t.runId),
     index('idx_run_debug_conv_created').on(t.conversationId, t.createdAt),
+  ],
+)
+
+// ─── Agent run debug events ────────────────────────────────
+export const agentRunDebugEvents = sqliteTable(
+  'agent_run_debug_events',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    runId: text('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    parentRunId: text('parent_run_id'),
+    agentId: text('agent_id').references(() => agents.id),
+    taskId: text('task_id'),
+    stepId: text('step_id'),
+    toolCallId: text('tool_call_id'),
+    type: text('type').$type<AgentRunDebugEventType>().notNull(),
+    status: text('status').$type<AgentRunDebugEventStatus>(),
+    payload: text('payload', { mode: 'json' }).$type<AgentRunDebugEventPayload>().notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_run_debug_events_conv_run_created').on(t.conversationId, t.runId, t.createdAt),
+    index('idx_run_debug_events_run_agent_created').on(t.runId, t.agentId, t.createdAt),
+    index('idx_run_debug_events_run_task_created').on(t.runId, t.taskId, t.createdAt),
+    index('idx_run_debug_events_run_tool').on(t.runId, t.toolCallId),
   ],
 )
 
@@ -496,6 +528,8 @@ export type WorkspaceMemoryInsert = typeof workspaceMemories.$inferInsert
 
 export type AgentRunDebugSnapshotRow = typeof agentRunDebugSnapshots.$inferSelect
 export type AgentRunDebugSnapshotInsert = typeof agentRunDebugSnapshots.$inferInsert
+export type AgentRunDebugEventRow = typeof agentRunDebugEvents.$inferSelect
+export type AgentRunDebugEventInsert = typeof agentRunDebugEvents.$inferInsert
 
 export type McpServerRow = typeof mcpServers.$inferSelect
 export type McpServerInsert = typeof mcpServers.$inferInsert
@@ -521,6 +555,9 @@ export type ConversationInsert = typeof conversations.$inferInsert
 export interface ConversationWithMeta extends ConversationRow {
   workspaceMode: 'sandbox' | 'local'
   workspaceBoundPath: string | null
+  runCount?: number
+  latestRunAt?: number | null
+  latestRunStatus?: 'queued' | 'running' | 'complete' | 'failed' | 'aborted' | null
 }
 
 export type MessageRow = typeof messages.$inferSelect

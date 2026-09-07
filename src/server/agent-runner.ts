@@ -8,6 +8,8 @@ import { db, schema } from '@/db/client'
 import type { AgentRow, ArtifactRow, MessageRow, WorkspaceRow } from '@/db/schema'
 import type {
   AgentRunDebugAttachment,
+  AgentRunDebugEventStatus,
+  AgentRunDebugEventType,
   AgentRunDebugPromptSection,
   AgentRunDebugSkill,
   ArtifactContent,
@@ -24,7 +26,7 @@ import { estimateTokens, getModelLimits } from '@/shared/model-registry'
 
 import { agentRegistry } from './adapters/registry'
 import type { AdapterAttachment, AdapterInput, ExternalMcpServerConfig } from './adapters/types'
-import { recordAgentRunDebugSnapshot } from './agent-run-debug-service'
+import { recordAgentRunDebugEvent, recordAgentRunDebugSnapshot } from './agent-run-debug-service'
 import { getAttachmentAbsolutePath } from './attachment-service'
 import {
   getLatestContextSummary,
@@ -331,14 +333,31 @@ async function executeRun(runId: string, signal: AbortSignal, args: RunArgs): Pr
 
   // 写 run 记录 + 发 run.start
   await insertRun(runId, args, agent.id)
+  const startedAt = Date.now()
   publish({
     type: 'run.start',
     conversationId: args.conversationId,
-    timestamp: Date.now(),
+    timestamp: startedAt,
     runId,
     agentId: agent.id,
     triggerMessageId: args.triggerMessageId,
     parentRunId: args.parentRunId,
+  })
+  await recordAndPublishDebugEvent({
+    type: 'run.debug.step.started',
+    conversationId: args.conversationId,
+    timestamp: startedAt,
+    runId,
+    parentRunId: args.parentRunId ?? null,
+    agentId: agent.id,
+    stepId: `run:${runId}`,
+    status: 'running',
+    payload: {
+      label: agent.isOrchestrator ? 'Orchestrator run started' : 'Agent run started',
+      triggerMessageId: args.triggerMessageId,
+      adapterName: agent.adapterName,
+      modelId: agent.modelId,
+    },
   })
 
   try {
@@ -1134,14 +1153,32 @@ async function runChildTaskAttempt(
     parentSignal: ctx.signal,
   })
 
+  const startedAt = Date.now()
   publish({
     type: 'dispatch.start',
     conversationId: ctx.conversationId,
-    timestamp: Date.now(),
+    timestamp: startedAt,
     parentRunId: ctx.parentRunId,
     childRunId,
     taskId: task.id,
     agentId: task.agentId,
+  })
+  await recordAndPublishDebugEvent({
+    type: 'run.debug.step.started',
+    conversationId: ctx.conversationId,
+    timestamp: startedAt,
+    runId: ctx.parentRunId,
+    parentRunId: ctx.parentRunId,
+    agentId: task.agentId,
+    taskId: task.id,
+    stepId: `task:${task.id}`,
+    status: 'running',
+    payload: {
+      label: 'Dispatch task started',
+      childRunId,
+      task: truncateDebugText(task.task),
+      taskKind: task.taskKind ?? null,
+    },
   })
 
   const raw = await promise
@@ -1592,15 +1629,33 @@ function publishDispatchEnd(
   taskId: string,
   result: DispatchTaskResult,
 ): void {
+  const finishedAt = Date.now()
   publish({
     type: 'dispatch.end',
     conversationId: ctx.conversationId,
-    timestamp: Date.now(),
+    timestamp: finishedAt,
     parentRunId: ctx.parentRunId,
     childRunId: result.runId ?? undefined,
     taskId,
     status: result.status,
     error: result.error,
+  })
+  void recordAndPublishDebugEvent({
+    type: 'run.debug.step.completed',
+    conversationId: ctx.conversationId,
+    timestamp: finishedAt,
+    runId: ctx.parentRunId,
+    parentRunId: ctx.parentRunId,
+    taskId,
+    stepId: `task:${taskId}`,
+    status: result.status,
+    payload: {
+      label: 'Dispatch task completed',
+      childRunId: result.runId,
+      error: result.error ? truncateDebugText(result.error) : null,
+      artifactCount: result.artifactIds.length,
+      outputMessageCount: result.outputMessageIds.length,
+    },
   })
 }
 
@@ -1628,12 +1683,16 @@ async function consumeStream(
   const outputArtifacts: Record<string, string> = {}
   const outputKeyByArtifactId = new Map<string, string>()
   const toolNameByCallId = new Map<string, string>()
+  const toolStartedAtByCallId = new Map<string, number>()
   let taskReport: TaskResultReport | undefined
   let currentMessageId: string | null = null
 
   for await (const event of stream) {
     if (event.type === 'message.start') currentMessageId = event.messageId
-    if (event.type === 'tool.call') toolNameByCallId.set(event.callId, event.toolName)
+    if (event.type === 'tool.call') {
+      toolNameByCallId.set(event.callId, event.toolName)
+      toolStartedAtByCallId.set(event.callId, event.timestamp)
+    }
 
     await persistEvent(event, partsBuffer, dirtyMessageIds, runId, agentId, outputMessageIds, artifactIds)
     if (event.type === 'part.delta' && Date.now() - lastDeltaFlushAt >= 500) {
@@ -1641,6 +1700,7 @@ async function consumeStream(
       lastDeltaFlushAt = Date.now()
     }
     publish(event)
+    await recordToolDebugEvent(event, runId, agentId, toolNameByCallId, toolStartedAtByCallId)
 
     if (event.type === 'artifact.create') {
       const outputKey = outputKeyByArtifactId.get(event.artifact.id)
@@ -1724,6 +1784,13 @@ async function consumeStream(
             artifactIds,
           )
           publish(resultEvent)
+          await recordToolDebugEvent(
+            resultEvent,
+            runId,
+            agentId,
+            toolNameByCallId,
+            toolStartedAtByCallId,
+          )
         }
 
         const endEvent: StreamEvent = {
@@ -1943,6 +2010,22 @@ async function finalize(
     runId,
     status,
     error,
+  })
+  await recordAndPublishDebugEvent({
+    type: 'run.debug.step.completed',
+    conversationId: args.conversationId,
+    timestamp: finishedAt,
+    runId,
+    parentRunId: args.parentRunId ?? null,
+    agentId: args.agentId,
+    stepId: `run:${runId}`,
+    status,
+    payload: {
+      label: status === 'complete' ? 'Agent run completed' : 'Agent run ended',
+      error: error ? truncateDebugText(error) : null,
+      artifactCount: result.artifactIds.length,
+      outputMessageCount: result.outputMessageIds.length,
+    },
   })
 
   return {
@@ -2176,6 +2259,168 @@ function finalizeFailed(runId: string, args: RunArgs, error: string) {
 
 function publish(event: StreamEvent): void {
   eventBus.publish(event)
+}
+
+interface DebugEventPublishArgs {
+  type: AgentRunDebugEventType
+  conversationId: string
+  timestamp: number
+  runId: string
+  parentRunId?: string | null
+  agentId?: string | null
+  taskId?: string | null
+  stepId?: string | null
+  toolCallId?: string | null
+  status?: AgentRunDebugEventStatus | null
+  payload: Record<string, unknown>
+  toolName?: string
+  argsSummary?: string
+  outputSummary?: string
+  durationMs?: number
+  error?: string
+  stream?: 'stdout' | 'stderr'
+  text?: string
+}
+
+async function recordAndPublishDebugEvent(args: DebugEventPublishArgs): Promise<void> {
+  let debugEventId: string | undefined
+  try {
+    const row = await recordAgentRunDebugEvent({
+      conversationId: args.conversationId,
+      runId: args.runId,
+      parentRunId: args.parentRunId ?? null,
+      agentId: args.agentId ?? null,
+      taskId: args.taskId ?? null,
+      stepId: args.stepId ?? null,
+      toolCallId: args.toolCallId ?? null,
+      type: args.type,
+      status: args.status ?? null,
+      payload: args.payload,
+      createdAt: args.timestamp,
+    })
+    debugEventId = row.id
+  } catch (err) {
+    console.warn('[agent-runner] recordAgentRunDebugEvent failed; continuing without persisted debug event', err)
+  }
+
+  publish({
+    type: args.type,
+    conversationId: args.conversationId,
+    timestamp: args.timestamp,
+    runId: args.runId,
+    parentRunId: args.parentRunId ?? null,
+    agentId: args.agentId ?? null,
+    taskId: args.taskId ?? null,
+    stepId: args.stepId ?? null,
+    toolCallId: args.toolCallId ?? null,
+    status: args.status ?? null,
+    payload: args.payload,
+    ...(debugEventId ? { debugEventId } : {}),
+    ...(args.toolName ? { toolName: args.toolName } : {}),
+    ...(args.argsSummary ? { argsSummary: args.argsSummary } : {}),
+    ...(args.outputSummary ? { outputSummary: args.outputSummary } : {}),
+    ...(args.durationMs !== undefined ? { durationMs: args.durationMs } : {}),
+    ...(args.error ? { error: args.error } : {}),
+    ...(args.stream ? { stream: args.stream } : {}),
+    ...(args.text ? { text: args.text } : {}),
+  })
+}
+
+async function recordToolDebugEvent(
+  event: StreamEvent,
+  runId: string,
+  agentId: string,
+  toolNameByCallId: Map<string, string>,
+  toolStartedAtByCallId: Map<string, number>,
+): Promise<void> {
+  if (event.type === 'tool.call') {
+    const argsSummary = summarizeDebugValue(event.args)
+    await recordAndPublishDebugEvent({
+      type: 'run.debug.tool.started',
+      conversationId: event.conversationId,
+      timestamp: event.timestamp,
+      runId,
+      agentId,
+      stepId: `tool:${event.callId}`,
+      toolCallId: event.callId,
+      status: 'running',
+      payload: {
+        label: 'Tool call started',
+        toolName: event.toolName,
+        argsSummary,
+      },
+      toolName: event.toolName,
+      argsSummary,
+    })
+    return
+  }
+
+  if (event.type !== 'tool.result') return
+
+  const toolName = toolNameByCallId.get(event.callId) ?? 'unknown'
+  const startedAt = toolStartedAtByCallId.get(event.callId)
+  const durationMs = startedAt === undefined ? undefined : Math.max(0, event.timestamp - startedAt)
+  const outputSummary = summarizeDebugValue(event.result)
+  await recordAndPublishDebugEvent({
+    type: 'run.debug.tool.completed',
+    conversationId: event.conversationId,
+    timestamp: event.timestamp,
+    runId,
+    agentId,
+    stepId: `tool:${event.callId}`,
+    toolCallId: event.callId,
+    status: event.isError ? 'failed' : 'complete',
+    payload: {
+      label: 'Tool call completed',
+      toolName,
+      outputSummary,
+      ...(durationMs !== undefined ? { durationMs } : {}),
+      ...(event.isError ? { error: outputSummary } : {}),
+    },
+    toolName,
+    outputSummary,
+    durationMs,
+    ...(event.isError ? { error: outputSummary } : {}),
+  })
+
+  if (toolName === 'bash') {
+    await recordAndPublishDebugEvent({
+      type: 'run.debug.terminal.output',
+      conversationId: event.conversationId,
+      timestamp: event.timestamp,
+      runId,
+      agentId,
+      stepId: `tool:${event.callId}`,
+      toolCallId: event.callId,
+      status: event.isError ? 'failed' : 'complete',
+      payload: {
+        label: 'Terminal output',
+        stream: event.isError ? 'stderr' : 'stdout',
+        text: outputSummary,
+      },
+      stream: event.isError ? 'stderr' : 'stdout',
+      text: outputSummary,
+    })
+  }
+}
+
+function summarizeDebugValue(value: unknown): string {
+  if (typeof value === 'string') return truncateDebugText(value)
+  try {
+    return truncateDebugText(JSON.stringify(value, redactDebugValue))
+  } catch {
+    return truncateDebugText(String(value))
+  }
+}
+
+function redactDebugValue(key: string, value: unknown): unknown {
+  if (/api[_-]?key|token|secret|password|authorization/i.test(key)) return '[redacted]'
+  return value
+}
+
+function truncateDebugText(value: string): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized.length > 500 ? `${normalized.slice(0, 497)}...` : normalized
 }
 
 async function publishDispatchProgressMessage(

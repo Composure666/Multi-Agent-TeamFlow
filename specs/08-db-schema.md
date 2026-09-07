@@ -2,7 +2,7 @@
 
 > Drizzle ORM + SQLite。本 spec 描述核心业务表、自动化表、上下文基础设施表、外部 MCP 表、Workspace Memory 表、Agent Run 调试快照表与全局设置表的字段、索引、外键级联策略，是 Spec 01/16/17 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
 >
-> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`agent_run_debug_snapshots` 是 run 调试快照表；`app_settings` 是单行配置表，不对应实体。
+> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试事件表；`app_settings` 是单行配置表，不对应实体。
 
 源文件：`src/db/schema.ts`
 
@@ -227,7 +227,39 @@ INDEX idx_run_debug_conv_created ON (conversation_id, created_at)
 
 ---
 
-## 9. automations
+## 9. agent_run_debug_events
+
+```ts
+agent_run_debug_events {
+  id              text PK           // rde_<nanoid>
+  conversation_id text NOT NULL FK→conversations.id ON DELETE CASCADE
+  run_id          text NOT NULL FK→agent_runs.id ON DELETE CASCADE
+  parent_run_id   text
+  agent_id        text FK→agents.id
+  task_id         text
+  step_id         text
+  tool_call_id    text
+  type            text NOT NULL     // AgentRunDebugEventType
+  status          text              // AgentRunDebugEventStatus | null
+  payload         text JSON NOT NULL // bounded summary payload, not raw prompt/tool secrets
+  created_at      int NOT NULL
+}
+INDEX idx_run_debug_events_conv_run_created ON (conversation_id, run_id, created_at)
+INDEX idx_run_debug_events_run_agent_created ON (run_id, agent_id, created_at)
+INDEX idx_run_debug_events_run_task_created ON (run_id, task_id, created_at)
+INDEX idx_run_debug_events_run_tool ON (run_id, tool_call_id)
+```
+
+**约束**：
+- append-only：运行期间只追加事件，不修改历史事件。
+- 只保存 run/dispatch/tool/terminal 的摘要 payload，不保存 API key、auth token、完整 prompt、完整 tool 输出或 MCP resolved env value。
+- 删除 conversation 或 agent_run 时级联删除 debug events。
+
+**索引说明**：`idx_run_debug_events_conv_run_created` 用于调试页按 run 回放事件；其它索引用于后续按 Agent、Task、Tool drill-down。
+
+---
+
+## 10. automations
 
 ```ts
 automations {
@@ -265,7 +297,7 @@ INDEX idx_automations_updated ON (updated_at)
 
 ---
 
-## 9. automation_runs
+## 11. automation_runs
 
 ```ts
 automation_runs {
@@ -294,7 +326,7 @@ INDEX idx_automation_runs_status ON (status)
 
 ---
 
-## 10. automation_run_logs
+## 12. automation_run_logs
 
 ```ts
 automation_run_logs {
@@ -312,7 +344,7 @@ INDEX idx_automation_run_logs_run_created ON (run_id, created_at)
 
 ---
 
-## 11. conversation_context_summaries
+## 13. conversation_context_summaries
 
 ```ts
 conversation_context_summaries {
@@ -338,7 +370,7 @@ INDEX idx_context_summaries_conv_created ON (conversation_id, created_at)
 
 ---
 
-## 12. mcp_servers
+## 14. mcp_servers
 
 ```ts
 mcp_servers {
@@ -370,7 +402,7 @@ INDEX idx_mcp_servers_enabled ON (enabled)
 
 ---
 
-## 13. skills
+## 15. skills
 
 ```ts
 skills {
@@ -398,7 +430,7 @@ INDEX idx_skills_enabled ON (enabled)
 
 ---
 
-## 14. workspace_memories
+## 16. workspace_memories
 
 ```ts
 workspace_memories {
@@ -429,7 +461,7 @@ INDEX idx_workspace_memories_conv_pinned ON (conversation_id, pinned, updated_at
 
 ---
 
-## 15. app_settings
+## 17. app_settings
 
 ```ts
 app_settings {
@@ -538,6 +570,7 @@ app_settings ──(独立，无外键)── 单行表，与任何业务表都�
 | ContextSummary | `ctx_` | `ctx_mN4p...` |
 | WorkspaceMemory | `mem_` | `mem_s7Kp...` |
 | AgentRunDebugSnapshot | `rdbg_` | `rdbg_aB3c...` |
+| AgentRunDebugEvent | `rde_` | `rde_uT8m...` |
 | Automation | `auto_` | `auto_xY8k...` |
 | AutomationRun | `arun_` | `arun_pQ2s...` |
 | ToolCall (内存中) | `call_` | `call_aBc...` |

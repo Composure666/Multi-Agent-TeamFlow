@@ -182,10 +182,27 @@ async function withWorkspaceMeta(
   const ws = await db.query.workspaces.findFirst({
     where: eq(schema.workspaces.conversationId, conv.id),
   })
+  const runs = await db.query.agentRuns.findMany({
+    where: eq(schema.agentRuns.conversationId, conv.id),
+    columns: {
+      startedAt: true,
+      status: true,
+    },
+  })
+  const latestRun = runs.reduce<{ startedAt: number; status: ConversationWithMeta['latestRunStatus'] } | null>(
+    (latest, run) => {
+      if (!latest || run.startedAt > latest.startedAt) return { startedAt: run.startedAt, status: run.status }
+      return latest
+    },
+    null,
+  )
   return {
     ...conv,
     workspaceMode: (ws?.mode ?? 'sandbox') as 'sandbox' | 'local',
     workspaceBoundPath: ws?.boundPath ?? null,
+    runCount: runs.length,
+    latestRunAt: latestRun?.startedAt ?? null,
+    latestRunStatus: latestRun?.status ?? null,
   }
 }
 
@@ -207,14 +224,47 @@ export async function listConversations(): Promise<ConversationWithMeta[]> {
       convs.map((c) => c.id),
     ),
   })
+  const runs = await db.query.agentRuns.findMany({
+    where: inArray(
+      schema.agentRuns.conversationId,
+      convs.map((c) => c.id),
+    ),
+    columns: {
+      conversationId: true,
+      startedAt: true,
+      status: true,
+    },
+  })
   const wsByConv = new Map(workspaces.map((w) => [w.conversationId, w]))
+  const runStatsByConv = new Map<string, {
+    count: number
+    latestRunAt: number | null
+    latestRunStatus: ConversationWithMeta['latestRunStatus']
+  }>()
+  for (const run of runs) {
+    const current = runStatsByConv.get(run.conversationId) ?? {
+      count: 0,
+      latestRunAt: null,
+      latestRunStatus: null,
+    }
+    current.count += 1
+    if (current.latestRunAt === null || run.startedAt > current.latestRunAt) {
+      current.latestRunAt = run.startedAt
+      current.latestRunStatus = run.status
+    }
+    runStatsByConv.set(run.conversationId, current)
+  }
 
   return convs.map((c) => {
     const ws = wsByConv.get(c.id)
+    const runStats = runStatsByConv.get(c.id)
     return {
       ...c,
       workspaceMode: (ws?.mode ?? 'sandbox') as 'sandbox' | 'local',
       workspaceBoundPath: ws?.boundPath ?? null,
+      runCount: runStats?.count ?? 0,
+      latestRunAt: runStats?.latestRunAt ?? null,
+      latestRunStatus: runStats?.latestRunStatus ?? null,
     }
   })
 }

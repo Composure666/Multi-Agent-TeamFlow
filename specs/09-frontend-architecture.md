@@ -64,6 +64,7 @@ interface AppState {
   workspaceMemoriesByConv: Record<string, WorkspaceMemoryRow[]> // 当前会话 Workspace Memory，打开面板时 lazy fetch
   agentRunDebugByConv: Record<string, AgentRunDebugListItem[]> // Run 调试列表，打开面板时 lazy fetch
   agentRunDebugDetailsByRun: Record<string, AgentRunDebugDetail> // 单 run 调试详情缓存
+  agentRunDebugEventsByRun: Record<string, AgentRunDebugEventRecord[]> // 单 run 的 append-only 调试事件回放缓存
   highlightedMessageId: string | null                         // 跳转后短暂高亮
   streamConnected: boolean
 }
@@ -108,10 +109,11 @@ interface AppState {
 | `bash_command.resolved` | 从 `pendingBashCommandsByConv[convId]` 移除 `pendingId` |
 | `mcp_tool.pending` | `pendingMcpToolApprovalsByConv[convId].push(pendingApproval)`（已存在的 id 不重复 push） |
 | `mcp_tool.resolved` | 从 `pendingMcpToolApprovalsByConv[convId]` 移除 `pendingId` |
+| `run.debug.*` | 将事件转成 `AgentRunDebugEventRecord`，按 `debugEventId` 幂等合并到 `agentRunDebugEventsByRun[runId]`，并按 `createdAt` 排序 |
 
 **Workspace Memory**：Memory CRUD 不走 SSE；`WorkspaceMemoryButton` 打开时 lazy fetch `GET /api/conversations/:id/workspace-memory`，create/update/delete 成功后用 store action 更新 `workspaceMemoriesByConv[convId]`。Memory 是 workspace metadata，不是聊天历史；`clearConversationHistory` 默认不清理该 bucket，删除 conversation 时清理。
 
-**Agent Run 调试**：Run 调试面板不走 SSE；`AgentRunDebugButton` 打开时 lazy fetch `GET /api/conversations/:id/agent-runs`，选择 run 时 fetch `GET /api/conversations/:id/agent-runs/:runId/debug`。`agentRunDebugByConv` / `agentRunDebugDetailsByRun` 是只读调试缓存；live `runsByConv` 继续服务流式运行状态与中止按钮。删除 conversation 时清理对应 debug list 和 detail bucket。
+**Agent Run 调试**：`AgentRunDebugButton` 打开时 lazy fetch `GET /api/conversations/:id/agent-runs`，选择 run 时 fetch `GET /api/conversations/:id/agent-runs/:runId/debug` 和 `GET /api/conversations/:id/agent-runs/:runId/debug-events`。`agentRunDebugByConv` / `agentRunDebugDetailsByRun` / `agentRunDebugEventsByRun` 是调试缓存；live `runsByConv` 继续服务流式运行状态与中止按钮。运行中的 `run.debug.*` 事件通过 SSE 进入同一个 events bucket，刷新后可由 debug-events API 回放。删除 conversation 时清理对应 debug list、detail bucket 和 event bucket。
 
 **External MCP 与 Skills 管理**：设置面板新增「外部 MCP」与「Skills」tab。MCP 管理 UI 通过 REST lazy fetch 全局 server 列表，支持创建/编辑/删除/启用/禁用、测试连接与工具预览；列表、搜索与测试响应只能展示 env key 或脱敏值。Skills 管理 UI 通过 REST lazy fetch 本地 Skills metadata，支持刷新索引与启用/禁用；不执行 Skill，不展示 secret 文件内容。
 
@@ -168,6 +170,7 @@ replaceLocalMessageId(tempId, realId)          // 把 messages 表和 messageIds
 | `useWorkspaceMemories(convId)` | 当前会话 Workspace Memory 列表，按 pinned / updatedAt 展示 |
 | `useAgentRunDebugList(convId)` | 当前会话调试面板 run 列表，按 startedAt 降序展示 |
 | `useAgentRunDebugDetail(runId)` | 单个 run 的调试详情缓存 |
+| `useAgentRunDebugEvents(runId)` | 单个 run 的 runtime debug events，按 createdAt 升序展示 |
 
 **性能注意**：`useMessagesForConversation` 是 hot path，每个 SSE delta 都会触发 selector 重算。useShallow 比较的是数组中每个元素引用 —— 因为 immer 只改动了变化的消息行，其余引用不变，shallow 比较成功 → 不渲染。
 
