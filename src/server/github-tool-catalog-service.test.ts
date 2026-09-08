@@ -27,9 +27,101 @@ afterAll(() => {
 beforeEach(async () => {
   vi.unstubAllGlobals()
   await dbClient.db.delete(dbClient.schema.skills)
+  await dbClient.db.delete(dbClient.schema.mcpServers)
 })
 
 describe('github tool catalog service', () => {
+  it('imports a GitHub MCP server from repository fallback manifest paths', async () => {
+    const responses = new Map<string, unknown>([
+      [
+        'https://raw.githubusercontent.com/owner/web-search-mcp/main/.agenthub/mcp.json',
+        { status: 404, body: 'not found' },
+      ],
+      [
+        'https://raw.githubusercontent.com/owner/web-search-mcp/main/agenthub.mcp.json',
+        {
+          status: 200,
+          body: JSON.stringify({
+            type: 'mcp_server',
+            name: 'web-search',
+            description: 'Searches the web through a stdio MCP server.',
+            transport: 'stdio',
+            command: 'npx',
+            args: ['-y', '@agenthub/web-search-mcp'],
+            env: { SEARCH_API_KEY: '${SEARCH_API_KEY}' },
+            trust: 'always',
+            tags: ['web', 'search'],
+          }),
+        },
+      ],
+    ])
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const key = String(url)
+      const response = responses.get(key) as { status: number; body: string } | undefined
+      if (!response) throw new Error(`Unexpected fetch: ${key}`)
+      return new Response(response.body, { status: response.status })
+    }))
+
+    const result = await service.importGithubTool({
+      type: 'mcp_server',
+      remoteId: 'github:mcp_server:owner/web-search-mcp:.agenthub/mcp.json',
+      githubUrl: 'https://github.com/owner/web-search-mcp',
+      installUrl: 'https://github.com/owner/web-search-mcp#install',
+      manifestUrl: 'https://raw.githubusercontent.com/owner/web-search-mcp/main/.agenthub/mcp.json',
+    })
+
+    const row = await dbClient.db.query.mcpServers.findFirst({ where: eq(dbClient.schema.mcpServers.id, result.id) })
+    expect(row?.name).toBe('web_search')
+    expect(row?.command).toBe('npx')
+    expect(row?.args).toEqual(['-y', '@agenthub/web-search-mcp'])
+    expect(row?.env).toEqual({ SEARCH_API_KEY: '${SEARCH_API_KEY}' })
+    expect(row?.trust).toBe('always')
+  })
+
+  it('imports an MCP Registry server.json package definition', async () => {
+    const responses = new Map<string, unknown>([
+      [
+        'https://raw.githubusercontent.com/GLips/Figma-Context-MCP/main/server.json',
+        {
+          status: 200,
+          body: JSON.stringify({
+            name: 'io.github.GLips/Figma-Context-MCP',
+            description: 'Figma Context MCP server',
+            packages: [{
+              registryType: 'npm',
+              identifier: 'figma-developer-mcp',
+              version: '1.0.0',
+              transport: { type: 'stdio' },
+              packageArguments: [{ type: 'named', name: '--stdio' }],
+              environmentVariables: [{ name: 'FIGMA_API_KEY', isSecret: true }],
+            }],
+          }),
+        },
+      ],
+    ])
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const key = String(url)
+      const response = responses.get(key) as { status: number; body: string } | undefined
+      if (!response) return new Response('not found', { status: 404 })
+      return new Response(response.body, { status: response.status })
+    }))
+
+    const result = await service.importGithubTool({
+      type: 'mcp_server',
+      remoteId: 'github:mcp_server:GLips/Figma-Context-MCP:.agenthub/mcp.json',
+      githubUrl: 'https://github.com/GLips/Figma-Context-MCP',
+      manifestUrl: 'https://raw.githubusercontent.com/GLips/Figma-Context-MCP/main/.agenthub/mcp.json',
+    })
+
+    const row = await dbClient.db.query.mcpServers.findFirst({ where: eq(dbClient.schema.mcpServers.id, result.id) })
+    expect(row?.name).toBe('figma_context_mcp')
+    expect(row?.command).toBe('npx')
+    expect(row?.args).toEqual(['-y', 'figma-developer-mcp', '--stdio'])
+    expect(row?.env).toEqual({ FIGMA_API_KEY: '${FIGMA_API_KEY}' })
+  })
+
   it('imports a GitHub Skill bundle from nested SKILL.md files', async () => {
     const responses = new Map<string, unknown>([
       [

@@ -21,6 +21,8 @@ import type {
   PendingQuestion,
   PendingWrite,
   StreamEvent,
+  TerminalEventRecord,
+  TerminalSessionRecord,
 } from '@/shared/types'
 
 enableMapSet()
@@ -119,6 +121,8 @@ interface AppState {
   agentRunDebugByConv: Record<string, AgentRunDebugListItem[]>
   agentRunDebugDetailsByRun: Record<string, AgentRunDebugDetail>
   agentRunDebugEventsByRun: Record<string, AgentRunDebugEventRecord[]>
+  terminalSessionsByRun: Record<string, TerminalSessionRecord[]>
+  terminalEventsBySession: Record<string, TerminalEventRecord[]>
 
   // ─── Agent ask_user 结构化问答等待队列（按 conversationId 分桶）─
   pendingQuestionsByConv: Record<string, PendingQuestion[]>
@@ -223,6 +227,8 @@ interface AppState {
   upsertAgentRunDebugList(conversationId: string, runs: AgentRunDebugListItem[]): void
   setAgentRunDebugDetail(runId: string, detail: AgentRunDebugDetail): void
   setAgentRunDebugEvents(runId: string, events: AgentRunDebugEventRecord[]): void
+  setTerminalSessionsForRun(runId: string, sessions: TerminalSessionRecord[]): void
+  setTerminalEventsForSession(sessionId: string, events: TerminalEventRecord[]): void
 
   setPendingQuestionsForConversation(conversationId: string, list: PendingQuestion[]): void
 
@@ -279,6 +285,8 @@ export const useAppStore = create<AppState>()(
     agentRunDebugByConv: {},
     agentRunDebugDetailsByRun: {},
     agentRunDebugEventsByRun: {},
+    terminalSessionsByRun: {},
+    terminalEventsBySession: {},
     pendingQuestionsByConv: {},
     unreadByConv: {},
     mobileSidebarOpen: false,
@@ -674,6 +682,13 @@ export const useAppStore = create<AppState>()(
             delete s.agentRunDebugEventsByRun[runId]
           }
         }
+        for (const runId in s.terminalSessionsByRun) {
+          const sessions = s.terminalSessionsByRun[runId]
+          if (sessions.some((session) => session.conversationId === conversationId)) {
+            for (const session of sessions) delete s.terminalEventsBySession[session.id]
+            delete s.terminalSessionsByRun[runId]
+          }
+        }
         delete s.pendingQuestionsByConv[conversationId]
         delete s.unreadByConv[conversationId]
         if (s.highlightedMessageId && messageIds.has(s.highlightedMessageId)) {
@@ -788,6 +803,24 @@ export const useAppStore = create<AppState>()(
           return
         }
         s.agentRunDebugEventsByRun[runId] = dedupeAndSortDebugEvents(events)
+      }),
+
+    setTerminalSessionsForRun: (runId, sessions) =>
+      set((s) => {
+        if (sessions.length === 0) {
+          delete s.terminalSessionsByRun[runId]
+          return
+        }
+        s.terminalSessionsByRun[runId] = dedupeAndSortTerminalSessions(sessions)
+      }),
+
+    setTerminalEventsForSession: (sessionId, events) =>
+      set((s) => {
+        if (events.length === 0) {
+          delete s.terminalEventsBySession[sessionId]
+          return
+        }
+        s.terminalEventsBySession[sessionId] = dedupeAndSortTerminalEvents(events)
       }),
 
     setPendingQuestionsForConversation: (conversationId, list) =>
@@ -1267,6 +1300,54 @@ export const useAppStore = create<AppState>()(
             return
           }
 
+          case 'terminal.started':
+          case 'terminal.input':
+          case 'terminal.output':
+          case 'terminal.error':
+          case 'terminal.exited': {
+            const terminalEvent: TerminalEventRecord = {
+              id: event.terminalEventId ?? buildTerminalEventFallbackId(event),
+              sessionId: event.sessionId,
+              conversationId: event.conversationId,
+              runId: event.runId,
+              agentId: event.agentId,
+              taskId: event.taskId ?? null,
+              toolCallId: event.toolCallId ?? null,
+              type: event.type,
+              stream: event.stream ?? 'stdout',
+              text: event.text ?? '',
+              payload: event.payload ?? {},
+              seq: event.seq,
+              createdAt: event.timestamp,
+            }
+            s.terminalEventsBySession[event.sessionId] = dedupeAndSortTerminalEvents([
+              ...(s.terminalEventsBySession[event.sessionId] ?? []),
+              terminalEvent,
+            ])
+
+            const existing = s.terminalSessionsByRun[event.runId] ?? []
+            const current = existing.find((session) => session.id === event.sessionId)
+            const nextSession: TerminalSessionRecord = {
+              id: event.sessionId,
+              conversationId: event.conversationId,
+              runId: event.runId,
+              parentRunId: event.parentRunId ?? current?.parentRunId ?? null,
+              agentId: event.agentId,
+              taskId: event.taskId ?? current?.taskId ?? null,
+              toolCallId: event.toolCallId ?? current?.toolCallId ?? null,
+              shell: event.shell ?? current?.shell ?? 'Shell',
+              cwd: event.cwd ?? current?.cwd ?? '',
+              command: event.command ?? current?.command ?? '',
+              status: event.status ?? (event.type === 'terminal.exited' ? 'exited' : current?.status ?? 'running'),
+              exitCode: event.exitCode ?? current?.exitCode ?? null,
+              signal: event.signal ?? current?.signal ?? null,
+              startedAt: current?.startedAt ?? event.timestamp,
+              endedAt: event.type === 'terminal.exited' ? event.timestamp : current?.endedAt ?? null,
+            }
+            s.terminalSessionsByRun[event.runId] = dedupeAndSortTerminalSessions([...existing, nextSession])
+            return
+          }
+
           default:
             return
         }
@@ -1515,6 +1596,29 @@ function dedupeAndSortDebugEvents(events: AgentRunDebugEventRecord[]): AgentRunD
   return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
 }
 
+function dedupeAndSortTerminalSessions(sessions: TerminalSessionRecord[]): TerminalSessionRecord[] {
+  const byId = new Map<string, TerminalSessionRecord>()
+  for (const session of sessions) byId.set(session.id, { ...byId.get(session.id), ...session })
+  return [...byId.values()].sort((a, b) => a.startedAt - b.startedAt || a.id.localeCompare(b.id))
+}
+
+function dedupeAndSortTerminalEvents(events: TerminalEventRecord[]): TerminalEventRecord[] {
+  const bySessionSeq = new Map<string, TerminalEventRecord>()
+  for (const event of events) bySessionSeq.set(`${event.sessionId}:${event.seq}`, event)
+  return [...bySessionSeq.values()].sort((a, b) => a.seq - b.seq || a.id.localeCompare(b.id))
+}
+
+function buildTerminalEventFallbackId(event: Extract<StreamEvent, { type: TerminalEventRecord['type'] }>): string {
+  return [
+    event.type,
+    event.conversationId,
+    event.runId,
+    event.sessionId,
+    event.seq,
+    event.timestamp,
+  ].join(':')
+}
+
 import { useMemo } from 'react'
 
 export const useMessagesForConversation = (conversationId: string) =>
@@ -1669,6 +1773,16 @@ export const useAgentRunDebugEvents = (runId: string | null): AgentRunDebugEvent
       runId ? s.agentRunDebugEventsByRun[runId] ?? [] : [],
     ),
   )
+
+export const useTerminalSessionsForRun = (runId: string | null): TerminalSessionRecord[] =>
+  useAppStore(
+    useShallow((s) =>
+      runId ? s.terminalSessionsByRun[runId] ?? [] : [],
+    ),
+  )
+
+export const useTerminalEventsBySession = (): Record<string, TerminalEventRecord[]> =>
+  useAppStore(useShallow((s) => s.terminalEventsBySession))
 
 /** 该会话当前所有待回答的 ask_user（agent 通过结构化问答让用户选）。 */
 export const usePendingQuestions = (conversationId: string | null): PendingQuestion[] =>

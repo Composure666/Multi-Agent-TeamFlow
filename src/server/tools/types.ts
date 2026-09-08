@@ -9,6 +9,9 @@ export interface ToolContext {
   workspacePath: string
   agentId: string
   runId: string
+  parentRunId?: string | null
+  taskId?: string | null
+  toolCallId?: string | null
   abortSignal: AbortSignal
 }
 

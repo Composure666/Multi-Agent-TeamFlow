@@ -409,7 +409,7 @@ const nextConfig: NextConfig = {
 | `pnpm build` / `start` | 先 `sqlite:ensure:electron`,再 `ELECTRON_RUN_AS_NODE=1 electron next build/start` |
 | `pnpm db:push` / `db:seed` / `db:studio` / `db:generate` | 先 `sqlite:ensure:electron`,再通过 `run-electron-node.mjs` 包装 |
 | `pnpm electron:dev` | 并发跑 `pnpm dev` + `tsc watch` + Electron main 窗口；main 不嵌 server，loadURL `http://localhost:3000` |
-| `pnpm electron:rebuild` | `scripts/rebuild-electron-sqlite.mjs` 直接用 Electron headers 重建 better-sqlite3（通常只作手动强制修复） |
+| `pnpm electron:rebuild` | `scripts/rebuild-electron-sqlite.mjs` 直接用 Electron headers 重建 better-sqlite3；新增 `node-pty` 后也需要确认其 native binding / ConPTY 资源进入 Electron 运行时 |
 | `pnpm electron:build` | `pnpm build` → `pnpm electron:prebuild` → `pnpm electron:tsc` → `electron-builder` |
 
 ### 7.3 electron-dev 详细
@@ -432,13 +432,14 @@ pnpm electron:build
 # 输出 release/AgentHub-<ver>.dmg、release/AgentHub-<ver>-setup.exe
 ```
 
-打包链路 ABI 一致，且没有 afterPack hook。源码 `node_modules` 的 ABI 会按最后执行的 Node/Electron 命令自动切换；这是单 native binding 的预期行为。
+打包链路 ABI 一致，且没有 afterPack hook。源码 `node_modules` 的 ABI 会按最后执行的 Node/Electron 命令自动切换；当前 native binding 至少包含 `better-sqlite3` 与 `node-pty`。Windows 下 `node-pty` 还需要其 postinstall 拷贝的 ConPTY 资源，依赖构建白名单必须允许 `node-pty` 运行 install/postinstall。
 
 ---
 
 ## 8. 跨平台细节（与 Spec 11 对齐）
 
 - **Shell 选择 / 黑名单 / 路径校验**：完全复用 Spec 11 的实现，Electron 包装层不改这部分。`getEffectiveCwd` 仍走 workspace
+- **Agent Terminal**：AgentHub 自管 `bash` 通过 `node-pty` 创建 TerminalSession；Electron 包装层不直接执行命令，仍由 Next server/API 层统一经过审批、黑名单和 workspace cwd 校验
 - **HOME env 兜底**：Spec 11 §「SDK 子进程的 HOME 兼容」依旧适用；Electron 在 Windows 上 `process.env.HOME` 同样可能缺失
 - **路径大小写**：Spec 11 的 `isPathWithin` 与 `isPathSafe` 不受 Electron 影响
 - **userData 是「敏感目录」吗**：`~/Library/Application Support/AgentHub` / `%APPDATA%\AgentHub` 本身是「应用自己的写区」，不在 Spec 11 §systemRoots / sensitiveSegments 列表内。但用户**绑定的 boundPath（local workspace）**仍受 `isPathSafe` 检查 —— 与 web 版语义一致
@@ -486,6 +487,7 @@ Spec 12 把 in-process 作为首选；回退方案保留入口（同一份 main 
 - [x] dev server 起得来、`GET /api/agents` 返回 200 + 5 个内置 agent(自动 seed 通过)。**注:`pnpm dev` 现为纯 Node(Node ABI);electron-as-node 下会挂死,见 §6.1 更新**
 - [x] `pnpm test` 先跑 Node ABI preflight,即使上一条命令把 native binding 切到 Electron ABI,也会自动切回 Node ABI
 - [x] `pnpm build` / `pnpm db:*` 先跑 Electron ABI preflight,即使上一条命令把 native binding 切到 Node ABI,也会自动切回 Electron ABI
+- [ ] `node-pty` install/postinstall 已被 pnpm 构建白名单允许；Windows 下 `conpty.dll` / `OpenConsole.exe` 可被运行时加载
 - [x] `pnpm electron:build` 日志包含 `skipped dependencies rebuild reason=npmRebuild is set to false`（确认没有 npm rebuild 反复污染 source store）
 - [x] packaged `Contents/MacOS/AgentHub` 从终端启动无错误，`~/Library/Application Support/AgentHub/data/agenthub.db` 8 张表全建好，5 个内置 agent 已自动 seed
 - [x] packaged app 内 `app.asar.unpacked/.next/standalone/.../better_sqlite3.node` 是 arm64（standalone 自带的那份就是 ABI 130，无需 afterPack 覆盖）

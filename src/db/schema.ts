@@ -22,6 +22,9 @@ import type {
   AgentRunDebugEventPayload,
   AgentRunDebugEventStatus,
   AgentRunDebugEventType,
+  TerminalEventStream,
+  TerminalEventType,
+  TerminalSessionStatus,
 } from '@/shared/types'
 
 // ─── Agents ──────────────────────────────────────────────────
@@ -285,6 +288,72 @@ export const agentRunDebugEvents = sqliteTable(
   ],
 )
 
+// ─── Terminal sessions ───────────────────────────────────
+export const terminalSessions = sqliteTable(
+  'terminal_sessions',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    runId: text('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    parentRunId: text('parent_run_id'),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id),
+    taskId: text('task_id'),
+    toolCallId: text('tool_call_id'),
+    shell: text('shell').notNull(),
+    cwd: text('cwd').notNull(),
+    command: text('command').notNull(),
+    status: text('status').$type<TerminalSessionStatus>().notNull(),
+    exitCode: integer('exit_code'),
+    signal: text('signal'),
+    startedAt: integer('started_at').notNull(),
+    endedAt: integer('ended_at'),
+  },
+  (t) => [
+    index('idx_terminal_sessions_conv_run_started').on(t.conversationId, t.runId, t.startedAt),
+    index('idx_terminal_sessions_run_agent_started').on(t.runId, t.agentId, t.startedAt),
+    index('idx_terminal_sessions_tool').on(t.toolCallId),
+  ],
+)
+
+// ─── Terminal events ─────────────────────────────────────
+export const terminalEvents = sqliteTable(
+  'terminal_events',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => terminalSessions.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    runId: text('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agents.id),
+    taskId: text('task_id'),
+    toolCallId: text('tool_call_id'),
+    type: text('type').$type<TerminalEventType>().notNull(),
+    stream: text('stream').$type<TerminalEventStream>().notNull(),
+    text: text('text').notNull(),
+    payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    seq: integer('seq').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('idx_terminal_events_session_seq').on(t.sessionId, t.seq),
+    index('idx_terminal_events_conv_run_created').on(t.conversationId, t.runId, t.createdAt),
+    index('idx_terminal_events_session_created').on(t.sessionId, t.createdAt),
+  ],
+)
+
 // ─── Automations ─────────────────────────────────────────────
 export type AutomationStatus = 'enabled' | 'running' | 'draft' | 'paused'
 export type AutomationRunStatus = 'success' | 'failed' | 'running'
@@ -530,6 +599,10 @@ export type AgentRunDebugSnapshotRow = typeof agentRunDebugSnapshots.$inferSelec
 export type AgentRunDebugSnapshotInsert = typeof agentRunDebugSnapshots.$inferInsert
 export type AgentRunDebugEventRow = typeof agentRunDebugEvents.$inferSelect
 export type AgentRunDebugEventInsert = typeof agentRunDebugEvents.$inferInsert
+export type TerminalSessionRow = typeof terminalSessions.$inferSelect
+export type TerminalSessionInsert = typeof terminalSessions.$inferInsert
+export type TerminalEventRow = typeof terminalEvents.$inferSelect
+export type TerminalEventInsert = typeof terminalEvents.$inferInsert
 
 export type McpServerRow = typeof mcpServers.$inferSelect
 export type McpServerInsert = typeof mcpServers.$inferInsert

@@ -5,7 +5,9 @@ import type { AgentRunDebugDetail, AgentRunDebugEventRecord, AgentRunDebugListIt
 import {
   buildAgentRunBoardGraph,
   buildAgentRunDebuggerGraph,
+  buildAgentRunToolInspectorViewModel,
   buildAgentRunSessionDebuggerGraph,
+  buildAgentRunInspectorViewModel,
   describeAgentRunDebugEvent,
   focusAgentRunDebuggerGraph,
   getAgentRunBoardStageStatus,
@@ -14,10 +16,12 @@ import {
   getBoardPanelTabForCanvasView,
   getDebuggerNodeIdForDebugEvent,
   getVisibleAgentDebuggerSteps,
+  projectAgentRunTerminalOutput,
   projectAgentRunBoardStages,
   shouldInitializeDebuggerSelection,
   summarizeRunDisplayTitle,
 } from './agent-run-debug-board'
+import { projectAgentRunToolTrace } from './agent-run-debug-projection'
 
 function buildRun(overrides: Partial<AgentRunDebugListItem> = {}): AgentRunDebugListItem {
   return {
@@ -214,32 +218,148 @@ describe('agent run debug board projection', () => {
     expect(getBoardPanelTabForDebuggerNode('run')).toBe('output')
     expect(getBoardPanelTabForDebuggerNode('agent')).toBe('trace')
     expect(getBoardPanelTabForDebuggerNode('task')).toBe('variables')
+    expect(getBoardPanelTabForDebuggerNode('tool')).toBe('trace')
     expect(getBoardPanelTabForDebuggerNode('summary')).toBe('output')
   })
 
   it('maps canvas views to the supporting bottom panel tab', () => {
     expect(getBoardPanelTabForCanvasView('graph')).toBe('trace')
-    expect(getBoardPanelTabForCanvasView('timeline')).toBe('timeline')
-    expect(getBoardPanelTabForCanvasView('events')).toBe('timeline')
+    expect(getBoardPanelTabForCanvasView('timeline')).toBe('logs')
+    expect(getBoardPanelTabForCanvasView('events')).toBe('logs')
   })
 
-  it('projects task split into agent cards instead of separate task nodes', () => {
+  it('projects command tool calls into one continuous terminal output', () => {
+    const detail = buildDetail({
+      outputMessages: [
+        buildMessage('msg_output', [
+          { type: 'tool_use', callId: 'call_a', toolName: 'bash', args: { command: 'Get-ChildItem -Recurse' } },
+          { type: 'tool_result', callId: 'call_a', result: { cwd: 'C:/workspace', command: 'Get-ChildItem -Recurse', exitCode: 0, output: 'src\npackage.json' }, isError: false },
+          { type: 'tool_use', callId: 'call_b', toolName: 'bash', args: { command: 'Select-String -Pattern Agent' } },
+          { type: 'tool_result', callId: 'call_b', result: { cwd: 'C:/workspace', command: 'Select-String -Pattern Agent', exitCode: 1, output: 'No matches', timedOut: false }, isError: true },
+        ]),
+      ],
+    })
+
+    const terminal = projectAgentRunTerminalOutput(detail, [])
+
+    expect(terminal.commandCount).toBe(2)
+    expect(terminal.shell).toBe('PowerShell')
+    expect(terminal.cwd).toBe('C:/workspace')
+    expect(terminal.segments.map((segment) => segment.callId)).toEqual(['call_a', 'call_b'])
+    expect(terminal.transcript).toContain('PS C:/workspace>')
+    expect(terminal.transcript).toContain('Get-ChildItem -Recurse')
+    expect(terminal.transcript).toContain('src\npackage.json')
+    expect(terminal.transcript).toContain('[exit 1]')
+  })
+
+  it('does not mix terminal output from other runs or agents', () => {
+    const detail = buildDetail({
+      agentRun: buildRun({ id: 'run_agent_a', agentId: 'agent_a', agentName: 'Agent A' }),
+      outputMessages: [
+        buildMessage('msg_a', [
+          { type: 'tool_use', callId: 'call_a', toolName: 'bash', args: { command: 'npm test' } },
+          { type: 'tool_result', callId: 'call_a', result: { cwd: '/repo', command: 'npm test', exitCode: 0, output: 'agent a ok' }, isError: false },
+        ]),
+      ],
+    })
+    const events = [
+      buildDebugEvent({
+        id: 'event_a',
+        runId: 'run_agent_a',
+        agentId: 'agent_a',
+        toolCallId: 'call_a',
+        type: 'run.debug.terminal.output',
+        payload: { text: 'agent a summary' },
+      }),
+      buildDebugEvent({
+        id: 'event_b',
+        runId: 'run_agent_b',
+        agentId: 'agent_b',
+        toolCallId: 'call_b',
+        type: 'run.debug.terminal.output',
+        payload: { text: 'agent b should not show' },
+      }),
+    ]
+
+    const terminal = projectAgentRunTerminalOutput(detail, events)
+
+    expect(terminal.transcript).toContain('agent a ok')
+    expect(terminal.transcript).not.toContain('agent b should not show')
+  })
+
+  it('filters terminal commands to the selected agent when debug events identify owners', () => {
+    const detail = buildDetail({
+      outputMessages: [
+        buildMessage('msg_output', [
+          { type: 'tool_use', callId: 'call_agent_a', toolName: 'bash', args: { command: 'pnpm test --filter a' } },
+          { type: 'tool_result', callId: 'call_agent_a', result: { cwd: '/repo', command: 'pnpm test --filter a', exitCode: 0, output: 'agent a ok' }, isError: false },
+          { type: 'tool_use', callId: 'call_agent_b', toolName: 'bash', args: { command: 'pnpm test --filter b' } },
+          { type: 'tool_result', callId: 'call_agent_b', result: { cwd: '/repo', command: 'pnpm test --filter b', exitCode: 0, output: 'agent b ok' }, isError: false },
+        ]),
+      ],
+    })
+    const events = [
+      buildDebugEvent({
+        id: 'event_agent_a',
+        agentId: 'agent_a',
+        toolCallId: 'call_agent_a',
+        type: 'run.debug.terminal.output',
+      }),
+      buildDebugEvent({
+        id: 'event_agent_b',
+        agentId: 'agent_b',
+        toolCallId: 'call_agent_b',
+        type: 'run.debug.terminal.output',
+      }),
+    ]
+
+    const terminal = projectAgentRunTerminalOutput(detail, events, 'agent_a')
+
+    expect(terminal.commandCount).toBe(1)
+    expect(terminal.transcript).toContain('agent a ok')
+    expect(terminal.transcript).not.toContain('agent b ok')
+  })
+
+  it('prefers full tool result output over truncated debug terminal summaries', () => {
+    const fullOutput = `line 1\n${'x'.repeat(800)}\nline 3`
+    const detail = buildDetail({
+      outputMessages: [
+        buildMessage('msg_output', [
+          { type: 'tool_use', callId: 'call_full', toolName: 'bash', args: { command: 'pnpm build' } },
+          { type: 'tool_result', callId: 'call_full', result: { cwd: '/repo', command: 'pnpm build', exitCode: 0, output: fullOutput }, isError: false },
+        ]),
+      ],
+    })
+    const terminal = projectAgentRunTerminalOutput(detail, [
+      buildDebugEvent({
+        type: 'run.debug.terminal.output',
+        toolCallId: 'call_full',
+        payload: { text: 'line 1 ...' },
+      }),
+    ])
+
+    expect(terminal.segments[0]?.output).toBe(fullOutput)
+    expect(terminal.transcript).toContain('line 3')
+  })
+
+  it('projects task split into agent cards with real tool call nodes', () => {
     const graph = buildAgentRunDebuggerGraph(buildDetail())
 
-    expect(graph.nodes.map((node) => node.id)).toEqual([
+    expect(graph.nodes.map((node) => node.id)).toEqual(expect.arrayContaining([
       'run-run_1',
       'agent-agent_1',
       'agent-designer',
       'agent-coder',
+      'tool-call_1',
+      'tool-call_2',
       'summary-output',
-    ])
-    expect(graph.nodes.map((node) => node.data.kind)).toEqual([
-      'run',
-      'agent',
-      'agent',
-      'agent',
-      'summary',
-    ])
+    ]))
+    expect(graph.nodes.find((node) => node.id === 'tool-call_2')?.data.tool).toMatchObject({
+      callId: 'call_2',
+      toolName: 'bash',
+      status: 'completed',
+      agentId: 'agent_1',
+    })
     expect(graph.nodes.find((node) => node.id === 'run-run_1')?.data.label).toBe('执行任务')
     expect(graph.nodes.find((node) => node.id === 'agent-agent_1')?.data.agent).toMatchObject({
       role: 'orchestrator',
@@ -266,9 +386,30 @@ describe('agent run debug board projection', () => {
       expect.objectContaining({ source: 'run-run_1', target: 'agent-agent_1' }),
       expect.objectContaining({ source: 'agent-agent_1', target: 'agent-designer' }),
       expect.objectContaining({ source: 'agent-agent_1', target: 'agent-coder' }),
+      expect.objectContaining({ source: 'agent-coder', target: 'tool-call_1' }),
+      expect.objectContaining({ source: 'agent-agent_1', target: 'tool-call_2' }),
+      expect.objectContaining({ source: 'tool-call_2', target: 'summary-output' }),
       expect.objectContaining({ source: 'agent-designer', target: 'summary-output' }),
       expect.objectContaining({ source: 'agent-coder', target: 'summary-output' }),
     ]))
+  })
+
+  it('opens graph tool nodes as tool inspector selections', () => {
+    const detail = buildDetail()
+    const graph = buildAgentRunDebuggerGraph(detail)
+    const toolNode = graph.nodes.find((node) => node.data.kind === 'tool' && node.data.tool?.callId === 'call_2') ?? null
+
+    const view = buildAgentRunInspectorViewModel(detail, toolNode, projectAgentRunToolTrace(detail))
+
+    expect(view).toMatchObject({
+      kind: 'tool',
+      kicker: 'TOOL INSPECTOR',
+      title: 'bash',
+      fields: expect.arrayContaining([
+        { label: 'Call ID', value: 'call_2' },
+        { label: '状态', value: '完成' },
+      ]),
+    })
   })
 
   it('projects a conversation into message and run groups while expanding the current run', () => {
@@ -442,7 +583,7 @@ describe('agent run debug board projection', () => {
     expect(orchestratorNode?.position.y).toBe(170)
     expect(workerNodes.map((node) => node.position.x)).toEqual([208, 513])
     expect(workerNodes.map((node) => node.position.y)).toEqual([430, 430])
-    expect(summaryNode?.position).toEqual({ x: 360, y: 690 })
+    expect(summaryNode?.position).toEqual({ x: 360, y: 710 })
   })
 
   it('uses a clean task title for the run summary instead of leading agent mentions', () => {
@@ -526,7 +667,7 @@ describe('agent run debug board projection', () => {
       taskId: 'code',
       type: 'run.debug.tool.started',
       toolCallId: 'call_2',
-    }))).toBe('agent-coder')
+    }))).toBe('tool-call_2')
     expect(getDebuggerNodeIdForDebugEvent(graph, buildDebugEvent({
       agentId: 'missing',
       type: 'run.debug.step.started',
@@ -566,6 +707,93 @@ describe('agent run debug board projection', () => {
       selectedNodeId: null,
       graph,
     })).toBe(true)
+  })
+
+  it('keeps message inspector focused on message context instead of agent metrics', () => {
+    const detail = buildDetail()
+    const graph = buildAgentRunSessionDebuggerGraph({
+      messages: [{
+        ...buildMessage('msg_trigger', [{ type: 'text', content: '为什么你又断了' }]),
+        role: 'user',
+        runId: null,
+      }],
+      runs: [detail.agentRun],
+      currentDetail: detail,
+    })
+    const messageNode = graph.nodes.find((node) => node.data.kind === 'message') ?? null
+
+    const view = buildAgentRunInspectorViewModel(detail, messageNode, [])
+
+    expect(view).toMatchObject({
+      kind: 'message',
+      kicker: 'MESSAGE INSPECTOR',
+      title: '用户消息',
+      messageContent: '为什么你又断了',
+      metrics: [],
+    })
+    expect(view.fields).toEqual(expect.arrayContaining([
+      { label: '关联 Run', value: 'Run run_1' },
+      { label: '触发 Agent', value: 'Agent' },
+    ]))
+  })
+
+  it('keeps agent inspector metrics on agent selections', () => {
+    const detail = buildDetail({
+      agentRun: buildRun({
+        finishedAt: 18_001,
+        usage: {
+          inputTokens: 1000,
+          outputTokens: 2000,
+          cacheCreationTokens: 300,
+          cacheReadTokens: 400,
+          model: 'deepseek-v4-flash',
+        },
+      }),
+    })
+    const graph = buildAgentRunDebuggerGraph(detail)
+    const agentNode = graph.nodes.find((node) => node.data.kind === 'agent' && node.data.agent?.agentId === 'agent_1') ?? null
+
+    const view = buildAgentRunInspectorViewModel(detail, agentNode, [])
+
+    if (!view || view.kind !== 'agent') throw new Error('expected agent inspector view')
+    expect(view).toMatchObject({
+      kind: 'agent',
+      kicker: 'AGENT INSPECTOR',
+      title: 'Agent',
+      subtitle: '2 个任务 · 2 个工具',
+    })
+    expect(view.metrics).toEqual(expect.arrayContaining([
+      { label: '耗时', value: 18_000 },
+      { label: 'Token', value: 3700 },
+      { label: '工具调用', value: 2 },
+      { label: '模型', value: 'gpt-5-codex' },
+    ]))
+    expect(view.currentTask).toMatchObject({
+      title: '设计页面',
+      stepTitle: '设计页面',
+      stepIndex: 1,
+      stepTotal: 2,
+    })
+  })
+
+  it('shows tool inspector details for a selected tool call', () => {
+    const detail = buildDetail()
+    const toolTrace = projectAgentRunToolTrace(detail)
+    const toolCall = toolTrace.find((item) => item.toolName === 'bash') ?? toolTrace[0]
+
+    const view = buildAgentRunToolInspectorViewModel(detail, toolTrace, [], toolCall.callId)
+
+    if (!view) throw new Error('expected tool inspector view')
+    expect(view).toMatchObject({
+      kind: 'tool',
+      kicker: 'TOOL INSPECTOR',
+      title: toolCall.toolName,
+      fields: expect.arrayContaining([
+        { label: 'Call ID', value: toolCall.callId },
+        { label: '状态', value: '完成' },
+      ]),
+    })
+    expect(view.input).toBeTruthy()
   })
 
   it('describes dispatch debug events as readable task assignment rows', () => {

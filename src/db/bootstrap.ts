@@ -234,6 +234,47 @@ const DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_run_debug_events_run_task_created ON agent_run_debug_events(run_id, task_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_run_debug_events_run_tool ON agent_run_debug_events(run_id, tool_call_id)`,
 
+  // ─── terminal_sessions / terminal_events ───────
+  `CREATE TABLE IF NOT EXISTS terminal_sessions (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+    parent_run_id TEXT,
+    agent_id TEXT NOT NULL REFERENCES agents(id),
+    task_id TEXT,
+    tool_call_id TEXT,
+    shell TEXT NOT NULL,
+    cwd TEXT NOT NULL,
+    command TEXT NOT NULL,
+    status TEXT NOT NULL,
+    exit_code INTEGER,
+    signal TEXT,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_terminal_sessions_conv_run_started ON terminal_sessions(conversation_id, run_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_terminal_sessions_run_agent_started ON terminal_sessions(run_id, agent_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_terminal_sessions_tool ON terminal_sessions(tool_call_id)`,
+
+  `CREATE TABLE IF NOT EXISTS terminal_events (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES terminal_sessions(id) ON DELETE CASCADE,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(id),
+    task_id TEXT,
+    tool_call_id TEXT,
+    type TEXT NOT NULL,
+    stream TEXT NOT NULL,
+    text TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_terminal_events_session_seq ON terminal_events(session_id, seq)`,
+  `CREATE INDEX IF NOT EXISTS idx_terminal_events_conv_run_created ON terminal_events(conversation_id, run_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_terminal_events_session_created ON terminal_events(session_id, created_at)`,
+
   // ─── automations ───────────────────────────────
   `CREATE TABLE IF NOT EXISTS automations (
     id TEXT PRIMARY KEY,
@@ -434,6 +475,7 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`)
+  safeAlter(sqlite, `ALTER TABLE terminal_events ADD COLUMN task_id TEXT`)
   sqlite.exec(`UPDATE automation_runs SET created_at = started_at WHERE created_at = 0`)
   sqlite.exec(`UPDATE automation_runs SET updated_at = COALESCE(finished_at, started_at) WHERE updated_at = 0`)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_automations_next_run ON automations(status, next_run_at)`)

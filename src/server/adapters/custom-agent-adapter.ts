@@ -265,7 +265,10 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
           args,
         })
 
-        const result = await toolRegistry.executeStructured(tc.name, args, ctx)
+        const result = await toolRegistry.executeStructured(tc.name, args, {
+          ...ctx,
+          toolCallId: tc.id,
+        })
         const value = result.output
 
         yield baseEvent(input, {

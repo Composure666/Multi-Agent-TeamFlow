@@ -26,7 +26,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   Background,
   Controls,
@@ -45,33 +45,36 @@ import {
   fetchAgentRunDebugEvents,
   fetchAgentRuns,
   fetchConversationAgentRunDebugEvents,
+  fetchTerminalEventsForSession,
+  fetchTerminalSessionsForRun,
   fetchMessages,
   regenerateLastResponse,
+  writeTerminalInput,
 } from '@/lib/api'
 import {
   projectAgentRunArtifacts,
   projectAgentRunAskUserInteractions,
   projectAgentRunOperations,
-  projectAgentRunPlanDag,
-  projectAgentRunPlanTasks,
-  projectAgentRunRelations,
   projectAgentRunTaskResults,
   projectAgentRunTimeline,
   projectAgentRunToolTrace,
   summarizeAgentRunToolTraceArgs,
   summarizeAgentRunToolTraceResult,
+  type AgentRunToolTraceItem,
 } from '@/lib/agent-run-debug-projection'
 import {
   buildAgentRunDebuggerGraph,
+  buildAgentRunInspectorViewModel,
+  buildAgentRunToolInspectorViewModel,
   buildAgentRunSessionDebuggerGraph,
   describeAgentRunDebugEvent,
   focusAgentRunDebuggerGraph,
-  getAgentRunBoardStageStatus,
   getBoardPanelTabForCanvasView,
   getBoardPanelTabForDebuggerNode,
   getBoardPanelTabForStage,
   getDebuggerNodeIdForDebugEvent,
   getVisibleAgentDebuggerSteps,
+  projectAgentRunTerminalOutput,
   shouldInitializeDebuggerSelection,
   projectAgentRunBoardStages,
   rootTaskLabel,
@@ -86,6 +89,11 @@ import {
   type AgentRunBoardTone,
   type AgentRunDebuggerCanvasView,
   type AgentRunDebuggerStatus,
+  type AgentRunTerminalOutput,
+  type AgentRunInspectorMetric,
+  type AgentRunInspectorViewModel,
+  type AgentRunToolInspectorViewModel,
+  type AgentRunInspectorTask,
 } from '@/lib/agent-run-debug-board'
 import {
   filterAgentRunTimeline,
@@ -100,21 +108,24 @@ import {
   useAppStore,
   useMessagesForConversation,
   useConversationList,
+  useTerminalEventsBySession,
+  useTerminalSessionsForRun,
 } from '@/stores/app-store'
-import type { AgentRunDebugDetail, AgentRunDebugEventRecord, AgentRunDebugListItem, MessageRecord } from '@/shared/types'
+import type { AgentRunDebugDetail, AgentRunDebugEventRecord, AgentRunDebugListItem, MessageRecord, TerminalEventRecord, TerminalSessionRecord } from '@/shared/types'
 
 const nodeTypes: NodeTypes = {
   runDebuggerNode: DebuggerNode,
 }
 
 type BoardPanelTab = AgentRunBoardPanelTab
-type InspectorTab = 'overview' | 'terminal' | 'logs' | 'trace' | 'variables' | 'messages' | 'artifacts'
+type InspectorTab = 'terminal' | 'logs' | 'trace' | 'variables' | 'artifacts'
 type CanvasGraphScope = 'session' | 'run'
+type InspectorWorkbenchViewModel = AgentRunInspectorViewModel | AgentRunToolInspectorViewModel
 
 const TIMELINE_FILTER_OPTIONS: Array<{ id: AgentRunTimelineFilter; label: string }> = [
   { id: 'all', label: '全部' },
   { id: 'agent', label: 'Agent' },
-  { id: 'tools', label: 'Tools' },
+  { id: 'tools', label: '工具' },
   { id: 'errors', label: '错误' },
 ]
 
@@ -131,14 +142,17 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const [selectedStageId, setSelectedStageId] = useState<AgentRunBoardStage['id'] | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [inspectorRunId, setInspectorRunId] = useState<string | null>(null)
-  const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(null)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [bottomPanelOpen, setBottomPanelOpen] = useState(true)
+  const [pendingInspectorEvent, setPendingInspectorEvent] = useState<AgentRunDebugEventRecord | null>(null)
   const [loadingRuns, setLoadingRuns] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [pausingRun, setPausingRun] = useState(false)
   const [rerunningRun, setRerunningRun] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [panelTab, setPanelTab] = useState<BoardPanelTab>('timeline')
-  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('overview')
+  const [panelTab, setPanelTab] = useState<BoardPanelTab>('output')
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('logs')
   const [canvasView, setCanvasView] = useState<AgentRunDebuggerCanvasView>('graph')
   const [canvasGraphScope, setCanvasGraphScope] = useState<CanvasGraphScope>('session')
   const [expandedSessionRunIds, setExpandedSessionRunIds] = useState<readonly string[] | null>(null)
@@ -153,11 +167,16 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const selectedInspectorDetail = useAgentRunDebugDetail(inspectorRunId)
   const selectedDebugEvents = useAgentRunDebugEvents(selectedRunId)
   const selectedInspectorDebugEvents = useAgentRunDebugEvents(inspectorRunId)
+  const selectedTerminalSessions = useTerminalSessionsForRun(selectedRunId)
+  const selectedInspectorTerminalSessions = useTerminalSessionsForRun(inspectorRunId)
+  const terminalEventsBySession = useTerminalEventsBySession()
   const debugEventsByRun = useAppStore((state) => state.agentRunDebugEventsByRun)
   const liveRuns = useAppStore((state) => (conversationId ? state.runsByConv[conversationId] : undefined))
   const setAgentRunDebugList = useAppStore((state) => state.setAgentRunDebugList)
   const setAgentRunDebugDetail = useAppStore((state) => state.setAgentRunDebugDetail)
   const setAgentRunDebugEvents = useAppStore((state) => state.setAgentRunDebugEvents)
+  const setTerminalSessionsForRun = useAppStore((state) => state.setTerminalSessionsForRun)
+  const setTerminalEventsForSession = useAppStore((state) => state.setTerminalEventsForSession)
   const setMessagesForConversation = useAppStore((state) => state.setMessagesForConversation)
 
   const runs = useMemo(
@@ -214,6 +233,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     ? selectedInspectorDetail
     : currentDetail
   const inspectorDebugEvents = inspectorRunId ? selectedInspectorDebugEvents : selectedDebugEvents
+  const inspectorTerminalSessions = inspectorRunId ? selectedInspectorTerminalSessions : selectedTerminalSessions
   const headerTitle = currentDetail
     ? rootTaskLabel(currentDetail, [
         currentDetail.snapshot?.agent.name,
@@ -270,18 +290,31 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     setLoadingDetail(true)
     setError(null)
     try {
-      const [detail, events] = await Promise.all([
+      const [detail, events, terminalSessions] = await Promise.all([
         fetchAgentRunDebugDetail(targetConversationId, runId),
         fetchAgentRunDebugEvents(targetConversationId, runId),
+        fetchTerminalSessionsForRun(targetConversationId, runId),
       ])
       setAgentRunDebugDetail(runId, detail)
       setAgentRunDebugEvents(runId, events)
+      setTerminalSessionsForRun(runId, terminalSessions)
+      await Promise.all(terminalSessions.map(async (session) => {
+        const terminalEvents = await fetchTerminalEventsForSession(targetConversationId, session.id)
+        setTerminalEventsForSession(session.id, terminalEvents)
+      }))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoadingDetail(false)
     }
-  }, [setAgentRunDebugDetail, setAgentRunDebugEvents, setError, setLoadingDetail])
+  }, [setAgentRunDebugDetail, setAgentRunDebugEvents, setError, setLoadingDetail, setTerminalEventsForSession, setTerminalSessionsForRun])
+
+  const submitTerminalInput = useCallback(async (sessionId: string, input: string) => {
+    if (!conversationId) return
+    const event = await writeTerminalInput(conversationId, sessionId, input)
+    const existing = useAppStore.getState().terminalEventsBySession[sessionId] ?? []
+    setTerminalEventsForSession(sessionId, [...existing, event])
+  }, [conversationId, setTerminalEventsForSession])
 
   useEffect(() => {
     if (targetConversationId) setConversationId(targetConversationId)
@@ -302,9 +335,11 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     setSelectedStageId(null)
     setSelectedNodeId(null)
     setInspectorRunId(null)
-    setInspectorOpen(true)
-    setInspectorTab('overview')
-    setPanelTab('timeline')
+    setSelectedToolCallId(null)
+    setPendingInspectorEvent(null)
+    setInspectorOpen(false)
+    setInspectorTab('logs')
+    setPanelTab('output')
     setCanvasView('graph')
     setCanvasGraphScope('session')
     setExpandedSessionRunIds(null)
@@ -318,8 +353,10 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     setSelectedStageId(null)
     setSelectedNodeId(null)
     setInspectorRunId(null)
-    setInspectorOpen(true)
-    setInspectorTab('overview')
+    setSelectedToolCallId(null)
+    setPendingInspectorEvent(null)
+    setInspectorOpen(false)
+    setInspectorTab('logs')
     setCanvasView('graph')
     setCanvasGraphScope('session')
     setExpandedSessionRunIds([targetRunId])
@@ -343,7 +380,8 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const selectConversation = (nextId: string) => {
     setConversationId(nextId)
     setActiveConversation(nextId)
-    setInspectorOpen(true)
+    setInspectorOpen(false)
+    setSelectedToolCallId(null)
   }
 
   const selectRun = (runId: string) => {
@@ -351,12 +389,22 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     setSelectedStageId(null)
     setSelectedNodeId(null)
     setInspectorRunId(null)
-    setInspectorOpen(true)
-    setInspectorTab('overview')
-    setPanelTab('timeline')
+    setSelectedToolCallId(null)
+    setPendingInspectorEvent(null)
+    setInspectorOpen(false)
+    setInspectorTab('logs')
+    setPanelTab('output')
     setCanvasView('graph')
     setCanvasGraphScope('session')
     setExpandedSessionRunIds([runId])
+  }
+
+  const selectTimelineRun = (runId: string) => {
+    selectRun(runId)
+    setInspectorOpen(true)
+    setBottomPanelOpen(true)
+    setInspectorTab('logs')
+    setPanelTab('logs')
   }
 
   const toggleFocusMode = () => {
@@ -401,6 +449,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const selectStage = (stageId: AgentRunBoardStage['id']) => {
     setSelectedStageId(stageId)
     setPanelTab(getBoardPanelTabForStage(stageId))
+    setBottomPanelOpen(true)
   }
 
   const selectCanvasView = (view: AgentRunDebuggerCanvasView) => {
@@ -412,6 +461,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     setCanvasGraphScope(scope)
     setCanvasView('graph')
     setPanelTab('trace')
+    setBottomPanelOpen(true)
   }
 
   const toggleSelectedRunExpansion = () => {
@@ -446,14 +496,32 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
       ?? activeGraph.nodes.find((node) => node.data.kind === 'agent')
       ?? activeGraph.nodes[0]
     setSelectedNodeId(defaultNode?.id ?? null)
-    setInspectorTab(defaultNode && currentDetail ? getPreferredInspectorTab(defaultNode, currentDetail, selectedDebugEvents) : 'overview')
+    setInspectorTab(defaultNode && currentDetail ? getPreferredInspectorTab(defaultNode, currentDetail, selectedDebugEvents) : 'logs')
   }, [activeGraph, currentDetail, inspectorOpen, selectedDebugEvents, selectedNodeId])
+
+  useEffect(() => {
+    if (!pendingInspectorEvent || !currentDetail || pendingInspectorEvent.runId !== currentDetail.agentRun.id) return
+    const nodeId = getDebuggerNodeIdForDebugEvent(activeGraph, pendingInspectorEvent)
+    if (nodeId && activeGraph.nodes.some((node) => node.id === nodeId)) setSelectedNodeId(nodeId)
+    setInspectorRunId(null)
+    setInspectorOpen(true)
+    setBottomPanelOpen(true)
+    setPanelTab(pendingInspectorEvent.type.includes('.tool.') ? 'trace' : 'logs')
+    setInspectorTab(pendingInspectorEvent.type.includes('.tool.') ? 'trace' : pendingInspectorEvent.type === 'run.debug.terminal.output' ? 'terminal' : 'logs')
+    setPendingInspectorEvent(null)
+  }, [activeGraph, currentDetail, pendingInspectorEvent])
 
   const selectGraphNode = (nodeId: string) => {
     const node = activeGraph.nodes.find((item) => item.id === nodeId)
     if (!node) return
     if (node.data.kind === 'run' && node.data.run?.id && node.data.run.id !== selectedRunId) {
       selectRun(node.data.run.id)
+      setSelectedNodeId(nodeId)
+      setInspectorOpen(true)
+      setInspectorTab('logs')
+      setPanelTab('output')
+      setBottomPanelOpen(true)
+      setSelectedToolCallId(null)
       if (canvasGraphScope === 'session') {
         setExpandedSessionRunIds([node.data.run.id])
       }
@@ -461,8 +529,10 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     }
     setSelectedNodeId(nodeId)
     setInspectorOpen(true)
-    setInspectorTab(currentDetail ? getPreferredInspectorTab(node, currentDetail, selectedDebugEvents) : 'overview')
+    setInspectorTab(currentDetail ? getPreferredInspectorTab(node, currentDetail, selectedDebugEvents) : 'logs')
     setPanelTab(getBoardPanelTabForDebuggerNode(node.data.kind))
+    setBottomPanelOpen(true)
+    setSelectedToolCallId(null)
     const runId = node.data.agent?.runId ?? node.data.run?.id ?? null
     const nextInspectorRunId = runId && runId !== currentDetail?.agentRun.id ? runId : null
     setInspectorRunId(nextInspectorRunId)
@@ -478,8 +548,12 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const selectDebugEvent = (event: AgentRunDebugEventRecord) => {
     if (event.runId !== selectedRunId) {
       selectRun(event.runId)
-      setPanelTab('timeline')
-      setInspectorTab(event.type.includes('.tool.') ? 'trace' : event.type === 'run.debug.terminal.output' ? 'terminal' : 'messages')
+      setPendingInspectorEvent(event)
+      setInspectorOpen(true)
+      setBottomPanelOpen(true)
+      setPanelTab('logs')
+      setInspectorTab(event.type.includes('.tool.') ? 'trace' : event.type === 'run.debug.terminal.output' ? 'terminal' : 'logs')
+      setSelectedToolCallId(event.toolCallId ?? null)
       return
     }
     const nodeId = getDebuggerNodeIdForDebugEvent(activeGraph, event)
@@ -488,29 +562,73 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
       selectGraphNode(nodeId)
     }
     else setInspectorOpen(true)
-    setPanelTab('timeline')
+    setBottomPanelOpen(true)
+    setPanelTab('logs')
     if (event.type.includes('.tool.')) setInspectorTab('trace')
     else if (event.type === 'run.debug.terminal.output') setInspectorTab('terminal')
-    else setInspectorTab('messages')
+    else setInspectorTab('logs')
+    setSelectedToolCallId(event.toolCallId ?? null)
   }
 
   const selectToolCall = (callId: string) => {
-    const event = selectedDebugEvents.find((item) => item.toolCallId === callId)
+    const event = [...selectedDebugEvents, ...conversationDebugEvents].find((item) => item.toolCallId === callId)
+    setSelectedToolCallId(callId)
+    if (event && event.runId !== selectedRunId) {
+      selectRun(event.runId)
+      setSelectedToolCallId(callId)
+      setPendingInspectorEvent(event)
+      setInspectorOpen(true)
+      setBottomPanelOpen(true)
+      setPanelTab('trace')
+      setInspectorTab(event.type === 'run.debug.terminal.output' ? 'terminal' : 'trace')
+      return
+    }
+
+    let nodeId: string | null = null
     if (event) {
-      const nodeId = getDebuggerNodeIdForDebugEvent(graph, event)
-      if (nodeId) selectGraphNode(nodeId)
+      nodeId = getDebuggerNodeIdForDebugEvent(activeGraph, event) ?? getDebuggerNodeIdForDebugEvent(graph, event)
+    }
+    if (!nodeId) {
+      nodeId =
+        selectedNode?.data.kind === 'agent'
+          ? selectedNode.id
+          : activeGraph.nodes.find((node) => node.data.kind === 'agent' && node.data.agent?.runId === currentDetail?.agentRun.id)?.id
+            ?? activeGraph.nodes.find((node) => node.data.kind === 'agent' && node.data.agent?.agentId === currentDetail?.agentRun.agentId)?.id
+            ?? activeGraph.nodes.find((node) => node.data.kind === 'agent')?.id
+            ?? null
+    }
+    if (nodeId) {
+      const node = activeGraph.nodes.find((item) => item.id === nodeId) ?? graph.nodes.find((item) => item.id === nodeId) ?? null
+      setSelectedNodeId(nodeId)
+      const nextInspectorRunId = node?.data.agent?.runId && node.data.agent.runId !== currentDetail?.agentRun.id ? node.data.agent.runId : null
+      setInspectorRunId(nextInspectorRunId)
+      if (conversationId && nextInspectorRunId && selectedInspectorDetail?.agentRun.id !== nextInspectorRunId) {
+        void loadDetail(conversationId, nextInspectorRunId)
+      }
+      void flowInstance?.setCenter((node?.position.x ?? 0) + 140, (node?.position.y ?? 0) + 90, {
+        zoom: 0.82,
+        duration: 280,
+      })
     }
     setInspectorOpen(true)
-    setInspectorTab('trace')
+    setInspectorTab(event?.type === 'run.debug.terminal.output' ? 'terminal' : 'trace')
     setPanelTab('trace')
+    setBottomPanelOpen(true)
+  }
+
+  const openBottomPanelTab = (tab: BoardPanelTab) => {
+    setPanelTab(tab)
+    setBottomPanelOpen(true)
   }
 
   const closeInspector = () => {
     setInspectorOpen(false)
     setSelectedNodeId(null)
+    setSelectedToolCallId(null)
   }
 
-  const showInspector = !focusMode && inspectorOpen && Boolean(currentDetail)
+  const visibleInspectorDetail = inspectorDetail ?? currentDetail
+  const showInspector = !focusMode && inspectorOpen && Boolean(visibleInspectorDetail)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
@@ -718,9 +836,8 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                         runs={runs}
                         debugEvents={canvasGraphScope === 'session' ? conversationDebugEvents : selectedDebugEvents}
                         filter={timelineFilter}
-                        onFilterChange={setTimelineFilter}
                         onSelectDebugEvent={selectDebugEvent}
-                        onSelectRun={selectRun}
+                        onSelectRun={selectTimelineRun}
                       />
                     </div>
                   ) : (
@@ -728,7 +845,6 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                       <RawEventStreamPanel
                         debugEvents={canvasGraphScope === 'session' ? conversationDebugEvents : selectedDebugEvents}
                         filter={timelineFilter}
-                        onFilterChange={setTimelineFilter}
                         onSelectDebugEvent={selectDebugEvent}
                       />
                     </div>
@@ -740,11 +856,11 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             </div>
           </div>
 
-          {!focusMode && (
+          {!focusMode && bottomPanelOpen && (
             <div className="shrink-0 px-3 pb-3">
               <BottomPanel
                 tab={panelTab}
-                onTabChange={setPanelTab}
+                onTabChange={openBottomPanelTab}
                 detail={currentDetail}
                 diagnosticDetail={inspectorDetail ?? currentDetail}
                 stage={panelStage}
@@ -752,46 +868,60 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                 selectedRunId={selectedRun?.id ?? null}
                 onSelectRun={selectRun}
                 debugEvents={selectedDebugEvents}
-                sessionMessages={conversationMessages}
-                sessionDebugEvents={conversationDebugEvents}
-                graphScope={canvasGraphScope}
-                timelineFilter={timelineFilter}
-                onTimelineFilterChange={setTimelineFilter}
-                onSelectDebugEvent={selectDebugEvent}
                 onSelectToolCall={selectToolCall}
+                onClose={() => setBottomPanelOpen(false)}
               />
             </div>
           )}
 
-          {!focusMode && currentDetail && showInspector && (
+          {!focusMode && !bottomPanelOpen && (
+            <div className="shrink-0 px-3 pb-3">
+              <button
+                type="button"
+                onClick={() => setBottomPanelOpen(true)}
+                className="inline-flex h-8 items-center gap-2 rounded-md border border-[var(--agenthub-border)] bg-white px-3 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                <ChevronDown className="size-3.5" />
+                展开详情
+              </button>
+            </div>
+          )}
+
+          {!focusMode && visibleInspectorDetail && showInspector && (
             <div className="absolute inset-x-3 bottom-3 z-20 h-[min(380px,55%)] overflow-hidden rounded-xl border border-[var(--agenthub-border)] bg-white shadow-xl xl:hidden dark:bg-neutral-900">
               <InspectorPanel
-                detail={inspectorDetail ?? currentDetail}
+                detail={visibleInspectorDetail}
                 selectedNode={selectedNode}
                 tab={inspectorTab}
                 onTabChange={setInspectorTab}
-                timelineFilter={timelineFilter}
-                onTimelineFilterChange={setTimelineFilter}
                 onClose={closeInspector}
                 debugEvents={inspectorDebugEvents}
+                terminalSessions={inspectorTerminalSessions}
+                terminalEventsBySession={terminalEventsBySession}
                 onSelectToolCall={selectToolCall}
+                onOpenGlobalPanel={openBottomPanelTab}
+                onTerminalInput={submitTerminalInput}
+                selectedToolCallId={selectedToolCallId}
               />
             </div>
           )}
         </main>
 
-        {!focusMode && currentDetail && showInspector && (
+        {!focusMode && visibleInspectorDetail && showInspector && (
           <aside className="hidden min-h-0 xl:block">
             <InspectorPanel
-              detail={inspectorDetail ?? currentDetail}
+              detail={visibleInspectorDetail}
               selectedNode={selectedNode}
               tab={inspectorTab}
               onTabChange={setInspectorTab}
-              timelineFilter={timelineFilter}
-              onTimelineFilterChange={setTimelineFilter}
               onClose={closeInspector}
               debugEvents={inspectorDebugEvents}
+              terminalSessions={inspectorTerminalSessions}
+              terminalEventsBySession={terminalEventsBySession}
               onSelectToolCall={selectToolCall}
+              onOpenGlobalPanel={openBottomPanelTab}
+              onTerminalInput={submitTerminalInput}
+              selectedToolCallId={selectedToolCallId}
             />
           </aside>
         )}
@@ -932,6 +1062,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
           data.kind === 'run' && 'w-[310px] border-blue-100 p-3',
           data.kind === 'agent' && 'w-[280px] p-3',
           data.kind === 'task' && 'w-[270px] p-3',
+          data.kind === 'tool' && 'w-[290px] p-3',
           data.kind === 'summary' && 'w-[270px] border-slate-200 p-3',
           selected && 'ring-2 ring-[var(--agenthub-accent)] ring-offset-2 dark:ring-offset-neutral-950',
           data.tone === 'success' && 'border-emerald-300 shadow-[0_0_0_4px_rgba(16,185,129,.10)]',
@@ -998,7 +1129,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
             <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
               <NodeMetric label="耗时" value={data.agent.durationMs === null ? '-' : formatDurationMs(data.agent.durationMs)} />
               <NodeMetric label="Token" value={data.agent.tokenTotal === null ? '-' : formatCompactNumber(data.agent.tokenTotal)} />
-              <NodeMetric label="Tools" value={String(data.agent.toolCallCount)} />
+              <NodeMetric label="工具" value={String(data.agent.toolCallCount)} />
             </div>
             <NodeStepList
               steps={data.agent.steps}
@@ -1007,6 +1138,19 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
               expanded={expanded}
             />
             <NodeToolChips tools={data.agent.toolNames} expanded={expanded} />
+          </>
+        )}
+
+        {data.kind === 'tool' && data.tool && (
+          <>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+              <NodeMetric label="Call ID" value={shortId(data.tool.callId)} />
+              <NodeMetric label="Agent" value={data.tool.agentName ?? data.tool.agentId} />
+            </div>
+            <div className="mt-2 rounded-md bg-slate-50 px-2 py-1.5 text-[10px] leading-5 text-slate-600 dark:bg-white/5 dark:text-slate-300">
+              <div className="font-medium text-slate-700 dark:text-slate-200">{data.tool.toolName}</div>
+              <div className="mt-0.5 line-clamp-2 break-words">{data.tool.summary || '暂无输入摘要'}</div>
+            </div>
           </>
         )}
 
@@ -1125,6 +1269,7 @@ function debuggerNodeIcon(data: AgentRunDebuggerNodeData) {
   if (data.kind === 'run') return <GitBranch className="size-4" />
   if (data.kind === 'summary') return <Database className="size-4" />
   if (data.kind === 'task') return <GitBranch className="size-4" />
+  if (data.kind === 'tool') return <TerminalSquare className="size-4" />
   if (data.agent?.role === 'orchestrator') return <Cpu className="size-4" />
   return <Bot className="size-4" />
 }
@@ -1154,73 +1299,108 @@ function InspectorPanel({
   selectedNode,
   tab,
   onTabChange,
-  timelineFilter,
-  onTimelineFilterChange,
   onClose,
   debugEvents,
+  terminalSessions,
+  terminalEventsBySession,
   onSelectToolCall,
+  onOpenGlobalPanel,
+  onTerminalInput,
+  selectedToolCallId,
 }: {
   detail: AgentRunDebugDetail
   selectedNode: AgentRunDebuggerGraph['nodes'][number] | null
   tab: InspectorTab
   onTabChange: (tab: InspectorTab) => void
-  timelineFilter: AgentRunTimelineFilter
-  onTimelineFilterChange: (filter: AgentRunTimelineFilter) => void
   onClose: () => void
   debugEvents: AgentRunDebugEventRecord[]
+  terminalSessions: TerminalSessionRecord[]
+  terminalEventsBySession: Record<string, TerminalEventRecord[]>
   onSelectToolCall: (callId: string) => void
+  onOpenGlobalPanel: (tab: BoardPanelTab) => void
+  onTerminalInput: (sessionId: string, input: string) => Promise<void>
+  selectedToolCallId: string | null
 }) {
+  const selectedAgent = selectedNode?.data.kind === 'agent'
+    ? selectedNode.data.agent ?? null
+    : selectedNode?.data.kind === 'tool'
+      ? {
+          agentId: selectedNode.data.tool?.agentId ?? detail.agentRun.agentId,
+          name: selectedNode.data.tool?.agentName ?? detail.agentRun.agentName ?? detail.agentRun.agentId,
+          role: 'orchestrator' as const,
+          status: selectedNode.data.status,
+          runId: selectedNode.data.tool?.runId ?? detail.agentRun.id,
+          taskIds: [],
+          taskTitles: [],
+          steps: [],
+          durationMs: null,
+          tokenTotal: null,
+          toolCallCount: 0,
+          toolNames: [],
+          source: 'current_run' as const,
+        }
+      : null
+  const selectedAgentId = selectedAgent?.agentId ?? detail.agentRun.agentId
   const toolTrace = projectAgentRunToolTrace(detail)
-  const planTasks = projectAgentRunPlanTasks(toolTrace)
-  const planDag = projectAgentRunPlanDag(planTasks)
-  const relations = projectAgentRunRelations(detail)
-  const timeline = projectAgentRunTimeline(detail)
+  const agentToolTrace = filterToolTraceForInspectorAgent(toolTrace, {
+    detail,
+    debugEvents,
+    agent: selectedAgent,
+  })
   const artifacts = projectAgentRunArtifacts(detail)
-  const askUserInteractions = projectAgentRunAskUserInteractions(toolTrace)
-  const taskResults = projectAgentRunTaskResults(toolTrace)
-  const operations = projectAgentRunOperations(toolTrace)
+  const askUserInteractions = projectAgentRunAskUserInteractions(agentToolTrace)
+  const taskResults = projectAgentRunTaskResults(agentToolTrace)
+  const operations = projectAgentRunOperations(agentToolTrace)
+  const terminalOutput = projectAgentRunTerminalOutput(detail, debugEvents, selectedAgentId)
+  const realTerminal = projectRealAgentTerminalOutput(terminalSessions, terminalEventsBySession, selectedAgentId)
+  const inspectorView = buildAgentRunInspectorViewModel(detail, selectedNode, agentToolTrace)
+  const toolInspectorView = buildAgentRunToolInspectorViewModel(detail, agentToolTrace, debugEvents, selectedToolCallId)
+  const activeSummaryView = toolInspectorView ?? inspectorView
   const tabs: Array<{ id: InspectorTab; label: string; icon: React.ReactNode }> = [
-    { id: 'terminal', label: '终端', icon: <TerminalSquare className="size-3.5" /> },
-    { id: 'logs', label: '日志', icon: <FileCode2 className="size-3.5" /> },
-    { id: 'trace', label: '工具', icon: <Activity className="size-3.5" /> },
-    { id: 'variables', label: '变量', icon: <GitBranch className="size-3.5" /> },
-    { id: 'artifacts', label: '产物', icon: <PackageOpen className="size-3.5" /> },
-    { id: 'messages', label: '历史', icon: <Clock3 className="size-3.5" /> },
-    { id: 'overview', label: '总览', icon: <Database className="size-3.5" /> },
+    { id: 'terminal', label: '终端', icon: <TerminalSquare className="size-3" /> },
+    { id: 'logs', label: '日志', icon: <FileCode2 className="size-3" /> },
+    { id: 'trace', label: '工具', icon: <Activity className="size-3" /> },
+    { id: 'variables', label: '变量', icon: <GitBranch className="size-3" /> },
+    { id: 'artifacts', label: '产物', icon: <PackageOpen className="size-3" /> },
   ]
 
   return (
     <aside className="flex h-full min-h-0 flex-col border-l border-[var(--agenthub-border)] bg-white dark:bg-neutral-900">
-      <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 py-4">
+      <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--agenthub-accent)]">
-              <GitBranch className="size-3.5" />
-              Agent Inspector
+              {inspectorIcon(activeSummaryView.kind)}
+              {activeSummaryView.kicker}
             </div>
-            <h2 className="mt-2 truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {selectedNode ? selectedNode.data.label : detail.agentRun.agentName ?? detail.agentRun.agentId}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-              {selectedNode ? renderDebuggerNodeDescription(selectedNode.data) : '选择一个 run、agent 或 task 查看上下文。'}
+            <div className="mt-2 flex min-w-0 items-center gap-2">
+              <h2 className="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
+                {activeSummaryView.title}
+              </h2>
+              {(selectedNode || activeSummaryView.kind === 'tool') && (
+                <span className={cn('size-2 shrink-0 rounded-full', debuggerStatusDotClass(activeSummaryView.status))} />
+              )}
+            </div>
+            <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+              {activeSummaryView.subtitle}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100" aria-label="关闭详情">
+          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="关闭详情">
             <X className="size-4" />
           </button>
         </div>
       </div>
 
-      <InspectorWorkbenchSummary detail={detail} selectedNode={selectedNode} toolTrace={toolTrace} />
+      <InspectorWorkbenchSummary view={activeSummaryView} />
 
-      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] px-3 py-2">
+      <div className="flex shrink-0 flex-nowrap items-center gap-0.5 border-b border-[var(--agenthub-border)] px-2 py-1.5">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => onTabChange(item.id)}
             className={cn(
-              'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition',
+              'inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition',
               tab === item.id
                 ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
@@ -1232,27 +1412,49 @@ function InspectorPanel({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {tab === 'overview' ? (
-          <InspectorOverview detail={detail} selectedNode={selectedNode} planDag={planDag} toolTrace={toolTrace} />
-        ) : tab === 'terminal' ? (
-          <TerminalPanel operations={operations} debugEvents={debugEvents} />
+      <div className={cn('min-h-0 flex-1', tab === 'terminal' ? 'flex flex-col p-3' : 'overflow-y-auto p-3')}>
+        {tab === 'terminal' ? (
+          <TerminalPanel terminal={terminalOutput} realTerminal={realTerminal} onInput={onTerminalInput} />
         ) : tab === 'logs' ? (
-          <LogsPanel detail={detail} />
-        ) : tab === 'trace' ? (
-          <ToolTracePanel detail={detail} debugEvents={debugEvents} onSelectToolCall={onSelectToolCall} />
-        ) : tab === 'variables' ? (
-          <VariablesPanel detail={detail} />
-        ) : tab === 'messages' ? (
-          <InspectorMessagesPanel
-            relations={relations}
-            timeline={timeline}
-            debugEvents={debugEvents}
-            filter={timelineFilter}
-            onFilterChange={onTimelineFilterChange}
+          <InspectorSummaryPanel
+            title="日志摘要"
+            emptyText="暂无文件、命令或网络日志"
+            items={[
+              ...operations.files.map((item) => ({ id: item.callId, label: item.kind, value: item.path, error: item.isError })),
+              ...operations.commands.map((item) => ({ id: item.callId, label: item.exitCode === 0 ? 'command' : item.status ?? 'command', value: item.command, error: item.isError })),
+              ...operations.network.map((item) => ({ id: item.callId, label: item.kind, value: item.target, error: item.isError })),
+            ]}
+            total={operations.files.length + operations.commands.length + operations.network.length}
+            onOpenGlobal={() => onOpenGlobalPanel('logs')}
           />
+        ) : tab === 'trace' ? (
+          <InspectorSummaryPanel
+            title="工具调用摘要"
+            emptyText="当前 Agent 没有工具调用"
+            items={agentToolTrace.map((item) => ({
+              id: item.callId,
+              label: item.toolName,
+              value: summarizeAgentRunToolTraceArgs(item),
+              error: item.isError,
+              onClick: () => onSelectToolCall(item.callId),
+            }))}
+            total={agentToolTrace.length}
+            onOpenGlobal={() => onOpenGlobalPanel('trace')}
+          />
+        ) : tab === 'variables' ? (
+          <InspectorVariablesSummary detail={detail} onOpenGlobal={() => onOpenGlobalPanel('variables')} />
         ) : (
-          <InspectorArtifactsPanel artifacts={artifacts} askUserInteractions={askUserInteractions} taskResults={taskResults} />
+          <InspectorSummaryPanel
+            title="产物摘要"
+            emptyText="暂无 Artifact、部署输出或任务结果"
+            items={[
+              ...artifacts.map((artifact) => ({ id: artifact.id, label: artifact.status ?? artifact.kind, value: artifact.title ?? artifact.artifactId, error: false })),
+              ...taskResults.map((result) => ({ id: result.callId, label: result.status, value: result.summary, error: result.status !== 'complete' })),
+              ...askUserInteractions.map((interaction) => ({ id: interaction.callId, label: interaction.answered ? 'answered' : 'pending', value: `${interaction.questionCount} question(s)`, error: interaction.isError })),
+            ]}
+            total={artifacts.length + taskResults.length + askUserInteractions.length}
+            onOpenGlobal={() => onOpenGlobalPanel('artifacts')}
+          />
         )}
       </div>
     </aside>
@@ -1260,61 +1462,165 @@ function InspectorPanel({
 }
 
 function InspectorWorkbenchSummary({
-  detail,
-  selectedNode,
-  toolTrace,
+  view,
 }: {
-  detail: AgentRunDebugDetail
-  selectedNode: AgentRunDebuggerGraph['nodes'][number] | null
-  toolTrace: ReturnType<typeof projectAgentRunToolTrace>
+  view: InspectorWorkbenchViewModel
 }) {
-  const node = selectedNode?.data ?? null
-  const status = node?.status ?? stageToDebuggerStatus(getAgentRunBoardStageStatus(detail.agentRun.status, true))
-  const durationMs = node?.agent?.durationMs ?? node?.run?.durationMs ?? (detail.agentRun.finishedAt ? detail.agentRun.finishedAt - detail.agentRun.startedAt : null)
-  const tokenTotal = node?.agent?.tokenTotal ?? node?.run?.tokenTotal ?? totalUsageTokens(detail.agentRun.usage)
-  const model = node?.run?.modelId ?? detail.snapshot?.agent.modelId ?? detail.agentRun.modelId ?? '-'
-  const toolCount = node?.agent?.toolCallCount ?? toolTrace.length
-  const taskItems = node?.agent?.taskTitles.length
-    ? node.agent.taskTitles
-    : node?.task
-      ? [node.task.title]
-      : projectAgentRunPlanTasks(toolTrace).map((task) => task.task)
-
+  if (view.kind === 'tool') {
+    return (
+      <div className="shrink-0 space-y-2 border-b border-[var(--agenthub-border)] bg-slate-50/60 p-3 dark:bg-neutral-950/30">
+        <ToolInspectorSummary view={view} />
+      </div>
+    )
+  }
+  if (view.kind === 'message') {
+    return (
+      <div className="shrink-0 space-y-2 border-b border-[var(--agenthub-border)] bg-slate-50/60 p-3 dark:bg-neutral-950/30">
+        <MessageInspectorSummary view={view} />
+      </div>
+    )
+  }
   return (
-    <div className="shrink-0 space-y-3 border-b border-[var(--agenthub-border)] bg-slate-50/60 p-3 dark:bg-neutral-950/30">
+    <div className="shrink-0 space-y-2 border-b border-[var(--agenthub-border)] bg-slate-50/60 p-3 dark:bg-neutral-950/30">
       <div className="grid grid-cols-2 gap-2">
-        <PanelMetric label="耗时" value={durationMs === null ? '-' : formatDurationMs(durationMs)} />
-        <PanelMetric label="Token" value={tokenTotal === null ? '-' : formatCompactNumber(tokenTotal)} />
-        <PanelMetric label="工具调用" value={String(toolCount)} />
-        <PanelMetric label="模型" value={compactModelName(model)} />
+        {view.metrics.map((metric) => (
+          <PanelMetric key={metric.label} label={metric.label} value={formatInspectorMetric(metric)} />
+        ))}
+      </div>
+      <CurrentTaskSummary task={view.currentTask} />
+      {view.fields.length > 0 && (
+        <div className="grid gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+          {view.fields.map((field) => (
+            <div key={field.label} className="flex items-center justify-between gap-2">
+              <span>{field.label}</span>
+              <span className="min-w-0 truncate font-mono text-slate-700 dark:text-slate-200">{field.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ToolInspectorSummary({ view }: { view: AgentRunToolInspectorViewModel }) {
+  return (
+    <div className="space-y-2">
+      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">工具</div>
+            <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{view.title}</div>
+          </div>
+          <span className={cn('rounded px-1.5 py-0.5 text-[10px]', view.status === 'completed' ? 'bg-emerald-500/10 text-emerald-300' : view.status === 'running' ? 'bg-blue-500/10 text-blue-300' : 'bg-white/10 text-slate-300')}>
+            {view.subtitle}
+          </span>
+        </div>
+      </section>
+      <div className="grid grid-cols-2 gap-2">
+        {view.metrics.map((metric) => (
+          <PanelMetric key={metric.label} label={metric.label} value={formatInspectorMetric(metric)} />
+        ))}
+      </div>
+      <div className="grid gap-1.5 text-xs">
+        {view.fields.map((field) => (
+          <div key={field.label} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 dark:bg-neutral-900">
+            <span className="shrink-0 text-slate-500 dark:text-slate-400">{field.label}</span>
+            <span className="min-w-0 truncate text-right font-medium text-slate-800 dark:text-slate-100">{field.value}</span>
+          </div>
+        ))}
       </div>
       <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">当前子任务</div>
-          <span className="text-[10px] text-slate-400">{taskItems.length > 0 ? `1/${taskItems.length}` : '-'}</span>
-        </div>
-        {taskItems.length === 0 ? (
-          <div className="text-xs text-slate-500">暂无可识别任务</div>
-        ) : (
-          <div className="space-y-2">
-            {taskItems.slice(0, 3).map((task, index) => (
-              <div key={`${task}-${index}`} className="min-w-0">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className={cn('size-2 rounded-full', debuggerStatusDotClass(index === 0 ? status : 'waiting'))} />
-                  <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-200">{task}</span>
-                </div>
-                {index === 0 && (
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                    <div className={cn('h-full rounded-full', status === 'completed' ? 'w-full bg-emerald-500' : status === 'running' ? 'w-3/4 bg-blue-500' : 'w-1/4 bg-amber-400')} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Input</div>
+        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-slate-900 dark:text-slate-100">{view.input || '-'}</p>
+      </section>
+      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Output</div>
+        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-slate-900 dark:text-slate-100">{view.output || '-'}</p>
       </section>
     </div>
   )
+}
+
+function MessageInspectorSummary({
+  view,
+}: {
+  view: Pick<AgentRunInspectorViewModel, 'messageContent' | 'fields'>
+}) {
+  return (
+    <div className="space-y-2">
+      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">内容</div>
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900 dark:text-slate-100">
+          {view.messageContent ?? '-'}
+        </p>
+      </section>
+      <div className="grid gap-1.5 text-xs">
+        {view.fields.map((field) => (
+          <div key={field.label} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 dark:bg-neutral-900">
+            <span className="shrink-0 text-slate-500 dark:text-slate-400">{field.label}</span>
+            <span className="min-w-0 truncate text-right font-medium text-slate-800 dark:text-slate-100">
+              {field.label === '发送时间' ? formatClockTime(Number(field.value)) : field.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
+  if (!task) {
+    return (
+      <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-neutral-900">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">当前任务</span>
+          <span className="min-w-0 truncate text-slate-500 dark:text-slate-400">暂无可识别步骤</span>
+        </div>
+      </section>
+    )
+  }
+
+  const progress = task.stepTotal > 0 ? Math.round((task.stepIndex / task.stepTotal) * 100) : task.status === 'completed' ? 100 : 20
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-neutral-900">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-slate-900 dark:text-slate-100">当前任务</span>
+        <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">{task.title}</span>
+      </div>
+      {task.stepTitle && (
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="min-w-0 truncate">{task.stepTitle}</span>
+          <span className="shrink-0">{task.stepIndex}/{task.stepTotal}</span>
+        </div>
+      )}
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+        <div
+          className={cn(
+            'h-full rounded-full',
+            task.status === 'completed' ? 'bg-emerald-500' : task.status === 'running' ? 'bg-blue-500' : task.status === 'failed' ? 'bg-rose-500' : 'bg-amber-400',
+          )}
+          style={{ width: `${Math.min(100, Math.max(8, progress))}%` }}
+        />
+      </div>
+    </section>
+  )
+}
+
+function formatInspectorMetric(metric: AgentRunInspectorMetric): string {
+  if (metric.value === null || metric.value === undefined || metric.value === '') return '-'
+  if (metric.label === '耗时' && typeof metric.value === 'number') return formatDurationMs(metric.value)
+  if (metric.label === 'Token' && typeof metric.value === 'number') return formatCompactNumber(metric.value)
+  if (metric.label === '模型' && typeof metric.value === 'string') return compactModelName(metric.value)
+  return String(metric.value)
+}
+
+function inspectorIcon(kind: ReturnType<typeof buildAgentRunInspectorViewModel>['kind'] | AgentRunToolInspectorViewModel['kind']) {
+  if (kind === 'message') return <Activity className="size-3.5" />
+  if (kind === 'agent') return <Bot className="size-3.5" />
+  if (kind === 'tool') return <TerminalSquare className="size-3.5" />
+  if (kind === 'task') return <GitBranch className="size-3.5" />
+  if (kind === 'summary') return <Database className="size-3.5" />
+  return <GitBranch className="size-3.5" />
 }
 
 function BottomPanel({
@@ -1327,13 +1633,8 @@ function BottomPanel({
   selectedRunId,
   onSelectRun,
   debugEvents,
-  sessionMessages,
-  sessionDebugEvents,
-  graphScope,
-  timelineFilter,
-  onTimelineFilterChange,
-  onSelectDebugEvent,
   onSelectToolCall,
+  onClose,
 }: {
   tab: BoardPanelTab
   onTabChange: (tab: BoardPanelTab) => void
@@ -1344,27 +1645,21 @@ function BottomPanel({
   selectedRunId: string | null
   onSelectRun: (runId: string) => void
   debugEvents: AgentRunDebugEventRecord[]
-  sessionMessages: MessageRecord[]
-  sessionDebugEvents: AgentRunDebugEventRecord[]
-  graphScope: CanvasGraphScope
-  timelineFilter: AgentRunTimelineFilter
-  onTimelineFilterChange: (filter: AgentRunTimelineFilter) => void
-  onSelectDebugEvent: (event: AgentRunDebugEventRecord) => void
   onSelectToolCall: (callId: string) => void
+  onClose: () => void
 }) {
   const tabs: Array<{ id: BoardPanelTab; label: string; icon: React.ReactNode }> = [
-    { id: 'timeline', label: '事件时间线', icon: <Clock3 className="size-3.5" /> },
-    { id: 'output', label: 'Output', icon: <Activity className="size-3.5" /> },
-    { id: 'logs', label: 'Logs', icon: <FileCode2 className="size-3.5" /> },
-    { id: 'trace', label: 'Tool Trace', icon: <TerminalSquare className="size-3.5" /> },
-    { id: 'variables', label: 'Variables', icon: <GitBranch className="size-3.5" /> },
-    { id: 'artifacts', label: 'Artifacts', icon: <PackageOpen className="size-3.5" /> },
-    { id: 'history', label: 'History', icon: <Clock3 className="size-3.5" /> },
+    { id: 'output', label: '输出', icon: <Activity className="size-3.5" /> },
+    { id: 'logs', label: '日志', icon: <FileCode2 className="size-3.5" /> },
+    { id: 'trace', label: '工具调用', icon: <TerminalSquare className="size-3.5" /> },
+    { id: 'variables', label: '变量', icon: <GitBranch className="size-3.5" /> },
+    { id: 'artifacts', label: '产物', icon: <PackageOpen className="size-3.5" /> },
+    { id: 'history', label: '历史', icon: <Clock3 className="size-3.5" /> },
   ]
 
   return (
     <section className="hidden h-[224px] min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--agenthub-border)] bg-white shadow-sm md:flex dark:bg-neutral-900">
-      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] px-3">
+      <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-1 border-b border-[var(--agenthub-border)] px-3 py-1">
         {tabs.map((item) => (
           <button
             key={item.id}
@@ -1382,20 +1677,17 @@ function BottomPanel({
           </button>
         ))}
         {stage && <span className="ml-auto hidden truncate px-2 text-[11px] text-slate-400 lg:block">{stage.title} · {stage.metric}</span>}
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-1 inline-flex size-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-slate-200"
+          aria-label="关闭全局详情"
+        >
+          <X className="size-4" />
+        </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {tab === 'timeline' && (detail || graphScope === 'session') ? (
-          <EventTimelinePanel
-            detail={graphScope === 'session' ? null : detail}
-            messages={sessionMessages}
-            runs={runs}
-            debugEvents={graphScope === 'session' ? sessionDebugEvents : debugEvents}
-            filter={timelineFilter}
-            onFilterChange={onTimelineFilterChange}
-            onSelectDebugEvent={onSelectDebugEvent}
-            onSelectRun={onSelectRun}
-          />
-        ) : !detail ? (
+        {!detail ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">选择一个 Run 后查看输出和证据</div>
         ) : tab === 'output' ? (
           <OutputPanel detail={detail} stage={stage} />
@@ -1426,7 +1718,7 @@ function StageRail({
 }) {
   return (
     <div className="shrink-0 border-b border-[var(--agenthub-border)] bg-white px-5 py-2 dark:bg-neutral-950/70">
-      <div className="flex items-center gap-0 overflow-x-auto">
+      <div className="flex flex-wrap items-center gap-0">
         {stages.map((stage, index) => (
           <div key={stage.id} className="flex shrink-0 items-center">
             {index > 0 && <div className="h-px w-12 bg-slate-200 dark:bg-white/10" />}
@@ -1452,265 +1744,298 @@ function StageRail({
   )
 }
 
-function InspectorOverview({
-  detail,
-  selectedNode,
-  planDag,
-  toolTrace,
-}: {
-  detail: AgentRunDebugDetail
-  selectedNode: AgentRunDebuggerGraph['nodes'][number] | null
-  planDag: ReturnType<typeof projectAgentRunPlanDag>
-  toolTrace: ReturnType<typeof projectAgentRunToolTrace>
-}) {
-  const node = selectedNode?.data ?? null
-  return (
-    <div className="space-y-3">
-      <Section title="Selected Context">
-        {node?.kind === 'run' && node.run ? (
-          <div className="grid gap-2">
-            <DetailRow label="Run" value={node.run.title} />
-            <DetailRow label="Model" value={node.run.modelId ?? '-'} />
-            <DetailRow label="Duration" value={node.run.durationMs === null ? '-' : formatDurationMs(node.run.durationMs)} />
-            <DetailRow label="Tokens" value={node.run.tokenTotal === null ? '-' : node.run.tokenTotal.toLocaleString()} />
-          </div>
-        ) : node?.kind === 'message' && node.message ? (
-          <div className="grid gap-2">
-            <DetailRow label="Message" value={shortId(node.message.id)} />
-            <DetailRow label="Role" value={node.message.role} />
-            <DetailRow label="Status" value={node.message.status} />
-            <DetailRow label="Runs" value={node.message.runIds.length ? node.message.runIds.map(shortId).join(', ') : '-'} />
-            <CodeSnippet label="Preview" value={node.message.preview} />
-          </div>
-        ) : node?.kind === 'agent' && node.agent ? (
-          <div className="grid gap-2">
-            <DetailRow label="Agent" value={node.agent.name} />
-            <DetailRow label="Role" value={node.agent.role} />
-            <DetailRow label="Run" value={node.agent.runId ?? '-'} />
-            <DetailRow label="Tasks" value={node.agent.taskIds.length ? node.agent.taskIds.join(', ') : '-'} />
-            <DetailRow label="Duration" value={node.agent.durationMs === null ? '-' : formatDurationMs(node.agent.durationMs)} />
-            <DetailRow label="Tool calls" value={String(node.agent.toolCallCount)} />
-          </div>
-        ) : node?.kind === 'task' && node.task ? (
-          <div className="grid gap-2">
-            <DetailRow label="Task" value={node.task.title} />
-            <DetailRow label="Agent" value={node.task.agentId} />
-            <DetailRow label="Depends" value={node.task.dependsOn.length ? node.task.dependsOn.join(', ') : '-'} />
-            <DetailRow label="Status" value={debuggerStatusLabel(node.task.status)} />
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            <DetailRow label="Run" value={detail.agentRun.id} />
-            <DetailRow label="Agent" value={detail.agentRun.agentName ?? detail.agentRun.agentId} />
-            <DetailRow label="Status" value={statusLabel(detail.agentRun.status)} />
-            <DetailRow label="Tool calls" value={String(toolTrace.length)} />
-          </div>
-        )}
-      </Section>
+function filterToolTraceForInspectorAgent(
+  items: readonly AgentRunToolTraceItem[],
+  {
+    detail,
+    debugEvents,
+    agent,
+  }: {
+    detail: AgentRunDebugDetail
+    debugEvents: readonly AgentRunDebugEventRecord[]
+    agent: AgentRunDebuggerNodeData['agent'] | null
+  },
+): AgentRunToolTraceItem[] {
+  if (!agent) return [...items]
+  const taskIds = new Set(agent.taskIds)
+  const eventOwners = new Map<string, { agentIds: Set<string>; taskIds: Set<string> }>()
+  for (const event of debugEvents) {
+    if (event.runId !== detail.agentRun.id || !event.toolCallId) continue
+    const owner = eventOwners.get(event.toolCallId) ?? { agentIds: new Set<string>(), taskIds: new Set<string>() }
+    if (event.agentId) owner.agentIds.add(event.agentId)
+    if (event.taskId) owner.taskIds.add(event.taskId)
+    eventOwners.set(event.toolCallId, owner)
+  }
 
-      <Section title="Plan">
-        {planDag.nodes.length === 0 ? (
-          <div className="text-xs text-slate-500">当前 Run 没有可识别的 plan_tasks 计划。</div>
-        ) : (
-          <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
-            <div>nodes: {planDag.nodes.length}</div>
-            <div>edges: {planDag.edges.length}</div>
-            <div>layers: {planDag.layers.length}</div>
-            <div>cycle: {planDag.hasCycle ? 'yes' : 'no'}</div>
-          </div>
-        )}
-      </Section>
-    </div>
-  )
+  return items.filter((item) => {
+    const owner = eventOwners.get(item.callId)
+    if (owner) {
+      if (owner.agentIds.has(agent.agentId)) return true
+      for (const taskId of owner.taskIds) {
+        if (taskIds.has(taskId)) return true
+      }
+      if (owner.agentIds.size > 0 || owner.taskIds.size > 0) return false
+    }
+
+    const haystack = `${stringifyForSearch(item.args)} ${stringifyForSearch(item.result)}`
+    if (haystack.includes(agent.agentId)) return true
+    for (const taskId of taskIds) {
+      if (haystack.includes(taskId)) return true
+    }
+
+    return agent.role === 'orchestrator' && agent.agentId === detail.agentRun.agentId
+  })
+}
+
+function stringifyForSearch(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
+}
+
+interface RealAgentTerminalOutput {
+  status: 'empty' | 'live' | 'completed'
+  sessionId: string | null
+  shell: string
+  cwd: string | null
+  transcript: string
 }
 
 function TerminalPanel({
-  operations,
-  debugEvents,
+  terminal,
+  realTerminal,
+  onInput,
 }: {
-  operations: ReturnType<typeof projectAgentRunOperations>
-  debugEvents: AgentRunDebugEventRecord[]
+  terminal: AgentRunTerminalOutput
+  realTerminal: RealAgentTerminalOutput
+  onInput: (sessionId: string, input: string) => Promise<void>
 }) {
-  const terminalEvents = debugEvents.filter((event) => event.type === 'run.debug.terminal.output')
-  if (terminalEvents.length === 0 && operations.commands.length === 0) {
+  const [input, setInput] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [inputError, setInputError] = useState<string | null>(null)
+  const activeTerminal = realTerminal.status === 'empty' ? terminal : realTerminal
+  const canInput = realTerminal.status === 'live' && Boolean(realTerminal.sessionId)
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!canInput || !realTerminal.sessionId || !input || submitting) return
+    setSubmitting(true)
+    setInputError(null)
+    try {
+      await onInput(realTerminal.sessionId, input.endsWith('\n') ? input : `${input}\n`)
+      setInput('')
+    } catch (err) {
+      setInputError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (activeTerminal.status === 'empty') {
     return <PanelEmpty icon={<TerminalSquare className="size-4" />} text="暂无命令输出" />
   }
-  if (terminalEvents.length > 0) {
-    return (
-      <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950 font-mono text-[11px] leading-5 text-slate-100 shadow-inner">
-        <div className="flex h-8 items-center justify-between border-b border-white/10 px-3 text-[10px] uppercase tracking-wide text-slate-400">
-          <span>Terminal Log</span>
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-800 bg-slate-950 font-mono text-[11px] leading-5 text-slate-100 shadow-inner">
+      <div className="flex min-h-9 shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-1 text-[10px] text-slate-400">
+        <div className="min-w-0">
+          <div className="font-semibold text-slate-200">
+            终端输出
+          </div>
+          <div className="mt-0.5 break-words">{activeTerminal.shell}{activeTerminal.cwd ? ` · ${activeTerminal.cwd}` : ''}</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={cn('rounded px-1.5 py-0.5', activeTerminal.status === 'live' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/10 text-slate-300')}>
+            {activeTerminal.status === 'live' ? '● LIVE' : '完成'}
+          </span>
           <button
             type="button"
-            onClick={() => void navigator.clipboard?.writeText(terminalEvents.map((event) => payloadText(event, 'text')).join('\n'))}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 normal-case tracking-normal hover:bg-white/10 hover:text-slate-200"
+            onClick={() => void navigator.clipboard?.writeText(activeTerminal.transcript)}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/10 hover:text-slate-200"
           >
             <Copy className="size-3" />
             复制
           </button>
         </div>
-        <pre className="max-h-[360px] overflow-auto whitespace-pre-wrap break-words px-3 py-2">
-          {terminalEvents.map((event) => payloadText(event, 'text')).join('\n')}
-        </pre>
       </div>
+      <pre className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words px-3 py-2">
+        {activeTerminal.transcript}
+      </pre>
+      {canInput && (
+        <div className="shrink-0 border-t border-white/10">
+          <form onSubmit={submit} className="flex items-center gap-2 px-3 py-2">
+            <span className="shrink-0 text-emerald-300">$</span>
+            <input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              className="min-w-0 flex-1 bg-transparent text-slate-100 outline-none placeholder:text-slate-500"
+              placeholder="输入 stdin 后回车"
+              disabled={submitting}
+            />
+            <button
+              type="submit"
+              disabled={!input || submitting}
+              className="rounded bg-white/10 px-2 py-1 text-[10px] text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              发送
+            </button>
+          </form>
+          {inputError && <div className="px-3 pb-2 text-[10px] text-rose-300">{inputError}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function projectRealAgentTerminalOutput(
+  sessions: readonly TerminalSessionRecord[],
+  eventsBySession: Record<string, TerminalEventRecord[]>,
+  agentId: string | null,
+): RealAgentTerminalOutput {
+  const agentSessions = sessions
+    .filter((session) => !agentId || session.agentId === agentId)
+    .sort((a, b) => a.startedAt - b.startedAt || a.id.localeCompare(b.id))
+  if (agentSessions.length === 0) {
+    return {
+      status: 'empty',
+      sessionId: null,
+      shell: 'Shell',
+      cwd: null,
+      transcript: '',
+    }
+  }
+
+  const lines: string[] = []
+  for (const session of agentSessions) {
+    const prompt = terminalPrompt(session.shell, session.cwd)
+    lines.push(ensureTerminalLine(`${prompt} ${session.command}`))
+    const events = [...(eventsBySession[session.id] ?? [])].sort((a, b) => a.seq - b.seq || a.id.localeCompare(b.id))
+    for (const event of events) {
+      if (!event.text) continue
+      if (event.type === 'terminal.input') lines.push(ensureTerminalLine(event.text))
+      else if (event.type === 'terminal.output' || event.type === 'terminal.error') lines.push(event.text)
+    }
+    if (session.status !== 'running') {
+      const exitLabel = session.exitCode === null ? session.signal ?? session.status : `exit ${session.exitCode}`
+      lines.push(ensureTerminalLine(`[${exitLabel}]`))
+    }
+  }
+
+  const liveSession = [...agentSessions].reverse().find((session) => session.status === 'running') ?? null
+  const latestSession = agentSessions.at(-1)
+  return {
+    status: liveSession ? 'live' : 'completed',
+    sessionId: liveSession?.id ?? null,
+    shell: latestSession?.shell ?? 'Shell',
+    cwd: latestSession?.cwd ?? null,
+    transcript: lines.join('').trimEnd(),
+  }
+}
+
+function ensureTerminalLine(text: string): string {
+  return text.endsWith('\n') || text.endsWith('\r') ? text : `${text}\n`
+}
+
+function terminalPrompt(shell: string, cwd: string | null): string {
+  const name = shell.toLowerCase()
+  if (name.includes('powershell') || name.includes('pwsh')) return `PS ${cwd ?? ''}>`
+  if (name.includes('cmd')) return `${cwd ?? ''}>`
+  return `${cwd ?? '$'} $`
+}
+
+function InspectorSummaryPanel({
+  title,
+  emptyText,
+  items,
+  total,
+  onOpenGlobal,
+}: {
+  title: string
+  emptyText: string
+  items: Array<{ id: string; label: string; value: string; error: boolean; onClick?: () => void }>
+  total: number
+  onOpenGlobal: () => void
+}) {
+  const recentItems = items.slice(-3).reverse()
+  return (
+    <div className="space-y-3">
+      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">{title}</div>
+            <div className="mt-1 text-[11px] text-slate-500">共 {total} 条 · 最近 {recentItems.length} 条</div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenGlobal}
+            className="shrink-0 rounded-md border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+          >
+            查看全局
+          </button>
+        </div>
+      </section>
+      {recentItems.length === 0 ? (
+        <PanelEmpty icon={<Activity className="size-4" />} text={emptyText} />
+      ) : (
+        <div className="space-y-1.5">
+          {recentItems.map((item) => {
+            const content = (
+              <>
+                <span className="w-20 shrink-0 text-[10px] uppercase text-slate-400">{item.label}</span>
+                <span className="min-w-0 flex-1 break-words font-mono text-[11px] leading-5">{item.value}</span>
+              </>
+            )
+            return item.onClick ? (
+              <button
+                key={item.id}
+                type="button"
+                onClick={item.onClick}
+                className={cn('flex w-full items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-left text-xs hover:bg-blue-50/70 dark:bg-neutral-950/40 dark:hover:bg-blue-500/10', item.error && 'bg-rose-50 text-rose-700')}
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={item.id} className={cn('flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs dark:bg-neutral-950/40', item.error && 'bg-rose-50 text-rose-700')}>
+                {content}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function InspectorVariablesSummary({ detail, onOpenGlobal }: { detail: AgentRunDebugDetail; onOpenGlobal: () => void }) {
+  const snapshot = detail.snapshot
+  if (!snapshot) {
+    return (
+      <InspectorSummaryPanel
+        title="变量摘要"
+        emptyText="旧 Run 没有上下文快照"
+        items={[]}
+        total={0}
+        onOpenGlobal={onOpenGlobal}
+      />
     )
   }
   return (
-    <div className="space-y-2">
-      {operations.commands.map((command, index) => (
-        <div key={`${command.callId}-${index}`} className={cn('rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 font-mono text-[11px] leading-5 text-slate-100 dark:border-white/10', command.isError && 'border-rose-400 bg-rose-950')}>
-          <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-slate-400">
-            <span>Terminal Log</span>
-            <span>{command.exitCode === null ? command.status ?? 'running' : `exit ${command.exitCode}`}</span>
-          </div>
-          <div className="mt-1 break-all">{command.command}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function InspectorMessagesPanel({
-  relations,
-  timeline,
-  debugEvents,
-  filter,
-  onFilterChange,
-}: {
-  relations: ReturnType<typeof projectAgentRunRelations>
-  timeline: ReturnType<typeof projectAgentRunTimeline>
-  debugEvents: AgentRunDebugEventRecord[]
-  filter: AgentRunTimelineFilter
-  onFilterChange: (filter: AgentRunTimelineFilter) => void
-}) {
-  const filteredTimeline = filterAgentRunTimeline(timeline, filter)
-  const filteredDebugEvents = filterAgentRunDebugEvents(debugEvents, filter)
-  return (
     <div className="space-y-3">
-      <Section title="Run Relations">
-        <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
-          <div>current: {relations.current.agentName ?? relations.current.agentId}</div>
-          <div>parent: {relations.parent ? shortId(relations.parent.id) : '-'}</div>
-          <div>children: {relations.children.length}</div>
-        </div>
-      </Section>
-      <Section title="Timeline">
-        <div className="mb-2 flex flex-wrap items-center gap-1">
-          {TIMELINE_FILTER_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => onFilterChange(option.id)}
-              className={cn(
-                'h-6 rounded-md border px-2 text-[10px] font-medium transition',
-                filter === option.id
-                  ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                  : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5',
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        {filteredTimeline.length === 0 ? (
-          <div className="text-xs text-slate-500">暂无消息事件。</div>
-        ) : (
-          <div className="space-y-1.5">
-            {filteredTimeline.slice(0, 20).map((item) => (
-              <div key={item.id} className={cn('rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs dark:border-white/10 dark:bg-neutral-950/40', item.status === 'error' && 'border-rose-200 bg-rose-50 text-rose-700')}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-slate-800 dark:text-slate-100">{item.label}</span>
-                  <span className="text-[10px] text-slate-400">{item.status}</span>
-                </div>
-                <div className="mt-1 font-mono text-[10px] text-slate-500">{shortId(item.messageId)}:{item.partIndex}</div>
-                <div className="mt-1 break-words text-[11px] text-slate-600 dark:text-slate-300">{item.detail}</div>
-              </div>
-            ))}
-            {filteredTimeline.length > 20 && (
-              <div className="px-1 text-[10px] text-slate-400">已折叠 {filteredTimeline.length - 20} 条较早事件</div>
-            )}
-          </div>
-        )}
-      </Section>
-      <Section title="Runtime Events">
-        {filteredDebugEvents.length === 0 ? (
-          <div className="text-xs text-slate-500">暂无实时调试事件。</div>
-        ) : (
-          <div className="space-y-1.5">
-            {filteredDebugEvents.slice(-20).map((event) => (
-              <div key={event.id} className={cn('rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs dark:border-white/10 dark:bg-neutral-950/40', isFailedDebugEvent(event) && 'border-rose-200 bg-rose-50 text-rose-700')}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate font-medium text-slate-800 dark:text-slate-100">{describeAgentRunDebugEvent(event).label}</span>
-                  <span className="shrink-0 text-[10px] text-slate-400">{event.status ?? '-'}</span>
-                </div>
-                <div className="mt-1 font-mono text-[10px] text-slate-500">{debugEventScope(event)}</div>
-                <div className="mt-1 break-words text-[11px] text-slate-600 dark:text-slate-300">{describeAgentRunDebugEvent(event).detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-    </div>
-  )
-}
-
-function InspectorArtifactsPanel({
-  artifacts,
-  askUserInteractions,
-  taskResults,
-}: {
-  artifacts: ReturnType<typeof projectAgentRunArtifacts>
-  askUserInteractions: ReturnType<typeof projectAgentRunAskUserInteractions>
-  taskResults: ReturnType<typeof projectAgentRunTaskResults>
-}) {
-  return (
-    <div className="space-y-3">
-      <Section title="Artifacts">
-        {artifacts.length === 0 ? (
-          <div className="text-xs text-slate-500">暂无 Artifact 或部署输出。</div>
-        ) : (
-          <div className="space-y-2">
-            {artifacts.map((artifact) => (
-              <div key={artifact.id} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-neutral-950/40">
-                <div className="flex items-center gap-2">
-                  <FileCode2 className="size-3.5 text-[var(--agenthub-accent)]" />
-                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
-                  <span className="text-[10px] text-slate-400">{artifact.status ?? artifact.kind}</span>
-                </div>
-                <div className="mt-1 truncate text-[10px] text-slate-400">{artifact.detail}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-      <Section title="Task Results">
-        {taskResults.length === 0 ? (
-          <div className="text-xs text-slate-500">暂无 report_task_result。</div>
-        ) : (
-          <div className="space-y-2">
-            {taskResults.map((result) => (
-              <div key={result.callId} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-white/10 dark:bg-neutral-950/40">
-                <div className="font-medium text-slate-800 dark:text-slate-100">{result.summary}</div>
-                <div className="mt-1 text-[10px] text-slate-400">{result.status}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-      <Section title="Ask User">
-        {askUserInteractions.length === 0 ? (
-          <div className="text-xs text-slate-500">暂无结构化问答。</div>
-        ) : (
-          <div className="space-y-2">
-            {askUserInteractions.map((interaction) => (
-              <div key={interaction.callId} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-white/10 dark:bg-neutral-950/40">
-                <div className="font-medium text-slate-800 dark:text-slate-100">{interaction.questionCount} question(s)</div>
-                <div className="mt-1 text-[10px] text-slate-400">{interaction.answered ? 'answered' : 'pending'}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
+      <div className="grid grid-cols-2 gap-2">
+        <PanelMetric label="工作区" value={snapshot.workspace.mode} />
+        <PanelMetric label="工具" value={`${snapshot.tools.toolNames.length}`} />
+        <PanelMetric label="历史" value={`${snapshot.context.historyMessageCount}`} />
+        <PanelMetric label="记忆" value={`${snapshot.context.workspaceMemoryNoteCount}`} />
+      </div>
+      <button
+        type="button"
+        onClick={onOpenGlobal}
+        className="inline-flex h-8 items-center rounded-md border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+      >
+        查看全局变量
+      </button>
     </div>
   )
 }
@@ -1721,7 +2046,6 @@ function EventTimelinePanel({
   runs = [],
   debugEvents,
   filter,
-  onFilterChange,
   onSelectDebugEvent,
   onSelectRun,
 }: {
@@ -1730,37 +2054,23 @@ function EventTimelinePanel({
   runs?: AgentRunDebugListItem[]
   debugEvents: AgentRunDebugEventRecord[]
   filter: AgentRunTimelineFilter
-  onFilterChange: (filter: AgentRunTimelineFilter) => void
   onSelectDebugEvent: (event: AgentRunDebugEventRecord) => void
   onSelectRun?: (runId: string) => void
 }) {
   const rows = detail
     ? buildRunTimelineRows(detail, debugEvents, filter)
     : buildConversationTimelineRows(messages, runs, debugEvents, filter)
+  const selectRow = (row: TimelineRow) => {
+    if (row.debugEvent) onSelectDebugEvent(row.debugEvent)
+    else if (row.runId) onSelectRun?.(row.runId)
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100">
           <Clock3 className="size-3.5 text-[var(--agenthub-accent)]" />
-          事件时间线
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {TIMELINE_FILTER_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => onFilterChange(option.id)}
-              className={cn(
-                'h-6 rounded-md border px-2 text-[10px] font-medium transition',
-                filter === option.id
-                  ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300'
-                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5',
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
+          时间线
         </div>
       </div>
       {rows.length === 0 ? (
@@ -1773,10 +2083,10 @@ function EventTimelinePanel({
               <button
                 key={row.id}
                 type="button"
-                onClick={() => {
-                  if (row.debugEvent) onSelectDebugEvent(row.debugEvent)
-                  else if (row.runId) onSelectRun?.(row.runId)
+                onMouseDown={(event) => {
+                  if (event.button === 0) selectRow(row)
                 }}
+                onClick={() => selectRow(row)}
                 disabled={!row.debugEvent && !row.runId}
                 className={cn(
                   'relative grid w-full grid-cols-[72px_minmax(0,1fr)] gap-3 rounded-md px-1 py-0.5 text-left text-xs transition',
@@ -1788,10 +2098,10 @@ function EventTimelinePanel({
                 <span className="pt-0.5 font-mono text-[10px] text-slate-400">{row.time}</span>
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-medium text-slate-800 dark:text-slate-100">{row.label}</span>
+                    <span className="break-words font-medium text-slate-800 dark:text-slate-100">{row.label}</span>
                     <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10">{row.scope}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{row.detail}</div>
+                  <div className="mt-0.5 break-words text-[11px] text-slate-500 dark:text-slate-400">{row.detail}</div>
                 </div>
               </button>
             ))}
@@ -1805,12 +2115,10 @@ function EventTimelinePanel({
 function RawEventStreamPanel({
   debugEvents,
   filter,
-  onFilterChange,
   onSelectDebugEvent,
 }: {
   debugEvents: AgentRunDebugEventRecord[]
   filter: AgentRunTimelineFilter
-  onFilterChange: (filter: AgentRunTimelineFilter) => void
   onSelectDebugEvent: (event: AgentRunDebugEventRecord) => void
 }) {
   const rows = filterAgentRunDebugEvents(debugEvents, filter).slice(-80)
@@ -1821,23 +2129,6 @@ function RawEventStreamPanel({
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100">
           <FileCode2 className="size-3.5 text-[var(--agenthub-accent)]" />
           事件流
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {TIMELINE_FILTER_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => onFilterChange(option.id)}
-              className={cn(
-                'h-6 rounded-md border px-2 text-[10px] font-medium transition',
-                filter === option.id
-                  ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300'
-                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5',
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
         </div>
       </div>
       {rows.length === 0 ? (
@@ -1860,10 +2151,10 @@ function RawEventStreamPanel({
                 <span className="pt-0.5 font-mono text-[10px] text-slate-400">{formatClockTime(event.createdAt)}</span>
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-medium text-slate-800 dark:text-slate-100">{describeAgentRunDebugEvent(event).label}</span>
+                    <span className="break-words font-medium text-slate-800 dark:text-slate-100">{describeAgentRunDebugEvent(event).label}</span>
                     <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10">{debugEventScope(event)}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{describeAgentRunDebugEvent(event).detail}</div>
+                  <div className="mt-0.5 break-words text-[11px] text-slate-500 dark:text-slate-400">{describeAgentRunDebugEvent(event).detail}</div>
                 </div>
               </button>
             ))}
@@ -1983,16 +2274,16 @@ function OutputPanel({ detail, stage }: { detail: AgentRunDebugDetail; stage: Ag
   return (
     <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)]">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <PanelMetric label="Status" value={statusLabel(detail.agentRun.status)} tone={toneForRunStatus(detail.agentRun.status)} />
-        <PanelMetric label="Stage" value={stage?.title ?? '未选择'} />
-        <PanelMetric label="Tool calls" value={`${toolTrace.length}`} />
+        <PanelMetric label="状态" value={statusLabel(detail.agentRun.status)} tone={toneForRunStatus(detail.agentRun.status)} />
+        <PanelMetric label="阶段" value={stage?.title ?? '未选择'} />
+        <PanelMetric label="工具调用" value={`${toolTrace.length}`} />
         <PanelMetric label="Tokens" value={totalTokens === null ? '-' : totalTokens.toLocaleString()} />
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
         {artifacts.length > 0 ? artifacts.slice(0, 3).map((artifact) => (
           <div key={artifact.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-white/10 dark:bg-neutral-950/40">
             <FileCode2 className="size-3.5 text-[var(--agenthub-accent)]" />
-            <span className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
+            <span className="min-w-0 flex-1 break-words text-xs text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
             <span className="text-[10px] text-slate-400">{artifact.status ?? 'artifact'}</span>
           </div>
         )) : (
@@ -2030,10 +2321,13 @@ function ToolTracePanel({
               )} />
               <summary
                 className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs transition hover:bg-blue-50/70 dark:hover:bg-blue-500/10"
+                onMouseDown={(event) => {
+                  if (event.button === 0) onSelectToolCall?.(item.callId)
+                }}
                 onClick={() => onSelectToolCall?.(item.callId)}
               >
                 <span className="w-6 shrink-0 font-mono text-[10px] text-slate-400">{String(index + 1).padStart(2, '0')}</span>
-                <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-200">{item.toolName}</span>
+                <span className="min-w-0 flex-1 break-words font-medium text-slate-700 dark:text-slate-200">{item.toolName}</span>
                 {meta?.durationMs !== null && meta?.durationMs !== undefined && (
                   <span className="shrink-0 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-white/10">
                     {formatDurationMs(meta.durationMs)}
@@ -2041,10 +2335,21 @@ function ToolTracePanel({
                 )}
                 <span className="text-[10px] text-slate-400">{toolTraceStatusLabel(status)}</span>
               </summary>
+              {onSelectToolCall && (
+                <div className="border-t border-slate-200 px-3 py-2 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => onSelectToolCall(item.callId)}
+                    className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:hover:bg-white/5 dark:hover:text-slate-200"
+                  >
+                    查看 Agent
+                  </button>
+                </div>
+              )}
               <div className="space-y-2 border-t border-slate-200 px-3 py-2 dark:border-white/10">
                 <div className="grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-3">
-                  <PanelMetric label="Status" value={toolTraceStatusLabel(status)} tone={status === 'failed' || status === 'aborted' ? 'danger' : status === 'complete' ? 'success' : 'warning'} />
-                  <PanelMetric label="Duration" value={meta?.durationMs === null || meta?.durationMs === undefined ? '-' : formatDurationMs(meta.durationMs)} />
+                  <PanelMetric label="状态" value={toolTraceStatusLabel(status)} tone={status === 'failed' || status === 'aborted' ? 'danger' : status === 'complete' ? 'success' : 'warning'} />
+                  <PanelMetric label="耗时" value={meta?.durationMs === null || meta?.durationMs === undefined ? '-' : formatDurationMs(meta.durationMs)} />
                   <PanelMetric label="Call ID" value={shortId(item.callId)} />
                 </div>
                 <CodeSnippet label="Input" value={summarizeAgentRunToolTraceArgs(item)} />
@@ -2063,10 +2368,10 @@ function VariablesPanel({ detail }: { detail: AgentRunDebugDetail }) {
   if (!snapshot) return <PanelEmpty icon={<GitBranch className="size-4" />} text="旧 Run 没有上下文快照" />
   return (
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      <PanelMetric label="Workspace" value={snapshot.workspace.mode} />
-      <PanelMetric label="History" value={`${snapshot.context.historyMessageCount} messages`} />
-      <PanelMetric label="Memory" value={`${snapshot.context.workspaceMemoryNoteCount} notes`} />
-      <PanelMetric label="Tools" value={`${snapshot.tools.toolNames.length}`} />
+      <PanelMetric label="工作区" value={snapshot.workspace.mode} />
+      <PanelMetric label="历史" value={`${snapshot.context.historyMessageCount} messages`} />
+      <PanelMetric label="记忆" value={`${snapshot.context.workspaceMemoryNoteCount} notes`} />
+      <PanelMetric label="工具" value={`${snapshot.tools.toolNames.length}`} />
       <div className="sm:col-span-2 lg:col-span-4">
         <CodeSnippet label="Effective CWD" value={snapshot.workspace.effectiveCwd} />
       </div>
@@ -2087,7 +2392,7 @@ function LogsPanel({ detail }: { detail: AgentRunDebugDetail }) {
       {rows.map((row, index) => (
         <div key={`${row.kind}-${row.value}-${index}`} className={cn('flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs dark:bg-neutral-950/40', row.error && 'bg-rose-50 text-rose-700')}>
           <span className="w-16 shrink-0 text-[10px] uppercase text-slate-400">{row.kind}</span>
-          <span className="min-w-0 truncate font-mono text-[11px]">{row.value}</span>
+          <span className="min-w-0 break-words font-mono text-[11px]">{row.value}</span>
         </div>
       ))}
     </div>
@@ -2103,7 +2408,7 @@ function ArtifactsPanel({ detail }: { detail: AgentRunDebugDetail }) {
         <div key={artifact.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-neutral-950/40">
           <div className="flex items-center gap-2">
             <FileCode2 className="size-4 text-[var(--agenthub-accent)]" />
-            <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
+            <span className="min-w-0 flex-1 break-words text-xs font-medium text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
           </div>
           <div className="mt-2 text-[10px] text-slate-400">{artifact.status ?? artifact.kind} · {artifact.artifactId}</div>
         </div>
@@ -2268,15 +2573,6 @@ function EmptyBoard({ runs }: { runs: AgentRunDebugListItem[] }) {
   )
 }
 
-function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-neutral-950/40">
-      <h3 className="mb-2 text-xs font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
 function SegmentedFilter<T extends string>({
   value,
   options,
@@ -2307,19 +2603,6 @@ function SegmentedFilter<T extends string>({
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <DetailSection title={title}>{children}</DetailSection>
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-1 text-xs">
-      <span className="text-slate-500">{label}</span>
-      <span className="max-w-[180px] truncate text-right font-medium text-slate-700 dark:text-slate-200">{value}</span>
-    </div>
-  )
-}
-
 function CodeSnippet({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -2334,7 +2617,7 @@ function CodeSnippet({ label, value }: { label: string; value: string }) {
           复制
         </button>
       </div>
-      <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-900 px-2 py-1.5 font-mono text-[10px] leading-4 text-slate-100">{value}</pre>
+      <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-slate-900 px-2 py-1.5 font-mono text-[10px] leading-4 text-slate-100">{value}</pre>
     </div>
   )
 }
@@ -2527,14 +2810,6 @@ function numberPayload(event: AgentRunDebugEventRecord, key: string): number | n
   return typeof value === 'number' ? value : null
 }
 
-function payloadText(event: AgentRunDebugEventRecord, key: string): string {
-  const value = event.payload[key]
-  if (typeof value === 'string' && value.trim()) return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return '-'
-}
-
-
 function relativeTime(value: number): string {
   const diff = Math.max(0, Date.now() - value)
   const minutes = Math.floor(diff / 60000)
@@ -2593,11 +2868,6 @@ function timelineToneDotClass(tone: AgentRunBoardTone): string {
   return 'bg-slate-300'
 }
 
-function totalUsageTokens(usage: AgentRunDebugListItem['usage']): number | null {
-  if (!usage) return null
-  return usage.inputTokens + usage.outputTokens + usage.cacheCreationTokens + usage.cacheReadTokens
-}
-
 function shortId(id: string): string {
   return id.length > 14 ? `${id.slice(0, 10)}…` : id
 }
@@ -2609,6 +2879,9 @@ function renderDebuggerNodeDescription(data: AgentRunDebuggerNodeData): string {
   if (data.kind === 'summary') return '合并各 Agent 结果，生成最终输出'
   if (data.kind === 'run' && data.run) {
     return `${debuggerStatusLabel(data.run.status)} · ${data.run.modelId ?? 'unknown model'}`
+  }
+  if (data.kind === 'tool' && data.tool) {
+    return `${data.tool.agentName ?? data.tool.agentId} · ${data.tool.toolName}`
   }
   if (data.kind === 'agent' && data.agent) {
     const role = data.agent.role === 'orchestrator' ? 'Orchestrator' : 'Agent'
@@ -2630,16 +2903,16 @@ function getPreferredInspectorTab(
   detail: AgentRunDebugDetail,
   debugEvents: AgentRunDebugEventRecord[],
 ): InspectorTab {
-  if (node.data.kind === 'message') return 'overview'
-  if (node.data.kind === 'summary') return 'overview'
+  if (node.data.kind === 'message') return 'logs'
+  if (node.data.kind === 'tool') return 'trace'
+  if (node.data.kind === 'summary') return 'artifacts'
   if (node.data.kind === 'task') return 'logs'
-  if (node.data.kind !== 'agent') return 'overview'
+  if (node.data.kind !== 'agent') return 'logs'
 
   const toolTrace = projectAgentRunToolTrace(detail)
   const operations = projectAgentRunOperations(toolTrace)
   const hasTerminalEvidence = operations.commands.length > 0 || debugEvents.some((event) => event.type === 'run.debug.terminal.output')
   if (hasTerminalEvidence) return 'terminal'
   if ((node.data.agent?.toolCallCount ?? 0) > 0 || toolTrace.length > 0 || (node.data.agent?.toolNames.length ?? 0) > 0) return 'trace'
-  if (debugEvents.length > 0) return 'messages'
-  return 'overview'
+  return 'logs'
 }

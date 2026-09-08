@@ -11,14 +11,17 @@ import type {
 
 import {
   projectAgentRunArtifacts,
+  getAgentRunToolTraceKind,
   projectAgentRunPlanTasks,
   projectAgentRunTaskResults,
   projectAgentRunToolTrace,
+  summarizeAgentRunToolTraceArgs,
+  summarizeAgentRunToolTraceResult,
   type AgentRunToolTraceItem,
 } from './agent-run-debug-projection'
 
 export type AgentRunBoardStageId = 'trigger' | 'context' | 'plan' | 'execute' | 'output'
-export type AgentRunBoardPanelTab = 'timeline' | 'output' | 'trace' | 'variables' | 'logs' | 'artifacts' | 'history'
+export type AgentRunBoardPanelTab = 'output' | 'trace' | 'variables' | 'logs' | 'artifacts' | 'history'
 export type AgentRunDebuggerCanvasView = 'graph' | 'timeline' | 'events'
 export type AgentRunBoardStageStatus =
   | 'pending'
@@ -49,7 +52,7 @@ export interface AgentRunBoardGraph {
   edges: Edge[]
 }
 
-export type AgentRunDebuggerNodeKind = 'message' | 'run' | 'agent' | 'task' | 'summary'
+export type AgentRunDebuggerNodeKind = 'message' | 'run' | 'agent' | 'task' | 'tool' | 'summary'
 export type AgentRunDebuggerGraphFocus = 'all' | 'agent' | 'tools' | 'errors'
 export type AgentRunDebuggerStatus =
   | 'waiting'
@@ -112,6 +115,17 @@ export interface AgentRunDebuggerTaskNode {
   source: 'plan_tasks' | 'child_run' | 'inferred'
 }
 
+export interface AgentRunDebuggerToolNode {
+  callId: string
+  toolName: string
+  messageId: string
+  runId: string
+  agentId: string
+  agentName: string | null
+  status: AgentRunDebuggerStatus
+  summary: string
+}
+
 export interface AgentRunDebuggerNodeData extends Record<string, unknown> {
   kind: AgentRunDebuggerNodeKind
   label: string
@@ -122,6 +136,7 @@ export interface AgentRunDebuggerNodeData extends Record<string, unknown> {
   run?: AgentRunDebuggerRunNode
   agent?: AgentRunDebuggerAgentNode
   task?: AgentRunDebuggerTaskNode
+  tool?: AgentRunDebuggerToolNode
 }
 
 export type AgentRunDebuggerNode = Node<AgentRunDebuggerNodeData, 'runDebuggerNode'>
@@ -129,6 +144,73 @@ export type AgentRunDebuggerNode = Node<AgentRunDebuggerNodeData, 'runDebuggerNo
 export interface AgentRunDebuggerGraph {
   nodes: AgentRunDebuggerNode[]
   edges: Edge[]
+}
+
+export interface AgentRunTerminalSegment {
+  callId: string
+  command: string
+  output: string
+  cwd: string | null
+  shell: string
+  exitCode: number | null
+  status: string | null
+  truncated: boolean
+  timedOut: boolean
+  isError: boolean
+}
+
+export interface AgentRunTerminalOutput {
+  title: 'Terminal Output'
+  shell: string
+  cwd: string | null
+  status: 'live' | 'completed' | 'empty'
+  commandCount: number
+  segments: AgentRunTerminalSegment[]
+  transcript: string
+}
+
+export interface AgentRunInspectorMetric {
+  label: string
+  value: string | number | null
+}
+
+export interface AgentRunInspectorField {
+  label: string
+  value: string
+}
+
+export interface AgentRunInspectorTask {
+  title: string
+  stepTitle: string | null
+  stepIndex: number
+  stepTotal: number
+  status: AgentRunDebuggerStatus
+}
+
+export interface AgentRunInspectorViewModel {
+  kind: Exclude<AgentRunDebuggerNodeKind, 'tool'> | 'empty'
+  kicker: string
+  title: string
+  subtitle: string
+  status: AgentRunDebuggerStatus
+  metrics: AgentRunInspectorMetric[]
+  fields: AgentRunInspectorField[]
+  currentTask: AgentRunInspectorTask | null
+  messageContent: string | null
+}
+
+export interface AgentRunToolInspectorViewModel {
+  kind: 'tool'
+  kicker: 'TOOL INSPECTOR'
+  title: string
+  subtitle: string
+  status: AgentRunDebuggerStatus
+  metrics: AgentRunInspectorMetric[]
+  fields: AgentRunInspectorField[]
+  input: string
+  output: string
+  callId: string
+  agentName: string | null
 }
 
 export interface BuildAgentRunSessionDebuggerGraphArgs {
@@ -241,6 +323,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   const runNodeId = `run-${detail.agentRun.id}`
   const orchestratorNodeId = `agent-${currentAgentId}`
   const summaryNodeId = 'summary-output'
+  const agentNodePositions = new Map<string, { x: number; y: number }>()
   const workerAgentIds = [
     ...new Set([
       ...planTasks.map((task) => task.agentId),
@@ -307,6 +390,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       },
     },
   })
+  agentNodePositions.set(currentAgentId, { x: centerX, y: 170 })
   edges.push(buildDebuggerEdge(runNodeId, orchestratorNodeId, mapRunStatus(detail.agentRun.status)))
 
   if (workerAgentIds.length === 0) {
@@ -362,16 +446,105 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
         },
       },
     })
+    agentNodePositions.set(agentId, { x: workerStartX + index * workerXGap, y: workerY })
     edges.push(buildDebuggerEdge(orchestratorNodeId, agentNodeId, agentStatus))
   })
 
-  const outputStatus = getOutputNodeStatus(detail.agentRun, hasOutputEvidence)
-  nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: summaryY }))
+  const toolLayout = buildAgentRunToolDebuggerGraph({
+    detail,
+    toolTrace,
+    planTasks,
+    childRunsByAgent,
+    currentAgentId,
+    currentAgentName,
+    agentNodePositions,
+    centerX,
+  })
+  nodes.push(...toolLayout.nodes)
+  edges.push(...toolLayout.edges)
+
+  const summaryBaseY = workerAgentIds.length === 0 ? summaryFallbackY : summaryY
+  const summaryPositionY = toolLayout.maxY === null ? summaryBaseY : Math.max(summaryBaseY, toolLayout.maxY + 170)
+  const outputStatus = getOutputNodeStatus(detail.agentRun, hasOutputEvidence || toolLayout.nodes.length > 0)
+  nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: summaryPositionY }))
+  edges.push(buildDebuggerEdge(orchestratorNodeId, summaryNodeId, outputStatus))
   for (const agentId of workerAgentIds) {
     edges.push(buildDebuggerEdge(`agent-${agentId}`, summaryNodeId, outputStatus))
   }
+  for (const tailNodeId of toolLayout.tailNodeIds) {
+    edges.push(buildDebuggerEdge(tailNodeId, summaryNodeId, outputStatus))
+  }
 
   return { nodes, edges }
+}
+
+function buildAgentRunToolDebuggerGraph(args: {
+  detail: AgentRunDebugDetail
+  toolTrace: readonly AgentRunToolTraceItem[]
+  planTasks: readonly DispatchPlanItem[]
+  childRunsByAgent: Map<string, AgentRunDebugListItem[]>
+  currentAgentId: string
+  currentAgentName: string
+  agentNodePositions: Map<string, { x: number; y: number }>
+  centerX: number
+}): { nodes: AgentRunDebuggerNode[]; edges: Edge[]; tailNodeIds: string[]; maxY: number | null } {
+  if (args.toolTrace.length === 0) {
+    return { nodes: [], edges: [], tailNodeIds: [], maxY: null }
+  }
+
+  const nodes: AgentRunDebuggerNode[] = []
+  const edges: Edge[] = []
+  const tailNodeIds: string[] = []
+  const nodesByAgent = new Map<string, AgentRunDebuggerToolNode[]>()
+  let maxY: number | null = null
+
+  for (const item of args.toolTrace) {
+    const agentId = resolveToolTraceOwnerAgentId(args.detail, item, args.planTasks, args.childRunsByAgent, args.currentAgentId)
+    const agentName = resolveToolTraceOwnerAgentName(args.detail, item, args.planTasks, args.childRunsByAgent, agentId, args.currentAgentName)
+    const status = item.completed ? (item.isError ? 'failed' : 'completed') : 'running'
+    const ownerList = nodesByAgent.get(agentId) ?? []
+    ownerList.push({
+      callId: item.callId,
+      toolName: item.toolName,
+      messageId: item.messageId,
+      runId: args.detail.agentRun.id,
+      agentId,
+      agentName,
+      status,
+      summary: summarizeAgentRunToolTraceArgs(item),
+    })
+    nodesByAgent.set(agentId, ownerList)
+  }
+
+  for (const [agentId, items] of nodesByAgent) {
+    const ownerPosition = args.agentNodePositions.get(agentId) ?? { x: args.centerX, y: 240 }
+    const startY = ownerPosition.y + 110
+    let previousNodeId = `agent-${agentId}`
+    items.forEach((toolNode, index) => {
+      const nodeId = `tool-${toolNode.callId}`
+      const y = startY + index * 88
+      nodes.push({
+        id: nodeId,
+        type: 'runDebuggerNode',
+        position: { x: ownerPosition.x, y },
+        draggable: false,
+        selectable: true,
+        data: {
+          kind: 'tool',
+          label: toolNode.toolName,
+          status: toolNode.status,
+          tone: toneForDebuggerStatus(toolNode.status),
+          tool: toolNode,
+        },
+      })
+      edges.push(buildDebuggerEdge(previousNodeId, nodeId, toolNode.status))
+      previousNodeId = nodeId
+      maxY = maxY === null ? y : Math.max(maxY, y)
+    })
+    tailNodeIds.push(previousNodeId)
+  }
+
+  return { nodes, edges, tailNodeIds, maxY }
 }
 
 export function buildAgentRunSessionDebuggerGraph({
@@ -600,8 +773,12 @@ export function focusAgentRunDebuggerGraph(
 
 export function getDebuggerNodeIdForDebugEvent(
   graph: AgentRunDebuggerGraph,
-  event: Pick<AgentRunDebugEventRecord, 'agentId' | 'taskId'>,
+  event: Pick<AgentRunDebugEventRecord, 'agentId' | 'taskId' | 'toolCallId'>,
 ): string | null {
+  if (event.toolCallId) {
+    const toolNode = graph.nodes.find((node) => node.data.kind === 'tool' && node.data.tool?.callId === event.toolCallId)
+    if (toolNode) return toolNode.id
+  }
   if (event.agentId) {
     const agentNode = graph.nodes.find((node) => node.data.kind === 'agent' && node.data.agent?.agentId === event.agentId)
     if (agentNode) return agentNode.id
@@ -623,6 +800,174 @@ export function shouldInitializeDebuggerSelection(args: {
   if (!args.inspectorOpen) return false
   if (args.selectedNodeId === null) return args.graph.nodes.length > 0
   return !args.graph.nodes.some((node) => node.id === args.selectedNodeId)
+}
+
+export function buildAgentRunInspectorViewModel(
+  detail: AgentRunDebugDetail,
+  selectedNode: AgentRunDebuggerNode | null,
+  toolTrace: readonly AgentRunToolTraceItem[],
+): AgentRunInspectorViewModel | AgentRunToolInspectorViewModel {
+  const node = selectedNode?.data ?? null
+  if (!node) {
+    const status = mapRunStatus(detail.agentRun.status)
+    return {
+      kind: 'empty',
+      kicker: 'RUN INSPECTOR',
+      title: detail.agentRun.agentName ?? shortGraphId(detail.agentRun.id),
+      subtitle: '选择一个 Message、Run、Agent 或 Tool 查看对应详情',
+      status,
+      metrics: runMetrics(detail.agentRun, detail.snapshot?.agent.modelId ?? detail.agentRun.modelId ?? detail.agentRun.usage?.model ?? null, toolTrace.length),
+      fields: [],
+      currentTask: null,
+      messageContent: null,
+    }
+  }
+
+  if (node.kind === 'message' && node.message) {
+    const linkedRunIds = node.message.runIds
+    const associatedAgent = linkedRunIds.includes(detail.agentRun.id)
+      ? detail.snapshot?.agent.name ?? detail.agentRun.agentName ?? detail.agentRun.agentId
+      : null
+    return {
+      kind: 'message',
+      kicker: 'MESSAGE INSPECTOR',
+      title: node.message.role === 'user' ? '用户消息' : 'Agent 消息',
+      subtitle: linkedRunIds.length > 0 ? `${linkedRunIds.length} 个关联 Run` : '暂无关联 Run',
+      status: node.status,
+      metrics: [],
+      fields: [
+        { label: '发送时间', value: String(node.message.createdAt) },
+        { label: '关联 Run', value: linkedRunIds.length > 0 ? linkedRunIds.map((id) => `Run ${shortGraphId(id)}`).join(', ') : '-' },
+        { label: '触发 Agent', value: associatedAgent ?? '-' },
+      ],
+      currentTask: null,
+      messageContent: node.message.preview || '-',
+    }
+  }
+
+  if (node.kind === 'agent' && node.agent) {
+    return {
+      kind: 'agent',
+      kicker: 'AGENT INSPECTOR',
+      title: node.agent.name,
+      subtitle: `${node.agent.taskIds.length} 个任务 · ${node.agent.toolCallCount} 个工具`,
+      status: node.agent.status,
+      metrics: [
+        { label: '耗时', value: node.agent.durationMs },
+        { label: 'Token', value: node.agent.tokenTotal },
+        { label: '工具调用', value: node.agent.toolCallCount },
+        { label: '模型', value: detail.snapshot?.agent.modelId ?? detail.agentRun.modelId ?? detail.agentRun.usage?.model ?? null },
+      ],
+      fields: [],
+      currentTask: agentCurrentTask(node.agent),
+      messageContent: null,
+    }
+  }
+
+  if (node.kind === 'tool' && node.tool) {
+    return buildAgentRunToolInspectorViewModel(detail, toolTrace, [], node.tool.callId) ?? {
+      kind: 'empty',
+      kicker: 'RUN INSPECTOR',
+      title: detail.agentRun.agentName ?? shortGraphId(detail.agentRun.id),
+      subtitle: '选择一个 Message、Run、Agent 或 Tool 查看对应详情',
+      status: mapRunStatus(detail.agentRun.status),
+      metrics: runMetrics(detail.agentRun, detail.snapshot?.agent.modelId ?? detail.agentRun.modelId ?? detail.agentRun.usage?.model ?? null, toolTrace.length),
+      fields: [],
+      currentTask: null,
+      messageContent: null,
+    }
+  }
+
+  if (node.kind === 'task' && node.task) {
+    return {
+      kind: 'task',
+      kicker: 'TASK INSPECTOR',
+      title: node.task.title,
+      subtitle: `${node.task.toolNames.length} 个工具 · ${node.task.dependsOn.length} 个依赖`,
+      status: node.task.status,
+      metrics: [
+        { label: '工具调用', value: node.task.toolNames.length },
+        { label: '依赖', value: node.task.dependsOn.length },
+      ],
+      fields: [
+        { label: '负责 Agent', value: node.task.agentId },
+        { label: '来源', value: node.task.source },
+      ],
+      currentTask: {
+        title: node.task.title,
+        stepTitle: null,
+        stepIndex: 1,
+        stepTotal: 1,
+        status: node.task.status,
+      },
+      messageContent: null,
+    }
+  }
+
+  return {
+    kind: node.kind === 'summary' ? 'summary' : 'empty',
+    kicker: node.kind === 'summary' ? 'RUN INSPECTOR' : 'RUN INSPECTOR',
+    title: node.run?.title ?? node.label,
+    subtitle: node.kind === 'summary' ? '汇总结果' : node.label,
+    status: node.status,
+    metrics: runMetrics(detail.agentRun, node.run?.modelId ?? detail.snapshot?.agent.modelId ?? detail.agentRun.modelId ?? detail.agentRun.usage?.model ?? null, toolTrace.length),
+    fields: node.run ? [{ label: 'Run ID', value: node.run.id }] : [],
+    currentTask: null,
+    messageContent: null,
+  }
+}
+
+export function buildAgentRunToolInspectorViewModel(
+  detail: AgentRunDebugDetail,
+  toolTrace: readonly AgentRunToolTraceItem[],
+  debugEvents: readonly AgentRunDebugEventRecord[],
+  callId: string | null,
+): AgentRunToolInspectorViewModel | null {
+  if (!callId) return null
+  const item = toolTrace.find((traceItem) => traceItem.callId === callId)
+  if (!item) return null
+  const meta = getToolTraceMetaByCallId(debugEvents).get(callId) ?? null
+  const agentName = resolveToolTraceAgentName(detail, item, debugEvents)
+  const status = mapToolEventStatus(meta?.status, item)
+  const input = summarizeAgentRunToolTraceArgs(item)
+  const output = item.completed ? summarizeAgentRunToolTraceResult(item) : '-'
+  return {
+    kind: 'tool',
+    kicker: 'TOOL INSPECTOR',
+    title: item.toolName,
+    subtitle: `${toolTraceStatusLabel(status)} · ${agentName ?? '未识别 Agent'}`,
+    status,
+    metrics: [
+      { label: '状态', value: toolTraceStatusLabel(status) },
+      { label: '耗时', value: meta?.durationMs ?? null },
+      { label: 'Call ID', value: callId },
+      { label: 'Agent', value: agentName },
+    ],
+    fields: [
+      { label: 'Call ID', value: callId },
+      { label: '状态', value: toolTraceStatusLabel(status) },
+      { label: '工具', value: item.toolName },
+      { label: '消息', value: item.messageId },
+      { label: '完成', value: item.completed ? '是' : '否' },
+    ],
+    input,
+    output,
+    callId,
+    agentName,
+  }
+}
+
+function mapToolEventStatus(
+  status: AgentRunDebugEventRecord['status'] | null | undefined,
+  item: AgentRunToolTraceItem,
+): AgentRunDebuggerStatus {
+  if (status === 'complete') return 'completed'
+  if (status === 'running') return 'running'
+  if (status === 'failed') return 'failed'
+  if (status === 'aborted') return 'aborted'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'queued') return 'waiting'
+  return item.isError ? 'failed' : item.completed ? 'completed' : 'running'
 }
 
 export function getVisibleAgentDebuggerSteps(
@@ -693,6 +1038,7 @@ function nodeMatchesGraphFocus(
 ): boolean {
   if (focus === 'agent') return node.data.kind === 'agent'
   if (focus === 'tools') {
+    if (node.data.kind === 'tool' && node.data.tool) return true
     if (node.data.kind === 'agent' && node.data.agent) {
       return node.data.agent.toolCallCount > 0 || node.data.agent.toolNames.length > 0
     }
@@ -724,14 +1070,130 @@ export function getBoardPanelTabForStage(stageId: AgentRunBoardStageId): AgentRu
 export function getBoardPanelTabForDebuggerNode(kind: AgentRunDebuggerNodeKind): AgentRunBoardPanelTab {
   if (kind === 'summary') return 'output'
   if (kind === 'task') return 'variables'
+  if (kind === 'tool') return 'trace'
   if (kind === 'agent') return 'trace'
   if (kind === 'message') return 'history'
   return 'output'
 }
 
 export function getBoardPanelTabForCanvasView(view: AgentRunDebuggerCanvasView): AgentRunBoardPanelTab {
-  if (view === 'timeline' || view === 'events') return 'timeline'
+  if (view === 'timeline' || view === 'events') return 'logs'
   return 'trace'
+}
+
+export function projectAgentRunTerminalOutput(
+  detail: AgentRunDebugDetail,
+  debugEvents: readonly AgentRunDebugEventRecord[],
+  agentId = detail.agentRun.agentId,
+): AgentRunTerminalOutput {
+  const terminalEvents = debugEvents.filter((event) => (
+    event.type === 'run.debug.terminal.output'
+    && event.runId === detail.agentRun.id
+    && (event.agentId === null || event.agentId === agentId)
+  ))
+  const ownerByCallId = getDebugEventOwnerByCallId(debugEvents, detail.agentRun.id)
+  const eventsByCallId = groupTerminalEventsByCallId(terminalEvents)
+  const segments = projectAgentRunToolTrace(detail)
+    .filter((item) => getAgentRunToolTraceKind(item.toolName) === 'command')
+    .filter((item) => {
+      const owner = ownerByCallId.get(item.callId)
+      return owner === undefined || owner === null || owner === agentId
+    })
+    .flatMap((item): AgentRunTerminalSegment[] => {
+      const command = stringProp(item.args, 'command') ?? stringProp(item.result, 'command')
+      if (!command) return []
+      const matchingEvents = eventsByCallId.get(item.callId) ?? []
+      const cwd = stringProp(item.result, 'cwd') ?? stringProp(item.args, 'cwd') ?? detail.snapshot?.workspace.effectiveCwd ?? null
+      const output = stringProp(item.result, 'output') ?? matchingEvents.map((event) => stringProp(event.payload, 'text') ?? '').filter(Boolean).join('\n')
+      const shell = inferTerminalShell({
+        command,
+        cwd,
+        toolName: item.toolName,
+        shell: stringProp(item.result, 'shell') ?? firstStringPayload(matchingEvents, 'shell'),
+      })
+      return [{
+        callId: item.callId,
+        command,
+        output,
+        cwd,
+        shell,
+        exitCode: numberProp(item.result, 'exitCode'),
+        status: stringProp(item.result, 'status') ?? matchingEvents.at(-1)?.status ?? null,
+        truncated: booleanProp(item.result, 'truncated') ?? false,
+        timedOut: booleanProp(item.result, 'timedOut') ?? false,
+        isError: item.isError,
+      }]
+    })
+
+  const fallbackSegments = segments.length > 0 ? [] : terminalEvents.flatMap((event): AgentRunTerminalSegment[] => {
+    const text = stringProp(event.payload, 'text')
+    if (!text) return []
+    return [{
+      callId: event.toolCallId ?? event.id,
+      command: stringProp(event.payload, 'command') ?? 'Terminal output',
+      output: text,
+      cwd: stringProp(event.payload, 'cwd') ?? detail.snapshot?.workspace.effectiveCwd ?? null,
+      shell: inferTerminalShell({
+        command: stringProp(event.payload, 'command') ?? '',
+        cwd: stringProp(event.payload, 'cwd') ?? detail.snapshot?.workspace.effectiveCwd ?? null,
+        toolName: 'terminal',
+        shell: stringProp(event.payload, 'shell'),
+      }),
+      exitCode: numberProp(event.payload, 'exitCode'),
+      status: event.status,
+      truncated: booleanProp(event.payload, 'truncated') ?? false,
+      timedOut: booleanProp(event.payload, 'timedOut') ?? false,
+      isError: event.status === 'failed',
+    }]
+  })
+
+  const allSegments = [...segments, ...fallbackSegments]
+  const shell = allSegments[0]?.shell ?? 'Shell'
+  const cwd = allSegments.find((segment) => segment.cwd)?.cwd ?? null
+  const status = allSegments.length === 0
+    ? 'empty'
+    : allSegments.some((segment) => segment.status === 'running' || (segment.status === null && segment.exitCode === null))
+      ? 'live'
+      : 'completed'
+
+  return {
+    title: 'Terminal Output',
+    shell,
+    cwd,
+    status,
+    commandCount: allSegments.length,
+    segments: allSegments,
+    transcript: allSegments.map(formatTerminalSegment).join('\n\n'),
+  }
+}
+
+function runMetrics(
+  run: AgentRunDebugListItem,
+  model: string | null,
+  toolCount: number,
+): AgentRunInspectorMetric[] {
+  return [
+    { label: '耗时', value: durationMs(run) },
+    { label: 'Token', value: tokenTotal(run) },
+    { label: '工具调用', value: toolCount },
+    { label: '模型', value: model },
+  ]
+}
+
+function agentCurrentTask(agent: AgentRunDebuggerAgentNode): AgentRunInspectorTask | null {
+  const currentStepIndex = agent.steps.findIndex((step) => step.status === 'running')
+  const fallbackStepIndex = agent.steps.findIndex((step) => step.status === 'waiting')
+  const stepIndex = currentStepIndex >= 0 ? currentStepIndex : fallbackStepIndex >= 0 ? fallbackStepIndex : 0
+  const step = agent.steps[stepIndex] ?? null
+  const firstTask = agent.taskTitles[0] ?? step?.title ?? null
+  if (!firstTask) return null
+  return {
+    title: firstTask,
+    stepTitle: step?.title ?? null,
+    stepIndex: agent.steps.length > 0 ? stepIndex + 1 : 0,
+    stepTotal: agent.steps.length,
+    status: step?.status ?? agent.status,
+  }
 }
 
 function getExecutionStageStatus(
@@ -813,6 +1275,191 @@ function summarizeDebugEventDetail(event: Pick<AgentRunDebugEventRecord, 'payloa
   const text = stringPayload(event, 'text')
   if (text !== '-') return text
   return '-'
+}
+
+function groupTerminalEventsByCallId(events: readonly AgentRunDebugEventRecord[]): Map<string, AgentRunDebugEventRecord[]> {
+  const grouped = new Map<string, AgentRunDebugEventRecord[]>()
+  for (const event of events) {
+    const key = event.toolCallId ?? event.id
+    const current = grouped.get(key) ?? []
+    current.push(event)
+    grouped.set(key, current)
+  }
+  for (const current of grouped.values()) current.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+  return grouped
+}
+
+function getDebugEventOwnerByCallId(
+  events: readonly AgentRunDebugEventRecord[],
+  runId: string,
+): Map<string, string | null> {
+  const owners = new Map<string, string | null>()
+  for (const event of events) {
+    if (event.runId !== runId || !event.toolCallId) continue
+    const current = owners.get(event.toolCallId)
+    if (current && current !== event.agentId) continue
+    owners.set(event.toolCallId, event.agentId)
+  }
+  return owners
+}
+
+function firstStringPayload(events: readonly AgentRunDebugEventRecord[], key: string): string | null {
+  for (const event of events) {
+    const value = stringProp(event.payload, key)
+    if (value) return value
+  }
+  return null
+}
+
+function resolveToolTraceOwnerAgentId(
+  detail: AgentRunDebugDetail,
+  item: AgentRunToolTraceItem,
+  planTasks: readonly DispatchPlanItem[],
+  childRunsByAgent: Map<string, AgentRunDebugListItem[]>,
+  fallbackAgentId: string,
+): string {
+  const serialized = `${safeStringify(item.args)} ${safeStringify(item.result)}`
+  for (const [agentId] of childRunsByAgent) {
+    if (serialized.includes(agentId)) return agentId
+  }
+  for (const task of planTasks) {
+    if (serialized.includes(task.id)) return task.agentId
+  }
+  if (serialized.includes(detail.agentRun.agentId) || serialized.includes(detail.agentRun.agentName ?? '')) return detail.agentRun.agentId
+  const inferred = readAgentIdFromValue(item.args) ?? readAgentIdFromValue(item.result)
+  if (inferred) return inferred
+  return fallbackAgentId
+}
+
+function resolveToolTraceOwnerAgentName(
+  detail: AgentRunDebugDetail,
+  item: AgentRunToolTraceItem,
+  planTasks: readonly DispatchPlanItem[],
+  childRunsByAgent: Map<string, AgentRunDebugListItem[]>,
+  agentId: string,
+  fallbackAgentName: string,
+): string | null {
+  const childRun = childRunsByAgent.get(agentId)?.[0] ?? null
+  if (childRun) return childRun.agentName ?? childRun.agentId
+  if (agentId === detail.agentRun.agentId) return detail.snapshot?.agent.name ?? detail.agentRun.agentName ?? detail.agentRun.agentId
+  const matchedTask = planTasks.find((task) => task.agentId === agentId)
+  if (matchedTask) return detail.childrenRuns.find((run) => run.agentId === matchedTask.agentId)?.agentName ?? matchedTask.agentId
+  const inferred = readAgentIdFromValue(item.args) ?? readAgentIdFromValue(item.result)
+  if (inferred) {
+    const inferredRun = detail.childrenRuns.find((run) => run.agentId === inferred)
+    if (inferredRun) return inferredRun.agentName ?? inferredRun.agentId
+    return inferred
+  }
+  return fallbackAgentName
+}
+
+function resolveToolTraceAgentName(
+  detail: AgentRunDebugDetail,
+  item: AgentRunToolTraceItem,
+  debugEvents: readonly AgentRunDebugEventRecord[],
+): string | null {
+  const ownerByCallId = getDebugEventOwnerByCallId(debugEvents, detail.agentRun.id)
+  const ownerAgentId = ownerByCallId.get(item.callId) ?? null
+  if (ownerAgentId === detail.agentRun.agentId) return detail.snapshot?.agent.name ?? detail.agentRun.agentName ?? detail.agentRun.agentId
+  const childRun = detail.childrenRuns.find((run) => run.agentId === ownerAgentId || run.agentName === ownerAgentId)
+  if (childRun) return childRun.agentName ?? childRun.agentId
+  if (ownerAgentId) return ownerAgentId
+  const inferredAgentId = readAgentIdFromValue(item.args) ?? readAgentIdFromValue(item.result)
+  if (inferredAgentId) {
+    const inferredRun = detail.childrenRuns.find((run) => run.agentId === inferredAgentId)
+    return inferredRun?.agentName ?? inferredRun?.agentId ?? inferredAgentId
+  }
+  return detail.snapshot?.agent.name ?? detail.agentRun.agentName ?? detail.agentRun.agentId
+}
+
+function readAgentIdFromValue(value: unknown): string | null {
+  const serialized = safeStringify(value)
+  const match = serialized.match(/(?:agentId|agent_id|agent)=["']?([\w.-]+)["']?/i)
+  return match?.[1] ?? null
+}
+
+function toolTraceStatusLabel(status: AgentRunDebuggerStatus): string {
+  if (status === 'completed') return '完成'
+  if (status === 'running') return '进行中'
+  if (status === 'failed') return '失败'
+  if (status === 'aborted') return '中止'
+  if (status === 'blocked') return '阻塞'
+  if (status === 'waiting') return '等待'
+  return '未知'
+}
+
+function getToolTraceMetaByCallId(events: readonly AgentRunDebugEventRecord[]): Map<string, { status: AgentRunDebugEventRecord['status']; durationMs: number | null }> {
+  const result = new Map<string, { status: AgentRunDebugEventRecord['status']; durationMs: number | null }>()
+  for (const event of events) {
+    if (!event.toolCallId || !event.type.includes('.tool.')) continue
+    const existing = result.get(event.toolCallId)
+    const durationMs = numberProp(event.payload, 'durationMs')
+    result.set(event.toolCallId, {
+      status: event.status ?? existing?.status ?? null,
+      durationMs: durationMs ?? existing?.durationMs ?? null,
+    })
+  }
+  return result
+}
+
+function formatTerminalSegment(segment: AgentRunTerminalSegment): string {
+  const prompt = terminalPrompt(segment.shell, segment.cwd)
+  const output = segment.output.trimEnd()
+  const exitLine = segment.exitCode === null ? '' : `\n[exit ${segment.exitCode}]`
+  const notes = [
+    segment.truncated ? '[output truncated by backend]' : '',
+    segment.timedOut ? '[command timed out]' : '',
+  ].filter(Boolean)
+  return `${prompt}\n${segment.command}${output ? `\n${output}` : ''}${exitLine}${notes.length ? `\n${notes.join('\n')}` : ''}`
+}
+
+function terminalPrompt(shell: string, cwd: string | null): string {
+  if (shell === 'PowerShell') return `PS ${cwd ?? ''}>`.replace('  ', ' ')
+  if (shell === 'cmd') return `${cwd ?? ''}>`.replace(/^>/, '>')
+  return `${cwd ? `${cwd} ` : ''}$`
+}
+
+function inferTerminalShell(args: { command: string; cwd: string | null; toolName: string; shell: string | null }): string {
+  if (args.shell) return normalizeShellName(args.shell)
+  if (isWindowsPath(args.cwd) || /\b(Get|Set|Select|Where|ForEach|New|Remove|Copy|Move|Test)-[A-Za-z]+\b|powershell(?:\.exe)?|\bpwsh\b|\.ps1\b/i.test(args.command)) return 'PowerShell'
+  if (/\bcmd(?:\.exe)?\b|(?:^|\s)(dir|copy|del|type)\s+/i.test(args.command)) return 'cmd'
+  if (args.toolName === 'Bash') return 'bash'
+  if (/\b(?:bash|zsh|sh)\b/.test(args.command) || /^\s*(?:ls|grep|cat|sed|awk|chmod|pnpm|npm|node|git)\b/.test(args.command)) return 'Shell'
+  return 'Shell'
+}
+
+function normalizeShellName(value: string): string {
+  const normalized = value.toLowerCase()
+  if (normalized.includes('powershell') || normalized.includes('pwsh')) return 'PowerShell'
+  if (normalized.includes('cmd')) return 'cmd'
+  if (normalized.includes('bash')) return 'bash'
+  if (normalized.includes('zsh')) return 'zsh'
+  if (normalized === 'sh' || normalized.endsWith('/sh')) return 'sh'
+  return value
+}
+
+function isWindowsPath(value: string | null): boolean {
+  return typeof value === 'string' && /^[a-z]:[\\/]/i.test(value)
+}
+
+function prop(source: unknown, key: string): unknown {
+  if (!source || typeof source !== 'object') return undefined
+  return (source as Record<string, unknown>)[key]
+}
+
+function stringProp(source: unknown, key: string): string | null {
+  const value = prop(source, key)
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function numberProp(source: unknown, key: string): number | null {
+  const value = prop(source, key)
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function booleanProp(source: unknown, key: string): boolean | null {
+  const value = prop(source, key)
+  return typeof value === 'boolean' ? value : null
 }
 
 function buildDebuggerEdge(source: string, target: string, status: AgentRunDebuggerStatus): Edge {

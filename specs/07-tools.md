@@ -454,18 +454,17 @@ write_artifact({
 **流程**：
 1. 命中 `getBannedPatterns(currentPlatform())` 黑名单（POSIX / Windows 各一套，详见 Spec 11）→ 拒
 2. 命中关键命令审批规则 → 注册 `PendingBashCommand`，发 `bash_command.pending` SSE，等待用户批准；拒绝则不执行命令并返回错误
-3. `child_process.spawn(shell.cmd, shell.args(command), { cwd: getEffectiveCwd(workspace), windowsHide: true, detached: platform !== 'windows' })`
+3. 创建 `TerminalSession`，通过 `node-pty` 启动 PTY：`terminalSessionService.runTerminalCommand({ shell, shellArgs, cwd, ... })`
    - 跨平台 shell（详见 Spec 11 「Shell 选择」节）：
      - POSIX：优先用用户 `zsh` / `bash` login+interactive shell：`$SHELL -l -i -c <command>`；无法确认时回退 `sh -c <command>`
      - Windows：`powershell.exe -NoProfile -NonInteractive -Command "$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); <command>"`（用系统自带 PS 5.1，并强制 UTF-8 输出）
-4. stdout + stderr 合并截断 **10000 字符**
-5. **30s 超时**：进程清理走 `killProcessTree`
-   - POSIX：创建独立进程组，`process.kill(-child.pid, 'SIGTERM')` 清理 shell 及其后台子进程
-   - Windows：`taskkill /F /T /PID <pid>` 递归杀进程树（Node 的 SIGTERM 在 Windows 杀不到孙子进程）
-6. `ctx.abortSignal` 触发同样的 `killProcessTree`
-7. **不支持** stdin / 环境变量定制 / pty / TUI
+4. PTY 生命周期通过 `terminal.started` / `terminal.output` / `terminal.error` / `terminal.input` / `terminal.exited` 持久化并经 EventBus 推 SSE
+5. stdout/stderr：POSIX PTY 天然合流，v1 记为 `stream='stdout'`；Windows/PowerShell 无法稳定分离时也记为 `stdout`，payload 标注 `ptyMerged=true`
+6. **30s 超时**：service kill PTY，并将 session 置为 `failed`、`signal='timeout'`
+7. `ctx.abortSignal` 触发 PTY kill，并将 session 置为 `aborted`
+8. 支持向运行中的 session 写 stdin；仍不支持环境变量定制，不承诺完整 TUI 体验
 
-**后台进程约束**：`bash` 是一次性命令工具，不是终端会话。Agent 不应通过裸 `server &` / `npm run dev &` 留长驻后台服务。若为了验证 API 临时启动服务，必须在同一个命令里保存 PID 并清理，例如：
+**后台进程约束**：`bash` 现在有可追踪 TerminalSession，但仍不是长期后台服务管理器。Agent 不应通过裸 `server &` / `npm run dev &` 留长驻后台服务。若为了验证 API 临时启动服务，必须在同一个命令里保存 PID 并清理，例如：
 
 ```bash
 npm run dev > /tmp/agenthub-dev.log 2>&1 &
@@ -475,7 +474,7 @@ sleep 3
 curl -s http://127.0.0.1:3000/health
 ```
 
-如果 shell 退出后仍有后台进程继承 stdout/stderr，工具会在短暂宽限后清理同一进程组并返回，避免 run 卡死。真正需要长期运行、查看日志、停止/重启的 dev server 应由后续独立进程/终端视图管理，不塞进普通 `bash` tool。
+真正需要长期运行、查看日志、停止/重启的 dev server 应由后续独立进程管理，不塞进普通 `bash` tool。
 
 **需要审批但不直接禁止的命令**：安装 / 变更依赖（`npm|pnpm|yarn|bun install/add/remove/update/ci`、`npx`、`pnpm dlx`、`pip install`、`uv sync` 等）、可能丢弃本地修改的 git 命令（`git reset` / `git clean` / 覆盖当前目录的 `git checkout|restore`）、批量删除（`rm -rf`、`find -delete`）、权限 / owner 变更（`chmod` / `chown`）、Docker 运行 / 构建 / 镜像 / 网络 / volume 相关命令，以及 Windows 上 `Remove-Item -Recurse/-Force`。这些命令没有命中黑名单时由用户决定是否放行。
 
@@ -483,7 +482,7 @@ curl -s http://127.0.0.1:3000/health
 
 **工具 description 按平台变体**（详见 Spec 11 「工具描述按平台变体」节）：description 字段在模块加载时根据 `currentPlatform()` 拼接，POSIX 展示用户 login shell 回退策略、POSIX 命令示例与 POSIX 黑名单文案，Windows 展示 PowerShell 示例与 Windows 黑名单文案。这是 LLM 选择命令语法的关键提示。
 
-**返回**：`{ cwd, command, exitCode, output, truncated, timedOut }`
+**返回**：`{ sessionId, cwd, command, shell, exitCode, output, truncated, timedOut }`
 
 ---
 

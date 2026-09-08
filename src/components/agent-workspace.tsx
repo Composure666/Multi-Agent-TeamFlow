@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, CheckCircle2, ChevronDown, FileCode2, FileText, History, MessageCircle, Plus, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
+import { Check, CheckCircle2, ChevronDown, FileCode2, FileText, History, MessageCircle, Pencil, Plus, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
@@ -96,6 +96,7 @@ export function AgentWorkspace({
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
   const [agentDetailOpen, setAgentDetailOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<AgentRow | undefined>(undefined)
   const [startingPresetId, setStartingPresetId] = useState<string | null>(null)
   const [deleteTargetAgentId, setDeleteTargetAgentId] = useState<string | null>(null)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
@@ -488,6 +489,10 @@ export function AgentWorkspace({
           agent={selectedAgent}
           deleting={deletingAgentId === selectedAgent.id}
           onStart={(agent) => void startConversation(agent)}
+          onEdit={(agent) => {
+            setEditingAgent(agent)
+            setFormOpen(true)
+          }}
           onDelete={(agent) => setDeleteTargetAgentId(agent.id)}
           onClose={() => {
             setSelectedAgentId(null)
@@ -495,7 +500,10 @@ export function AgentWorkspace({
           }}
         />
       )}
-      <CreateAgentDialog open={formOpen} onOpenChange={setFormOpen} />
+      <CreateAgentDialog open={formOpen} onOpenChange={(open) => {
+        setFormOpen(open)
+        if (!open) setEditingAgent(undefined)
+      }} agent={editingAgent} />
       <Dialog open={Boolean(deleteTargetAgentId)} onOpenChange={(open) => {
         if (!open && !deletingAgentId) setDeleteTargetAgentId(null)
       }}>
@@ -814,12 +822,14 @@ function AgentDetailPanel({
   agent,
   deleting,
   onStart,
+  onEdit,
   onDelete,
   onClose,
 }: {
   agent?: AgentRow
   deleting: boolean
   onStart: (agent: AgentRow) => void
+  onEdit: (agent: AgentRow) => void
   onDelete: (agent: AgentRow) => void
   onClose: () => void
 }) {
@@ -865,6 +875,14 @@ function AgentDetailPanel({
           </div>
           <Button onClick={() => onStart(agent)} className="mt-4 w-full rounded-xl bg-[var(--agenthub-accent)] shadow-sm shadow-none transition hover:-translate-y-0.5 hover:bg-[var(--agenthub-accent-hover)] hover:shadow-md">
             开始对话
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => onEdit(agent)}
+            className="mt-2 w-full rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+          >
+            <Pencil className="mr-2 size-4" />
+            编辑配置 / 绑定 MCP
           </Button>
           {!agent.isBuiltin && (
             <Button
@@ -914,6 +932,8 @@ function AgentDetailPanel({
                 {(agent.toolNames.length > 0 ? agent.toolNames : ['message']).map((toolName) => (
                   <PermissionRow key={toolName} name={formatToolName(toolName)} code={toolName} />
                 ))}
+                <CapabilityRows label="Skills" ids={agent.skillIds} empty="未绑定 Skills" />
+                <CapabilityRows label="MCP" ids={agent.mcpServerIds} empty={agent.adapterName === 'custom' ? 'Custom adapter 当前暂不支持外部 MCP' : '未绑定 MCP Servers'} />
               </div>
             </DetailSection>
 
@@ -943,6 +963,29 @@ function PermissionRow({ name, code }: { name: string; code: string }) {
         <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">{code}</div>
       </div>
       <CheckCircle2 className="size-4 shrink-0 text-emerald-500 dark:text-emerald-300" />
+    </div>
+  )
+}
+
+function CapabilityRows({ label, ids, empty }: { label: string; ids: string[]; empty: string }) {
+  if (ids.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-400 dark:border-white/10 dark:bg-neutral-900">
+        {label}：{empty}
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-neutral-950/40">
+      <div className="mb-2 text-[11px] font-medium text-slate-600 dark:text-slate-300">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {ids.map((id) => (
+          <code key={id} className="max-w-full truncate rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-slate-400 dark:ring-white/10">
+            {id}
+          </code>
+        ))}
+      </div>
     </div>
   )
 }

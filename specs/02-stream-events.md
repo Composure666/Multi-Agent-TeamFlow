@@ -49,6 +49,13 @@ type StreamEvent = BaseEvent & (
   | { type: 'run.debug.tool.completed', runId: string, agentId?: string, stepId?: string | null, toolCallId?: string | null, status?: DebugEventStatus | null, toolName?: string, outputSummary?: string, durationMs?: number, error?: string, payload?: Record<string, unknown>, debugEventId?: string }
   | { type: 'run.debug.terminal.output', runId: string, agentId?: string, stepId?: string | null, toolCallId?: string | null, status?: DebugEventStatus | null, stream?: 'stdout' | 'stderr', text?: string, payload?: Record<string, unknown>, debugEventId?: string }
 
+  // —— Terminal Session 真实流（AgentHub 自管 bash v1）——
+  | { type: 'terminal.started', sessionId: string, runId: string, parentRunId?: string | null, agentId: string, taskId?: string | null, toolCallId?: string | null, shell?: string, cwd?: string, command?: string, stream?: 'stdin' | 'stdout' | 'stderr', text?: string, seq: number, terminalEventId?: string, payload?: Record<string, unknown> }
+  | { type: 'terminal.input', sessionId: string, runId: string, parentRunId?: string | null, agentId: string, taskId?: string | null, toolCallId?: string | null, shell?: string, cwd?: string, command?: string, stream?: 'stdin' | 'stdout' | 'stderr', text?: string, seq: number, terminalEventId?: string, payload?: Record<string, unknown> }
+  | { type: 'terminal.output', sessionId: string, runId: string, parentRunId?: string | null, agentId: string, taskId?: string | null, toolCallId?: string | null, shell?: string, cwd?: string, command?: string, stream?: 'stdin' | 'stdout' | 'stderr', text?: string, seq: number, terminalEventId?: string, payload?: Record<string, unknown> }
+  | { type: 'terminal.error', sessionId: string, runId: string, parentRunId?: string | null, agentId: string, taskId?: string | null, toolCallId?: string | null, shell?: string, cwd?: string, command?: string, stream?: 'stdin' | 'stdout' | 'stderr', text?: string, seq: number, terminalEventId?: string, payload?: Record<string, unknown> }
+  | { type: 'terminal.exited', sessionId: string, runId: string, parentRunId?: string | null, agentId: string, taskId?: string | null, toolCallId?: string | null, shell?: string, cwd?: string, command?: string, status?: 'running' | 'exited' | 'failed' | 'aborted', exitCode?: number | null, signal?: string | null, stream?: 'stdin' | 'stdout' | 'stderr', text?: string, seq: number, terminalEventId?: string, payload?: Record<string, unknown> }
+
   // —— 产物 ——
   | { type: 'artifact.create', artifact: Artifact }
   | { type: 'artifact.update', artifactId: string, patch: Partial<ArtifactContent> }
@@ -287,6 +294,7 @@ dispatch.end      (parentRunId=r1, taskId=t3, status='skipped', error='Upstream 
 | `tool.call` | ✅ 写为 message.parts 里的 tool_use part | |
 | `tool.result` | ✅ 写为 message.parts 里的 tool_result part | run 失败 / 中止时，AgentRunner 会为未配对 `tool_result` 的 `tool_use` 补发 `isError=true` 结果 |
 | `run.debug.*` | ✅ 落到 `agent_run_debug_events` 表并透传 SSE | 只保存摘要 payload；写入失败只 warn，不阻断 run；成功时事件带 `debugEventId` 便于前端去重 |
+| `terminal.*` | ✅ 落到 `terminal_events` 表并透传 SSE | 真实 TerminalSession 事件；`sessionId + seq` 去重排序；v1 覆盖 AgentHub 自管 `bash` 工具 |
 | `artifact.*` | ✅ 落到 `artifacts` 表 | |
 | `dispatch.*` | ❌ 透传（信息来自 plan_tasks 工具调用 + agent_runs 表） | |
 | `fs_write.pending` | ❌ 透传 | pending 队列存于内存单例（`src/server/pending-writes.ts`）；dev server 重启丢失，前端 mount 时拉一次兜底 |

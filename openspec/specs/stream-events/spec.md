@@ -92,3 +92,23 @@ AgentRunner SHALL publish bounded `run.debug.*` events at run, dispatch, and too
 - **WHEN** AgentRunner observes `tool.call` and `tool.result`
 - **THEN** it publishes `run.debug.tool.started` and `run.debug.tool.completed`
 - **AND** those events include only summary payloads, not raw secrets or full prompt text.
+
+### Requirement: Terminal events SHALL expose real AgentHub-managed bash sessions
+
+AgentHub-managed `bash` commands SHALL publish `terminal.started`, `terminal.input`, `terminal.output`, `terminal.error`, and `terminal.exited` through EventBus as the authoritative live terminal stream. `run.debug.terminal.output` MAY continue as a bounded debug summary event, but UI terminal views MUST prefer `terminal.*` records when present.
+
+#### Scenario: A bash command starts a PTY session
+- **WHEN** the AgentHub `bash` tool begins execution
+- **THEN** AgentHub creates a `TerminalSession`
+- **AND** publishes `terminal.started` with `sessionId`, `runId`, `agentId`, optional `taskId`, optional `toolCallId`, `shell`, `cwd`, `command`, and `seq`.
+
+#### Scenario: A terminal stream emits output
+- **WHEN** the PTY emits data or receives stdin
+- **THEN** AgentHub persists a `TerminalEvent`
+- **AND** publishes the corresponding `terminal.output`, `terminal.error`, or `terminal.input`
+- **AND** subscribers dedupe and sort by `sessionId + seq`.
+
+#### Scenario: A terminal session exits
+- **WHEN** the PTY exits, times out, or is aborted
+- **THEN** AgentHub updates the session status
+- **AND** publishes `terminal.exited` with status, exitCode or signal, and the final sequence number.

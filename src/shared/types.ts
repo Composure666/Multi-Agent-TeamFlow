@@ -352,6 +352,75 @@ export interface AgentRunDebugStreamFields {
   text?: string
 }
 
+export type TerminalSessionStatus =
+  | 'running'
+  | 'exited'
+  | 'failed'
+  | 'aborted'
+
+export type TerminalEventType =
+  | 'terminal.started'
+  | 'terminal.input'
+  | 'terminal.output'
+  | 'terminal.error'
+  | 'terminal.exited'
+
+export type TerminalEventStream = 'stdin' | 'stdout' | 'stderr'
+
+export interface TerminalSessionRecord {
+  id: string
+  conversationId: string
+  runId: string
+  parentRunId: string | null
+  agentId: string
+  taskId: string | null
+  toolCallId: string | null
+  shell: string
+  cwd: string
+  command: string
+  status: TerminalSessionStatus
+  exitCode: number | null
+  signal: string | null
+  startedAt: number
+  endedAt: number | null
+}
+
+export interface TerminalEventRecord {
+  id: string
+  sessionId: string
+  conversationId: string
+  runId: string
+  agentId: string
+  taskId: string | null
+  toolCallId: string | null
+  type: TerminalEventType
+  stream: TerminalEventStream
+  text: string
+  payload: Record<string, unknown>
+  seq: number
+  createdAt: number
+}
+
+export interface TerminalStreamFields {
+  sessionId: string
+  runId: string
+  parentRunId?: string | null
+  agentId: string
+  taskId?: string | null
+  toolCallId?: string | null
+  shell?: string
+  cwd?: string
+  command?: string
+  status?: TerminalSessionStatus
+  exitCode?: number | null
+  signal?: string | null
+  stream?: TerminalEventStream
+  text?: string
+  seq: number
+  terminalEventId?: string
+  payload?: Record<string, unknown>
+}
+
 // ─── 调度 plan ────────────────────────────────────────────
 export interface DispatchPlanItem {
   id: string
@@ -638,6 +707,7 @@ export type StreamEvent = BaseEvent &
     | { type: 'ask_user.resolved'; pendingId: string; answered: boolean }
     | { type: 'notification.created'; notification: AppNotification }
     | ({ type: AgentRunDebugEventType } & AgentRunDebugStreamFields)
+    | ({ type: TerminalEventType } & TerminalStreamFields)
     | { type: 'heartbeat' }
   )
 

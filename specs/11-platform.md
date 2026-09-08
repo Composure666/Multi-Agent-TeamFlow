@@ -31,10 +31,10 @@ export function currentPlatform(): Platform {
 - 优先从 `process.env.SHELL` 解析用户 shell；缺失时回退 `os.userInfo().shell`
 - 仅当解析到的绝对路径存在且 shell basename 是 `zsh` 或 `bash` 时，使用 `-l -i -c <command>`。这样桌面版从 Finder / Dock 启动时，也能加载用户 `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` 中配置的 Node、pnpm、Homebrew、nvm 等 PATH
 - 其它 shell 或无法解析用户 shell 时回退 `sh -c <command>`，保持 POSIX 命令语法稳定
-- 仍然直接 `spawn(shell.cmd, shell.args)`，不使用 `shell: true`
+- AgentHub 自管 `bash` 通过 `node-pty` 启动上述 shell，不使用 `shell: true`
 
 **Windows 细节**：
-- 子进程启动选项加 `windowsHide: true`，避免闪现控制台
+- AgentHub 自管 `bash` 通过 `node-pty` / ConPTY 启动 PowerShell，避免把命令直接交给 `shell: true`
 - 命令前 prepend `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); ` 强制 stdout / stderr 为 UTF-8（Windows 默认 codepage 936 / cp1252 会导致中文乱码 / LLM 上下文污染）。**不**用 `chcp 65001`——chcp 在 PowerShell 初始化输出流之后才生效，命令本身的错误信息仍是 GBK
 - 用系统自带 PS 5.1（不依赖 pwsh 7）
 
@@ -42,7 +42,7 @@ export function currentPlatform(): Platform {
 
 **禁止**：
 - 不要在 PowerShell 命令里嵌套 `bash -c`（即便检测到 Git Bash 存在）；Phase 1 保持单 shell 策略
-- 不要给 spawn 传 `shell: true`（会让黑名单更难匹配，且引入 shell 注入风险）
+- 不要给底层执行层传 `shell: true`（会让黑名单更难匹配，且引入 shell 注入风险）
 
 ---
 
@@ -124,8 +124,8 @@ const SHARED_BANNED: RegExp[] = [
 
 `src/server/tools/bash.ts` 的 `description` 字段从静态字符串改为基于 `currentPlatform()` 生成：
 
-- **POSIX**：`"Run a shell command inside workspace. POSIX uses the user login shell for zsh/bash ($SHELL -l -i -c) when available, otherwise sh -c. Use POSIX syntax: ls, grep, cat, git, npm. Output: stdout+stderr merged, 10000 char limit, 30s timeout. Blocked: rm -rf /, sudo, fork bombs, curl | sh."`
-- **Windows**：`"Run a PowerShell 5.1 command inside workspace. Use PowerShell syntax: Get-ChildItem, Select-String, Get-Content, git, npm. Output is UTF-8 (chcp 65001), stdout+stderr merged, 10000 char limit, 30s timeout. Blocked: Remove-Item -Recurse -Force, format, shutdown, iex(iwr ...), reg delete."`
+- **POSIX**：`"Run a shell command inside workspace. POSIX uses the user login shell for zsh/bash ($SHELL -l -i -c) when available, otherwise sh -c. Use POSIX syntax: ls, grep, cat, git, npm. Output is streamed through TerminalSession events, 30s timeout. Blocked: rm -rf /, sudo, fork bombs, curl | sh."`
+- **Windows**：`"Run a PowerShell 5.1 command inside workspace. Use PowerShell syntax: Get-ChildItem, Select-String, Get-Content, git, npm. Output is UTF-8 and streamed through TerminalSession events, 30s timeout. Blocked: Remove-Item -Recurse -Force, format, shutdown, iex(iwr ...), reg delete."`
 
 **注**：CustomAgentAdapter 与 ClaudeCodeAdapter 不共用同一工具实例；ClaudeCodeAdapter 走 SDK 原生 Bash 工具，描述由 SDK 控制，但 `canUseTool` 钩子里的黑名单走同一份 `getBannedPatterns`。
 
@@ -133,19 +133,9 @@ const SHARED_BANNED: RegExp[] = [
 
 ## 进程清理
 
-**POSIX**：`child.kill('SIGTERM')`，5 秒未退升级到 `SIGKILL`（现状未实现升级，Phase 3 再补）。
+**AgentHub 自管 bash**：`terminal-session-service` 负责 PTY 生命周期。超时或 run abort 时调用 PTY kill，并把 `terminal_sessions.status` 更新为 `failed` 或 `aborted`，随后发布 `terminal.exited`。
 
-**Windows**：Node 的 `child.kill('SIGTERM')` 在 Windows 下等价于 `TerminateProcess`，**杀不到孙子进程**（如 `powershell → npm → node`，npm 退了但 node 留下）。Phase 1 改为：
-
-```typescript
-function killProcessTree(child: ChildProcess, platform: Platform) {
-  if (platform === 'windows' && child.pid) {
-    spawn('taskkill', ['/F', '/T', '/PID', String(child.pid)], { windowsHide: true })
-  } else {
-    child.kill('SIGTERM')
-  }
-}
-```
+**SDK 命令钩子**：Claude/Codex SDK 内部命令执行路径暂不纳入 TerminalSession v1；若 SDK 暴露 pre-execution permission callback，仍复用同一份黑名单和审批规则。
 
 `taskkill /F /T /PID` 强制递归杀进程树；不存在的 PID 静默忽略。
 

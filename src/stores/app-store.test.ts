@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MessageRow } from '@/db/schema'
-import type { DispatchPlanItem } from '@/shared/types'
+import type { DispatchPlanItem, TerminalEventRecord, TerminalSessionRecord } from '@/shared/types'
 
 import { selectDispatchForMessage, useAppStore } from './app-store'
 
@@ -38,6 +38,8 @@ function resetStore(): void {
     agentRunDebugByConv: {},
     agentRunDebugDetailsByRun: {},
     agentRunDebugEventsByRun: {},
+    terminalSessionsByRun: {},
+    terminalEventsBySession: {},
     pendingQuestionsByConv: {},
     unreadByConv: {},
     mobileSidebarOpen: false,
@@ -400,6 +402,125 @@ describe('app-store agent run debug reducers', () => {
     useAppStore.getState().applyEvent(event)
 
     expect(useAppStore.getState().agentRunDebugEventsByRun.run_debug).toHaveLength(1)
+  })
+})
+
+describe('app-store terminal reducers', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('sets terminal sessions and events from REST backfill', () => {
+    const session: TerminalSessionRecord = {
+      id: 'term_1',
+      conversationId: 'conv_terminal',
+      runId: 'run_terminal',
+      parentRunId: null,
+      agentId: 'ag_terminal',
+      taskId: null,
+      toolCallId: 'call_terminal',
+      shell: 'powershell.exe',
+      cwd: 'C:/workspace',
+      command: 'Write-Output hi',
+      status: 'running',
+      exitCode: null,
+      signal: null,
+      startedAt: 1,
+      endedAt: null,
+    }
+    const event: TerminalEventRecord = {
+      id: 'tevt_1',
+      sessionId: 'term_1',
+      conversationId: 'conv_terminal',
+      runId: 'run_terminal',
+      agentId: 'ag_terminal',
+      taskId: null,
+      toolCallId: 'call_terminal',
+      type: 'terminal.output',
+      stream: 'stdout',
+      text: 'hi\r\n',
+      payload: {},
+      seq: 2,
+      createdAt: 2,
+    }
+
+    useAppStore.getState().setTerminalSessionsForRun('run_terminal', [session])
+    useAppStore.getState().setTerminalEventsForSession('term_1', [event])
+
+    expect(useAppStore.getState().terminalSessionsByRun.run_terminal).toEqual([session])
+    expect(useAppStore.getState().terminalEventsBySession.term_1).toEqual([event])
+  })
+
+  it('merges terminal SSE events by session and seq without duplicates', () => {
+    useAppStore.getState().applyEvent({
+      type: 'terminal.started',
+      conversationId: 'conv_terminal',
+      timestamp: 1,
+      sessionId: 'term_1',
+      runId: 'run_terminal',
+      parentRunId: null,
+      agentId: 'ag_terminal',
+      taskId: null,
+      toolCallId: 'call_terminal',
+      shell: 'powershell.exe',
+      cwd: 'C:/workspace',
+      command: 'Write-Output hi',
+      stream: 'stdout',
+      text: '',
+      seq: 1,
+      terminalEventId: 'tevt_start',
+      payload: {},
+    })
+    const outputEvent = {
+      type: 'terminal.output' as const,
+      conversationId: 'conv_terminal',
+      timestamp: 2,
+      sessionId: 'term_1',
+      runId: 'run_terminal',
+      parentRunId: null,
+      agentId: 'ag_terminal',
+      taskId: null,
+      toolCallId: 'call_terminal',
+      shell: 'powershell.exe',
+      cwd: 'C:/workspace',
+      command: 'Write-Output hi',
+      stream: 'stdout' as const,
+      text: 'hi\r\n',
+      seq: 2,
+      terminalEventId: 'tevt_output',
+      payload: {},
+    }
+
+    useAppStore.getState().applyEvent(outputEvent)
+    useAppStore.getState().applyEvent(outputEvent)
+    useAppStore.getState().applyEvent({
+      type: 'terminal.exited',
+      conversationId: 'conv_terminal',
+      timestamp: 3,
+      sessionId: 'term_1',
+      runId: 'run_terminal',
+      parentRunId: null,
+      agentId: 'ag_terminal',
+      taskId: null,
+      toolCallId: 'call_terminal',
+      shell: 'powershell.exe',
+      cwd: 'C:/workspace',
+      command: 'Write-Output hi',
+      status: 'exited',
+      exitCode: 0,
+      signal: null,
+      stream: 'stdout',
+      text: '',
+      seq: 3,
+      terminalEventId: 'tevt_exit',
+      payload: {},
+    })
+
+    expect(useAppStore.getState().terminalSessionsByRun.run_terminal).toEqual([
+      expect.objectContaining({ id: 'term_1', status: 'exited', exitCode: 0 }),
+    ])
+    expect(useAppStore.getState().terminalEventsBySession.term_1.map((event) => event.seq)).toEqual([1, 2, 3])
+    expect(useAppStore.getState().terminalEventsBySession.term_1.filter((event) => event.id === 'tevt_output')).toHaveLength(1)
   })
 })
 

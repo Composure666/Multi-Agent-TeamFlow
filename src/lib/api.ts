@@ -22,6 +22,8 @@ import type {
   PendingMcpToolApproval,
   PendingQuestion,
   PendingWrite,
+  TerminalEventRecord,
+  TerminalSessionRecord,
 } from '@/shared/types'
 import type { AgentConfigDraft, AgentDraftRequest } from '@/shared/agent-builder-config'
 
@@ -521,6 +523,41 @@ export async function fetchConversationAgentRunDebugEvents(
     fetch(`/api/conversations/${conversationId}/agent-run-debug-events`),
   )
   return events
+}
+
+export async function fetchTerminalSessionsForRun(
+  conversationId: string,
+  runId: string,
+): Promise<TerminalSessionRecord[]> {
+  const { sessions } = await json<{ sessions: TerminalSessionRecord[] }>(
+    fetch(`/api/conversations/${conversationId}/agent-runs/${runId}/terminal-sessions`),
+  )
+  return sessions
+}
+
+export async function fetchTerminalEventsForSession(
+  conversationId: string,
+  sessionId: string,
+): Promise<TerminalEventRecord[]> {
+  const { events } = await json<{ events: TerminalEventRecord[] }>(
+    fetch(`/api/conversations/${conversationId}/terminal-sessions/${sessionId}/events`),
+  )
+  return events
+}
+
+export async function writeTerminalInput(
+  conversationId: string,
+  sessionId: string,
+  input: string,
+): Promise<TerminalEventRecord> {
+  const { event } = await json<{ event: TerminalEventRecord }>(
+    fetch(`/api/conversations/${conversationId}/terminal-sessions/${sessionId}/input`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input }),
+    }),
+  )
+  return event
 }
 
 export async function optimizePrompt(prompt: string): Promise<{ enhancedText: string }> {

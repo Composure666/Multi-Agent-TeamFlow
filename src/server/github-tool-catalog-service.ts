@@ -108,6 +108,24 @@ const GithubMcpManifest = z.object({
   githubUrl: z.string().url().optional(),
 })
 
+const McpRegistryPackage = z.object({
+  registryType: z.literal('npm'),
+  identifier: z.string().min(1),
+  transport: z.object({ type: z.literal('stdio') }),
+  packageArguments: z.array(z.object({
+    type: z.enum(['named', 'positional']),
+    name: z.string().min(1).optional(),
+    value: z.string().min(1).optional(),
+  })).default([]),
+  environmentVariables: z.array(z.object({ name: z.string().min(1) })).default([]),
+})
+
+const McpRegistryServerManifest = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1).optional(),
+  packages: z.array(McpRegistryPackage).min(1),
+})
+
 export async function searchGithubToolCatalog(
   input: SearchGithubToolCatalogInput,
   signal?: AbortSignal,
@@ -153,7 +171,7 @@ async function searchGithubCode(
 ): Promise<SearchGithubToolCatalogOutput> {
   const patterns = type === 'skill'
     ? ['filename:SKILL.md', 'filename:agenthub.skill.json', 'path:.agenthub/skill.json']
-    : ['filename:agenthub.mcp.json', 'path:.agenthub/mcp.json']
+    : ['filename:agenthub.mcp.json', 'path:.agenthub/mcp.json', 'filename:server.json']
 
   const allResults: ExternalToolSearchResult[] = []
   let total = 0
@@ -527,23 +545,95 @@ async function fetchOptionalSkillManifest(url: string, signal?: AbortSignal): Pr
 }
 
 async function importGithubMcpServer(input: ImportGithubToolInput, signal?: AbortSignal): Promise<ImportGithubToolOutput> {
-  if (!input.manifestUrl) throw new Error('GitHub MCP server requires manifestUrl')
-  const raw = await fetchGithubText(input.manifestUrl, signal)
-  const parsed = GithubMcpManifest.safeParse(JSON.parse(raw))
-  if (!parsed.success) throw new Error(`GitHub MCP manifest is invalid: ${input.manifestUrl}`)
-
-  const name = normalizeMcpName(parsed.data.name)
+  const manifest = await resolveGithubMcpManifest(input, signal)
+  const name = normalizeMcpName(manifest.name)
   const existing = (await db.query.mcpServers.findMany()).find((server) => server.name === name)
   const values = {
     name,
-    command: parsed.data.command,
-    args: parsed.data.args,
-    env: parsed.data.env,
-    trust: parsed.data.trust,
+    command: manifest.command,
+    args: manifest.args,
+    env: manifest.env,
+    trust: manifest.trust,
     enabled: true,
   }
   const server = existing ? await updateMcpServer(existing.id, values) : await createMcpServer(values)
   return { id: server.id, type: 'mcp_server', imported: !existing }
+}
+
+async function resolveGithubMcpManifest(
+  input: ImportGithubToolInput,
+  signal?: AbortSignal,
+): Promise<z.infer<typeof GithubMcpManifest>> {
+  const urls = githubMcpManifestCandidates(input)
+  if (urls.length === 0) throw new Error('GitHub MCP server requires manifestUrl, githubUrl, or remoteId')
+
+  const failures: string[] = []
+  for (const url of urls) {
+    try {
+      const raw = await fetchGithubText(url, signal)
+      return parseGithubMcpManifest(JSON.parse(raw), input)
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        failures.push(`${url}: invalid JSON`)
+      } else if (err instanceof Error) {
+        failures.push(`${url}: ${err.message}`)
+      } else {
+        failures.push(`${url}: ${String(err)}`)
+      }
+    }
+  }
+
+  throw new Error(`GitHub MCP manifest could not be loaded from known locations: ${failures.join('; ')}`)
+}
+
+function githubMcpManifestCandidates(input: ImportGithubToolInput): string[] {
+  const urls: string[] = []
+  if (input.manifestUrl) urls.push(input.manifestUrl)
+
+  const repo = extractGithubRepo(input.githubUrl ?? input.remoteId ?? input.installUrl ?? input.manifestUrl)
+  if (repo) {
+    const branch = extractGithubBranch(input)
+    urls.push(
+      toRawGithubUrl(repo, branch, 'agenthub.mcp.json'),
+      toRawGithubUrl(repo, branch, '.agenthub/mcp.json'),
+      toRawGithubUrl(repo, branch, '.agenthub/agenthub.mcp.json'),
+      toRawGithubUrl(repo, branch, 'server.json'),
+      toRawGithubUrl(repo, branch, '.mcp/server.json'),
+    )
+  }
+
+  return [...new Set(urls)]
+}
+
+function parseGithubMcpManifest(
+  value: unknown,
+  input: ImportGithubToolInput,
+): z.infer<typeof GithubMcpManifest> {
+  const agentHubManifest = GithubMcpManifest.safeParse(value)
+  if (agentHubManifest.success) return agentHubManifest.data
+
+  const registryManifest = McpRegistryServerManifest.safeParse(value)
+  if (!registryManifest.success) {
+    throw new Error(`invalid schema (${agentHubManifest.error.issues[0]?.message ?? 'unknown issue'})`)
+  }
+
+  const packageDefinition = registryManifest.data.packages.find((item) => item.transport.type === 'stdio')
+  if (!packageDefinition) throw new Error('MCP Registry manifest does not define a stdio package')
+
+  const packageArgs = packageDefinition.packageArguments.map((argument) => argument.value ?? argument.name).filter((value): value is string => Boolean(value))
+  const env = Object.fromEntries(
+    packageDefinition.environmentVariables.map((variable) => [variable.name, `\${${variable.name}}`]),
+  )
+  return {
+    name: extractRepoName(input.githubUrl ?? input.remoteId ?? registryManifest.data.name),
+    description: registryManifest.data.description ?? registryManifest.data.name,
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', packageDefinition.identifier, ...packageArgs],
+    env,
+    trust: 'ask',
+    tags: ['github', 'mcp', 'registry'],
+  }
 }
 
 function toExternalToolSearchResult(type: ExternalToolType, item: z.infer<typeof GithubCodeItem>): ExternalToolSearchResult {

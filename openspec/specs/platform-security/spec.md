@@ -19,6 +19,11 @@ AgentHub MUST select shell command conventions and tool descriptions based on th
 - **WHEN** bash-like tool descriptions are built
 - **THEN** they use PowerShell-oriented examples and Windows blacklist language.
 
+#### Scenario: Managed bash executes through PTY
+- **WHEN** AgentHub executes an AgentHub-managed bash command after safety checks
+- **THEN** the PTY layer uses the platform-selected shell and arguments
+- **AND** it does not bypass blacklist, approval, or workspace cwd checks.
+
 ### Requirement: Path safety SHALL be platform-aware
 
 Workspace path checks MUST handle case sensitivity, path separators, drive roots, and sensitive directories according to host platform.

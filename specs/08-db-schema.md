@@ -2,7 +2,7 @@
 
 > Drizzle ORM + SQLite。本 spec 描述核心业务表、自动化表、上下文基础设施表、外部 MCP 表、Workspace Memory 表、Agent Run 调试快照表与全局设置表的字段、索引、外键级联策略，是 Spec 01/16/17 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
 >
-> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试事件表；`app_settings` 是单行配置表，不对应实体。
+> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试摘要事件表；`terminal_sessions` / `terminal_events` 是 AgentHub 自管 bash 的真实 PTY 终端记录；`app_settings` 是单行配置表，不对应实体。
 
 源文件：`src/db/schema.ts`
 
@@ -259,7 +259,71 @@ INDEX idx_run_debug_events_run_tool ON (run_id, tool_call_id)
 
 ---
 
-## 10. automations
+## 10. terminal_sessions
+
+```ts
+terminal_sessions {
+  id              text PK           // term_<nanoid>
+  conversation_id text NOT NULL FK→conversations.id ON DELETE CASCADE
+  run_id          text NOT NULL FK→agent_runs.id ON DELETE CASCADE
+  parent_run_id   text
+  agent_id        text NOT NULL FK→agents.id
+  task_id         text
+  tool_call_id    text
+  shell           text NOT NULL
+  cwd             text NOT NULL
+  command         text NOT NULL
+  status          text NOT NULL     // 'running'|'exited'|'failed'|'aborted'
+  exit_code       int
+  signal          text
+  started_at      int NOT NULL
+  ended_at        int
+}
+INDEX idx_terminal_sessions_conv_run_started ON (conversation_id, run_id, started_at)
+INDEX idx_terminal_sessions_run_agent_started ON (run_id, agent_id, started_at)
+INDEX idx_terminal_sessions_tool ON (tool_call_id)
+```
+
+**语义**：一次 AgentHub 自管 `bash` 工具调用对应一个 TerminalSession。v1 只覆盖 AgentHub toolRegistry 的 `bash`，不覆盖 Claude/Codex SDK 内部命令执行。
+
+**约束**：
+- session 创建前必须已经通过 workspace cwd、黑名单和 bash 审批规则。
+- 删除 conversation 或 agent_run 时级联删除 terminal session。
+
+---
+
+## 11. terminal_events
+
+```ts
+terminal_events {
+  id              text PK           // tevt_<nanoid>
+  session_id      text NOT NULL FK→terminal_sessions.id ON DELETE CASCADE
+  conversation_id text NOT NULL FK→conversations.id ON DELETE CASCADE
+  run_id          text NOT NULL FK→agent_runs.id ON DELETE CASCADE
+  agent_id        text NOT NULL FK→agents.id
+  task_id         text
+  tool_call_id    text
+  type            text NOT NULL     // terminal.started|input|output|error|exited
+  stream          text NOT NULL     // stdin|stdout|stderr
+  text            text NOT NULL
+  payload         text JSON NOT NULL
+  seq             int NOT NULL
+  created_at      int NOT NULL
+}
+UNIQUE idx_terminal_events_session_seq ON (session_id, seq)
+INDEX idx_terminal_events_conv_run_created ON (conversation_id, run_id, created_at)
+INDEX idx_terminal_events_session_created ON (session_id, created_at)
+```
+
+**语义**：真实 PTY 流事件。前端通过 REST 回填 + SSE 合并，按 `session_id + seq` 去重排序。
+
+**约束**：
+- 单 chunk 持久化上限 8KB，单 session 默认最多持久化 200KB；超限事件在 payload 标注截断。
+- POSIX PTY 天然 stdout/stderr 合流；Windows/PowerShell v1 也可能合流，payload 标注 `ptyMerged=true`。
+
+---
+
+## 12. automations
 
 ```ts
 automations {
@@ -297,7 +361,7 @@ INDEX idx_automations_updated ON (updated_at)
 
 ---
 
-## 11. automation_runs
+## 13. automation_runs
 
 ```ts
 automation_runs {
@@ -326,7 +390,7 @@ INDEX idx_automation_runs_status ON (status)
 
 ---
 
-## 12. automation_run_logs
+## 14. automation_run_logs
 
 ```ts
 automation_run_logs {
@@ -344,7 +408,7 @@ INDEX idx_automation_run_logs_run_created ON (run_id, created_at)
 
 ---
 
-## 13. conversation_context_summaries
+## 15. conversation_context_summaries
 
 ```ts
 conversation_context_summaries {
@@ -370,7 +434,7 @@ INDEX idx_context_summaries_conv_created ON (conversation_id, created_at)
 
 ---
 
-## 14. mcp_servers
+## 16. mcp_servers
 
 ```ts
 mcp_servers {
@@ -402,7 +466,7 @@ INDEX idx_mcp_servers_enabled ON (enabled)
 
 ---
 
-## 15. skills
+## 17. skills
 
 ```ts
 skills {
@@ -430,7 +494,7 @@ INDEX idx_skills_enabled ON (enabled)
 
 ---
 
-## 16. workspace_memories
+## 18. workspace_memories
 
 ```ts
 workspace_memories {
@@ -461,7 +525,7 @@ INDEX idx_workspace_memories_conv_pinned ON (conversation_id, pinned, updated_at
 
 ---
 
-## 17. app_settings
+## 19. app_settings
 
 ```ts
 app_settings {

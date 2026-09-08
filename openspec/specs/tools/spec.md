@@ -173,6 +173,20 @@ The bash tool MUST reject commands that match the platform-specific banned patte
 - **THEN** the bash tool MUST NOT wait forever on inherited stdout or stderr
 - **AND** it SHOULD clean up the command process group before returning.
 
+### Requirement: AgentHub bash SHALL run through TerminalSession
+
+After workspace checks, blacklist checks, and approval gates pass, AgentHub's managed `bash` tool SHALL execute through a PTY-backed `TerminalSession`. The tool result SHALL include `sessionId`, command metadata, exit state, and the bounded output summary. Claude/Codex SDK internal command execution paths are outside this v1 contract.
+
+#### Scenario: AgentHub bash starts
+- **WHEN** an approved AgentHub `bash` command begins execution
+- **THEN** AgentHub creates a terminal session associated with conversation, run, agent, optional task, and tool call ids
+- **AND** publishes terminal lifecycle events through EventBus.
+
+#### Scenario: User writes stdin
+- **WHEN** the client posts input to a running terminal session in the same conversation scope
+- **THEN** AgentHub writes that input to the PTY
+- **AND** records a `terminal.input` event.
+
 ### Requirement: Key bash commands SHALL require user approval
 
 AgentHub MUST require explicit user approval before executing bash commands that are not banned but can materially change dependencies, discard files, or affect host-level runtime state. This approval gate MUST apply to AgentHub's `bash` tool and SDK command hooks where the adapter exposes a pre-execution permission callback.

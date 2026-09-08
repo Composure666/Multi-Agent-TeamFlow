@@ -62,3 +62,16 @@ The database SHALL persist run debug events in an append-only table scoped by co
 - **WHEN** the client requests debug events for a run under its conversation
 - **THEN** the API returns that run's events ordered by creation time
 - **AND** access under any other conversation is rejected as not found.
+
+### Requirement: Terminal sessions SHALL persist lifecycle and bounded stream events
+
+The database SHALL persist `terminal_sessions` and append-only `terminal_events` for AgentHub-managed bash PTY executions. Terminal events SHALL be scoped by conversation id and session id, ordered by `seq`, and bounded to avoid unbounded SQLite growth.
+
+#### Scenario: Debugger reloads a terminal session
+- **WHEN** the client requests terminal sessions for a run under its conversation
+- **THEN** the API returns the sessions ordered by start time
+- **AND** each session's events can be fetched ordered by sequence.
+
+#### Scenario: Terminal access crosses conversation scope
+- **WHEN** a client requests or writes a terminal session through another conversation id
+- **THEN** the request is rejected as not found.
