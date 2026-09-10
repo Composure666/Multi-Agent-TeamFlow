@@ -16,6 +16,8 @@ import {
   Send,
   Settings,
   Sparkles,
+  Users,
+  Waypoints,
   X
 } from 'lucide-react'
 import { nanoid } from 'nanoid'
@@ -143,7 +145,7 @@ export function AppWorkbench() {
   }
 
   return (
-    <div className="flex h-full min-h-0 bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
+    <div className="flex h-full min-h-0 bg-gradient-to-b from-[#FCFDFF] to-[#F4F6FB] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {view !== 'conversations' && !analyticsFocusMode && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
@@ -456,8 +458,8 @@ function MobileWorkbenchDrawer({
                       className={cn(
                         'relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition active:scale-[0.99]',
                         active
-                          ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-6 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
-                          : 'text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:active:bg-neutral-700',
+                          ? 'bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-6 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
+                          : 'text-slate-600 hover:bg-[#EEF5FF] active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:active:bg-neutral-700',
                       )}
                     >
                       <Icon className="size-5 stroke-[2.1]" />
@@ -489,8 +491,8 @@ function MobileWorkbenchDrawer({
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="truncate text-xs font-medium text-slate-900">Agenter</span>
-                <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">个人</span>
+                <span className="truncate text-xs font-medium text-slate-900">Workspace</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
               </div>
               <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
@@ -552,7 +554,10 @@ function UserAccountOverview({
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-neutral-800">A</div>
           <div className="min-w-0">
-            <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">Agenter</div>
+            <div className="flex items-center gap-1.5">
+              <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">Workspace</div>
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
+            </div>
             <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
           </div>
         </div>
@@ -606,7 +611,7 @@ function UserAccountOverview({
                   key={conversation.id}
                   type="button"
                   onClick={() => setActiveConversation(conversation.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-xs transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-xs transition hover:bg-[#EEF4FF] hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
                   title={`更新时间 ${new Date(conversation.updatedAt).toLocaleString('zh-CN')}`}
                 >
                   <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
@@ -630,7 +635,7 @@ function UserAccountOverview({
           type="button"
           onClick={onReload}
           disabled={usage.loading}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
         >
           <BarChart3 className="size-3.5" />
           {usage.loading ? '刷新中' : '刷新'}
@@ -638,7 +643,7 @@ function UserAccountOverview({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
         >
           <Settings className="size-3.5" />
           设置
@@ -691,7 +696,7 @@ function WorkbenchNav({
     <aside
       onMouseEnter={() => (view === 'analytics' || view === 'run-board') && !collapsed && setNavHovered(true)}
       onMouseLeave={() => (view === 'analytics' || view === 'run-board') && setNavHovered(false)}
-      className={cn('hidden h-full min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' ? 'w-[288px]' : 'w-[260px]')}
+      className={cn('hidden h-full min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
     >
       <div className={cn('mb-3 flex items-center gap-2 px-2', compact && 'flex-col px-0')}>
         <button
@@ -707,7 +712,7 @@ function WorkbenchNav({
           {!compact && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">AgentHub</div>
-              <div className="truncate text-[11px] text-slate-500 dark:text-slate-400">Multi-Agent Workspace</div>
+              <div className="truncate text-[11px] text-slate-500/60 dark:text-slate-400/60">Multi-Agent Workspace</div>
             </div>
           )}
         </button>
@@ -748,7 +753,7 @@ function WorkbenchNav({
         type="button"
         onClick={() => onViewChange('new-task')}
         className={cn(
-          'mb-2 flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
+          'mb-2 flex h-11 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-[15px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
           compact && 'px-0',
         )}
       >
@@ -766,7 +771,7 @@ function WorkbenchNav({
           return (
             <Fragment key={item.id}>
               {item.id === 'run-board' && !compact && (
-                <div className="mb-1 mt-3 border-t border-slate-100 px-3 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
+                <div className="mb-1 mt-4 border-t border-slate-100 px-[18px] pt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
                   分析
                 </div>
               )}
@@ -775,12 +780,12 @@ function WorkbenchNav({
                 onClick={() => onViewChange(item.id)}
                 title={compact ? item.label : undefined}
                 className={cn(
-                  'relative flex h-9 w-full items-center gap-2 rounded-md px-3 text-sm transition',
+                  'relative flex h-11 w-full items-center gap-2.5 rounded-[14px] px-[18px] text-[15px] transition',
                   compact && 'justify-center px-0',
                   item.id === 'run-board' && !compact && 'pl-5',
                   active
-                    ? 'bg-slate-100 font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-5 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
-                    : 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+                    ? 'bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)]  dark:bg-[#1E2A3A]'
+                    : 'font-medium text-slate-600 hover:bg-[#EEF5FF] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
                   showAutomationResultNotice && 'animate-pulse ring-1 ring-[var(--agenthub-accent-border)]',
                 )}
               >
@@ -824,10 +829,10 @@ function WorkbenchNav({
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             {!compact && (
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <div className="truncate text-xs font-medium">Agenter</div>
-                  <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">个人</span>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <div className="truncate text-xs font-medium">Workspace</div>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
+              </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                   <span className="size-1.5 rounded-full bg-emerald-500" />
                   本地模式
@@ -1009,19 +1014,23 @@ function NewTaskView({
   }
 
   return (
-    <div className="flex min-w-0 flex-col bg-[var(--agenthub-surface-muted)]">
-      {/* 主内容区 - 内容整体下移，垂直居中显示 */}
-      <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-64px)] items-center justify-center">
-        <div className="mx-auto w-full max-w-5xl px-6 pb-12">
-          {/* Hero Section - 标题 + 右侧机器人吉祥物 */}
-          <div className="mb-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div>
-              <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-slate-950">
-                AgentHub - 你的多 Agent 协作工作台
+    <div className="flex min-w-0 flex-col bg-gradient-to-b from-[#FCFDFF] to-[#F4F6FB]">
+      {/* 主内容区 - 垂直居中并略微上移，版式对齐效果图 */}
+      <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-64px)] items-center justify-center md:min-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-16px)]">
+        <div className="mx-auto w-full max-w-[1100px] px-10 pb-12">
+          {/* Hero Section - 左侧标题/说明/场景/快捷 Agent，右侧放大版机器人吉祥物 */}
+          <div className="grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0 translate-y-5">
+              <h1 className="text-[44px] font-[760] leading-[1.25] tracking-tight text-slate-950 dark:text-slate-50">
+                <span className="block">AgentHub</span>
+                <span className="block">
+                  你的多 <span className="text-[var(--agenthub-accent)]">Agent</span> 协作工作台
+                </span>
               </h1>
+              <p className="mt-4 text-[16px] leading-relaxed text-slate-500 dark:text-slate-400">{activeCategoryMeta.description}</p>
 
               {/* 一级场景切换 Tabs */}
-              <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              <div className="mt-8 flex flex-nowrap items-center gap-3">
                 {SUMMON_SCENE_CATEGORIES.map((category) => (
                   <button
                     key={category.id}
@@ -1032,10 +1041,10 @@ function NewTaskView({
                       setSelectedTeam(null)
                     }}
                     className={cn(
-                      'rounded-full px-4 py-2 text-sm font-semibold transition active:scale-[0.98]',
+                      'h-[48px] shrink-0 whitespace-nowrap rounded-full px-[18px] text-[15px] transition active:scale-[0.98]',
                       activeCategory === category.id
-                        ? 'bg-slate-950 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950'
-                        : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50 hover:text-slate-900 dark:bg-white/5 dark:text-slate-400 dark:ring-white/10 dark:hover:bg-white/10 dark:hover:text-slate-100',
+                        ? 'bg-[var(--agenthub-accent)] font-semibold text-white shadow-[0_10px_24px_rgba(47,95,208,0.28)] hover:bg-[var(--agenthub-accent-hover)]'
+                        : 'bg-white font-medium text-slate-600 ring-1 ring-[rgba(120,140,180,0.12)] hover:bg-[#F7F9FD] hover:text-slate-900 hover:ring-[rgba(120,140,180,0.20)] dark:bg-white/5 dark:text-slate-300 dark:ring-white/10 dark:hover:bg-white/10 dark:hover:text-slate-100',
                     )}
                   >
                     {category.label}
@@ -1043,53 +1052,38 @@ function NewTaskView({
                 ))}
               </div>
 
-              {/* 二级子类胶囊 */}
-              <div className="mt-3 space-y-2">
-                <div className="text-xs text-slate-500 dark:text-slate-400">{activeCategoryMeta.description}</div>
-                <div className="flex flex-wrap gap-2">
-                  {quickTeams.map((team) => {
-                    const active = activeSubcategoryId === team.id
-                    return (
-                      <button
-                        key={team.id}
-                        type="button"
-                        onClick={() => void applySubcategoryPrompt(team)}
-                        disabled={selectingTeamId === team.id}
-                        className={cn(
-                          'rounded-full border px-3.5 py-2 text-sm font-medium transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70',
-                          active
-                            ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100',
-                        )}
-                        title={team.description}
-                      >
-                        {selectingTeamId === team.id ? '匹配中…' : team.name}
-                      </button>
-                    )
-                  })}
-                </div>
+              {/* 二级快捷 Agent 胶囊 */}
+              <div className="mt-5 flex flex-wrap gap-3">
+                {quickTeams.map((team) => {
+                  const active = activeSubcategoryId === team.id
+                  const TeamIcon = team.type === 'team' ? Users : Sparkles
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      onClick={() => void applySubcategoryPrompt(team)}
+                      disabled={selectingTeamId === team.id}
+                      className={cn(
+                        'inline-flex h-[44px] items-center gap-2 rounded-full border px-5 text-[14px] font-medium transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70',
+                        active
+                          ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100',
+                      )}
+                      title={team.description}
+                    >
+                      <TeamIcon className="size-4 shrink-0 text-[var(--agenthub-accent)]" />
+                      {selectingTeamId === team.id ? '匹配中…' : team.name}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
-            {/* 3D 机器人吉祥物（占位符） */}
-            <div className="hidden shrink-0 lg:flex lg:items-center lg:justify-center">
-              <div className="relative flex size-44 items-center justify-center">
-                <div className="absolute inset-0 rounded-full bg-slate-200 blur-xl opacity-50" />
-                <div className="relative flex size-36 items-center justify-center rounded-[28%] border border-slate-200 bg-white shadow-sm">
-                  <div className="text-5xl">🤖</div>
-                </div>
-                <div className="absolute -right-2 -top-1 flex size-7 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-base text-amber-700">
-                  ✨
-                </div>
-                <div className="absolute -left-3 bottom-4 flex size-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs text-slate-600">
-                  💬
-                </div>
-              </div>
-            </div>
+            <RobotMascot />
           </div>
 
           {/* 核心交互输入框 - 悬浮白色大卡片（输入 + 工具栏合并在一个阴影卡片中） */}
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)]">
+          <section className="mt-9 overflow-hidden rounded-[20px] border border-[rgba(120,140,180,0.08)] bg-white shadow-[0_18px_60px_rgba(80,120,220,0.10)] dark:border-white/10 dark:bg-[#1C1F26]">
             {/* 上半部：输入区 */}
             <PromptEnhanceModal
               visible={enhanceOpen}
@@ -1116,13 +1110,13 @@ function NewTaskView({
                 }
               }}
               placeholder="今天想让 AgentHub 帮你完成什么？"
-              className="min-h-[108px] resize-none border-0 bg-transparent px-5 pb-2 pt-4 text-[15px] shadow-none placeholder:text-slate-400 focus-visible:ring-0"
+              className="min-h-[168px] resize-none border-0 bg-transparent px-7 pb-4 pt-10 text-[16px] shadow-none placeholder:text-slate-400 focus-visible:ring-0"
             />
 
             {/* 附件列表 */}
-            {enhanceError && !enhanceOpen && <div className="px-5 pb-3 text-xs text-red-600">{enhanceError}</div>}
+            {enhanceError && !enhanceOpen && <div className="px-6 pb-3 text-xs text-red-600">{enhanceError}</div>}
             {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-5 pb-3">
+              <div className="flex flex-wrap gap-2 px-6 pb-3">
                 {pendingFiles.map((file) => (
                   <span key={`${file.name}-${file.lastModified}`} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
                     <Paperclip className="size-3" />
@@ -1140,39 +1134,46 @@ function NewTaskView({
             )}
 
             {/* 中间浅灰分割线 */}
-            <div className="mx-5 h-px bg-slate-100" />
+            <div className="mx-7 h-px bg-slate-100/60 dark:bg-white/10" />
 
             {/* 下半部：参数配置栏 */}
-            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
-              <select
-                value={selectedTeam ? selectedTeam.id : activeAgentIds[0] ?? ''}
-                onChange={(e) => {
-                  setSelectedAgentIds(e.target.value ? [e.target.value] : [])
-                  setSelectedTeam(null)
-                }}
-                className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 outline-none transition focus:border-[var(--agenthub-accent)]"
-              >
-                {selectedTeam && <option value={selectedTeam.id}>{selectedTeam.name} · {activeAgents.length} 位协作</option>}
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>{getAgentDisplayName(agent)}</option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-2.5 px-5 py-4">
+              <span className="pl-1 text-xs font-medium text-slate-400">Workspace</span>
+              <div className="relative">
+                <Waypoints className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--agenthub-accent)]" />
+                <select
+                  value={selectedTeam ? selectedTeam.id : activeAgentIds[0] ?? ''}
+                  onChange={(e) => {
+                    setSelectedAgentIds(e.target.value ? [e.target.value] : [])
+                    setSelectedTeam(null)
+                  }}
+                  className="h-10 appearance-none rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-[var(--agenthub-accent)] dark:border-white/10 dark:bg-transparent dark:text-slate-200"
+                >
+                  {selectedTeam && <option value={selectedTeam.id}>{selectedTeam.name} · {activeAgents.length} 位协作</option>}
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>{getAgentDisplayName(agent)}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              </div>
 
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => setApprovalMode((mode) => (mode === 'review' ? 'auto' : 'review'))}
+                title="切换写入审批模式"
                 className={cn(
-                  'h-8 rounded-lg border-slate-200 text-xs font-medium transition-all',
-                  approvalMode === 'auto' && 'border-slate-300 bg-slate-100 text-slate-900',
+                  'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition',
+                  approvalMode === 'review'
+                    ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200/70 hover:bg-emerald-100/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20'
+                    : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200/70 hover:bg-slate-200/60 dark:bg-white/5 dark:text-slate-400 dark:ring-white/10',
                 )}
               >
-                {approvalMode === 'auto' ? '自动' : 'Review'}
-              </Button>
+                {approvalMode === 'review' ? '✓ Review' : 'Auto'}
+              </button>
 
               {/* 分割线 + 右侧操作区 */}
               <div className="ml-auto flex items-center gap-1.5">
-                <div className="mr-1 h-6 w-px bg-slate-200" />
+                <div className="mr-1.5 h-6 w-px bg-slate-200/50 dark:bg-white/10" />
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1182,31 +1183,31 @@ function NewTaskView({
                 />
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   title="附件上传"
                   onClick={() => fileInputRef.current?.click()}
-                  className="rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  className="size-10 rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
                 >
-                  <Paperclip className="size-4" />
+                  <Paperclip className="size-[18px]" />
                 </Button>
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon"
                   title={enhancingPrompt ? '提示词增强中' : '增强提示词'}
                   onClick={() => void enhancePrompt()}
                   disabled={enhancingPrompt || sending || uploading}
-                  className="rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  className="size-10 rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
                 >
-                  <Sparkles className="size-4" />
+                  <Sparkles className="size-[18px]" />
                 </Button>
                 <Button
                   onClick={() => void submit()}
                   disabled={!content.trim() || activeAgentIds.length === 0 || sending || uploading}
                   size="icon"
-                  className="ml-1 size-8 rounded-md bg-[var(--agenthub-accent,#2F5FD0)] text-white transition hover:bg-[var(--agenthub-accent-hover,#244FB3)] disabled:opacity-50"
+                  className="ml-1 size-11 rounded-xl bg-[var(--agenthub-accent,#2F5FD0)] text-white shadow-[0_8px_20px_rgba(47,95,208,0.32)] transition hover:bg-[var(--agenthub-accent-hover,#244FB3)] disabled:opacity-70"
                   title={uploading ? '上传中' : '发送'}
                 >
-                  <Send className="size-4" />
+                  <Send className="size-[18px]" />
                 </Button>
               </div>
             </div>
@@ -1214,7 +1215,7 @@ function NewTaskView({
 
           {/* 底部状态栏 - 居中对齐 */}
           {sceneAgentError && <div className="mt-3 text-center text-xs text-amber-600 dark:text-amber-300">{sceneAgentError}</div>}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3 text-[13px] text-slate-500 dark:text-slate-400">
             <span className="inline-flex items-center gap-1.5 rounded-md px-1">
               选择工作空间
             </span>
@@ -1238,6 +1239,61 @@ function NewTaskView({
             )}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function RobotMascot() {
+  return (
+    <div aria-hidden className="relative hidden h-[385px] w-[430px] shrink-0 select-none xl:block">
+      <div className="absolute inset-0 scale-[1.13]">
+        {/* 轻蓝色氛围光 */}
+        <div className="absolute left-1/2 top-1/2 size-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.12),transparent_60%)] blur-3xl" />
+        {/* 轨道环 */}
+        <div className="absolute bottom-[2px] left-1/2 h-[160px] w-[370px] -translate-x-1/2 -rotate-6 rounded-[50%] border border-slate-200/80 bg-white/30 shadow-[0_26px_44px_rgba(148,163,184,0.2)] dark:border-white/10 dark:bg-white/5" />
+        {/* 环上点缀 */}
+        <span className="absolute right-[10px] top-[30px] size-2.5 rounded-full bg-teal-400/90" />
+        <span className="absolute left-[6px] top-[132px] size-2 rounded-full bg-[var(--agenthub-accent)]" />
+        <span className="absolute bottom-[22px] left-[64px] size-1.5 rounded-full bg-sky-300" />
+        <span className="absolute right-[40px] top-[10px] size-3 rounded-full bg-[#6E9EFF] opacity-20 blur-sm" />
+        <span className="absolute left-[20px] top-[60px] size-2 rounded-full bg-[#6E9EFF] opacity-15 blur-sm" />
+        <span className="absolute right-[20px] bottom-[40px] size-2.5 rounded-full bg-[#6E9EFF] opacity-10 blur-sm" />
+        <span className="absolute left-[50%] top-[10px] size-[6px] rounded-full bg-[var(--agenthub-accent)] opacity-30" />
+        <span className="absolute right-[60px] top-[50%] size-[8px] rounded-full bg-sky-300 opacity-20" />
+        <span className="absolute left-[30px] bottom-[50px] size-[5px] rounded-full bg-[#6E9EFF] opacity-25" />
+        {/* 机器人头部 */}
+        <div className="absolute left-1/2 top-[42%] w-[260px] -translate-x-1/2 -translate-y-1/2">
+          <div className="absolute -top-[32px] left-1/2 -translate-x-1/2">
+            <div className="h-[28px] w-[5px] rounded-full bg-slate-200 dark:bg-white/20" />
+            <div className="absolute -top-[14px] left-1/2 size-[18px] -translate-x-1/2 rounded-full bg-[var(--agenthub-accent)] ring-4 ring-[var(--agenthub-accent)]/15" />
+          </div>
+          <div className="absolute -left-[13px] top-1/2 h-[64px] w-[26px] -translate-y-1/2 rounded-[12px] bg-gradient-to-b from-[#5B8DEF] to-[#2F5FD0]" />
+          <div className="absolute -right-[13px] top-1/2 h-[64px] w-[26px] -translate-y-1/2 rounded-[12px] bg-gradient-to-b from-[#5B8DEF] to-[#2F5FD0]" />
+          <div className="relative flex h-[220px] w-[260px] items-center justify-center rounded-[60px] border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 shadow-[0_28px_54px_rgba(47,95,208,0.16)]">
+            <div className="flex h-[140px] w-[186px] items-center justify-center gap-7 rounded-[40px] bg-[#151C2C]">
+              <span className="h-[19px] w-[36px] rounded-t-full border-[6px] border-b-0 border-[#6AA6FF]" />
+              <span className="h-[19px] w-[36px] rounded-t-full border-[6px] border-b-0 border-[#6AA6FF]" />
+            </div>
+          </div>
+        </div>
+        {/* Bottom blur ellipse for depth */}
+        <div className="absolute bottom-[30px] left-1/2 h-[40px] w-[200px] -translate-x-1/2 rounded-[50%] bg-[#6E9EFF] opacity-[0.08] blur-xl" />
+      </div>
+      {/* 机器人下方的轻量装饰胶囊（纯背景装饰，平衡右侧留白） */}
+      <div className="absolute inset-x-0 bottom-[10px] flex items-center justify-center gap-2.5">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
+          <Waypoints className="size-3 text-[var(--agenthub-accent)]/70" />
+          Orchestrator
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
+          <Sparkles className="size-3 text-[var(--agenthub-accent)]/70" />
+          Working…
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
+          <span className="text-emerald-500/80">✓</span>
+          Review Enabled
+        </span>
       </div>
     </div>
   )

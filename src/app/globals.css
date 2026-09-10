@@ -543,3 +543,5 @@
 .dark .agenthub-status-success { color: #6ee7b7; }
 .dark .agenthub-status-warning { color: #fcd34d; }
 .dark .agenthub-status-danger { color: #fda4af; }
+
+/* trigger tailwind rescan */
