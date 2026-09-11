@@ -22,6 +22,11 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     const result = readFileInWorkspace(workspace, target)
     return NextResponse.json(result)
   } catch (err) {
+    const code = (err as NodeJS.ErrnoException | null)?.code
+    if (code === 'ENOENT') {
+      // 不透传 ENOENT 原文，避免把 workspace 绝对路径泄漏给客户端
+      return NextResponse.json({ error: `File not found: ${target}` }, { status: 404 })
+    }
     const msg = err instanceof Error ? err.message : String(err)
     const status = msg.includes('outside') ? 403 : msg.includes('too large') ? 413 : msg.includes('Not a file') ? 400 : 500
     return NextResponse.json({ error: msg }, { status })

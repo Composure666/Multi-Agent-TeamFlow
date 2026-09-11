@@ -62,3 +62,8 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+
+# Local tooling caches / workspaces (developer-specific, not source)
+/.codebuddy/
+/.workbuddy/
+/.pnpm-store/

@@ -26,6 +26,7 @@ const EMPTY: AppSettingsRow = {
   openaiApiKey: null,
   deepseekApiKey: null,
   arkApiKey: null,
+  defaultLlmProvider: 'auto',
   companionMode: 'off',
   mobileDeviceToken: null,
   deploymentPublishEnabled: false,
@@ -54,6 +55,7 @@ export interface AppSettingsPatch {
   openaiApiKey?: string | null
   deepseekApiKey?: string | null
   arkApiKey?: string | null
+  defaultLlmProvider?: string | null
   companionMode?: CompanionMode
   mobileDeviceToken?: string | null
   deploymentPublishEnabled?: boolean
@@ -96,6 +98,7 @@ export async function updateAppSettings(patch: AppSettingsPatch): Promise<AppSet
         openaiApiKey: next.openaiApiKey,
         deepseekApiKey: next.deepseekApiKey,
         arkApiKey: next.arkApiKey,
+        defaultLlmProvider: next.defaultLlmProvider,
         companionMode: next.companionMode,
         mobileDeviceToken: next.mobileDeviceToken,
         deploymentPublishEnabled: next.deploymentPublishEnabled,
@@ -171,4 +174,42 @@ export async function getEffectiveApiKey(
 export async function getEffectiveAnthropicBaseUrl(): Promise<string | null> {
   const settings = await getAppSettings()
   return settings.anthropicBaseUrl ?? process.env.ANTHROPIC_BASE_URL ?? null
+}
+
+/** 用户可选的默认 LLM Provider。 */
+export type DefaultLlmProvider = 'auto' | 'deepseek' | 'openai' | 'anthropic' | 'ark'
+
+const VALID_DEFAULT_LLM_PROVIDERS: ReadonlySet<string> = new Set(['auto', 'deepseek', 'openai', 'anthropic', 'ark'])
+
+function normalizeDefaultLlmProvider(value: unknown): DefaultLlmProvider {
+  if (typeof value === 'string' && VALID_DEFAULT_LLM_PROVIDERS.has(value)) return value as DefaultLlmProvider
+  return 'auto'
+}
+
+/**
+ * 解析用户设置的默认 LLM Provider。
+ * - 用户选了具体 provider 且配了 key → 返回该 provider
+ * - 选了具体 provider 但没配 key → 回退到 auto（按已配置 key 选第一个可用的）
+ * - 'auto' → 按 DeepSeek → OpenAI → Anthropic → Ark 顺序选第一个已配置 key 的
+ * - 都没配 → 返回 null（调用方应走本地模板兜底，不调 LLM）
+ */
+export async function getEffectiveLlmProvider(): Promise<DefaultLlmProvider | null> {
+  const settings = await getAppSettings()
+  const chosen = normalizeDefaultLlmProvider(settings.defaultLlmProvider)
+
+  if (chosen !== 'auto') {
+    const hasKey =
+      chosen === 'deepseek' ? settings.deepseekApiKey
+      : chosen === 'openai' ? settings.openaiApiKey
+      : chosen === 'anthropic' ? settings.anthropicApiKey
+      : settings.arkApiKey
+    if (hasKey) return chosen
+    // 选了但没配 key → 回退 auto
+  }
+
+  if (settings.deepseekApiKey) return 'deepseek'
+  if (settings.openaiApiKey) return 'openai'
+  if (settings.anthropicApiKey) return 'anthropic'
+  if (settings.arkApiKey) return 'ark'
+  return null
 }

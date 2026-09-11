@@ -234,7 +234,7 @@ store.previewArtifactId → ArtifactPreviewPanel
 
 `ProjectView`：根据 `artifact.conversationId + content.files[].path` 调 workspace read API 懒加载文件内容，左侧按 `files` 清单构建只读文件树，右侧显示当前文件源码。`project` 正文不入 DB，版本快照只保存文件清单与来源字段（`taskId` / `agentId`）。顶部下载调用 `GET /api/artifacts/:id/export`，服务端在导出时从 workspace 读取仍存在且位于 effective cwd 内的文件并生成 ZIP。
 
-AgentRunner 在普通 run 完成或 dispatch 子任务完成后读取 `dispatch-run-evidence.fileWrites`，用 `absolutePath` 相对化到 workspace effective cwd，去重生成 `files` 清单；清单为空不创建 `project`。该产物不注入 message part，通过 `artifact.create` SSE 进入 store，产物库需要合并 store 中实时 artifact 才能即时显示。
+AgentRunner 在普通 run 完成或 dispatch 子任务完成后读取 `dispatch-run-evidence.fileWrites`，用 `absolutePath` 相对化到 workspace effective cwd，去重生成 `files` 清单；创建时只保留当前仍存在于 workspace 的路径（后续尝试可能已用 bash 移动/删除文件），过滤后为空且任务声明了 targetPaths 时改为扫描 targetPaths 下现存文件，仍为空则不创建 `project`。该产物不注入 message part，通过 `artifact.create` SSE 进入 store，产物库需要合并 store 中实时 artifact 才能即时显示。
 
 ### version compare
 

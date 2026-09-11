@@ -1,7 +1,7 @@
 'use client'
 
 import { ExternalLink, Loader2, Search, ShieldAlert } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { presentToolSearchResult } from '@/components/agent-tool-search-presentation'
 import { Button } from '@/components/ui/button'
@@ -22,10 +22,27 @@ import { useAppStore } from '@/stores/app-store'
 type SearchSourceStatus = ToolSearchResponse['sourceStatus']['github']
 type Feedback = { type: 'success' | 'error'; message: string }
 
-export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
+export function AgentToolSearchDialog({
+  agents,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+}: {
+  agents: AgentRow[]
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
   const upsertAgent = useAppStore((state) => state.upsertAgent)
   const addNotification = useAppStore((state) => state.addNotification)
-  const [open, setOpen] = useState(false)
+  const [innerOpen, setInnerOpen] = useState(false)
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : innerOpen
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (isControlled) onOpenChangeProp?.(next)
+      else setInnerOpen(next)
+    },
+    [isControlled, onOpenChangeProp],
+  )
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ToolSearchType>('all')
   const [results, setResults] = useState<ToolSearchResult[]>([])
@@ -87,12 +104,12 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
       upsertAgent(response.agent)
       const label = result.type === 'skill' ? 'Skill' : 'MCP'
       const importedText = response.configured?.imported ? '首次导入' : '已更新'
-      setFeedback({ type: 'success', message: `已将 ${result.name} 配置给 ${target.name}，${importedText}。` })
-      setConfiguredKeys((current) => new Set(current).add(`${target.id}:${result.id}`))
+      setFeedback({ type: 'success', message: '已将 ' + result.name + ' 配置给 ' + target.name + '（' + importedText + '）' })
+      setConfiguredKeys((current) => new Set(current).add(target.id + ':' + result.id))
       addNotification({
-        id: `ntf_import_${result.id}`,
-        title: `${label} 导入配置成功`,
-        body: `已将 ${result.name} 配置给 ${target.name}，${importedText}。`,
+        id: 'ntf_import_' + result.id,
+        title: label + ' 配置成功',
+        body: '已将 ' + result.name + ' 配置给 ' + target.name + '（' + importedText + '）',
         level: 'success',
         source: 'ui',
         category: 'configuration',
@@ -101,7 +118,7 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      setFeedback({ type: 'error', message: `导入失败：${message}` })
+      setFeedback({ type: 'error', message: '导入失败：' + message })
     } finally {
       setImportingId(null)
     }
@@ -109,15 +126,17 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
 
   return (
     <>
-      <Button type="button" className="w-full justify-start gap-2" variant="outline" onClick={() => setOpen(true)}>
-        <Search className="size-4" />
-        联网搜索 Skills / MCP 并配置
-      </Button>
+      {!isControlled && (
+        <Button type="button" className="w-full justify-start gap-2" variant="outline" onClick={() => setOpen(true)}>
+          <Search className="size-4" />
+          联网搜索 Skills / MCP 并配置
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>联网搜索 Skills / MCP</DialogTitle>
-            <DialogDescription>从 GitHub 查找远程能力，核对兼容性和风险后导入并绑定给指定 Agent。</DialogDescription>
+            <DialogDescription>从 GitHub 远程项目中评估兼容性和风险并绑定到指定 Agent。</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-2.5">
@@ -128,13 +147,13 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') void runSearch()
                 }}
-                placeholder="搜索 github、browser、database 等能力"
+                placeholder="搜索 github、browser、database 等关键词"
               />
               <select
                 value={type}
                 onChange={(event) => setType(event.target.value as ToolSearchType)}
                 className="h-9 rounded-md border bg-background px-2 text-xs"
-                aria-label="能力类型"
+                aria-label="搜索类型"
               >
                 <option value="all">全部类型</option>
                 <option value="skill">Skill</option>
@@ -150,21 +169,21 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
               value={targetAgentId}
               onChange={(event) => setTargetAgentId(event.target.value)}
               className="h-9 rounded-md border bg-background px-2 text-xs"
-              aria-label="配置目标 Agent"
+              aria-label="选择目标 Agent"
               disabled={agents.length === 0 || operationBusy}
             >
               {agents.length === 0 ? (
                 <option value="">暂无可配置 Agent</option>
               ) : (
                 agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>配置给：{agent.name} · {agent.adapterName}</option>
+                  <option key={agent.id} value={agent.id}>配置到 {agent.name} · {agent.adapterName}</option>
                 ))
               )}
             </select>
 
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
-              MCP 导入后会作为本机 stdio 进程运行。绑定前请检查 Manifest 中的 command、args 和环境变量要求。
+              MCP 服务默认以本地 stdio 进程运行，请根据 Manifest 中的 command、args 和环境变量调整。
             </div>
 
             {feedback && (
@@ -186,31 +205,31 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
             <div className="grid gap-2.5 pb-1">
               {hasSearched && !searching && !searchError && (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                  <span>{results.length} 个结果{total != null ? ` · 共 ${total} 项` : ''}</span>
+                  <span>{results.length} 条结果{total != null ? ' · 共 ' + total + ' 条' : ''}</span>
                   {sourceStatus && <StatusBadge tone={sourceStatus === 'ok' ? 'success' : 'warning'}>GitHub {sourceStatus}</StatusBadge>}
                 </div>
               )}
 
               {searchError && <InlineError message={searchError} onRetry={() => void runSearch()} />}
-              {!hasSearched && <SearchState title="搜索远程能力" description="输入关键词后查看兼容性、内容完整性和执行风险。" />}
-              {searching && <SearchState loading title="正在搜索 GitHub" description="正在读取远程能力目录…" />}
+              {!hasSearched && <SearchState title="远程搜索结果" description="输入关键词后查看兼容性、完整性与执行风险。" />}
+              {searching && <SearchState loading title="正在搜索 GitHub" description="正在读取远程项目目录…" />}
               {hasSearched && !searching && !searchError && results.length === 0 && (
-                <SearchState title="没有找到结果" description="尝试更换关键词，或切换 Skill / MCP 类型。" />
+                <SearchState title="未找到结果" description="试试修改关键词，或切换 Skill / MCP 类型。" />
               )}
 
               {results.map((result, index) => {
                 const presentation = presentToolSearchResult(result, target)
                 const isImporting = importingId === result.id
-                const isConfigured = presentation.bound || Boolean(target && configuredKeys.has(`${target.id}:${result.id}`))
+                const isConfigured = presentation.bound || Boolean(target && configuredKeys.has(target.id + ':' + result.id))
                 return (
                   <article
-                    key={`${result.kind}:${result.id}`}
+                    key={result.kind + ':' + result.id}
                     className={cn(
                       'agenthub-motion-item min-w-0 rounded-lg border bg-background p-3',
                       isConfigured && 'border-emerald-300 bg-emerald-50/40 dark:border-emerald-500/30 dark:bg-emerald-500/5',
                       isImporting && 'opacity-70',
                     )}
-                    style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}
+                    style={{ animationDelay: Math.min(index, 6) * 35 + 'ms' }}
                   >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
@@ -232,19 +251,19 @@ export function AgentToolSearchDialog({ agents }: { agents: AgentRow[] }) {
                         onClick={() => void attach(result)}
                       >
                         {isImporting && <Loader2 className="size-3.5 motion-safe:animate-spin" />}
-                        {isImporting ? '导入中' : isConfigured ? '已绑定' : '导入并绑定'}
+                        {isImporting ? '导入中…' : isConfigured ? '已绑定' : '导入并绑定'}
                       </Button>
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                       {result.githubUrl && <SourceLink href={result.githubUrl} label="GitHub" />}
-                      {result.installUrl && <SourceLink href={result.installUrl} label="安装内容" />}
+                      {result.installUrl && <SourceLink href={result.installUrl} label="安装脚本" />}
                       {result.manifestUrl && <SourceLink href={result.manifestUrl} label="Manifest" />}
                       {result.tags.map((tag) => <span key={tag}>#{tag}</span>)}
                     </div>
 
                     {!presentation.compatible && (
-                      <p className="mt-2 text-[10px] text-rose-600 dark:text-rose-300">当前目标 Agent 无法运行此能力，请更换兼容的 Adapter。</p>
+                      <p className="mt-2 text-[10px] text-rose-600 dark:text-rose-300">当前目标 Agent 无法加载此工具，请检查与 Adapter 的兼容性。</p>
                     )}
                   </article>
                 )

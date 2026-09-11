@@ -443,6 +443,125 @@ export function projectAgentRunTimeline(detail: AgentRunDebugDetail): AgentRunTi
   return items
 }
 
+export type AgentRunLifecycleKind = 'run_start' | 'run_end' | 'agent_start' | 'agent_end'
+
+export interface AgentRunLifecycleItem {
+  id: string
+  runId: string
+  kind: AgentRunLifecycleKind
+  label: string
+  detail: string
+  time: number
+  status: 'pending' | 'running' | 'done' | 'error'
+}
+
+/**
+ * 高层 Run / Agent 生命周期时间线（Summary 层级）。
+ * 只关心"什么时候开始 / 结束"，不投影消息、工具调用、stdout 等底层明细（那些属于事件流）。
+ */
+export function projectAgentRunLifecycle(detail: AgentRunDebugDetail): AgentRunLifecycleItem[] {
+  const current = detail.agentRun
+  const root = detail.parentRun ?? current
+  const runs = root.id === current.id ? [root, ...detail.childrenRuns] : [root, current]
+  return projectRunsLifecycle(runs)
+}
+
+/**
+ * 由扁平 run 列表投影 Run / Agent 生命周期（会话级时间线也用同一实现）。
+ * 顶层 run 生成 "Run 开始/完成" 与自身 Agent 开始/完成；子 run 只生成 Agent 开始/完成。
+ */
+export function projectRunsLifecycle(runs: readonly AgentRunDebugListItem[]): AgentRunLifecycleItem[] {
+  const byId = new Map(runs.map((run) => [run.id, run]))
+  const topLevel = runs.filter((run) => run.parentRunId === null || !byId.has(run.parentRunId))
+  const childrenByParent = new Map<string, AgentRunDebugListItem[]>()
+  for (const run of runs) {
+    if (run.parentRunId === null || !byId.has(run.parentRunId)) continue
+    const list = childrenByParent.get(run.parentRunId) ?? []
+    list.push(run)
+    childrenByParent.set(run.parentRunId, list)
+  }
+
+  const items: AgentRunLifecycleItem[] = []
+  const pushRun = (run: AgentRunDebugListItem, isRoot: boolean) => {
+    const name = run.agentName ?? run.agentId
+    const roleDetail = isRoot ? '主 Agent' : '子 Agent'
+    if (isRoot) {
+      items.push({
+        id: `${run.id}:run_start`,
+        runId: run.id,
+        kind: 'run_start',
+        label: 'Run 开始',
+        detail: `顶层 Run · ${shortTraceId(run.id)}`,
+        time: run.startedAt,
+        status: lifecycleStatus(run.status),
+      })
+    }
+    items.push({
+      id: `${run.id}:agent_start`,
+      runId: run.id,
+      kind: 'agent_start',
+      label: `${name} 开始`,
+      detail: roleDetail,
+      time: run.startedAt,
+      status: lifecycleStatus(run.status),
+    })
+    if (run.finishedAt !== null) {
+      const ended = run.status === 'failed' || run.status === 'aborted' ? 'error' : 'done'
+      items.push({
+        id: `${run.id}:agent_end`,
+        runId: run.id,
+        kind: 'agent_end',
+        label: `${name} 完成`,
+        detail: `${roleDetail} · ${lifecycleStatusLabel(run.status)}`,
+        time: run.finishedAt,
+        status: ended,
+      })
+      if (isRoot) {
+        items.push({
+          id: `${run.id}:run_end`,
+          runId: run.id,
+          kind: 'run_end',
+          label: 'Run 完成',
+          detail: `顶层 Run · ${shortTraceId(run.id)}`,
+          time: run.finishedAt,
+          status: ended,
+        })
+      }
+    }
+  }
+
+  for (const root of [...topLevel].sort((a, b) => a.startedAt - b.startedAt)) {
+    pushRun(root, true)
+    const children = childrenByParent.get(root.id) ?? []
+    for (const child of [...children].sort((a, b) => a.startedAt - b.startedAt)) {
+      pushRun(child, false)
+    }
+  }
+
+  return items.sort((a, b) => {
+    if (a.time !== b.time) return a.time - b.time
+    // 同一时刻：开始事件排在完成事件之前；组内保持插入顺序（run_start 先于 agent_start，agent_end 先于 run_end）
+    const aEnd = a.kind.endsWith('_end') ? 1 : 0
+    const bEnd = b.kind.endsWith('_end') ? 1 : 0
+    return aEnd - bEnd
+  })
+}
+
+function lifecycleStatus(status: AgentRunDebugListItem['status']): AgentRunLifecycleItem['status'] {
+  if (status === 'complete') return 'done'
+  if (status === 'running') return 'running'
+  if (status === 'failed' || status === 'aborted') return 'error'
+  return 'pending'
+}
+
+function lifecycleStatusLabel(status: AgentRunDebugListItem['status']): string {
+  if (status === 'complete') return '完成'
+  if (status === 'running') return '运行中'
+  if (status === 'failed') return '失败'
+  if (status === 'aborted') return '已取消'
+  return '等待'
+}
+
 export function projectAgentRunPlanTasks(items: readonly AgentRunToolTraceItem[]): DispatchPlanItem[] {
   for (const item of items) {
     const args = unwrapAgentHubMcpArguments(item.args)

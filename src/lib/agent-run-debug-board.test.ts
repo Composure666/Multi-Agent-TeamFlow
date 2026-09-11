@@ -164,16 +164,18 @@ describe('agent run debug board projection', () => {
     ])
   })
 
-  it('keeps a failed run visually actionable', () => {
+  it('marks the deepest reached progression stage as failed on a failed run', () => {
     const detail = buildDetail({
       agentRun: buildRun({ status: 'failed', error: 'build failed' }),
     })
 
+    // plan/execute 已有数据但未抵达最深阶段 → complete
+    // output 已抵达最深 → 当前阶段 failed
     expect(getAgentRunBoardStageStatus(detail.agentRun.status, true)).toBe('failed')
-    expect(projectAgentRunBoardStages(detail).find((stage) => stage.id === 'execute')).toMatchObject({
-      status: 'failed',
-      tone: 'danger',
-    })
+    const stages = projectAgentRunBoardStages(detail)
+    expect(stages.find((stage) => stage.id === 'plan')).toMatchObject({ status: 'complete', tone: 'success' })
+    expect(stages.find((stage) => stage.id === 'execute')).toMatchObject({ status: 'complete', tone: 'success' })
+    expect(stages.find((stage) => stage.id === 'output')).toMatchObject({ status: 'failed', tone: 'danger' })
   })
 
   it('marks context as unavailable for legacy runs without a snapshot', () => {
@@ -581,9 +583,9 @@ describe('agent run debug board projection', () => {
     expect(runNode?.position.y).toBe(0)
     expect(orchestratorNode?.position.x).toBe(360)
     expect(orchestratorNode?.position.y).toBe(170)
-    expect(workerNodes.map((node) => node.position.x)).toEqual([208, 513])
-    expect(workerNodes.map((node) => node.position.y)).toEqual([430, 430])
-    expect(summaryNode?.position).toEqual({ x: 360, y: 710 })
+    expect(workerNodes.map((node) => node.position.x)).toEqual([220, 500])
+    expect(workerNodes.map((node) => node.position.y)).toEqual([360, 360])
+    expect(summaryNode?.position).toEqual({ x: 360, y: 780 })
   })
 
   it('uses a clean task title for the run summary instead of leading agent mentions', () => {
@@ -634,7 +636,7 @@ describe('agent run debug board projection', () => {
       ],
     }))
 
-    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 360, y: 430 })
+    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 360, y: 360 })
   })
 
   it('dims non-matching graph nodes for agent, tool, and error filters without removing context', () => {
@@ -678,7 +680,7 @@ describe('agent run debug board projection', () => {
     const steps = ['one', 'two', 'three', 'four'].map((title, index) => ({
       id: `step_${index}`,
       title,
-      status: 'waiting' as const,
+      status: 'pending' as const,
       dependsOn: [],
       toolNames: [],
     }))
@@ -859,7 +861,7 @@ describe('agent run debug board projection', () => {
       'agent-agent_1',
       'summary-output',
     ])
-    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 360, y: 430 })
+    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 360, y: 360 })
     expect(graph.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'agent-agent_1', target: 'summary-output' }),
     ]))

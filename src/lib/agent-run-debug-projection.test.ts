@@ -8,7 +8,9 @@ import {
   projectAgentRunAskUserInteractions,
   projectAgentRunOperations,
   projectAgentRunPlanDag,
+  projectAgentRunLifecycle,
   projectAgentRunPlanTasks,
+  projectRunsLifecycle,
   projectAgentRunRelations,
   projectAgentRunTaskResults,
   projectAgentRunTimeline,
@@ -505,3 +507,109 @@ describe('agent run debug projection', () => {
     expect(summarizeUnknown('x'.repeat(300))).toHaveLength(240)
   })
 })
+
+describe('agent run lifecycle projection', () => {
+  function run(overrides: Partial<AgentRunDebugListItem> = {}): AgentRunDebugListItem {
+    return {
+      id: 'run_1',
+      conversationId: 'conv_1',
+      agentId: 'agent_1',
+      agentName: 'Agent',
+      adapterName: 'codex',
+      modelId: 'gpt-5-codex',
+      triggerMessageId: null,
+      parentRunId: null,
+      status: 'complete',
+      error: null,
+      usage: null,
+      startedAt: 1,
+      finishedAt: 2,
+      hasDebugSnapshot: false,
+      ...overrides,
+    }
+  }
+
+  it('projects orchestrator + worker lifecycle in time order', () => {
+    const orchestrator = run({ id: 'run_root', agentId: 'agent_root', agentName: 'Orchestrator', startedAt: 100, finishedAt: 1000 })
+    const research = run({ id: 'run_research', agentId: 'agent_research', agentName: 'Research Agent', parentRunId: 'run_root', startedAt: 200, finishedAt: 500 })
+    const coder = run({ id: 'run_coder', agentId: 'agent_coder', agentName: 'Coder Agent', parentRunId: 'run_root', startedAt: 600, finishedAt: 900 })
+
+    const items = projectRunsLifecycle([orchestrator, research, coder])
+
+    expect(items.map((item) => item.label)).toEqual([
+      'Run 开始',
+      'Orchestrator 开始',
+      'Research Agent 开始',
+      'Research Agent 完成',
+      'Coder Agent 开始',
+      'Coder Agent 完成',
+      'Orchestrator 完成',
+      'Run 完成',
+    ])
+    expect(items.map((item) => item.kind)).toEqual([
+      'run_start',
+      'agent_start',
+      'agent_start',
+      'agent_end',
+      'agent_start',
+      'agent_end',
+      'agent_end',
+      'run_end',
+    ])
+    const times = items.map((item) => item.time)
+    expect([...times].sort((a, b) => a - b)).toEqual(times)
+    expect(items.filter((item) => item.kind.endsWith('_end')).every((item) => item.status === 'done')).toBe(true)
+  })
+
+  it('marks failed worker end as error', () => {
+    const orchestrator = run({ id: 'run_root', agentName: 'Orchestrator', startedAt: 100, finishedAt: 1000 })
+    const failed = run({ id: 'run_fail', agentName: 'Coder Agent', parentRunId: 'run_root', status: 'failed', startedAt: 200, finishedAt: 400 })
+
+    const items = projectRunsLifecycle([orchestrator, failed])
+
+    const end = items.find((item) => item.id === 'run_fail:agent_end')
+    expect(end?.status).toBe('error')
+    expect(end?.label).toBe('Coder Agent 完成')
+  })
+
+  it('omits end rows while a run is still running', () => {
+    const orchestrator = run({ id: 'run_root', agentName: 'Orchestrator', status: 'running', startedAt: 100, finishedAt: null })
+    const worker = run({ id: 'run_worker', agentName: 'Worker Agent', parentRunId: 'run_root', status: 'running', startedAt: 200, finishedAt: null })
+
+    const items = projectRunsLifecycle([orchestrator, worker])
+
+    expect(items.map((item) => item.label)).toEqual(['Run 开始', 'Orchestrator 开始', 'Worker Agent 开始'])
+    expect(items.every((item) => item.status === 'running')).toBe(true)
+  })
+
+  it('detail with parentRun projects the selected worker tree', () => {
+    const root = run({ id: 'run_root', agentName: 'Orchestrator', startedAt: 100, finishedAt: 1000 })
+    const worker = run({ id: 'run_worker', agentName: 'Worker Agent', parentRunId: 'run_root', startedAt: 200, finishedAt: 500 })
+    const detail: AgentRunDebugDetail = {
+      agentRun: worker,
+      snapshot: null,
+      triggerMessage: null,
+      outputMessages: [],
+      childrenRuns: [],
+      parentRun: root,
+    }
+
+    const items = projectAgentRunLifecycle(detail)
+
+    expect(items.map((item) => item.label)).toEqual([
+      'Run 开始',
+      'Orchestrator 开始',
+      'Worker Agent 开始',
+      'Worker Agent 完成',
+      'Orchestrator 完成',
+      'Run 完成',
+    ])
+  })
+
+  it('treats orphan children as top-level in flat list', () => {
+    const orphan = run({ id: 'run_orphan', agentName: 'Ghost', parentRunId: 'run_missing', startedAt: 100, finishedAt: 200 })
+    const items = projectRunsLifecycle([orphan])
+    expect(items.map((item) => item.kind)).toEqual(['run_start', 'agent_start', 'agent_end', 'run_end'])
+  })
+})
+

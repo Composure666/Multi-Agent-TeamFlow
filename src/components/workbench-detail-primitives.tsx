@@ -1,6 +1,8 @@
 import { CheckCircle2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { cn } from '@/lib/utils'
+
 export function DetailSection({
   icon,
   title,
@@ -50,8 +52,33 @@ export function HistoryRow({ icon, title, description, time }: { icon: ReactNode
   )
 }
 
-export function Meta({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-neutral-950/40"><div className="text-[10px] text-slate-400 dark:text-slate-500">{label}</div><div className="mt-1 truncate text-xs text-slate-700 dark:text-slate-200">{value}</div></div>
+export function Meta({
+  label,
+  value,
+  sublabel,
+  highlight,
+}: {
+  label: string
+  value: string
+  sublabel?: ReactNode
+  highlight?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-2.5',
+        highlight
+          ? 'border-sky-300 bg-sky-50/70 dark:border-sky-500/40 dark:bg-sky-500/10'
+          : 'border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40',
+      )}
+    >
+      <div className="text-[10px] text-slate-400 dark:text-slate-500">{label}</div>
+      <div className="mt-1 truncate text-xs text-slate-700 dark:text-slate-200">{value}</div>
+      {sublabel !== undefined && sublabel !== null && (
+        <div className="mt-0.5 truncate text-[10.5px] text-slate-500 dark:text-slate-400">{sublabel}</div>
+      )}
+    </div>
+  )
 }
 
 export function LibraryStat({ label, value }: { label: string; value: string }) {

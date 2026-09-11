@@ -808,7 +808,11 @@ export const useAppStore = create<AppState>()(
     setTerminalSessionsForRun: (runId, sessions) =>
       set((s) => {
         if (sessions.length === 0) {
-          delete s.terminalSessionsByRun[runId]
+          // 不再无条件 delete —— SSE 写入的 sessions 可能比 fetchTerminalSessionsForRun 更快。
+          // 如果 fetch 返回空但 SSE 已经写入了 sessions/events，保留 SSE 状态以避免终端 transcript 丢失。
+          if (!s.terminalSessionsByRun[runId] || s.terminalSessionsByRun[runId]!.length === 0) {
+            delete s.terminalSessionsByRun[runId]
+          }
           return
         }
         s.terminalSessionsByRun[runId] = dedupeAndSortTerminalSessions(sessions)

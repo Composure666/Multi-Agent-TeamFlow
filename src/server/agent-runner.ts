@@ -69,7 +69,7 @@ import {
 import { eventBus } from './event-bus'
 import { newArtifactId, newMessageId, newRunId } from './ids'
 import { pendingDispatchPlans, type PlanReviewOutcome } from './pending-dispatch-plans'
-import { buildProjectFiles, buildProjectFilesFromTargetPaths } from './project-artifact'
+import { buildProjectFiles, buildProjectFilesFromTargetPaths, filterExistingProjectFiles } from './project-artifact'
 import { getAppSettings } from './settings-service'
 import { buildWorkspaceMemoryBlock } from './workspace-memory-service'
 import {
@@ -700,7 +700,15 @@ async function runPlanStage(
     prompt = buildPlanCorrectionPrompt(effectivePrompt, validationError, attempt)
   }
 
-  throw new Error(lastValidationError ?? 'Invalid dispatch plan')
+  // 补救 3 轮都失败：LLM 持续产出非法 plan_tasks。继续抛 fatal 会让整段 Agent 对话炸掉，
+  // 这里降级为「无 plan」收尾（caller line 481 已支持 plan=null 的常规路径），保留上层
+  // 聚合 / 兜底能力，并通过 console.warn 暴露根因方便排查。
+  if (lastValidationError) {
+    console.warn(
+      `[agent-runner] Orchestrator plan_stage exhausted ${MAX_PLAN_STAGE_ATTEMPTS} validation attempts; falling back to no-plan result. Last error: ${lastValidationError}`,
+    )
+  }
+  return { plan: null, planRun: aggregateRun }
 }
 
 async function buildExistingArtifactsPlanContext(conversationId: string): Promise<string> {
@@ -1091,7 +1099,10 @@ async function maybeCreateProjectArtifact(args: {
   })
   if (!workspace) return null
   const workspaceRoot = getEffectiveCwd(workspace)
-  let files = buildProjectFiles(args.evidence.fileWrites, workspaceRoot)
+  let files = filterExistingProjectFiles(
+    buildProjectFiles(args.evidence.fileWrites, workspaceRoot),
+    workspaceRoot,
+  )
   if (files.length === 0 && args.task) {
     files = buildProjectFilesFromTargetPaths(args.task.targetPaths ?? [], workspaceRoot)
   }

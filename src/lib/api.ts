@@ -101,6 +101,10 @@ export interface AutomationStats {
   todayRunCount: number
   successRate: number
   pendingCount: number
+  failCount: number
+  previousRunCount: number
+  previousSuccessRate: number
+  previousFailCount: number
 }
 
 export interface AutomationTrendPoint {
@@ -108,11 +112,16 @@ export interface AutomationTrendPoint {
   value: number
 }
 
+export const AUTOMATION_TREND_RANGES = [7, 30] as const
+
+export type AutomationTrendRange = (typeof AUTOMATION_TREND_RANGES)[number]
+
 export interface AutomationDashboard {
   stats: AutomationStats
   automations: AutomationListItem[]
   recentRuns: AutomationRunListItem[]
   trend: AutomationTrendPoint[]
+  trendRange: AutomationTrendRange
 }
 
 async function json<T>(req: Promise<Response>): Promise<T> {
@@ -570,8 +579,9 @@ export async function optimizePrompt(prompt: string): Promise<{ enhancedText: st
   )
 }
 
-export async function fetchAutomationDashboard(): Promise<AutomationDashboard> {
-  const { dashboard } = await json<{ dashboard: AutomationDashboard }>(fetch('/api/automations'))
+export async function fetchAutomationDashboard(trendRange?: AutomationTrendRange): Promise<AutomationDashboard> {
+  const query = trendRange ? `?trendRange=${trendRange}` : ''
+  const { dashboard } = await json<{ dashboard: AutomationDashboard }>(fetch(`/api/automations${query}`))
   return dashboard
 }
 
@@ -1429,6 +1439,7 @@ export interface AppSettingsPatchBody {
   openaiApiKey?: string | null
   deepseekApiKey?: string | null
   arkApiKey?: string | null
+  defaultLlmProvider?: string | null
   companionMode?: 'off' | 'lan' | 'tailnet'
   mobileDeviceToken?: string | null
   deploymentPublishEnabled?: boolean

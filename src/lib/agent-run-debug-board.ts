@@ -21,8 +21,8 @@ import {
 } from './agent-run-debug-projection'
 
 export type AgentRunBoardStageId = 'trigger' | 'context' | 'plan' | 'execute' | 'output'
-export type AgentRunBoardPanelTab = 'output' | 'trace' | 'variables' | 'logs' | 'artifacts' | 'history'
-export type AgentRunDebuggerCanvasView = 'graph' | 'timeline' | 'events'
+export type AgentRunBoardPanelTab = 'terminal' | 'output' | 'trace' | 'variables' | 'logs' | 'artifacts' | 'history'
+export type AgentRunDebuggerCanvasView = 'graph' | 'timeline' | 'events' | 'terminal'
 export type AgentRunBoardStageStatus =
   | 'pending'
   | 'running'
@@ -55,13 +55,11 @@ export interface AgentRunBoardGraph {
 export type AgentRunDebuggerNodeKind = 'message' | 'run' | 'agent' | 'task' | 'tool' | 'summary'
 export type AgentRunDebuggerGraphFocus = 'all' | 'agent' | 'tools' | 'errors'
 export type AgentRunDebuggerStatus =
-  | 'waiting'
+  | 'pending'
   | 'running'
   | 'completed'
   | 'failed'
-  | 'blocked'
-  | 'aborted'
-  | 'unavailable'
+  | 'cancelled'
 
 export interface AgentRunDebuggerRunNode {
   id: string
@@ -227,43 +225,34 @@ export function projectAgentRunBoardStages(detail: AgentRunDebugDetail): AgentRu
   const taskResults = projectAgentRunTaskResults(toolTrace)
   const contextCount = detail.snapshot ? countInjectedContext(detail.snapshot) : 0
   const childCount = detail.childrenRuns.length
+  const runStatus = detail.agentRun.status
 
-  return [
-    {
-      id: 'trigger',
-      title: '触发',
-      description: detail.triggerMessage ? '用户消息已进入当前 run' : '当前 run 没有关联触发消息',
-      metric: detail.triggerMessage ? '1 条触发消息' : '触发消息不可用',
-      status: detail.agentRun.status === 'queued' ? 'pending' : 'complete',
-      tone: detail.triggerMessage ? 'info' : 'neutral',
-    },
-    {
-      id: 'context',
-      title: '上下文',
-      description: detail.snapshot ? '运行时上下文快照已加载' : '旧 run 没有运行时上下文快照',
-      metric: detail.snapshot ? `${contextCount} 类上下文` : '快照不可用',
-      status: detail.snapshot ? 'complete' : 'unavailable',
-      tone: detail.snapshot ? 'success' : 'warning',
-    },
+  // 进展阶段数据是否存在（plan / execute / output）
+  const planReached = planTasks.length > 0 || detail.childrenRuns.length > 0
+  const executeReached = toolTrace.length > 0 || detail.childrenRuns.length > 0
+  const outputReached = artifacts.length > 0 || taskResults.length > 0
+  // 失败/中止的 run：把"当前阶段"标记为 failed/aborted。
+  // 当前阶段 = 进展路径上"最深"的有数据阶段（lastReachedIndex）。
+  const progressionHasData = [planReached, executeReached, outputReached]
+  const lastReachedIndex = progressionHasData.lastIndexOf(true)
+  const isCurrentStage = (index: number) =>
+    (runStatus === 'failed' || runStatus === 'aborted') && index === lastReachedIndex
+  const progressionStages: AgentRunBoardStage[] = [
     {
       id: 'plan',
       title: '规划',
       description: planTasks.length > 0 ? '任务已拆分并进入协作链路' : '当前 run 没有可识别的拆分计划',
       metric: planTasks.length > 0 ? `${planTasks.length} 个任务` : '无拆分计划',
-      status: planTasks.length > 0
-        ? getPlanStageStatus(detail.childrenRuns, detail.agentRun.status)
-        : 'unavailable',
-      tone: planTasks.length > 0
-        ? toneForStatus(getPlanStageStatus(detail.childrenRuns, detail.agentRun.status))
-        : 'neutral',
+      status: deriveProgressionStatus(runStatus, planReached, isCurrentStage(0)),
+      tone: deriveStageTone(runStatus, planReached, 'info', isCurrentStage(0)),
     },
     {
       id: 'execute',
       title: '执行',
       description: toolTrace.length > 0 ? '工具调用和子 Agent 正在推进' : '当前 run 尚未产生可识别执行轨迹',
       metric: `${toolTrace.length} 次调用 · ${childCount} 个子 Agent`,
-      status: getExecutionStageStatus(detail.agentRun, toolTrace.length + childCount > 0),
-      tone: toneForStatus(getExecutionStageStatus(detail.agentRun, toolTrace.length + childCount > 0)),
+      status: deriveProgressionStatus(runStatus, executeReached, isCurrentStage(1)),
+      tone: deriveStageTone(runStatus, executeReached, 'info', isCurrentStage(1)),
     },
     {
       id: 'output',
@@ -272,10 +261,82 @@ export function projectAgentRunBoardStages(detail: AgentRunDebugDetail): AgentRu
         ? '产物和任务结果正在汇总'
         : '当前 run 尚未产生可识别产出',
       metric: `${artifacts.length} 个产物`,
-      status: getOutputStageStatus(detail.agentRun, artifacts.length + taskResults.length > 0),
-      tone: toneForStatus(getOutputStageStatus(detail.agentRun, artifacts.length + taskResults.length > 0)),
+      status: deriveProgressionStatus(runStatus, outputReached, isCurrentStage(2)),
+      tone: deriveStageTone(runStatus, outputReached, 'success', isCurrentStage(2)),
     },
   ]
+
+  return [
+    {
+      id: 'trigger',
+      title: '触发',
+      description: detail.triggerMessage ? '用户消息已进入当前 run' : '当前 run 没有关联触发消息',
+      metric: detail.triggerMessage ? '1 条触发消息' : '触发消息不可用',
+      // 触发是前置条件：run 非 queued 即视为 complete；旧 run 无 triggerMessage 时 unavailable
+      status: derivePreconditionStatus(runStatus, Boolean(detail.triggerMessage)),
+      tone: detail.triggerMessage && runStatus !== 'queued' ? 'success' : 'neutral',
+    },
+    {
+      id: 'context',
+      title: '上下文',
+      description: detail.snapshot ? '运行时上下文快照已加载' : '旧 run 没有运行时上下文快照',
+      metric: detail.snapshot ? `${contextCount} 类上下文` : '快照不可用',
+      status: derivePreconditionStatus(runStatus, Boolean(detail.snapshot)),
+      tone: deriveStageTone(runStatus, Boolean(detail.snapshot), detail.snapshot ? 'success' : 'warning'),
+    },
+    ...progressionStages,
+  ]
+}
+
+/**
+ * 前置条件阶段（trigger / context）：run 一旦非 queued 就视为完成。
+ * 旧 run 没有相应数据时显示 unavailable。
+ */
+function derivePreconditionStatus(
+  runStatus: AgentRunDebugListItem['status'],
+  hasData: boolean,
+): AgentRunBoardStageStatus {
+  if (runStatus === 'queued') return 'pending'
+  if (!hasData) return 'unavailable'
+  return 'complete'
+}
+
+/**
+ * 进展阶段（plan / execute / output）状态推导。
+ * @param isCurrentStage 仅在 failed/aborted 时用——表示这是进展路径上"唯一有数据"的最后阶段，标记为 failed/aborted。
+ *   其余有数据的进展阶段保持 complete，无数据的 unavailable。
+ */
+function deriveProgressionStatus(
+  runStatus: AgentRunDebugListItem['status'],
+  hasData: boolean,
+  isCurrentStage: boolean,
+): AgentRunBoardStageStatus {
+  if (runStatus === 'complete') return 'complete'
+  if (runStatus === 'failed') {
+    if (hasData && isCurrentStage) return 'failed'
+    if (hasData) return 'complete'
+    return 'unavailable'
+  }
+  if (runStatus === 'aborted') {
+    if (hasData && isCurrentStage) return 'aborted'
+    if (hasData) return 'complete'
+    return 'unavailable'
+  }
+  if (runStatus === 'queued') return 'pending'
+  // running
+  return hasData ? 'running' : 'pending'
+}
+
+function deriveStageTone(
+  runStatus: AgentRunDebugListItem['status'],
+  hasData: boolean,
+  baseTone: AgentRunBoardTone,
+  isCurrentFailedStage = false,
+): AgentRunBoardTone {
+  if (runStatus === 'failed') return hasData ? (isCurrentFailedStage ? 'danger' : 'success') : 'warning'
+  if (runStatus === 'aborted') return hasData ? (isCurrentFailedStage ? 'warning' : 'success') : 'neutral'
+  if (hasData) return 'success'
+  return baseTone
 }
 
 export function buildAgentRunBoardGraph(stages: readonly AgentRunBoardStage[]): AgentRunBoardGraph {
@@ -330,12 +391,18 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       ...detail.childrenRuns.map((run) => run.agentId),
     ]),
   ]
-  const workerY = 430
-  const summaryY = 690
-  const summaryFallbackY = 430
-  const workerXGap = 305
   const centerX = 360
-  const workerStartX = Math.round(centerX - ((Math.max(1, workerAgentIds.length) - 1) * workerXGap) / 2)
+  // 新自动布局：层级（Run → Orchestrator → Workers 网格 → Tools 网格 → Summary），
+  // workers 超过 5 个自动换行；tools 超过 6 个自动换行；所有横向布局基于列宽自适应。
+  const workerMaxCols = 5
+  const workerColWidth = 280
+  const workerRowHeight = 260
+  const workerGridTopY = 360
+  const toolGridTopGap = 200
+  const toolColWidth = 210
+  const toolRowHeight = 130
+  const toolMaxCols = 6
+  const summaryGap = 220
   const hasOutputEvidence = detail.outputMessages.length > 0
     || projectAgentRunArtifacts(detail).length > 0
     || projectAgentRunTaskResults(toolTrace).length > 0
@@ -396,7 +463,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   if (workerAgentIds.length === 0) {
     if (hasOutputEvidence) {
       const outputStatus = getOutputNodeStatus(detail.agentRun, hasOutputEvidence)
-      nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: summaryFallbackY }))
+      nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: workerGridTopY }))
       edges.push(buildDebuggerEdge(orchestratorNodeId, summaryNodeId, outputStatus))
     }
     return { nodes, edges }
@@ -418,10 +485,17 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
           toolNames: uniqueToolNamesForAgent(toolTrace, agentId),
         }))
     const agentNodeId = `agent-${agentId}`
+    const workerCols = Math.min(workerMaxCols, Math.max(1, workerAgentIds.length))
+    const workerCol = index % workerCols
+    const workerRow = Math.floor(index / workerCols)
+    const workersTotalRowWidth = workerCols * workerColWidth
+    const workerRowStartX = Math.round(centerX - (workersTotalRowWidth - workerColWidth) / 2)
+    const workerX = workerRowStartX + workerCol * workerColWidth
+    const workerY = workerGridTopY + workerRow * workerRowHeight
     nodes.push({
       id: agentNodeId,
       type: 'runDebuggerNode',
-      position: { x: workerStartX + index * workerXGap, y: workerY },
+      position: { x: workerX, y: workerY },
       draggable: false,
       selectable: true,
       data: {
@@ -446,9 +520,16 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
         },
       },
     })
-    agentNodePositions.set(agentId, { x: workerStartX + index * workerXGap, y: workerY })
+    agentNodePositions.set(agentId, { x: workerX, y: workerY })
     edges.push(buildDebuggerEdge(orchestratorNodeId, agentNodeId, agentStatus))
   })
+
+  // 计算 worker 网格的最底端 y，供工具网格起始位置使用。
+  const workerRows = Math.max(1, Math.ceil(workerAgentIds.length / workerMaxCols))
+  const workerGridBottomY = workerAgentIds.length === 0
+    ? workerGridTopY
+    : workerGridTopY + (workerRows - 1) * workerRowHeight
+  const toolGridOriginY = workerGridBottomY + toolGridTopGap
 
   const toolLayout = buildAgentRunToolDebuggerGraph({
     detail,
@@ -459,12 +540,17 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
     currentAgentName,
     agentNodePositions,
     centerX,
+    toolGridOriginY,
+    toolColWidth,
+    toolRowHeight,
+    toolMaxCols,
   })
   nodes.push(...toolLayout.nodes)
   edges.push(...toolLayout.edges)
 
-  const summaryBaseY = workerAgentIds.length === 0 ? summaryFallbackY : summaryY
-  const summaryPositionY = toolLayout.maxY === null ? summaryBaseY : Math.max(summaryBaseY, toolLayout.maxY + 170)
+  const summaryPositionY = toolLayout.maxY === null
+    ? (workerAgentIds.length === 0 ? toolGridOriginY - toolGridTopGap : workerGridBottomY + summaryGap)
+    : Math.max(toolGridOriginY, toolLayout.maxY + summaryGap)
   const outputStatus = getOutputNodeStatus(detail.agentRun, hasOutputEvidence || toolLayout.nodes.length > 0)
   nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: summaryPositionY }))
   edges.push(buildDebuggerEdge(orchestratorNodeId, summaryNodeId, outputStatus))
@@ -487,6 +573,10 @@ function buildAgentRunToolDebuggerGraph(args: {
   currentAgentName: string
   agentNodePositions: Map<string, { x: number; y: number }>
   centerX: number
+  toolGridOriginY: number
+  toolColWidth: number
+  toolRowHeight: number
+  toolMaxCols: number
 }): { nodes: AgentRunDebuggerNode[]; edges: Edge[]; tailNodeIds: string[]; maxY: number | null } {
   if (args.toolTrace.length === 0) {
     return { nodes: [], edges: [], tailNodeIds: [], maxY: null }
@@ -516,32 +606,61 @@ function buildAgentRunToolDebuggerGraph(args: {
     nodesByAgent.set(agentId, ownerList)
   }
 
+  // 将所有 tool 按「每个 agent 的 owner 节点 + 该 agent 下全部 tool」扁平化为一个
+  // 顺序列表，在 worker 行下方用统一网格（maxCols=6）展开，避免单列纵向堆积。
+  // 每个 tool 节点仍连回所属 agent 节点（横向第一条线是 owner → 第一行第一个 tool），
+  // 同 agent 的后续 tool 串接成水平网格（同行右→左移动），不再纵向堆叠。
+  const flattened: Array<{ toolNode: AgentRunDebuggerToolNode; ownerNodeId: string; ownerPosition: { x: number; y: number } }> = []
   for (const [agentId, items] of nodesByAgent) {
-    const ownerPosition = args.agentNodePositions.get(agentId) ?? { x: args.centerX, y: 240 }
-    const startY = ownerPosition.y + 110
-    let previousNodeId = `agent-${agentId}`
-    items.forEach((toolNode, index) => {
-      const nodeId = `tool-${toolNode.callId}`
-      const y = startY + index * 88
-      nodes.push({
-        id: nodeId,
-        type: 'runDebuggerNode',
-        position: { x: ownerPosition.x, y },
-        draggable: false,
-        selectable: true,
-        data: {
-          kind: 'tool',
-          label: toolNode.toolName,
-          status: toolNode.status,
-          tone: toneForDebuggerStatus(toolNode.status),
-          tool: toolNode,
-        },
-      })
-      edges.push(buildDebuggerEdge(previousNodeId, nodeId, toolNode.status))
-      previousNodeId = nodeId
-      maxY = maxY === null ? y : Math.max(maxY, y)
+    const ownerNodeId = `agent-${agentId}`
+    const ownerPosition = args.agentNodePositions.get(agentId) ?? { x: args.centerX, y: args.toolGridOriginY }
+    for (const toolNode of items) {
+      flattened.push({ toolNode, ownerNodeId, ownerPosition })
+    }
+  }
+
+  const toolMaxCols = Math.max(1, args.toolMaxCols)
+  const totalToolCols = Math.min(toolMaxCols, Math.max(1, flattened.length))
+  const toolRowTotalWidth = totalToolCols * args.toolColWidth
+  const toolRowStartX = Math.round(args.centerX - (toolRowTotalWidth - args.toolColWidth) / 2)
+
+  const previousNodeIdByAgent = new Map<string, string>()
+  flattened.forEach((entry, index) => {
+    const toolNode = entry.toolNode
+    const nodeId = `tool-${toolNode.callId}`
+    const col = index % toolMaxCols
+    const row = Math.floor(index / toolMaxCols)
+    const x = toolRowStartX + col * args.toolColWidth
+    const y = args.toolGridOriginY + row * args.toolRowHeight
+    nodes.push({
+      id: nodeId,
+      type: 'runDebuggerNode',
+      position: { x, y },
+      draggable: false,
+      selectable: true,
+      data: {
+        kind: 'tool',
+        label: toolNode.toolName,
+        status: toolNode.status,
+        tone: toneForDebuggerStatus(toolNode.status),
+        tool: toolNode,
+      },
     })
-    tailNodeIds.push(previousNodeId)
+    const prev = previousNodeIdByAgent.get(entry.ownerNodeId) ?? entry.ownerNodeId
+    edges.push(buildDebuggerEdge(prev, nodeId, toolNode.status))
+    previousNodeIdByAgent.set(entry.ownerNodeId, nodeId)
+    maxY = maxY === null ? y : Math.max(maxY, y)
+  })
+
+  // tail 节点：每个 agent 的最后一个 tool 节点
+  // （若该 agent 只有 1 个 tool，则连接回 agent 自身节点也合理，
+  //  此处选 last-tool，使下游 summary 收口更加清晰）。
+  for (const [ownerNodeId, lastToolNodeId] of previousNodeIdByAgent) {
+    if (ownerNodeId === lastToolNodeId) {
+      // agent 没产生 tool 调用 —— 跳过
+      continue
+    }
+    tailNodeIds.push(lastToolNodeId)
   }
 
   return { nodes, edges, tailNodeIds, maxY }
@@ -964,9 +1083,9 @@ function mapToolEventStatus(
   if (status === 'complete') return 'completed'
   if (status === 'running') return 'running'
   if (status === 'failed') return 'failed'
-  if (status === 'aborted') return 'aborted'
-  if (status === 'blocked') return 'blocked'
-  if (status === 'queued') return 'waiting'
+  if (status === 'aborted') return 'cancelled'
+  if (status === 'blocked') return 'pending'
+  if (status === 'queued') return 'pending'
   return item.isError ? 'failed' : item.completed ? 'completed' : 'running'
 }
 
@@ -1045,7 +1164,7 @@ function nodeMatchesGraphFocus(
     if (node.data.kind === 'task' && node.data.task) return node.data.task.toolNames.length > 0
     return false
   }
-  return node.data.status === 'failed' || node.data.status === 'aborted' || node.data.status === 'blocked'
+  return node.data.status === 'failed' || node.data.status === 'cancelled'
 }
 
 export function getAgentRunBoardStageStatus(
@@ -1182,7 +1301,7 @@ function runMetrics(
 
 function agentCurrentTask(agent: AgentRunDebuggerAgentNode): AgentRunInspectorTask | null {
   const currentStepIndex = agent.steps.findIndex((step) => step.status === 'running')
-  const fallbackStepIndex = agent.steps.findIndex((step) => step.status === 'waiting')
+  const fallbackStepIndex = agent.steps.findIndex((step) => step.status === 'pending')
   const stepIndex = currentStepIndex >= 0 ? currentStepIndex : fallbackStepIndex >= 0 ? fallbackStepIndex : 0
   const step = agent.steps[stepIndex] ?? null
   const firstTask = agent.taskTitles[0] ?? step?.title ?? null
@@ -1216,7 +1335,7 @@ function getOutputNodeStatus(
   run: AgentRunDebugListItem,
   hasData: boolean,
 ): AgentRunDebuggerStatus {
-  if (!hasData && run.status !== 'running') return 'unavailable'
+  if (!hasData && run.status !== 'running') return 'pending'
   return mapRunStatus(run.status)
 }
 
@@ -1241,8 +1360,8 @@ function toneForStatus(status: AgentRunBoardStageStatus): AgentRunBoardTone {
 export function toneForDebuggerStatus(status: AgentRunDebuggerStatus): AgentRunBoardTone {
   if (status === 'completed') return 'success'
   if (status === 'running') return 'info'
-  if (status === 'waiting' || status === 'blocked') return 'warning'
-  if (status === 'failed' || status === 'aborted') return 'danger'
+  if (status === 'pending') return 'warning'
+  if (status === 'failed' || status === 'cancelled') return 'danger'
   return 'neutral'
 }
 
@@ -1382,10 +1501,9 @@ function toolTraceStatusLabel(status: AgentRunDebuggerStatus): string {
   if (status === 'completed') return '完成'
   if (status === 'running') return '进行中'
   if (status === 'failed') return '失败'
-  if (status === 'aborted') return '中止'
-  if (status === 'blocked') return '阻塞'
-  if (status === 'waiting') return '等待'
-  return '未知'
+  if (status === 'cancelled') return '已取消'
+  if (status === 'pending') return '等待'
+  return '等待'
 }
 
 function getToolTraceMetaByCallId(events: readonly AgentRunDebugEventRecord[]): Map<string, { status: AgentRunDebugEventRecord['status']; durationMs: number | null }> {
@@ -1506,10 +1624,10 @@ function statusForAgent(
   parentStatus: AgentRunDebugListItem['status'],
 ): AgentRunDebuggerStatus {
   if (run) return mapRunStatus(run.status)
-  if (parentStatus === 'failed') return 'unavailable'
-  if (parentStatus === 'aborted') return 'aborted'
-  if (parentStatus === 'running' || parentStatus === 'queued') return 'waiting'
-  return tasks.length > 0 ? 'unavailable' : 'completed'
+  if (parentStatus === 'failed') return 'failed'
+  if (parentStatus === 'aborted') return 'cancelled'
+  if (parentStatus === 'running' || parentStatus === 'queued') return 'pending'
+  return tasks.length > 0 ? 'pending' : 'completed'
 }
 
 function statusForTask(
@@ -1518,26 +1636,29 @@ function statusForTask(
   parentStatus: AgentRunDebugListItem['status'],
 ): AgentRunDebuggerStatus {
   if (childRuns.some((run) => run.status === 'failed')) return 'failed'
-  if (childRuns.some((run) => run.status === 'aborted')) return 'aborted'
+  if (childRuns.some((run) => run.status === 'aborted')) return 'cancelled'
   if (childRuns.some((run) => run.status === 'running' || run.status === 'queued')) return 'running'
   if (childRuns.some((run) => run.status === 'complete')) return 'completed'
-  if (parentStatus === 'running' || parentStatus === 'queued') return task.dependsOn?.length ? 'waiting' : 'running'
-  if (parentStatus === 'failed') return 'unavailable'
-  if (parentStatus === 'aborted') return 'aborted'
-  return 'unavailable'
+  if (parentStatus === 'running' || parentStatus === 'queued') return task.dependsOn?.length ? 'pending' : 'running'
+  if (parentStatus === 'failed') return 'failed'
+  if (parentStatus === 'aborted') return 'cancelled'
+  return 'pending'
 }
 
 function mapRunStatus(status: AgentRunDebugListItem['status']): AgentRunDebuggerStatus {
   if (status === 'complete') return 'completed'
-  if (status === 'queued') return 'waiting'
-  return status
+  if (status === 'running') return 'running'
+  if (status === 'failed') return 'failed'
+  if (status === 'aborted') return 'cancelled'
+  return 'pending'
 }
 
 function mapMessageStatus(status: MessageRecord['status']): AgentRunDebuggerStatus {
   if (status === 'complete') return 'completed'
   if (status === 'streaming') return 'running'
   if (status === 'error') return 'failed'
-  return 'aborted'
+  if (status === 'aborted') return 'cancelled'
+  return 'pending'
 }
 
 function groupRunsByTriggerMessage(runs: readonly AgentRunDebugListItem[]): Map<string, AgentRunDebugListItem[]> {

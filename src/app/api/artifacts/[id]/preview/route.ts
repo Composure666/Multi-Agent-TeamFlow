@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { db, schema } from '@/db/client'
-import { buildWebAppHtml } from '@/lib/artifact-preview'
+import { buildWebAppHtml, prepareArtifactPreviewHtml } from '@/lib/artifact-preview'
 import type { ArtifactContent } from '@/shared/types'
 
 interface RouteContext {
@@ -24,7 +24,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
     return NextResponse.json({ error: 'Artifact is not a web_app' }, { status: 400 })
   }
 
-  return new NextResponse(buildWebAppHtml(content), {
+  const html = prepareArtifactPreviewHtml(buildWebAppHtml(content), id)
+
+  return new NextResponse(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Content-Security-Policy': [
