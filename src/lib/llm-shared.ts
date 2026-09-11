@@ -1,0 +1,89 @@
+/**
+ * LLM 相关的纯类型 + 常量（不依赖 db / better-sqlite3）。
+ *
+ * Client Component 只能从这里 import，不能从 @/server/*-service import，
+ * 因为 service 文件顶部 import 了 db（better-sqlite3 → fs），会被打包到浏览器。
+ */
+
+export type ProviderType = 'anthropic' | 'openai' | 'deepseek' | 'ark' | 'custom'
+
+/** 内置供应商的默认配置（Base URL + 常用模型）。 */
+export const BUILTIN_PROVIDERS: Record<
+  string,
+  { providerType: ProviderType; displayName: string; baseUrl?: string; models: string[] }
+> = {
+  anthropic: {
+    providerType: 'anthropic',
+    displayName: 'Anthropic',
+    baseUrl: 'https://api.anthropic.com',
+    models: ['claude-opus-4-7', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
+  },
+  openai: {
+    providerType: 'openai',
+    displayName: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    models: ['gpt-5', 'gpt-4o', 'gpt-4o-mini'],
+  },
+  deepseek: {
+    providerType: 'deepseek',
+    displayName: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    models: ['deepseek-v4-flash', 'deepseek-v4'],
+  },
+  ark: {
+    providerType: 'ark',
+    displayName: 'Volcano Ark',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    models: ['doubao-1-5-pro-32k', 'doubao-1-5-lite-32k'],
+  },
+}
+
+export const BUILTIN_PROVIDER_IDS = Object.keys(BUILTIN_PROVIDERS)
+
+export type AssignmentScope = 'global' | 'system' | 'agent'
+
+/** 预定义的系统能力（UI 用）。 */
+export const SYSTEM_CAPABILITIES = [
+  { key: 'prompt_optimize', label: '提示词增强', description: '自动化 / 任务描述的 AI 优化' },
+  { key: 'task_planning', label: '任务规划', description: 'Orchestrator 拆解子任务' },
+  { key: 'context_summary', label: '上下文摘要', description: '长对话 / 长文档摘要' },
+  { key: 'system_chat', label: '系统对话', description: '系统级对话 / 问答' },
+] as const
+
+/** 预定义的 Agent 能力（UI 用）。 */
+export const AGENT_CAPABILITIES = [
+  { key: 'agent:default', label: '默认 Agent', description: '未单独指定的 Agent' },
+  { key: 'agent:code', label: '代码 Agent', description: '编程 / 调试 / 重构' },
+  { key: 'agent:research', label: '研究 Agent', description: '资料检索 / 调研 / 分析' },
+  { key: 'agent:design', label: '设计 Agent', description: 'UI / 视觉 / 原型' },
+  { key: 'agent:writer', label: '写作 Agent', description: '文案 / 报告 / 摘要' },
+] as const
+
+/** 全局策略的 capabilityKey。 */
+export const GLOBAL_KEYS = {
+  defaultProvider: 'global:default_provider',
+  fallbackProvider: 'global:fallback_provider',
+  autoFailover: 'global:auto_failover',
+} as const
+
+export interface ProviderUsage {
+  systemCapabilities: string[]
+  agentCapabilities: string[]
+  globalKeys: string[]
+}
+
+export interface ResolvedModel {
+  providerId: string
+  modelName: string | null
+}
+
+export interface AssignmentUpsertInput {
+  id?: string
+  scope: AssignmentScope
+  capabilityKey: string
+  providerId?: string | null
+  modelName?: string | null
+  priority?: number
+  /** 用途级配置是否使用全局优先级（scope != 'global' 时有效） */
+  useGlobal?: boolean
+}
