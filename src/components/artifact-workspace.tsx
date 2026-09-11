@@ -1,15 +1,44 @@
 'use client'
 
-import { Check, FileCode2, FileText, Grid2X2, History, MoreHorizontal, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
+import {
+  Check,
+  Eye,
+  FileCode2,
+  FileText,
+  FolderGit,
+  GitCompare,
+  Globe,
+  Grid2X2,
+  History,
+  Image as ImageIcon,
+  MoreHorizontal,
+  Network,
+  Presentation,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+  Trash2,
+  Wrench,
+  X,
+} from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { AgentAvatar } from '@/components/agent-avatar'
 import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
 import { ARTIFACT_TABS, filterArtifactGroups, getVisibleArtifactGroups, type ArtifactTabId } from '@/components/artifact-workspace-view'
-import { HorizontalScrollControls } from '@/components/horizontal-scroll-controls'
-import { DetailSection, HistoryRow, LibraryStat, Meta, SavedState } from '@/components/workbench-detail-primitives'
+import { DetailSection, HistoryRow, Meta, SavedState } from '@/components/workbench-detail-primitives'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { deleteArtifact, fetchArtifact, fetchArtifacts, type ArtifactListItem } from '@/lib/api'
 import { groupArtifactVersions } from '@/lib/artifact-groups'
 import { cn } from '@/lib/utils'
@@ -17,6 +46,7 @@ import { useAppStore } from '@/stores/app-store'
 
 const ARTIFACT_GROUP_PAGE_SIZE = 12
 const SCROLL_END_THRESHOLD_PX = 80
+const RECENT_STRIP_COUNT = 5
 
 type ArtifactFeedback = { type: 'success' | 'error'; message: string } | null
 
@@ -27,6 +57,123 @@ export function artifactExportUrl(artifactId: string) {
 export function buildArtifactReference(item: ArtifactListItem) {
   return `请参考产物「${item.title}」v${item.version}（artifactId: ${item.id}）。`
 }
+
+// Per-type visual treatment: cover gradient, watermark icon, chip color, label, content-tag tint.
+const TYPE_THUMB: Record<string, {
+  Icon: typeof FileText
+  cover: string
+  ink: string
+  label: string
+  chip: string
+  tag: string
+  shape: 'lines' | 'browser' | 'slides' | 'image' | 'tree' | 'code' | 'diff' | 'nodes'
+}> = {
+  document: {
+    Icon: FileText,
+    cover: 'bg-gradient-to-br from-sky-200/80 via-sky-50/80 to-white dark:from-sky-500/25 dark:via-sky-500/8 dark:to-neutral-900/40',
+    ink: 'text-sky-600 dark:text-sky-300',
+    label: '文档',
+    chip: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+    tag: 'bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300',
+    shape: 'lines',
+  },
+  web_app: {
+    Icon: Globe,
+    cover: 'bg-gradient-to-br from-emerald-200/80 via-emerald-50/80 to-white dark:from-emerald-500/25 dark:via-emerald-500/8 dark:to-neutral-900/40',
+    ink: 'text-emerald-600 dark:text-emerald-300',
+    label: 'Web',
+    chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+    tag: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',
+    shape: 'browser',
+  },
+  ppt: {
+    Icon: Presentation,
+    cover: 'bg-gradient-to-br from-orange-200/80 via-orange-50/80 to-white dark:from-orange-500/25 dark:via-orange-500/8 dark:to-neutral-900/40',
+    ink: 'text-orange-600 dark:text-orange-300',
+    label: 'PPT',
+    chip: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
+    tag: 'bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300',
+    shape: 'slides',
+  },
+  image: {
+    Icon: ImageIcon,
+    cover: 'bg-gradient-to-br from-rose-200/80 via-rose-50/80 to-white dark:from-rose-500/25 dark:via-rose-500/8 dark:to-neutral-900/40',
+    ink: 'text-rose-600 dark:text-rose-300',
+    label: '图片',
+    chip: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
+    tag: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300',
+    shape: 'image',
+  },
+  project: {
+    Icon: FolderGit,
+    cover: 'bg-gradient-to-br from-teal-200/80 via-teal-50/80 to-white dark:from-teal-500/25 dark:via-teal-500/8 dark:to-neutral-900/40',
+    ink: 'text-teal-600 dark:text-teal-300',
+    label: '项目',
+    chip: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
+    tag: 'bg-teal-50 text-teal-600 dark:bg-teal-500/15 dark:text-teal-300',
+    shape: 'tree',
+  },
+  code_file: {
+    Icon: FileCode2,
+    cover: 'bg-gradient-to-br from-slate-300/80 via-slate-100/80 to-white dark:from-slate-500/30 dark:via-slate-500/10 dark:to-neutral-900/40',
+    ink: 'text-indigo-600 dark:text-indigo-300',
+    label: '代码',
+    chip: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+    tag: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300',
+    shape: 'code',
+  },
+  diff: {
+    Icon: GitCompare,
+    cover: 'bg-gradient-to-br from-amber-200/80 via-amber-50/80 to-white dark:from-amber-500/25 dark:via-amber-500/8 dark:to-neutral-900/40',
+    ink: 'text-amber-600 dark:text-amber-300',
+    label: 'Diff',
+    chip: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+    tag: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300',
+    shape: 'diff',
+  },
+  diagram: {
+    Icon: Network,
+    cover: 'bg-gradient-to-br from-violet-200/80 via-violet-50/80 to-white dark:from-violet-500/25 dark:via-violet-500/8 dark:to-neutral-900/40',
+    ink: 'text-violet-600 dark:text-violet-300',
+    label: '图表',
+    chip: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+    tag: 'bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300',
+    shape: 'nodes',
+  },
+}
+
+function thumbFor(type: string) {
+  return TYPE_THUMB[type] ?? {
+    Icon: FileText,
+    cover: 'bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-500/20 dark:to-neutral-900/40',
+    ink: 'text-slate-500',
+    label: type,
+    chip: 'bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300',
+    tag: 'bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-300',
+    shape: 'lines' as const,
+  }
+}
+
+// Extract 1-2 short "content" tokens from a title to enrich the chip row.
+function extractContentTags(title: string): string[] {
+  const t = title.trim()
+  if (!t) return []
+  const tags: string[] = []
+  const cjk = t.match(/[\u4e00-\u9fa5]{2,5}/g) ?? []
+  for (const m of cjk) {
+    tags.push(m)
+    if (tags.length >= 2) return tags
+  }
+  if (tags.length === 0) {
+    const alpha = t.split(/[\s\-_/]+/).filter((w) => w.length > 0)
+    for (const w of alpha) {
+      tags.push(w.slice(0, 8))
+      if (tags.length >= 2) return tags
+    }
+  }
+  return tags
+}
+
 export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations: () => void }) {
   const artifactWorkspaceScrollRef = useRef<HTMLDivElement>(null)
   const [items, setItems] = useState<ArtifactListItem[]>([])
@@ -46,10 +193,12 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   const [deleteTargetIds, setDeleteTargetIds] = useState<string[] | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(() => new Set())
   const [pendingAction, setPendingAction] = useState<'delete' | null>(null)
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set())
   const upsertArtifact = useAppStore((s) => s.upsertArtifact)
   const openArtifactPreview = useAppStore((s) => s.openArtifactPreview)
   const previewArtifactId = useAppStore((s) => s.previewArtifactId)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
+  const agents = useAppStore((s) => s.agents)
 
   const showFeedback = useCallback((next: ArtifactFeedback) => {
     setFeedback(next)
@@ -62,7 +211,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
     try {
       const list = await fetchArtifacts()
       setItems(list)
-      setSelectedId((current) => current && list.some((item) => item.id === current) ? current : null)
+      setSelectedId((current) => (current && list.some((item) => item.id === current) ? current : null))
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setLoadError(message)
@@ -77,10 +226,25 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   }, [loadArtifacts])
 
   const groups = useMemo(() => groupArtifactVersions(items), [items])
-  const activeTab = ARTIFACT_TABS.find((item) => item.id === tab) ?? ARTIFACT_TABS[0]
   const filteredGroups = useMemo(() => filterArtifactGroups(groups, query, tab), [groups, query, tab])
   const visibleGroups = getVisibleArtifactGroups(filteredGroups, visibleArtifactCount)
   const hasMoreArtifacts = visibleArtifactCount < filteredGroups.length
+
+  // Per-tab counts (unfiltered, for the segmented tabs)
+  const tabCounts = useMemo(() => {
+    const counts: Record<ArtifactTabId, number> = { all: 0, document: 0, web_app: 0, ppt: 0, image: 0, project: 0, code: 0 }
+    for (const g of groups) {
+      counts.all += 1
+      const t = g.latest.type
+      if (t === 'document') counts.document += 1
+      else if (t === 'web_app') counts.web_app += 1
+      else if (t === 'ppt') counts.ppt += 1
+      else if (t === 'image') counts.image += 1
+      else if (t === 'project') counts.project += 1
+      else if (t === 'code_file' || t === 'diff') counts.code += 1
+    }
+    return counts
+  }, [groups])
 
   useEffect(() => {
     setVisibleArtifactCount(ARTIFACT_GROUP_PAGE_SIZE)
@@ -91,20 +255,15 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
 
   useEffect(() => {
     if (previewOpen || !hasMoreArtifacts) return
-
     const scrollContainer = artifactWorkspaceScrollRef.current
     if (!scrollContainer) return
-
     const handleScroll = () => {
       const distanceToBottom = scrollContainer.scrollHeight - scrollContainer.clientHeight - scrollContainer.scrollTop
       if (distanceToBottom > SCROLL_END_THRESHOLD_PX) return
-
       setVisibleArtifactCount((count) => Math.min(count + ARTIFACT_GROUP_PAGE_SIZE, filteredGroups.length))
     }
-
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
-
     return () => scrollContainer.removeEventListener('scroll', handleScroll)
   }, [filteredGroups.length, hasMoreArtifacts, previewOpen])
 
@@ -122,9 +281,18 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
     })
   }
 
+  const toggleFavorite = (id: string) => {
+    setFavorites((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const exportArtifactSource = (artifactId: string) => {
     setExportingId(artifactId)
-    window.location.href = artifactExportUrl(artifactId)
+    window.open(artifactExportUrl(artifactId), '_blank', 'noopener,noreferrer')
     showFeedback({ type: 'success', message: '已开始导出产物。' })
     window.setTimeout(() => setExportingId(null), 800)
   }
@@ -132,7 +300,6 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   const deleteArtifactsByIds = async (ids: string[]) => {
     const targetIds = Array.from(new Set(ids))
     if (targetIds.length === 0 || pendingAction) return
-
     setPendingAction('delete')
     setDeletingIds(new Set(targetIds))
     try {
@@ -140,7 +307,6 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
       const succeededIds = targetIds.filter((_, index) => results[index]?.status === 'fulfilled')
       const failedCount = targetIds.length - succeededIds.length
       const succeededSet = new Set(succeededIds)
-
       setItems((current) => {
         const next = current.filter((item) => !succeededSet.has(item.id))
         setSelectedId((currentSelectedId) => {
@@ -155,7 +321,6 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
         for (const id of succeededIds) next.delete(id)
         return next
       })
-
       if (failedCount > 0) showFeedback({ type: 'error', message: `已删除 ${succeededIds.length} 个，${failedCount} 个删除失败。` })
       else {
         showFeedback({ type: 'success', message: `已删除 ${succeededIds.length} 个产物。` })
@@ -188,7 +353,6 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
       showFeedback({ type: 'error', message: '当前环境不支持剪贴板写入。' })
       return
     }
-
     try {
       await navigator.clipboard.writeText(buildArtifactReference(item))
       setCopiedArtifactId(item.id)
@@ -209,6 +373,8 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
     setDeleteTargetIds(null)
   }
 
+  const recentGroups = groups.slice(0, RECENT_STRIP_COUNT)
+
   return (
     <div
       ref={artifactWorkspaceScrollRef}
@@ -221,29 +387,40 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
     >
       {!previewOpen && (
         <section className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
+          {/* Header row: title + search + actions */}
           <div className="shrink-0 border-b border-slate-100 p-4 dark:border-white/10 xl:p-5">
-            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:truncate dark:text-slate-50">产物库</h1>
-                <p className="mt-1 text-sm leading-5 text-slate-500 sm:truncate dark:text-slate-400">集中管理文档、原型、PPT、图片、项目和历史版本</p>
+                <p className="mt-1 text-sm leading-5 text-slate-500 sm:truncate dark:text-slate-400">
+                  集中管理文档、原型、PPT、图片、项目和历史版本
+                </p>
               </div>
               <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                <div className="relative w-full sm:w-64">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="搜索产物、版本或来源会话"
+                    className="h-8 w-full rounded-lg pl-8 text-sm"
+                  />
+                </div>
                 {selectionMode ? (
                   <>
-                    <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" disabled={selectedIds.size === 0 || pendingAction === 'delete'} onClick={() => setDeleteTargetIds(Array.from(selectedIds))}>
+                    <Button variant="outline" size="sm" disabled={selectedIds.size === 0 || pendingAction === 'delete'} onClick={() => setDeleteTargetIds(Array.from(selectedIds))}>
                       {pendingAction === 'delete' ? '删除中…' : `删除所选(${selectedIds.size})`}
                     </Button>
-                    <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" disabled={pendingAction === 'delete'} onClick={clearSelection}>完成</Button>
+                    <Button variant="outline" size="sm" disabled={pendingAction === 'delete'} onClick={clearSelection}>完成</Button>
                   </>
                 ) : (
-                  <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={() => setSelectionMode(true)}>批量管理</Button>
+                  <Button variant="outline" size="sm" onClick={() => setSelectionMode(true)}>批量管理</Button>
                 )}
-                <Button variant="outline" className="h-8 rounded-lg px-3 text-xs" disabled={!selected || exportingId === selected.id} onClick={() => selected && exportArtifactSource(selected.id)}>{selected && exportingId === selected.id ? '导出中…' : '导出源码'}</Button>
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="icon-sm"
                   onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
-                  className={cn('size-8 rounded-lg text-slate-500 dark:text-slate-400', viewMode === 'grid' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
+                  className={cn(viewMode === 'grid' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
                   title={viewMode === 'grid' ? '切换列表视图' : '切换网格视图'}
                 >
                   <Grid2X2 className="size-4" />
@@ -251,37 +428,51 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
               </div>
             </div>
 
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索产物、版本或来源会话" className="h-9 w-full rounded-lg border-slate-200 bg-slate-50 pl-10 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-ring/20 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-100 dark:placeholder:text-slate-500" />
+            {/* Segmented tab pills with counts */}
+            <div className="mt-4 -mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex min-w-max items-center gap-1.5">
+                {ARTIFACT_TABS.map((item) => {
+                  const active = tab === item.id
+                  const count = tabCounts[item.id]
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setTab(item.id)}
+                      className={cn(
+                        'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
+                        active
+                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
+                      )}
+                    >
+                      {item.label}
+                      <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-white/15 dark:bg-black/15' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400')}>
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
-            <HorizontalScrollControls className="mt-3" contentClassName="gap-2 pb-1" scrollAmount={220}>
-              {ARTIFACT_TABS.map((item) => (
-                <button key={item.id} type="button" onClick={() => setTab(item.id)} className={cn('shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition', tab === item.id ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-400 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100')}>{item.label}</button>
-              ))}
-            </HorizontalScrollControls>
-
             {feedback && (
-              <div className={cn('mt-3 rounded-lg border px-3 py-2 text-xs', feedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300')}>
+              <div className={cn('mt-3 rounded-lg border px-3 py-2 text-xs', feedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300')}>
                 {feedback.message}
               </div>
             )}
-
-            <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <LibraryStat label="产物组" value={String(filteredGroups.length)} />
-              <LibraryStat label="总版本" value={String(items.length)} />
-              <LibraryStat label="当前分类" value={activeTab.label} />
-              <LibraryStat label="视图" value={viewMode === 'grid' ? '网格' : '列表'} />
-            </div>
           </div>
 
-          <div
-            className={cn(
-              'min-h-[320px] p-4 xl:p-5',
-              viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3' : 'space-y-2',
+          <div className="min-h-[320px] space-y-4 p-4 xl:p-5">
+            {/* Recent access strip */}
+            {!loading && !loadError && recentGroups.length >= 3 && (
+              <RecentStrip
+                groups={recentGroups}
+                onSelect={(id) => { setSelectedId(id); setArtifactDetailOpen(true) }}
+                onPreview={(id) => void openPreview(id)}
+              />
             )}
-          >
+
             {loading ? (
               <div className="text-sm text-slate-500 dark:text-slate-400">加载中…</div>
             ) : loadError ? (
@@ -289,29 +480,48 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                 <div>产物加载失败</div>
                 <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => void loadArtifacts()}>重试</Button>
               </div>
-            ) : visibleGroups.map((group) => (
-              <ArtifactCard
-                key={group.rootId}
-                item={group.latest}
-                versions={group.versions.length}
-                selected={artifactDetailOpen && selected?.id === group.latest.id}
-                compact={viewMode === 'list'}
-                selectable={selectionMode}
-                checked={selectedIds.has(group.latest.id)}
-                deleting={deletingIds.has(group.latest.id)}
-                onToggleSelected={() => toggleSelected(group.latest.id)}
-                onSelect={() => {
-                  setSelectedId(group.latest.id)
-                  setArtifactDetailOpen(true)
-                }}
-                onPreview={() => void openPreview(group.latest.id)}
-                onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }}
-              />
-            ))}
-            {!loading && !loadError && filteredGroups.length > 0 && !hasMoreArtifacts && (
-              <div className={cn('py-4 text-center text-xs text-slate-400 dark:text-slate-500', viewMode === 'grid' && 'col-span-full')}>已经到底了</div>
+            ) : (
+              <div
+                className={cn(
+                  viewMode === 'grid'
+                    ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3'
+                    : 'space-y-2',
+                )}
+              >
+                {visibleGroups.map((group) => (
+                  <ArtifactCard
+                    key={group.rootId}
+                    item={group.latest}
+                    versions={group.versions.length}
+                    selected={artifactDetailOpen && selected?.id === group.latest.id}
+                    compact={viewMode === 'list'}
+                    selectable={selectionMode}
+                    checked={selectedIds.has(group.latest.id)}
+                    isFavorite={favorites.has(group.latest.id)}
+                    deleting={deletingIds.has(group.latest.id)}
+                    agentName={resolveAgentName(agents, group.latest.createdByAgentId)}
+                    agentObj={resolveAgentObj(agents, group.latest.createdByAgentId)}
+                    onToggleSelected={() => toggleSelected(group.latest.id)}
+                    onSelect={() => { setSelectedId(group.latest.id); setArtifactDetailOpen(true) }}
+                    onPreview={() => void openPreview(group.latest.id)}
+                    onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }}
+                    onCopyReference={() => void copyArtifactReference(group.latest)}
+                    onExport={() => exportArtifactSource(group.latest.id)}
+                    onDelete={() => setDeleteTargetIds([group.latest.id])}
+                    onToggleFavorite={() => toggleFavorite(group.latest.id)}
+                  />
+                ))}
+              </div>
             )}
-            {!loading && !loadError && filteredGroups.length === 0 && <div className={cn('rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400', viewMode === 'grid' && 'col-span-full')}>{items.length === 0 ? '暂无产物' : '暂无匹配产物'}</div>}
+
+            {!loading && !loadError && filteredGroups.length > 0 && !hasMoreArtifacts && (
+              <div className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">已经到底了</div>
+            )}
+            {!loading && !loadError && filteredGroups.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">
+                {items.length === 0 ? '暂无产物' : '暂无匹配产物'}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -333,7 +543,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
           }}
         />
       )}
-      <ArtifactPreviewPanel fullHeight={previewOnly} />
+      <ArtifactPreviewPanel fullHeight={previewOpen} />
       <Dialog open={Boolean(deleteTargetIds)} onOpenChange={(open) => { if (!open && pendingAction !== 'delete') setDeleteTargetIds(null) }}>
         <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
           <DialogHeader>
@@ -350,6 +560,60 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   )
 }
 
+// ─── Recent access strip ──────────────────────────────────────────────
+function RecentStrip({
+  groups,
+  onSelect,
+  onPreview,
+}: {
+  groups: ReturnType<typeof groupArtifactVersions<ArtifactListItem>>
+  onSelect: (id: string) => void
+  onPreview: (id: string) => void
+}) {
+  return (
+    <div className="rounded-xl bg-slate-50/70 px-3 py-2.5 dark:bg-white/[0.02]">
+      <div className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+        <Sparkles className="size-3.5 text-amber-500" />
+        最近访问
+      </div>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {groups.map((g) => {
+          const t = thumbFor(g.latest.type)
+          return (
+            <div
+              key={g.rootId}
+              className="group/recent relative flex w-44 shrink-0 items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-2 py-1.5 transition-colors hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15"
+            >
+              <div className={cn('flex size-7 shrink-0 items-center justify-center rounded-md', t.chip)}>
+                <t.Icon className={cn('size-3.5', t.ink)} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => onSelect(g.latest.id)}
+                  className="block w-full truncate text-left text-xs font-medium text-slate-800 hover:text-[var(--agenthub-accent)] dark:text-slate-200"
+                >
+                  {g.latest.title}
+                </button>
+                <span className="block truncate text-[10px] text-slate-400 dark:text-slate-500">
+                  {formatRelativeTime(g.latest.createdAt)} · {t.label}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onPreview(g.latest.id)}
+                className="absolute inset-0 z-0 rounded-lg"
+                aria-label="预览"
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Card ──────────────────────────────────────────────────────────────
 function ArtifactCard({
   item,
   versions,
@@ -357,11 +621,18 @@ function ArtifactCard({
   compact,
   selectable,
   checked,
+  isFavorite,
   deleting,
+  agentName,
+  agentObj,
   onToggleSelected,
   onSelect,
   onPreview,
   onOpenConversation,
+  onCopyReference,
+  onExport,
+  onDelete,
+  onToggleFavorite,
 }: {
   item: ArtifactListItem
   versions: number
@@ -369,54 +640,92 @@ function ArtifactCard({
   compact: boolean
   selectable: boolean
   checked: boolean
+  isFavorite: boolean
   deleting: boolean
+  agentName: string
+  agentObj: { id: string; name: string }
   onToggleSelected: () => void
   onSelect: () => void
   onPreview: () => void
   onOpenConversation: () => void
+  onCopyReference: () => void
+  onExport: () => void
+  onDelete: () => void
+  onToggleFavorite: () => void
 }) {
-  const selector = selectable ? (
-    <button
-      type="button"
-      aria-pressed={checked}
-      onClick={(event) => {
-        event.stopPropagation()
-        onToggleSelected()
-      }}
-      className={cn(
-        'absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded-md border text-xs shadow-sm transition',
-        checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-slate-200 bg-white text-transparent hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900',
-      )}
-    >
-      <Check className="size-3.5" />
-    </button>
-  ) : null
+  const t = thumbFor(item.type)
+  const contentTags = useMemo(() => extractContentTags(item.title), [item.title])
+  const subtitle = describeArtifact(item, t.label, versions)
 
   if (compact) {
     return (
       <article
         className={cn(
-          'relative grid grid-cols-[44px_minmax(0,1.5fr)_minmax(150px,0.9fr)_120px_232px] items-center gap-4 rounded-lg border bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
-          selected ? 'border-[var(--agenthub-accent-border)] before:absolute before:left-0 before:top-2 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
-          selectable && 'pl-10',
+          'group relative grid grid-cols-[96px_minmax(0,1fr)_auto] items-stretch gap-3 overflow-hidden rounded-lg border bg-white shadow-[0_4px_20px_rgb(15_23_42/0.06)] transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-slate-300/80 hover:shadow-[0_10px_40px_rgb(15_23_42/0.08)] dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:shadow-[0_10px_40px_rgb(0_0_0/0.5)]',
+          selected ? 'border-[var(--agenthub-accent-border)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200/80 dark:border-white/10',
           deleting && 'pointer-events-none opacity-60',
         )}
       >
-        {selector}
-        <div className="flex size-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300"><FileText className="size-4" /></div>
-        <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{item.title}</h3>
-          <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">v{item.version} · {item.type} · {versions} 个版本</div>
+        <div className={cn('relative h-full min-h-[80px] overflow-hidden', t.cover)}>
+          <div className="absolute inset-0 transition-transform duration-200 group-hover:scale-[1.02]">
+            <CoverShape shape={t.shape} compact />
+          </div>
         </div>
-        <div className="min-w-0 text-xs text-slate-500 dark:text-slate-400">
-          <div className="truncate">{item.conversationTitle ?? '未命名会话'}</div>
-          <div className="mt-1 truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">{item.createdByAgentId ?? 'Agent'}</div>
+        <div className="min-w-0 py-2">
+          <button type="button" onClick={onSelect} className="min-w-0 block max-w-full truncate text-left text-sm font-semibold text-slate-900 hover:text-[var(--agenthub-accent)] dark:text-slate-50">
+            {item.title}
+          </button>
+          <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', t.chip)}>{t.label}</span>
+            {contentTags.map((tag) => (
+              <span key={tag} className={cn('rounded-full px-1.5 py-0.5 text-[10px]', t.tag)}>
+                {tag}
+              </span>
+            ))}
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+            <AgentAvatar agent={agentObj} size="xs" />
+            <span className="truncate">{agentName}</span>
+            <span aria-hidden>·</span>
+            <span className="shrink-0">{formatRelativeTime(item.createdAt)}</span>
+            <span className="ml-auto shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
+          </div>
         </div>
-        <div className="truncate text-xs text-slate-500 dark:text-slate-400">{formatTime(item.createdAt)}</div>
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={onSelect}>详情</Button>
-          <Button size="sm" className="h-8 rounded-lg px-3 text-xs" onClick={onPreview}>预览</Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-lg px-3 text-xs" onClick={onOpenConversation}>打开会话</Button>
+        <div className="flex items-center gap-1 pr-2">
+          {selectable ? (
+            <button
+              type="button"
+              aria-pressed={checked}
+              onClick={onToggleSelected}
+              className={cn(
+                'flex size-7 items-center justify-center rounded-md border text-xs transition',
+                checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-slate-200 bg-white text-transparent hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900',
+              )}
+            >
+              <Check className="size-3.5" />
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className="flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:text-amber-500"
+                title={isFavorite ? '取消收藏' : '收藏'}
+              >
+                <Star className={cn('size-3.5', isFavorite && 'fill-amber-400 text-amber-400')} />
+              </button>
+              <button
+                type="button"
+                onClick={onPreview}
+                className="flex size-7 items-center justify-center rounded-md bg-slate-900 text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                title="预览"
+              >
+                <Eye className="size-3.5" />
+              </button>
+              <ArtifactMoreMenu onOpenConversation={onOpenConversation} onCopyReference={onCopyReference} onExport={onExport} onDelete={onDelete} />
+            </>
+          )}
         </div>
       </article>
     )
@@ -425,37 +734,301 @@ function ArtifactCard({
   return (
     <article
       className={cn(
-        'relative flex min-h-[236px] flex-col rounded-lg border bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
-        selected ? 'border-[var(--agenthub-accent-border)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
-        selectable && 'pt-10',
+        'group relative flex flex-col overflow-hidden rounded-xl border bg-white shadow-[0_4px_20px_rgb(15_23_42/0.06)] transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-slate-300/80 hover:shadow-[0_10px_40px_rgb(15_23_42/0.08)] dark:bg-neutral-900 dark:hover:border-white/20 dark:hover:shadow-[0_10px_40px_rgb(0_0_0/0.5)]',
+        selected ? 'border-[var(--agenthub-accent-border)]' : 'border-slate-200/80 dark:border-white/10',
         deleting && 'pointer-events-none opacity-60',
       )}
     >
-      {selector}
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300"><FileText className="size-4" /></div>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{item.title}</h3>
-          <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">v{item.version} · {item.type} · {versions} 个版本</div>
+      {/* Type-specific cover — a mock "first page" preview */}
+      <div className={cn('relative h-36 w-full overflow-hidden', t.cover)}>
+        <div className="absolute inset-0 transition-transform duration-200 group-hover:scale-[1.02]">
+          <CoverShape shape={t.shape} />
         </div>
-        <MoreHorizontal className="size-4 shrink-0 text-slate-400 dark:text-slate-500" />
+
+        {/* Selection checkbox (top-left when in selection mode) */}
+        {selectable && (
+          <button
+            type="button"
+            aria-pressed={checked}
+            onClick={(e) => { e.stopPropagation(); onToggleSelected() }}
+            className={cn(
+              'absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded-md border text-xs shadow-sm transition',
+              checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-white/80 bg-white/90 text-transparent hover:border-slate-300 dark:border-white/20 dark:bg-neutral-900/80',
+            )}
+          >
+            <Check className="size-3.5" />
+          </button>
+        )}
+
+        {/* Preview pill (bottom-right, hover-revealed) */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onPreview() }}
+          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:bg-white dark:bg-neutral-900/85 dark:text-slate-200 dark:hover:bg-neutral-900"
+        >
+          <Eye className="size-3" />
+          预览
+        </button>
       </div>
 
-      <div className="mt-4 space-y-2 text-xs text-slate-500 dark:text-slate-400">
-        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">来源对话</span><span className="truncate">{item.conversationTitle ?? '未命名会话'}</span></div>
-        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">创建者</span><span className="truncate font-mono text-[11px]">{item.createdByAgentId ?? 'Agent'}</span></div>
-        <div className="flex min-w-0 gap-2"><span className="shrink-0 text-slate-400 dark:text-slate-500">更新时间</span><span className="truncate">{formatTime(item.createdAt)}</span></div>
-      </div>
+      {/* Body — four info layers with breathing room: title / subtitle / tags / footer */}
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
+        <button type="button" onClick={onSelect} className="min-w-0 text-left">
+          <h3 className="line-clamp-1 text-lg font-semibold leading-tight text-slate-950 hover:text-[var(--agenthub-accent)] dark:text-slate-50">
+            {item.title}
+          </h3>
+          <p className="mt-2 line-clamp-1 text-[13px] leading-4 text-slate-500 dark:text-slate-400">
+            {subtitle}
+          </p>
+        </button>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 dark:border-white/10">
-        <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={onSelect}>详情</Button>
-        <Button size="sm" className="h-8 rounded-lg text-xs" onClick={onPreview}>预览</Button>
-        <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={onOpenConversation}>打开会话</Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', t.chip)}>{t.label}</span>
+          {contentTags.map((tag) => (
+            <span key={tag} className={cn('rounded-full px-1.5 py-0.5 text-[10px]', t.tag)}>
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        {/* Footer bar — GitHub/Notion style: avatar · name · time · version · star · more */}
+        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-white/5 dark:text-slate-400">
+          <AgentAvatar agent={agentObj} size="xs" />
+          <span className="truncate">{agentName}</span>
+          <span aria-hidden>·</span>
+          <span className="shrink-0">{formatRelativeTime(item.createdAt)}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-0.5">
+            <span className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
+              className={cn(
+                'flex size-6 items-center justify-center rounded transition',
+                isFavorite ? 'text-amber-500' : 'text-slate-400 opacity-0 group-hover:opacity-100 hover:text-amber-500',
+              )}
+              title={isFavorite ? '取消收藏' : '收藏'}
+            >
+              <Star className={cn('size-3.5', isFavorite && 'fill-amber-400 text-amber-400')} />
+            </button>
+            <ArtifactMoreMenu onOpenConversation={onOpenConversation} onCopyReference={onCopyReference} onExport={onExport} onDelete={onDelete} />
+          </span>
+        </div>
       </div>
     </article>
   )
 }
 
+// ─── Type-specific "first page" mock preview inside the cover ────────
+// Each type renders a white sheet that mimics a real thumbnail of the
+// artifact's first page (document page / browser window / slide / photo /
+// file tree / code with syntax colors / diff / node graph).
+function CoverShape({ shape, compact = false }: { shape: 'lines' | 'browser' | 'slides' | 'image' | 'tree' | 'code' | 'diff' | 'nodes'; compact?: boolean }) {
+  const inset = compact ? 'inset-x-2 top-1.5 bottom-1.5' : 'inset-x-5 top-3.5 bottom-3.5'
+  const line = 'rounded bg-slate-200 dark:bg-white/10'
+  const page = (children: ReactNode, className?: string) => (
+    <div
+      className={cn(
+        `absolute ${inset} overflow-hidden rounded-lg bg-white shadow-[0_1px_4px_rgb(15_23_42/0.10)] dark:bg-neutral-800`,
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
+
+  if (shape === 'browser') {
+    return page(
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 px-2.5 py-1.5 dark:border-white/10">
+          <span className="size-1.5 rounded-full bg-rose-400" />
+          <span className="size-1.5 rounded-full bg-amber-400" />
+          <span className="size-1.5 rounded-full bg-emerald-400" />
+          <div className="ml-1 h-2 flex-1 rounded-sm bg-slate-100 dark:bg-white/10" />
+        </div>
+        <div className="flex-1 px-2.5 pt-2">
+          <div className="h-2.5 w-1/2 rounded bg-emerald-300 dark:bg-emerald-500/40" />
+          <div className="mt-1.5 space-y-1">
+            <div className={`h-1 w-full ${line}`} />
+            <div className={`h-1 w-4/6 ${line}`} />
+          </div>
+          <div className="mt-2 flex gap-1">
+            <div className={`h-3.5 flex-1 ${line}`} />
+            <div className={`h-3.5 flex-1 ${line}`} />
+          </div>
+        </div>
+      </div>,
+      'ring-1 ring-slate-200/70 dark:ring-white/10',
+    )
+  }
+
+  if (shape === 'slides') {
+    return page(
+      <div className="flex h-full flex-col">
+        <div className="shrink-0 bg-gradient-to-r from-orange-400 to-orange-300 px-3 pb-2.5 pt-3 dark:from-orange-500 dark:to-orange-400">
+          <div className="h-1.5 w-1/2 rounded bg-white/85" />
+          <div className="mt-1 h-1 w-1/3 rounded bg-white/50" />
+        </div>
+        <div className="flex flex-1 items-end gap-1.5 px-3 pb-3 pt-2.5">
+          <div className="h-5 w-3.5 rounded-t bg-orange-200 dark:bg-orange-500/30" />
+          <div className="h-9 w-3.5 rounded-t bg-orange-300 dark:bg-orange-500/50" />
+          <div className="h-6 w-3.5 rounded-t bg-orange-200 dark:bg-orange-500/30" />
+          <div className="h-11 w-3.5 rounded-t bg-orange-400 dark:bg-orange-500/70" />
+          <div className="ml-2.5 flex-1 space-y-1 pt-0.5">
+            <div className={`h-1 w-full ${line}`} />
+            <div className={`h-1 w-4/5 ${line}`} />
+            <div className={`h-1 w-3/5 ${line}`} />
+          </div>
+        </div>
+      </div>,
+    )
+  }
+
+  if (shape === 'image') {
+    return (
+      <div className={`absolute ${inset} overflow-hidden rounded-lg bg-gradient-to-br from-rose-300 via-amber-200 to-sky-200 shadow-[0_1px_4px_rgb(15_23_42/0.10)] dark:from-rose-500/40 dark:via-amber-500/25 dark:to-sky-500/20`}>
+        <div className="absolute left-1/2 top-[30%] size-9 -translate-x-1/2 rounded-full bg-white/60 dark:bg-white/25" />
+        <div className="absolute bottom-0 left-0 right-0 h-5 rounded-t-xl bg-white/50 dark:bg-white/15" />
+        {!compact && (
+          <span className="absolute bottom-1.5 left-2 rounded bg-black/45 px-1.5 py-0.5 text-[9px] font-mono text-white">
+            PNG · 2.4MB
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  if (shape === 'tree') {
+    return page(
+      <div className="px-3 pt-2.5 font-mono text-[9px] leading-[18px] text-slate-500 dark:text-slate-400">
+        <div className="font-semibold text-slate-700 dark:text-slate-300">▸ src/</div>
+        <div className="pl-3">▸ components/</div>
+        <div className="pl-3">▸ utils/</div>
+        {!compact && <div>▸ package.json</div>}
+      </div>,
+    )
+  }
+
+  if (shape === 'code') {
+    // Dark editor window — visually unmistakable vs the white document sheet.
+    return page(
+      <div className="h-full bg-neutral-900 px-2.5 pt-2 font-mono text-[9px] leading-[18px] dark:bg-black/70">
+        <div className="flex items-center gap-1 pb-1.5">
+          <span className="size-1 rounded-full bg-rose-400/80" />
+          <span className="size-1 rounded-full bg-amber-400/80" />
+          <span className="size-1 rounded-full bg-emerald-400/80" />
+        </div>
+        <div>
+          <span className="mr-2 text-slate-600">1</span>
+          <span className="text-sky-400">const</span>
+          <span className="text-slate-300"> app = </span>
+          <span className="text-emerald-400">create()</span>
+        </div>
+        <div>
+          <span className="mr-2 text-slate-600">2</span>
+          <span className="text-slate-300">app.</span>
+          <span className="text-sky-400">use</span>
+          <span className="text-slate-300">(plugin)</span>
+        </div>
+        {!compact && (
+          <div>
+            <span className="mr-2 text-slate-600">3</span>
+            <span className="text-violet-400">export default</span>
+            <span className="text-slate-300"> app</span>
+          </div>
+        )}
+      </div>,
+      'bg-neutral-900 dark:bg-black/70',
+    )
+  }
+
+  if (shape === 'diff') {
+    return page(
+      <div className="space-y-0.5 px-2 pt-2.5 font-mono text-[9px] leading-[18px]">
+        <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ export function App()</div>
+        <div className="rounded-r bg-rose-500/10 px-1.5 text-rose-600 dark:text-rose-400">- export default Old</div>
+        <div className="px-1.5 text-slate-400 dark:text-slate-500">  import {`{ x }`} from&apos;y&apos;</div>
+        {!compact && <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ return &lt;App /&gt;</div>}
+      </div>,
+    )
+  }
+
+  if (shape === 'nodes') {
+    return page(
+      <div className="absolute inset-0 flex items-center justify-center">
+        <svg viewBox="0 0 100 44" className="h-[70%] w-[70%] text-violet-400 dark:text-violet-500">
+          <path d="M14 22 L50 8 M14 22 L50 36 M50 8 L86 22 M50 36 L86 22" stroke="currentColor" strokeWidth="1.2" fill="none" opacity="0.5" />
+          <circle cx="14" cy="22" r="5" fill="currentColor" />
+          <circle cx="50" cy="8" r="4" fill="currentColor" opacity="0.7" />
+          <circle cx="50" cy="36" r="4" fill="currentColor" opacity="0.7" />
+          <circle cx="86" cy="22" r="5" fill="currentColor" />
+        </svg>
+      </div>,
+    )
+  }
+
+  // default: document — first page with title bar + text lines + highlight
+  return page(
+    <div className="px-3 pt-3">
+      <div className="h-1.5 w-2/5 rounded bg-slate-700/80 dark:bg-slate-300/80" />
+      <div className="mt-2.5 space-y-1.5">
+        <div className={`h-1 w-full ${line}`} />
+        <div className={`h-1 w-11/12 ${line}`} />
+        <div className={`h-1 w-4/6 ${line}`} />
+        <div className="h-1 w-1/3 rounded bg-sky-200 dark:bg-sky-500/30" />
+        <div className={`h-1 w-full ${line}`} />
+        {!compact && <div className={`h-1 w-2/3 ${line}`} />}
+      </div>
+    </div>,
+  )
+}
+
+// ─── More menu (⋯) ─────────────────────────────────────────────────────
+function ArtifactMoreMenu({
+  onOpenConversation,
+  onCopyReference,
+  onExport,
+  onDelete,
+}: {
+  onOpenConversation: () => void
+  onCopyReference: () => void
+  onExport: () => void
+  onDelete: () => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition group-hover:opacity-100 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+          aria-label="更多操作"
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        <DropdownMenuItem onClick={onOpenConversation}>
+          <Wrench className="size-3.5" />
+          打开会话
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onCopyReference}>
+          <Check className="size-3.5" />
+          复制引用
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onExport}>
+          <SlidersHorizontal className="size-3.5" />
+          导出源码
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+          <Trash2 className="size-3.5" />
+          删除
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// ─── Detail panel (right rail) ────────────────────────────────────────
 function ArtifactDetailPanel({
   item,
   previewOpen,
@@ -481,14 +1054,15 @@ function ArtifactDetailPanel({
   onOpenConversation: (conversationId: string) => void
   onClose: () => void
 }) {
+  const t = item ? thumbFor(item.type) : null
   return (
     <aside className={cn('hidden shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900 xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block', previewOpen ? 'w-[360px] 2xl:w-[380px]' : 'w-[360px]')}>
       {item ? (
         <div className="flex h-full flex-col">
           <div className="border-b border-slate-200 p-4 dark:border-white/10">
             <div className="flex items-start gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-neutral-800 dark:text-slate-300 dark:ring-white/10">
-                <FileText className="size-5" />
+              <div className={cn('flex size-11 shrink-0 items-center justify-center rounded-lg ring-1 ring-slate-200 dark:ring-white/10', t?.cover)}>
+                {t && <t.Icon className={cn('size-5', t.ink)} />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -508,41 +1082,41 @@ function ArtifactDetailPanel({
               </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">{item.type}</span>
+              <span className={cn('rounded-md px-2 py-1 text-xs', t?.chip)}>{t?.label ?? item.type}</span>
               <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">v{item.version}</span>
               <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">可预览</span>
             </div>
           </div>
           <div className="space-y-3 p-4 text-sm">
-              <DetailSection icon={<SlidersHorizontal className="size-4" />} title="元数据" aside={<SavedState />}>
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <Meta label="创建者" value={item.createdByAgentId ?? 'Agent'} />
-                  <Meta label="来源会话" value={item.conversationTitle ?? '未命名'} />
-                  <Meta label="创建时间" value={formatTime(item.createdAt)} />
-                  <Meta label="更新时间" value={formatTime(item.createdAt)} />
-                </div>
-              </DetailSection>
+            <DetailSection icon={<SlidersHorizontal className="size-4" />} title="元数据" aside={<SavedState />}>
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <Meta label="创建者" value={item.createdByAgentId ?? 'Agent'} />
+                <Meta label="来源会话" value={item.conversationTitle ?? '未命名'} />
+                <Meta label="创建时间" value={formatAbsoluteTime(item.createdAt)} />
+                <Meta label="更新时间" value={formatAbsoluteTime(item.createdAt)} />
+              </div>
+            </DetailSection>
 
-              <DetailSection icon={<Wrench className="size-4" />} title="快捷操作">
-                <div className="grid gap-2">
-                  <Button onClick={() => onPreview(item.id)} className="rounded-lg">打开预览</Button>
-                  <Button variant="outline" className="rounded-lg" onClick={() => onCopyReference(item)}>{copied ? '已复制' : '复制引用'}</Button>
-                  <Button variant="outline" className="rounded-lg" disabled={exporting} onClick={() => onExport(item.id)}>{exporting ? '导出中…' : '导出源码'}</Button>
-                  <Button variant="outline" className="rounded-lg" onClick={() => onOpenConversation(item.conversationId)}>打开会话</Button>
-                  <Button variant="outline" className="rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10" disabled={deleting} onClick={() => onDelete(item.id)}>
-                    <Trash2 className="mr-2 size-4" />
-                    {deleting ? '删除中…' : '删除产物'}
-                  </Button>
-                </div>
-              </DetailSection>
+            <DetailSection icon={<Wrench className="size-4" />} title="快捷操作">
+              <div className="grid gap-2">
+                <Button onClick={() => onPreview(item.id)} className="rounded-lg">打开预览</Button>
+                <Button variant="outline" className="rounded-lg" onClick={() => onCopyReference(item)}>{copied ? '已复制' : '复制引用'}</Button>
+                <Button variant="outline" className="rounded-lg" disabled={exporting} onClick={() => onExport(item.id)}>{exporting ? '导出中…' : '导出源码'}</Button>
+                <Button variant="outline" className="rounded-lg" onClick={() => onOpenConversation(item.conversationId)}>打开会话</Button>
+                <Button variant="outline" className="rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10" disabled={deleting} onClick={() => onDelete(item.id)}>
+                  <Trash2 className="mr-2 size-4" />
+                  {deleting ? '删除中…' : '删除产物'}
+                </Button>
+              </div>
+            </DetailSection>
 
-              <DetailSection icon={<History className="size-4" />} title="版本历史">
-                <HistoryRow icon={<FileCode2 className="size-4" />} title={`当前版本 v${item.version}`} description="已按 parentArtifactId 聚合版本；详情历史列表可继续扩展。" time="已接入" />
-              </DetailSection>
+            <DetailSection icon={<History className="size-4" />} title="版本历史">
+              <HistoryRow icon={<FileCode2 className="size-4" />} title={`当前版本 v${item.version}`} description="已按 parentArtifactId 聚合版本；详情历史列表可继续扩展。" time="已接入" />
+            </DetailSection>
 
-              <DetailSection icon={<FileText className="size-4" />} title="产物标识">
-                <div className="truncate rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-400">{item.id}</div>
-              </DetailSection>
+            <DetailSection icon={<FileText className="size-4" />} title="产物标识">
+              <div className="truncate rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-400">{item.id}</div>
+            </DetailSection>
           </div>
         </div>
       ) : (
@@ -552,6 +1126,40 @@ function ArtifactDetailPanel({
   )
 }
 
-function formatTime(value: number) {
+// ─── Utilities ────────────────────────────────────────────────────────
+// One-line subtitle shown under the card title, derived from real data
+// (source conversation + iteration count) — builds the "product" feel.
+function describeArtifact(item: ArtifactListItem, typeLabel: string, versions: number): string {
+  const source = item.conversationTitle?.trim()
+  const iterations = versions > 1 ? `已迭代 ${versions} 个版本` : '初版产出'
+  if (source) return `来自「${source}」· ${iterations}`
+  return `${typeLabel}产物 · ${iterations}`
+}
+
+function resolveAgentName(agents: Record<string, { name: string }>, id: string): string {
+  return agents[id]?.name ?? id
+}
+
+function resolveAgentObj(agents: Record<string, { id: string; name: string }>, id: string): { id: string; name: string } {
+  const found = agents[id]
+  if (found) return { id: found.id ?? id, name: found.name }
+  return { id, name: id }
+}
+
+function formatRelativeTime(value: number): string {
+  const diff = Math.max(0, Date.now() - value)
+  const minutes = Math.floor(diff / 60_000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return '昨天'
+  if (days < 7) return `${days} 天前`
+  if (days < 30) return `${Math.floor(days / 7)} 周前`
+  return new Date(value).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
+function formatAbsoluteTime(value: number): string {
   return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }

@@ -25,8 +25,9 @@ const CreateBody = z.object({
   scheduleConfig: z.unknown().optional(),
 })
 
-export async function GET() {
-  const dashboard = await getAutomationDashboard()
+export async function GET(req: NextRequest) {
+  const rawRange = Number(req.nextUrl.searchParams.get('trendRange'))
+  const dashboard = await getAutomationDashboard(Number.isFinite(rawRange) ? rawRange : undefined)
   return NextResponse.json({ dashboard })
 }
 

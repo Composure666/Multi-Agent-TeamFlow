@@ -77,11 +77,49 @@ export function extractPlanTasksToolArgs(event: Pick<ToolCallEvent, 'toolName' |
 }
 
 export function parseDispatchPlanToolArgs(args: unknown): DispatchPlanItem[] {
-  if (!isRecord(args) || !Array.isArray(args.tasks)) {
-    throw new Error('Invalid dispatch plan: plan_tasks args must include a tasks array')
+  // 防御性：MCP 桥接层偶尔会把 tool call 的 arguments 留成原始字符串（特别是 Codex path），
+  // 或把 tasks 字段本身序列化成 JSON 字符串（claude-code path 曾出现）。
+  // 两种情况都先尝试 JSON.parse，避免上游没 unwrap 时直接把字符串当作 object 校验失败。
+  let normalized: unknown = args
+  if (typeof normalized === 'string') {
+    const trimmed = normalized.trim()
+    if (trimmed === '') {
+      throw new Error(
+        'Invalid dispatch plan: plan_tasks args must be a JSON object with a tasks array, got an empty string',
+      )
+    }
+    try {
+      normalized = JSON.parse(trimmed) as unknown
+    } catch (err) {
+      throw new Error(
+        `Invalid dispatch plan: plan_tasks args arrived as a non-JSON string (${err instanceof Error ? err.message : String(err)}). Expected a JSON object with a tasks array.`,
+      )
+    }
   }
 
-  return args.tasks.map((raw, index) => {
+  // tasks 字段被序列化成字符串时，解包成数组后再校验。
+  if (isRecord(normalized) && typeof normalized.tasks === 'string') {
+    const tasksTrimmed = normalized.tasks.trim()
+    if (tasksTrimmed !== '') {
+      try {
+        const parsedTasks = JSON.parse(tasksTrimmed) as unknown
+        if (Array.isArray(parsedTasks)) normalized = { ...normalized, tasks: parsedTasks }
+      } catch {
+        // 解析失败保持原样，交由下方统一校验报错
+      }
+    }
+  }
+
+  if (!isRecord(normalized) || !Array.isArray(normalized.tasks)) {
+    const observed = describeObservedArgs(normalized)
+    throw new Error(
+      `Invalid dispatch plan: plan_tasks args must include a tasks array (received ${observed}). ` +
+        'Expected shape: { reasoning: string, tasks: Array<{ id, agentId, task, ... }> }. ' +
+        'Call plan_tasks exactly once with the full corrected plan; do not call it without tasks.',
+    )
+  }
+
+  return normalized.tasks.map((raw, index) => {
     if (!isRecord(raw)) {
       throw new Error(`Invalid dispatch plan: task at index ${index} must be an object`)
     }
@@ -435,14 +473,16 @@ function buildDispatchPlanCorrectionFeedback(
   resolvedExternalTasks: readonly DispatchPlanItem[],
 ): string {
   const tasks = [...resolvedExternalTasks, ...plan]
+  const taskIdList = tasks.map((task) => task.id).join(', ') || '(none)'
   const outputLines = tasks.map((task) => {
     const outputs = (task.expectedOutputs ?? []).map((output) => output.id).join(', ') || '(none)'
     return `Task "${task.id}" declares expectedOutputs: ${outputs}`
   })
   return [
     message,
+    `Available task ids: ${taskIdList}`,
     ...outputLines,
-    'Fix the plan contract: every inputs.outputId must exactly match an upstream expectedOutputs.id. Then call plan_tasks again with the full corrected plan, not only a text explanation.',
+    'Fix the plan contract: every dependsOn id must be one of the available task ids, and every inputs.outputId must exactly match an upstream expectedOutputs.id. Then call plan_tasks again with the full corrected plan, not only a text explanation.',
   ].join('\n')
 }
 
@@ -724,6 +764,18 @@ function readExpectedOutputType(value: unknown, label: string): DispatchExpected
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function describeObservedArgs(args: unknown): string {
+  if (args === null) return 'null'
+  if (args === undefined) return 'undefined'
+  if (Array.isArray(args)) return `an array of length ${args.length}`
+  if (typeof args === 'object') {
+    const keys = Object.keys(args as Record<string, unknown>)
+    if (keys.length === 0) return 'an empty object {}'
+    return `an object with keys [${keys.join(', ')}]`
+  }
+  return `${typeof args} (${String(args).slice(0, 80)})`
 }
 
 function escapeRegExp(value: string): string {

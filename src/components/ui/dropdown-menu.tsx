@@ -22,7 +22,10 @@ function DropdownMenuTrigger({
 }: MenuPrimitive.Trigger.Props & {
   asChild?: boolean
 }) {
-  const resolvedRender = render ?? (React.isValidElement(children) && (asChild || !render) ? children : undefined)
+  // Base UI 的 Trigger 默认渲染原生 <button>，children 作为按钮内容。
+  // 仅当显式传 render 或 asChild（把子元素作为触发根元素）时，才用子元素替换默认按钮，
+  // 否则把 SVG/文本直接当作 render 会触发 Base UI 的 nativeButton 警告。
+  const resolvedRender = render ?? (asChild && React.isValidElement(children) ? children : undefined)
 
   return (
     <MenuPrimitive.Trigger
@@ -74,16 +77,19 @@ function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: MenuPrimitive.GroupLabel.Props & {
+}: React.ComponentProps<"div"> & {
   inset?: boolean
 }) {
+  // ⚠️ 不要用 `MenuPrimitive.GroupLabel`：它会强制要求父级是 `<Menu.Group>`，
+  // 单独使用时（shadcn 风格）会 throw「MenuGroupContext is missing」。
+  // 这里改为纯 <div>，功能上等价于一个静态标题。
   return (
-    <MenuPrimitive.GroupLabel
+    <div
       data-slot="dropdown-menu-label"
       data-inset={inset}
       className={cn(
         "px-1.5 py-1 text-xs font-medium text-muted-foreground data-inset:pl-7",
-        className
+        className,
       )}
       {...props}
     />

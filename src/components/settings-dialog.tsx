@@ -1,7 +1,6 @@
 'use client'
 
-import {
-  AlertTriangle,
+import { AlertTriangle,
   Bell,
   Check,
   Clipboard,
@@ -16,12 +15,9 @@ import {
   Power,
   RotateCw,
   Settings as SettingsIcon,
-  Smartphone,
-} from 'lucide-react'
+  Smartphone, Layers, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { McpServersSettings } from '@/components/mcp-servers-settings'
-import { SkillsSettings } from '@/components/skills-settings'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -44,6 +40,9 @@ import {
   type ConnectionHint,
 } from '@/lib/api'
 import { subscribeUiCommand } from '@/lib/ui-command-events'
+import { ProvidersPanel } from '@/components/settings/providers-panel'
+import { ProviderPriorityPanel } from '@/components/settings/provider-priority-panel'
+import { FailoverPanel } from '@/components/settings/failover-panel'
 import { useAppStore } from '@/stores/app-store'
 
 interface SettingsForm {
@@ -52,6 +51,7 @@ interface SettingsForm {
   openaiApiKey: string
   deepseekApiKey: string
   arkApiKey: string
+  defaultLlmProvider: 'auto' | 'deepseek' | 'openai' | 'anthropic' | 'ark'
   companionMode: 'off' | 'lan' | 'tailnet'
   mobileDeviceToken: string
   deploymentPublishEnabled: boolean
@@ -96,6 +96,7 @@ export function SettingsDialog({
     openaiApiKey: '',
     deepseekApiKey: '',
     arkApiKey: '',
+    defaultLlmProvider: 'auto',
     companionMode: 'off',
     mobileDeviceToken: '',
     deploymentPublishEnabled: false,
@@ -115,6 +116,7 @@ export function SettingsDialog({
     openaiApiKey: false,
     deepseekApiKey: false,
     arkApiKey: false,
+    defaultLlmProvider: true,
     companionMode: true,
     mobileDeviceToken: false,
     deploymentPublishEnabled: true,
@@ -193,6 +195,7 @@ export function SettingsDialog({
         openaiApiKey: form.openaiApiKey.trim() || null,
         deepseekApiKey: form.deepseekApiKey.trim() || null,
         arkApiKey: form.arkApiKey.trim() || null,
+        defaultLlmProvider: form.defaultLlmProvider,
         companionMode: form.companionMode,
         mobileDeviceToken: form.mobileDeviceToken.trim() || null,
         deploymentPublishEnabled: form.deploymentPublishEnabled,
@@ -299,7 +302,15 @@ export function SettingsDialog({
               <TabsList className="h-auto max-w-full flex-wrap justify-start overflow-x-auto">
                 <TabsTrigger value="keys">
                   <KeyRound className="size-3.5" />
-                  供应商 Key
+                  供应商
+                </TabsTrigger>
+                <TabsTrigger value="assignment">
+                  <Layers className="size-3.5" />
+                  模型与分配
+                </TabsTrigger>
+                <TabsTrigger value="failover">
+                  <ShieldCheck className="size-3.5" />
+                  故障转移
                 </TabsTrigger>
                 <TabsTrigger value="mobile">
                   <Smartphone className="size-3.5" />
@@ -312,14 +323,6 @@ export function SettingsDialog({
                 <TabsTrigger value="notifications">
                   <Bell className="size-3.5" />
                   通知
-                </TabsTrigger>
-                <TabsTrigger value="mcp">
-                  <Network className="size-3.5" />
-                  MCP
-                </TabsTrigger>
-                <TabsTrigger value="skills">
-                  <SparklesIcon />
-                  Skills
                 </TabsTrigger>
               </TabsList>
               {tab === 'keys' && (
@@ -342,46 +345,29 @@ export function SettingsDialog({
             </div>
 
             <div className="min-h-0 min-w-0 overflow-y-auto pr-1">
-              <TabsContent value="keys" className="mt-0 flex flex-col gap-3 py-1">
-                <KeyField
-                  label="Anthropic API Key"
-                  hint="用于 Claude Code adapter / custom anthropic provider。"
-                  value={form.anthropicApiKey}
-                  reveal={reveal.anthropicApiKey}
-                  onChange={(v) => setForm((f) => ({ ...f, anthropicApiKey: v }))}
-                  onToggleReveal={() =>
-                    setReveal((r) => ({ ...r, anthropicApiKey: !r.anthropicApiKey }))
-                  }
-                />
-                <KeyField
-                  label="Anthropic Base URL（可选）"
-                  hint="走第三方网关时填，如 https://anyrouter.top；留空走官方 endpoint。"
-                  type="text"
-                  value={form.anthropicBaseUrl}
-                  reveal
-                  onChange={(v) => setForm((f) => ({ ...f, anthropicBaseUrl: v }))}
-                />
-                <KeyField
-                  label="OpenAI API Key"
-                  value={form.openaiApiKey}
-                  reveal={reveal.openaiApiKey}
-                  onChange={(v) => setForm((f) => ({ ...f, openaiApiKey: v }))}
-                  onToggleReveal={() => setReveal((r) => ({ ...r, openaiApiKey: !r.openaiApiKey }))}
-                />
-                <KeyField
-                  label="DeepSeek API Key"
-                  value={form.deepseekApiKey}
-                  reveal={reveal.deepseekApiKey}
-                  onChange={(v) => setForm((f) => ({ ...f, deepseekApiKey: v }))}
-                  onToggleReveal={() => setReveal((r) => ({ ...r, deepseekApiKey: !r.deepseekApiKey }))}
-                />
-                <KeyField
-                  label="Volcano Ark API Key"
-                  value={form.arkApiKey}
-                  reveal={reveal.arkApiKey}
-                  onChange={(v) => setForm((f) => ({ ...f, arkApiKey: v }))}
-                  onToggleReveal={() => setReveal((r) => ({ ...r, arkApiKey: !r.arkApiKey }))}
-                />
+              <TabsContent value="keys" className="mt-0 py-1">
+                <div className="flex flex-col gap-4">
+                  <ProvidersPanel />
+                  <div className="border-t border-slate-200 pt-4 dark:border-white/10">
+                    <div className="mb-3 text-sm font-medium text-slate-900 dark:text-slate-100">供应商优先级</div>
+                    <ProviderPriorityPanel />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="assignment" className="mt-0 py-1">
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <Layers className="size-8 text-muted-foreground/50" />
+                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">模型与分配</div>
+                  <div className="max-w-xs text-xs text-muted-foreground">
+                    全局策略、系统能力分配、Agent 模型策略即将上线。
+                    目前可在「供应商」tab 管理供应商接入。
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="failover" className="mt-0 py-1">
+                <FailoverPanel />
               </TabsContent>
 
               <TabsContent value="mobile" className="mt-0 py-1">
@@ -425,14 +411,6 @@ export function SettingsDialog({
                   onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
                 />
               </TabsContent>
-
-              <TabsContent value="mcp" className="mt-0 py-1">
-                <McpServersSettings />
-              </TabsContent>
-
-              <TabsContent value="skills" className="mt-0 py-1">
-                <SkillsSettings />
-              </TabsContent>
             </div>
           </Tabs>
         )}
@@ -448,10 +426,6 @@ export function SettingsDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function SparklesIcon() {
-  return <SettingsIcon className="size-3.5" />
 }
 
 function MobileConnectionHints({
@@ -816,6 +790,7 @@ function rowToForm(row: AppSettingsRow): SettingsForm {
     openaiApiKey: row.openaiApiKey ?? '',
     deepseekApiKey: row.deepseekApiKey ?? '',
     arkApiKey: row.arkApiKey ?? '',
+    defaultLlmProvider: (row.defaultLlmProvider as SettingsForm['defaultLlmProvider']) ?? 'auto',
     companionMode: row.companionMode,
     mobileDeviceToken: row.mobileDeviceToken ?? '',
     deploymentPublishEnabled: row.deploymentPublishEnabled,

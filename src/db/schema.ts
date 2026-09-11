@@ -575,6 +575,10 @@ export const appSettings = sqliteTable('app_settings', {
   openaiApiKey: text('openai_api_key'),
   deepseekApiKey: text('deepseek_api_key'),
   arkApiKey: text('ark_api_key'),
+  // 用户选择的默认 LLM Provider；'auto' = 按已配置 key 自动选第一个可用的
+  defaultLlmProvider: text('default_llm_provider', { enum: ['auto', 'deepseek', 'openai', 'anthropic', 'ark'] })
+    .notNull()
+    .default('auto'),
   companionMode: text('companion_mode', { enum: ['off', 'lan', 'tailnet'] }).notNull().default('off'),
   mobileDeviceToken: text('mobile_device_token'),
   deploymentPublishEnabled: integer('deployment_publish_enabled', { mode: 'boolean' })
@@ -590,6 +594,74 @@ export const appSettings = sqliteTable('app_settings', {
   notificationNativeEnabled: integer('notification_native_enabled', { mode: 'boolean' }).notNull().default(true),
   notificationUrgentEnabled: integer('notification_urgent_enabled', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull(),
+})
+
+// ─── LLM Providers ────────────────────────────────────────────
+export const llmProviders = sqliteTable('llm_providers', {
+  id: text('id').primaryKey(),
+  providerType: text('provider_type', { enum: ['anthropic', 'openai', 'deepseek', 'ark', 'custom'] }).notNull(),
+  displayName: text('display_name').notNull(),
+  apiKey: text('api_key'),
+  baseUrl: text('base_url'),
+  models: text('models', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+  isConnected: integer('is_connected', { mode: 'boolean' }).notNull().default(false),
+  lastTestedAt: integer('last_tested_at'),
+  lastError: text('last_error'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+// ─── LLM Model Assignments ────────────────────────────────────
+export const llmModelAssignments = sqliteTable('llm_model_assignments', {
+  id: text('id').primaryKey(),
+  scope: text('scope', { enum: ['global', 'system', 'agent'] }).notNull(),
+  capabilityKey: text('capability_key').notNull(),
+  providerId: text('provider_id').references(() => llmProviders.id),
+  modelName: text('model_name'),
+  priority: integer('priority').notNull().default(0),
+  // 用途级配置是否使用全局优先级（scope != 'global' 时有效）
+  useGlobal: integer('use_global', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+// ─── LLM Failover Config ───────────────────────────────────────
+export const llmFailoverConfig = sqliteTable('llm_failover_config', {
+  id: text('id').primaryKey(), // 'singleton'
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  triggerBalance: integer('trigger_balance', { mode: 'boolean' }).notNull().default(true),
+  triggerAuth: integer('trigger_auth', { mode: 'boolean' }).notNull().default(true),
+  triggerRateLimit: integer('trigger_rate_limit', { mode: 'boolean' }).notNull().default(true),
+  triggerServerError: integer('trigger_server_error', { mode: 'boolean' }).notNull().default(true),
+  triggerTimeout: integer('trigger_timeout', { mode: 'boolean' }).notNull().default(true),
+  maxRetries: integer('max_retries').notNull().default(2),
+  cooldownSeconds: integer('cooldown_seconds').notNull().default(30),
+  autoRecover: integer('auto_recover', { mode: 'boolean' }).notNull().default(true),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+// ─── LLM Provider Status（运行时状态） ─────────────────────────
+export const llmProviderStatus = sqliteTable('llm_provider_status', {
+  providerId: text('provider_id').primaryKey().references(() => llmProviders.id),
+  status: text('status', { enum: ['healthy', 'degraded', 'unavailable'] }).notNull().default('healthy'),
+  lastCheckedAt: integer('last_checked_at'),
+  lastError: text('last_error'),
+  lastErrorCode: text('last_error_code'),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  latencyMs: integer('latency_ms'),
+  unavailableUntil: integer('unavailable_until'), // 冷却到期时间
+  updatedAt: integer('updated_at').notNull(),
+})
+
+// ─── LLM Failover Events（切换记录） ───────────────────────────
+export const llmFailoverEvents = sqliteTable('llm_failover_events', {
+  id: text('id').primaryKey(),
+  capabilityKey: text('capability_key').notNull(),
+  fromProviderId: text('from_provider_id'),
+  toProviderId: text('to_provider_id'),
+  reason: text('reason').notNull(),
+  errorCode: text('error_code'),
+  createdAt: integer('created_at').notNull(),
 })
 
 export type WorkspaceMemoryRow = typeof workspaceMemories.$inferSelect
@@ -612,6 +684,17 @@ export type SkillInsert = typeof skills.$inferInsert
 
 export type AppSettingsRow = typeof appSettings.$inferSelect
 export type AppSettingsInsert = typeof appSettings.$inferInsert
+
+export type LlmProviderRow = typeof llmProviders.$inferSelect
+export type LlmProviderInsert = typeof llmProviders.$inferInsert
+export type LlmModelAssignmentRow = typeof llmModelAssignments.$inferSelect
+export type LlmModelAssignmentInsert = typeof llmModelAssignments.$inferInsert
+export type LlmFailoverConfigRow = typeof llmFailoverConfig.$inferSelect
+export type LlmFailoverConfigInsert = typeof llmFailoverConfig.$inferInsert
+export type LlmProviderStatusRow = typeof llmProviderStatus.$inferSelect
+export type LlmProviderStatusInsert = typeof llmProviderStatus.$inferInsert
+export type LlmFailoverEventRow = typeof llmFailoverEvents.$inferSelect
+export type LlmFailoverEventInsert = typeof llmFailoverEvents.$inferInsert
 
 // ─── 类型导出（推断行类型）─────────────────────────────────
 export type AgentRow = typeof agents.$inferSelect

@@ -71,10 +71,17 @@ When an agent run successfully writes files into a conversation workspace throug
 - **AND** publishes an `artifact.create` event for the artifact
 - **AND** does not append an `artifact_ref` message part solely for that system-created project.
 
+#### Scenario: Write evidence references files that no longer exist
+- **WHEN** the project artifact is created from file-write evidence but some recorded paths no longer exist in the workspace (e.g. moved or deleted by a later attempt through bash)
+- **THEN** the stored file list only contains files still present in the workspace at creation time
+- **AND** if no evidence path remains, the system falls back to scanning the task target paths for existing files
+- **AND** if no file exists at all, no project artifact is created.
+
 #### Scenario: User previews a project artifact
 - **WHEN** a user opens a `project` artifact
 - **THEN** the preview panel shows a file tree based on the stored file list
-- **AND** file contents are loaded from the conversation workspace on demand.
+- **AND** file contents are loaded from the conversation workspace on demand
+- **AND** a recorded file that has since disappeared from the workspace shows a clear "file not found" state instead of a server error.
 
 #### Scenario: User exports a project artifact
 - **WHEN** a user downloads a `project` artifact

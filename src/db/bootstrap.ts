@@ -422,6 +422,7 @@ const DDL: string[] = [
     openai_api_key TEXT,
     deepseek_api_key TEXT,
     ark_api_key TEXT,
+    default_llm_provider TEXT NOT NULL DEFAULT 'auto',
     companion_mode TEXT NOT NULL DEFAULT 'off',
     mobile_device_token TEXT,
     deployment_publish_enabled INTEGER NOT NULL DEFAULT 0,
@@ -435,6 +436,72 @@ const DDL: string[] = [
     notification_native_enabled INTEGER NOT NULL DEFAULT 1,
     notification_urgent_enabled INTEGER NOT NULL DEFAULT 1,
     updated_at INTEGER NOT NULL
+  )`,
+
+  // ─── llm_providers ─────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS llm_providers (
+    id TEXT PRIMARY KEY,
+    provider_type TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    api_key TEXT,
+    base_url TEXT,
+    models TEXT NOT NULL DEFAULT '[]',
+    is_connected INTEGER NOT NULL DEFAULT 0,
+    last_tested_at INTEGER,
+    last_error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+
+  // ─── llm_model_assignments ─────────────────────────
+  `CREATE TABLE IF NOT EXISTS llm_model_assignments (
+    id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    capability_key TEXT NOT NULL,
+    provider_id TEXT REFERENCES llm_providers(id),
+    model_name TEXT,
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+
+  // ─── llm_failover_config ───────────────────────────
+  `CREATE TABLE IF NOT EXISTS llm_failover_config (
+    id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    trigger_balance INTEGER NOT NULL DEFAULT 1,
+    trigger_auth INTEGER NOT NULL DEFAULT 1,
+    trigger_rate_limit INTEGER NOT NULL DEFAULT 1,
+    trigger_server_error INTEGER NOT NULL DEFAULT 1,
+    trigger_timeout INTEGER NOT NULL DEFAULT 1,
+    max_retries INTEGER NOT NULL DEFAULT 2,
+    cooldown_seconds INTEGER NOT NULL DEFAULT 30,
+    auto_recover INTEGER NOT NULL DEFAULT 1,
+    updated_at INTEGER NOT NULL
+  )`,
+
+  // ─── llm_provider_status ────────────────────────────
+  `CREATE TABLE IF NOT EXISTS llm_provider_status (
+    provider_id TEXT PRIMARY KEY REFERENCES llm_providers(id),
+    status TEXT NOT NULL DEFAULT 'healthy',
+    last_checked_at INTEGER,
+    last_error TEXT,
+    last_error_code TEXT,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    latency_ms INTEGER,
+    unavailable_until INTEGER,
+    updated_at INTEGER NOT NULL
+  )`,
+
+  // ─── llm_failover_events ────────────────────────────
+  `CREATE TABLE IF NOT EXISTS llm_failover_events (
+    id TEXT PRIMARY KEY,
+    capability_key TEXT NOT NULL,
+    from_provider_id TEXT,
+    to_provider_id TEXT,
+    reason TEXT NOT NULL,
+    error_code TEXT,
+    created_at INTEGER NOT NULL
   )`,
 ]
 
@@ -461,6 +528,8 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_toast_enabled INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_native_enabled INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_urgent_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN default_llm_provider TEXT NOT NULL DEFAULT 'auto'`)
+  safeAlter(sqlite, `ALTER TABLE llm_model_assignments ADD COLUMN use_global INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN prompt TEXT NOT NULL DEFAULT ''`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN agent_id TEXT REFERENCES agents(id)`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL`)

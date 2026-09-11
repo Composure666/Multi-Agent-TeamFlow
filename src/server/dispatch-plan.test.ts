@@ -201,6 +201,49 @@ describe('parseDispatchPlanToolArgs', () => {
       }),
     ).toThrow('requiredCommands[0].timeoutMs must be a positive integer')
   })
+
+  it('parses plan_tasks args delivered as a stringified JSON object', () => {
+    expect(
+      parseDispatchPlanToolArgs(JSON.stringify({ tasks: [{ id: 't1', agentId: 'ag_pm', task: 'Write PRD' }] })),
+    ).toEqual([{ id: 't1', agentId: 'ag_pm', task: 'Write PRD' }])
+  })
+
+  it('parses plan_tasks args whose tasks field itself is a JSON string', () => {
+    // claude-code path 曾把 tasks 字段序列化成字符串，导致 Array.isArray(tasks) 校验失败、
+    // Orchestrator 连续 3 次补救后兜底转普通回复（run 从未进入执行阶段，终端/日志全空）。
+    const args = {
+      reasoning: 'Split into implementation and review.',
+      tasks: JSON.stringify([
+        { id: 't1', agentId: 'ag_frontend', task: 'Build UI' },
+        { id: 't2', agentId: 'ag_reviewer', task: 'Review UI', dependsOn: ['t1'] },
+      ]),
+    }
+    expect(parseDispatchPlanToolArgs(args)).toEqual([
+      { id: 't1', agentId: 'ag_frontend', task: 'Build UI' },
+      { id: 't2', agentId: 'ag_reviewer', task: 'Review UI', dependsOn: ['t1'] },
+    ])
+  })
+
+  it('surfaces helpful diagnostics when args are missing the tasks array', () => {
+    let message = ''
+    try {
+      parseDispatchPlanToolArgs({ reasoning: 'I will handle this myself.' })
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err)
+    }
+    expect(message).toContain('must include a tasks array')
+    // 应该明确告诉 LLM 期待的结构，并指出实际观察到的字段
+    expect(message).toContain('Expected shape')
+    expect(message).toContain('reasoning')
+  })
+
+  it('rejects empty-string plan_tasks args', () => {
+    expect(() => parseDispatchPlanToolArgs('')).toThrow('empty string')
+  })
+
+  it('rejects plan_tasks args that are non-JSON strings', () => {
+    expect(() => parseDispatchPlanToolArgs('not a json')).toThrow('non-JSON string')
+  })
 })
 
 describe('validateDispatchPlan', () => {
@@ -472,6 +515,43 @@ describe('compileDispatchPlan', () => {
       expect(result.error).toContain('input references unknown output "prd" from task "t1"')
       expect(result.error).toContain('Task "t1" declares expectedOutputs: prd_doc')
       expect(result.error).toContain('call plan_tasks again with the full corrected plan')
+      // 反馈里同时列出所有可用 task id，避免 LLM 重复捏造 dep id
+      expect(result.error).toContain('Available task ids')
+    }
+  })
+
+  it('lists every available task id when a dependsOn references an unknown task', () => {
+    const result = tryCompileAndValidateDispatchPlan(
+      [
+        task('t1_baseline', 'ag_pm'),
+        task('t2_retry', 'ag_frontend', ['t1']),
+      ],
+      agents,
+      'ag_orchestrator',
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('depends on unknown task "t1"')
+      // 必须把真实存在的 task id 列出来，否则 LLM 会在补救轮里继续 hallucinate
+      expect(result.error).toContain('Available task ids: t1_baseline, t2_retry')
+      expect(result.error).toContain('every dependsOn id must be one of the available task ids')
+    }
+  })
+
+  it('lists external resolved task ids alongside the new plan', () => {
+    const result = tryCompileAndValidateDispatchPlan(
+      [task('t2_retry', 'ag_frontend', ['ghost_task'])],
+      agents,
+      'ag_orchestrator',
+      [task('t1_baseline', 'ag_pm')],
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      // 既要列出当前 plan 的 id，也要列出已 resolved 的外部 task id
+      expect(result.error).toContain('Available task ids: t1_baseline, t2_retry')
+      expect(result.error).toContain('depends on unknown task "ghost_task"')
     }
   })
 })

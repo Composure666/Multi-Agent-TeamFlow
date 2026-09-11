@@ -24,6 +24,18 @@ export function buildProjectFiles(
   return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path))
 }
 
+// Evidence 记录的是写入时刻的路径；创建产物时文件可能已被后续尝试移动/删除（如 bash mv）。
+export function filterExistingProjectFiles(
+  files: readonly ProjectFile[],
+  workspaceRoot: string,
+): ProjectFile[] {
+  return files.filter((file) => {
+    const abs = path.resolve(workspaceRoot, file.path)
+    if (!isPathWithin(abs, workspaceRoot)) return false
+    return statSync(abs, { throwIfNoEntry: false })?.isFile() ?? false
+  })
+}
+
 export function buildProjectFilesFromTargetPaths(
   targetPaths: readonly string[],
   workspaceRoot: string,

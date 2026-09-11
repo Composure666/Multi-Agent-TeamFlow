@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildProjectFiles,
   buildProjectFilesFromTargetPaths,
+  filterExistingProjectFiles,
   zipProjectFromWorkspace,
 } from './project-artifact'
 
@@ -39,6 +40,39 @@ describe('buildProjectFiles', () => {
 
   it('returns empty for no writes (so no project artifact is produced)', () => {
     expect(buildProjectFiles([], root)).toEqual([])
+  })
+})
+
+describe('filterExistingProjectFiles', () => {
+  it('drops evidence entries whose files no longer exist (moved/deleted after write)', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'agenthub-project-filter-'))
+    try {
+      writeFileSync(path.join(dir, 'keep.html'), '<html></html>\n')
+
+      expect(
+        filterExistingProjectFiles([
+          { path: 'keep.html', sizeBytes: 14 },
+          { path: 'moved-away.html', sizeBytes: 100 },
+        ], dir),
+      ).toEqual([{ path: 'keep.html', sizeBytes: 14 }])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('treats directories as missing and returns empty when nothing exists', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'agenthub-project-filter-'))
+    try {
+      mkdirSync(path.join(dir, 'sub'))
+      expect(
+        filterExistingProjectFiles([
+          { path: 'sub', sizeBytes: 0 },
+          { path: 'gone.ts', sizeBytes: 3 },
+        ], dir),
+      ).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

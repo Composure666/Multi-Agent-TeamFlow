@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, CheckCircle2, ChevronDown, FileCode2, FileText, History, MessageCircle, Pencil, Plus, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
+import { Check, CheckCircle2, ChevronDown, ChevronRight, FileCode2, FileText, History, MessageCircle, Pencil, Plus, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
@@ -38,12 +38,12 @@ function TeamAvatarStack({ members }: { members: SummonableMember[] }) {
   return (
     <div className="flex -space-x-2">
       {members.slice(0, 3).map((member) => (
-        <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-white/60 bg-white/90 text-sm shadow-sm shadow-slate-950/10 backdrop-blur dark:border-white/20 dark:bg-white/15">
+        <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-slate-200 bg-white text-sm shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[var(--agenthub-surface-raised,#252932)]">
           {member.avatar}
         </span>
       ))}
       {hiddenCount > 0 && (
-        <span className="flex size-7 items-center justify-center rounded-full border border-white/60 bg-white/85 text-[10px] font-medium text-slate-700 shadow-sm shadow-slate-950/10 backdrop-blur dark:border-white/20 dark:bg-white/15 dark:text-white/90">
+        <span className="flex size-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-[10px] font-medium text-slate-600 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[var(--agenthub-surface-raised,#252932)] dark:text-[#B8C0CC]">
           +{hiddenCount}
         </span>
       )}
@@ -51,28 +51,83 @@ function TeamAvatarStack({ members }: { members: SummonableMember[] }) {
   )
 }
 
+/**
+ * 精选场景卡片的双主题色板。
+ * - light：浅色 SaaS 风（白底 + 浅色调 chip）
+ * - dark：深色 SaaS 风（深底 + 半透明彩色 chip + 微弱 ambient）
+ * FeaturedTeamCard 用 useTheme 或文档根 dark class 切换；此处根据 .dark 选择对应字段。
+ */
+type SceneTone = {
+  chip: string
+  cover: string
+  accent: string
+  dot: string
+  dotDark: string
+}
+const SCENE_TONES_LIGHT: Record<string, SceneTone> = {
+  daily: { chip: 'bg-blue-50 text-blue-700 border-blue-100', cover: 'from-blue-50 via-white to-white', accent: 'text-blue-600', dot: 'bg-blue-500', dotDark: 'bg-blue-400' },
+  code: { chip: 'bg-violet-50 text-violet-700 border-violet-100', cover: 'from-violet-50/80 via-white to-white', accent: 'text-violet-600', dot: 'bg-violet-500', dotDark: 'bg-violet-400' },
+  finance: { chip: 'bg-emerald-50 text-emerald-700 border-emerald-100', cover: 'from-emerald-50/80 via-white to-white', accent: 'text-emerald-600', dot: 'bg-emerald-500', dotDark: 'bg-emerald-400' },
+  design: { chip: 'bg-amber-50 text-amber-700 border-amber-100', cover: 'from-amber-50/80 via-white to-white', accent: 'text-amber-600', dot: 'bg-amber-500', dotDark: 'bg-amber-400' },
+  docs: { chip: 'bg-sky-50 text-sky-700 border-sky-100', cover: 'from-sky-50/80 via-white to-white', accent: 'text-sky-600', dot: 'bg-sky-500', dotDark: 'bg-sky-400' },
+}
+const SCENE_TONES_DARK: Record<string, SceneTone> = {
+  daily: { chip: 'bg-blue-500/10 text-blue-300 border-blue-400/25', cover: 'from-blue-500/15 via-transparent to-transparent', accent: 'text-blue-300', dot: 'bg-blue-500', dotDark: 'bg-blue-400' },
+  code: { chip: 'bg-violet-500/10 text-violet-300 border-violet-400/25', cover: 'from-violet-500/15 via-transparent to-transparent', accent: 'text-violet-300', dot: 'bg-violet-500', dotDark: 'bg-violet-400' },
+  finance: { chip: 'bg-emerald-500/10 text-emerald-300 border-emerald-400/25', cover: 'from-emerald-500/15 via-transparent to-transparent', accent: 'text-emerald-300', dot: 'bg-emerald-500', dotDark: 'bg-emerald-400' },
+  design: { chip: 'bg-amber-500/10 text-amber-300 border-amber-400/25', cover: 'from-amber-500/15 via-transparent to-transparent', accent: 'text-amber-300', dot: 'bg-amber-500', dotDark: 'bg-amber-400' },
+  docs: { chip: 'bg-sky-500/10 text-sky-300 border-sky-400/25', cover: 'from-sky-500/15 via-transparent to-transparent', accent: 'text-sky-300', dot: 'bg-sky-500', dotDark: 'bg-sky-400' },
+}
+const FALLBACK_SCENE_TONE_LIGHT = SCENE_TONES_LIGHT.daily!
+const FALLBACK_SCENE_TONE_DARK = SCENE_TONES_DARK.daily!
+
 function FeaturedTeamCard({ team, onOpen }: { team: SummonableTeam; onOpen: () => void }) {
   const category = SUMMON_SCENE_CATEGORIES.find((item) => item.id === team.category)
+  const lightTone = SCENE_TONES_LIGHT[team.category] ?? FALLBACK_SCENE_TONE_LIGHT
+  const darkTone = SCENE_TONES_DARK[team.category] ?? FALLBACK_SCENE_TONE_DARK
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={cn('group relative flex h-[176px] w-[300px] shrink-0 snap-start overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br p-4 text-left text-white shadow-sm shadow-slate-950/10 ring-1 ring-black/5 transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-950/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)] focus-visible:ring-offset-2 active:translate-y-0 sm:w-[340px] lg:w-[360px]', team.coverClassName)}
+      className={cn(
+        // 亮色：白底 + 浅边框 + 轻阴影
+        // 暗色：深底 #1C1F26（与 --agenthub-surface 对齐）+ 半透明白色边框 + 微 ambient
+        'group relative flex h-[180px] w-[300px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)] focus-visible:ring-offset-2 sm:w-[340px] lg:w-[360px]',
+        'dark:border-white/10 dark:bg-[var(--agenthub-surface,#1C1F26)] dark:shadow-none dark:hover:border-white/15 dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]',
+      )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_36%),linear-gradient(180deg,rgba(15,23,42,0.08),rgba(15,23,42,0.38)_46%,rgba(15,23,42,0.9))]" />
+      {/* ambient：light 极淡色调；dark 微弱彩色光晕 */}
+      <div className={cn('pointer-events-none absolute inset-0 bg-gradient-to-br dark:hidden', lightTone.cover)} aria-hidden="true" />
+      <div className={cn('pointer-events-none absolute inset-0 hidden bg-gradient-to-br dark:block', darkTone.cover)} aria-hidden="true" />
+
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 truncate rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-medium text-white/90 shadow-sm backdrop-blur-md">{category?.label}</span>
-          <span className="shrink-0 rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[11px] font-medium text-white/90 shadow-sm backdrop-blur-md">{team.heat}</span>
+          {/* 左上：分类 chip */}
+          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', lightTone.chip, 'dark:' + darkTone.chip.split(' ').join(' dark:'))}>
+            <span className={cn('size-1.5 rounded-full', lightTone.dot, 'dark:' + darkTone.dotDark)} />
+            {category?.label}
+          </span>
+          {/* 右上：数据 badge（heat） */}
+          <span className={cn(
+            'shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500',
+            'dark:border-white/10 dark:bg-white/[0.04] dark:text-[#B8C0CC]',
+          )}>{team.heat}</span>
         </div>
-        <div className="mt-auto">
-          <div className="text-xs font-medium text-white/72">{team.type === 'team' ? '热门团队' : '热门 Agent'}</div>
-          <h3 className="mt-1 truncate text-[17px] font-semibold tracking-tight text-white drop-shadow-sm">{team.name}</h3>
-          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-white/82">{team.description}</p>
+        <div className="mt-auto pt-3">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-[#7F8998]">{team.type === 'team' ? '推荐团队' : '推荐 Agent'}</div>
+          <h3 className="mt-1 truncate text-[16px] font-semibold tracking-tight text-slate-900 dark:text-[#F5F7FA]">{team.name}</h3>
+          <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-slate-500 dark:text-[#B8C0CC]">{team.description}</p>
           <div className="mt-3 flex items-center justify-between gap-3">
             <TeamAvatarStack members={team.members} />
-            <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur transition group-hover:bg-white/22">打开详情</span>
+            <span className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium opacity-0 transition group-hover:opacity-100',
+              lightTone.accent,
+              'dark:' + darkTone.accent.split(' ').join(' dark:'),
+            )}>
+              查看详情
+              <ChevronRight className="size-3.5" />
+            </span>
           </div>
         </div>
       </div>
@@ -313,8 +368,8 @@ export function AgentWorkspace({
         <div className="border-b border-slate-200 p-4 dark:border-white/10">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">Agent 库</h1>
-              <p className="mt-1 text-sm text-slate-500">发现、配置和复用你的协作 Agent</p>
+              <h1 className="text-[22px] font-semibold tracking-tight">Agent 库</h1>
+              <p className="mt-1 text-[13px] text-slate-500">发现、配置和复用你的协作 Agent</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => setFormOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
@@ -356,7 +411,7 @@ export function AgentWorkspace({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={agentView === 'mine' ? '搜索我的 Agent、模型或能力' : '搜索精选 Agent、预设或能力'}
-              className="h-9 rounded-md border-slate-200 bg-slate-50 pl-10"
+              className="h-9 rounded-lg border-slate-200 bg-slate-50 pl-10"
             />
           </div>
           {agentView === 'featured' && (
@@ -392,8 +447,8 @@ export function AgentWorkspace({
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-slate-950 dark:text-slate-100">精选 Agent</h2>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话</p>
+                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-950 dark:text-slate-100">精选 Agent</h2>
+                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话</p>
                   </div>
                 </div>
                 <div className="min-h-[280px] pr-1">
@@ -579,12 +634,12 @@ function ResourcePresetCard({
   return (
     <article
       className={cn(
-        'group relative flex min-h-[190px] flex-col rounded-lg border bg-white p-3.5 transition duration-200 hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70',
+        'group relative flex min-h-[200px] flex-col rounded-xl border bg-white p-4 shadow-[var(--agenthub-shadow-card)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:shadow-black/20',
         selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg transition duration-200 dark:border-white/10 dark:bg-neutral-800">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-lg transition duration-200 dark:bg-neutral-800">
           <span aria-hidden="true">{preset.avatar}</span>
         </div>
         <div className="min-w-0 flex-1">
@@ -592,20 +647,20 @@ function ResourcePresetCard({
             <h3 className={cn('line-clamp-2 flex-1 text-[15px] font-semibold leading-5 text-slate-950 dark:text-slate-50', getPresetDisplayName(preset).length > 22 && 'text-sm leading-5')}>
               {getPresetDisplayName(preset)}
             </h3>
-            <span className="shrink-0 rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{preset.category}</span>
+            <span className="shrink-0 rounded-md border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{preset.category}</span>
           </div>
-          <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600 dark:text-slate-400">{preset.description}</p>
+          <p className="mt-2 line-clamp-3 text-[12px] leading-5 text-slate-500 dark:text-slate-400">{preset.description}</p>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-1.5">
         {preset.capabilities.slice(0, 2).map((capability) => (
-          <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">
+          <span key={capability} className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-neutral-800 dark:text-slate-300">
             {capability}
           </span>
         ))}
         {preset.capabilities.length > 2 && (
-          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
+          <span className="rounded-md bg-white px-2 py-0.5 text-[11px] text-slate-400 dark:bg-neutral-900 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
         )}
       </div>
 
@@ -614,7 +669,7 @@ function ResourcePresetCard({
           size="sm"
           onClick={onSelect}
           variant="outline"
-          className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800"
+          className="h-8 rounded-md border-slate-200 bg-white text-xs text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800"
         >
           详情
         </Button>
@@ -625,8 +680,7 @@ function ResourcePresetCard({
             e.stopPropagation()
             onStart()
           }}
-          variant="outline"
-          className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800"
+          className="h-8 rounded-md bg-[var(--agenthub-accent,#2F5FD0)] text-xs text-white hover:bg-[var(--agenthub-accent-hover,#244FB3)] disabled:opacity-60"
         >
           {starting ? '创建中' : '开始对话'}
         </Button>
@@ -660,8 +714,8 @@ function FeaturedPresetDetailPanel({
 
   return (
     <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
-      <div className="flex h-full flex-col">
-        <div className="border-b border-slate-200 p-4">
+      <div className="flex max-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-2rem)] flex-col">
+        <div className="shrink-0 border-b border-slate-200 p-4">
           <div className="flex items-start gap-3">
             <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xl">
               {preset.avatar}
@@ -702,7 +756,7 @@ function FeaturedPresetDetailPanel({
           </Button>
         </div>
 
-        <div className="space-y-3 p-4 text-sm">
+        <div className="agenthub-hide-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -845,8 +899,8 @@ function AgentDetailPanel({
 
   return (
     <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
-      <div className="flex h-full flex-col">
-        <div className="border-b border-slate-200 p-4">
+      <div className="flex max-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-2rem)] flex-col">
+        <div className="shrink-0 border-b border-slate-200 p-4">
           <div className="flex items-start gap-3">
             <div className="transition duration-200 hover:scale-105">
               <AgentAvatar agent={agent} size="lg" />
@@ -897,7 +951,7 @@ function AgentDetailPanel({
           )}
         </div>
 
-        <div className="space-y-3 p-4 text-sm">
+        <div className="agenthub-hide-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">

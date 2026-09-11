@@ -522,6 +522,38 @@ describe('app-store terminal reducers', () => {
     expect(useAppStore.getState().terminalEventsBySession.term_1.map((event) => event.seq)).toEqual([1, 2, 3])
     expect(useAppStore.getState().terminalEventsBySession.term_1.filter((event) => event.id === 'tevt_output')).toHaveLength(1)
   })
+
+  it('does not evict SSE-written sessions when REST backfill returns empty (P4 transcript retention)', () => {
+    const session: TerminalSessionRecord = {
+      id: 'term_sse',
+      conversationId: 'conv_terminal',
+      runId: 'run_terminal',
+      parentRunId: null,
+      agentId: 'ag_terminal',
+      taskId: null,
+      toolCallId: 'call_terminal',
+      shell: 'powershell.exe',
+      cwd: 'C:/workspace',
+      command: 'Get-ChildItem',
+      status: 'exited',
+      exitCode: 0,
+      signal: null,
+      startedAt: 1,
+      endedAt: 5,
+    }
+    // 1. SSE 先写入
+    useAppStore.getState().setTerminalSessionsForRun('run_terminal', [session])
+    expect(useAppStore.getState().terminalSessionsByRun.run_terminal).toEqual([session])
+
+    // 2. REST backfill 返回空（例如 fetchTerminalSessionsForRun 还没就绪 / 返回失败后重试），
+    //    不应清掉 SSE 写入的 sessions —— 否则终端 transcript 会丢失。
+    useAppStore.getState().setTerminalSessionsForRun('run_terminal', [])
+    expect(useAppStore.getState().terminalSessionsByRun.run_terminal).toEqual([session])
+
+    // 3. 没有任何 SSE 数据时传空数组，保持原 delete 行为（避免遗留脏数据）。
+    useAppStore.getState().setTerminalSessionsForRun('run_terminal_empty', [])
+    expect(useAppStore.getState().terminalSessionsByRun.run_terminal_empty).toBeUndefined()
+  })
 })
 
 

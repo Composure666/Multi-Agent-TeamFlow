@@ -1468,7 +1468,14 @@ function ProjectView({
             <div className="flex size-full items-center justify-center p-6 text-center text-sm text-destructive">
               <div>
                 <AlertCircle className="mx-auto mb-2 size-5" />
-                <div>{error}</div>
+                {error.includes('File not found') ? (
+                  <>
+                    <div>文件已不在 workspace 中，可能被后续任务移动或删除</div>
+                    <code className="mt-1 block font-mono text-xs text-muted-foreground">{activePath}</code>
+                  </>
+                ) : (
+                  <div>{error}</div>
+                )}
               </div>
             </div>
           ) : activePath ? (

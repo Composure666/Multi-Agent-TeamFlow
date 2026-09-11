@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Coins,
   Download,
+  FileCode2,
   Filter,
   MoreHorizontal,
   RefreshCw,
@@ -19,6 +20,15 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { EmptyState, InlineError, PageCard } from '@/components/workbench-primitives'
 import {
@@ -70,6 +80,8 @@ export function AnalyticsWorkspace() {
   const [error, setError] = useState<string | null>(null)
   const [taskTab, setTaskTab] = useState<TaskListTab>('全部')
   const [taskSearch, setTaskSearch] = useState('')
+  const [taskCategoryFilter, setTaskCategoryFilter] = useState<Set<string>>(new Set())
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false)
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [hoveredLine, setHoveredLine] = useState<number | null>(null)
   const [dateRangeOpen, setDateRangeOpen] = useState(false)
@@ -95,7 +107,7 @@ export function AnalyticsWorkspace() {
   const trend = useMemo(() => {
     const raw = dashboard?.trend.length ? dashboard.trend : buildEmptyWeekTrend()
     return raw.map((p, i) => ({ ...p, completed: Math.round(p.value * 0.85), idx: i }))
-  }, [dashboard?.trend])
+  }, [dashboard])
   const maxTrend = Math.max(...trend.map((p) => p.value), 1)
   const distribution = useMemo(() => buildAgentDistribution(dashboard?.recentRuns ?? []), [dashboard?.recentRuns])
   const successRate = calculateSuccessRate(dashboard?.recentRuns ?? [])
@@ -122,16 +134,23 @@ export function AnalyticsWorkspace() {
 
   const liveActivities = useMemo(() => buildLiveActivities(recentRuns), [recentRuns])
   const taskTypeDistribution = useMemo(() => buildTaskTypeDistribution(recentRuns), [recentRuns])
+  // 从 recentRuns 派生可筛的 Agent 类型列表（按出现频次降序，稳定）
+  const availableTaskCategories = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const run of recentRuns) counts.set(run.category, (counts.get(run.category) ?? 0) + 1)
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([label]) => label)
+  }, [recentRuns])
 
   const filteredTasks = useMemo(() => {
     let tasks = recentRuns
     if (taskTab !== '全部') tasks = tasks.filter((r) => r.status === taskTab)
+    if (taskCategoryFilter.size > 0) tasks = tasks.filter((r) => taskCategoryFilter.has(r.category))
     if (taskSearch.trim()) {
       const q = taskSearch.trim().toLowerCase()
       tasks = tasks.filter((r) => r.title.toLowerCase().includes(q) || r.category.toLowerCase().includes(q))
     }
     return tasks
-  }, [recentRuns, taskTab, taskSearch])
+  }, [recentRuns, taskTab, taskSearch, taskCategoryFilter])
 
   const isInitialLoading = (loading || usageLoading) && !dashboard && !usageData
   const loadError = error ?? usageError
@@ -153,12 +172,12 @@ export function AnalyticsWorkspace() {
     URL.revokeObjectURL(url)
   }, [datePreset, dateStart, dateEnd, totalRuns, weekRuns, todayRuns, weekTokens, todayTokens, allTokens, automationCount, successRate, trend, distribution, recentRuns])
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F0F2F5]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F0F2F5] dark:bg-[#0F1115]">
       {/* Header */}
-      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-5">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6">
         <div className="min-w-0">
-          <h1 className="text-base font-bold tracking-tight text-slate-900">数据概览</h1>
-          <p className="mt-0.5 text-[11px] text-slate-500">多维度了解 Agent 的运行情况、任务效率与资源使用</p>
+          <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">数据概览</h1>
+          <p className="mt-1 text-[13px] text-slate-500">多维度了解 Agent 的运行情况、任务效率与资源使用</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -202,14 +221,14 @@ export function AnalyticsWorkspace() {
       </div>
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-2.5 lg:p-3">
+      <div className="agenthub-hide-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5 xl:px-8 xl:py-6">
         {loadError && <InlineError message={loadError} onRetry={() => void load()} />}
         {isInitialLoading && <PageCard className="py-6 text-center text-sm text-slate-500">正在加载分析数据...</PageCard>}
 
         {!isInitialLoading && (
-          <div className="mx-auto max-w-[1440px] space-y-2.5">
+          <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:gap-4">
               <KpiCard icon={Bot} label="Agent 运行数" value={`${totalRuns}`} trend={runsTrend} caption={`较上周 ${prevWeekRuns}`} subCaption={`本周 ${weekRuns} 次 · 今日 ${todayRuns} 次`} sparkline={generateSparkline(weekRuns, 7)} tone="blue" />
               <KpiCard icon={Coins} label="Token 用量" value={formatTok(weekTokens)} trend={tokensTrend} caption={`较上周 ${formatTok(prevWeekTokens)}`} subCaption={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`} sparkline={generateSparkline(weekTokens, 7, 0.3)} tone="purple" />
               <KpiCard icon={Workflow} label="自动化任务" value={`${automationCount}`} trend={2} caption={`${activeAutomationCount} 个任务进行中`} subCaption={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`} sparkline={generateSparkline(automationCount, 7, 0.5)} tone="emerald" />
@@ -217,32 +236,32 @@ export function AnalyticsWorkspace() {
             </div>
 
             {/* Main area: 3-column layout */}
-            <div className="grid gap-2.5 lg:grid-cols-[1.1fr_260px_280px]">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(220px,1fr)_minmax(240px,1.1fr)] lg:gap-5">
               {/* Left: Trend Chart */}
-              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><div className="flex items-start justify-between gap-2"><div><h2 className="text-sm font-semibold text-slate-900">运行趋势</h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500">展示近7天 Agent 运行次数与任务完成情况</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-2"><div><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">运行趋势</h2>
+                    <p className="mt-1 text-[12px] text-slate-500">展示近7天 Agent 运行次数与任务完成情况</p>
                   </div>
                 </div>
-                <div className="mt-1.5 flex items-center gap-4 text-xs text-slate-500">
-                  <span className="flex items-center gap-1.5"><span className="inline-block size-2 rounded-full bg-[#2F5FD0]" />Agent 运行次数</span>
-                  <span className="flex items-center gap-1.5"><span className="inline-block size-2 rounded-full bg-[#10B981]" />任务完成数</span>
+                <div className="mt-3 flex items-center gap-5 text-[12px] text-slate-500">
+                  <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[#2F5FD0]" />Agent 运行次数</span>
+                  <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[#10B981]" />任务完成数</span>
                 </div>
                 <TrendChart data={trend} maxTrend={maxTrend} hoveredBar={hoveredBar} hoveredLine={hoveredLine} onHoverBar={setHoveredBar} onHoverLine={setHoveredLine} />
               </div>
 
               {/* Middle: Agent Type Distribution Donut */}
-              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold text-slate-900">Agent 类型分布</h2>
-                  <button type="button" className="text-slate-400 hover:text-slate-600"><X className="size-3.5" /></button>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">Agent 类型分布</h2>
+                  <button type="button" className="text-slate-400 hover:text-slate-600"><X className="size-4" /></button>
                 </div>
                 <DonutChart items={distribution} total={totalRuns} />
-                <div className="mt-1.5 space-y-1">
+                <div className="mt-3 space-y-2">
                   {distribution.map((item, i) => (
-                    <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5">
+                    <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-[13px]">
+                      <span className="flex items-center gap-2">
                         <span className="size-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                         <span className="text-slate-600">{item.label}</span>
                       </span>
-                      <span className="text-slate-500">{item.value}% <span className="ml-1 text-slate-400">{item.count}</span></span>
+                      <span className="text-slate-500">{item.value}% <span className="ml-1.5 text-slate-400">{item.count}</span></span>
                     </div>
                   ))}
                   {distribution.length === 0 && <div className="py-3 text-center text-xs text-slate-400">暂无分布数据</div>}
@@ -250,20 +269,20 @@ export function AnalyticsWorkspace() {
               </div>
 
               {/* Right: Sidebar */}
-              <div className="space-y-2.5 lg:row-span-2">{/* Live Activity */}
-                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="space-y-4 lg:row-span-2">{/* Live Activity */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-slate-900">实时运行动态</h2>
-                    <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
+                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">实时运行动态</h2>
+                    <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
                   </div>
-                  <div className="mt-1.5 space-y-2">
+                  <div className="mt-3 space-y-2.5">
                     {liveActivities.length === 0 ? (
                       <div className="py-3 text-center text-xs text-slate-400">暂无实时动态</div>
                     ) : liveActivities.map((item, i) => (
-                      <div key={`live-${i}-${item.title}`} className="flex gap-2">
-                        <div className="flex flex-col items-center"><span className="text-[10px] text-slate-400">{item.time}</span><span className="mt-0.5 size-1 rounded-full bg-slate-300" /></div>
-                        <div className="min-w-0 flex-1 pb-2">
-                          <div className="flex items-center justify-between"><span className="truncate text-xs font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
+                      <div key={`live-${i}-${item.title}`} className="flex gap-2.5">
+                        <div className="flex flex-col items-center"><span className="text-[11px] text-slate-400">{item.time}</span><span className="mt-1 size-1 rounded-full bg-slate-200" /></div>
+                        <div className="min-w-0 flex-1 pb-2.5">
+                          <div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
                           <p className="mt-0.5 truncate text-[11px] text-slate-400">{item.description}</p>
                         </div>
                       </div>
@@ -272,13 +291,13 @@ export function AnalyticsWorkspace() {
                 </div>
 
                 {/* Task Type Distribution */}
-                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <h2 className="text-sm font-semibold text-slate-900">最近任务类型</h2>
-                  <div className="mt-1.5 space-y-1.5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">最近任务类型</h2>
+                  <div className="mt-3 space-y-2.5">
                     {taskTypeDistribution.map((item, i) => (
                       <div key={`tt-${item.label}-${i}`}>
-                        <div className="mb-1 flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1.5 text-slate-600"><span className="size-1.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />{item.label}</span>
+                        <div className="mb-1.5 flex items-center justify-between text-[13px]">
+                          <span className="flex items-center gap-2 text-slate-600"><span className="size-1.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />{item.label}</span>
                           <span className="font-medium text-slate-700">{item.value}%</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full transition-all" style={{ width: `${item.value}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} /></div>
@@ -289,23 +308,87 @@ export function AnalyticsWorkspace() {
                 </div>
               </div>
             {/* Task List */}
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
-                <div><h2 className="text-sm font-semibold text-slate-900">任务列表</h2></div>
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
+                <div><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">任务列表</h2></div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-slate-400" />
-                    <Input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="搜索任务名称 / Agent 名称..." className="h-7 w-52 rounded-lg border-slate-200 bg-slate-50 pl-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-blue-200" />
+                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="搜索任务名称 / Agent 名称..." className="h-8 w-60 rounded-lg border-slate-200 bg-slate-50 pl-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-blue-200" />
                   </div>
-                  <Button variant="outline" size="sm" className="h-7 w-7 rounded-lg border-slate-200 p-0"><Filter className="size-3 text-slate-500" /></Button>
+                  {/* 筛选下拉：按 Agent 类型多选，与搜索/状态 tab 组合生效 */}
+                  <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          'h-8 w-8 rounded-lg border-slate-200 p-0',
+                          taskCategoryFilter.size > 0 && 'border-[#2F5FD0] bg-blue-50/60 text-[#2F5FD0]',
+                        )}
+                        aria-label="筛选 Agent 类型"
+                      >
+                        <Filter className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuLabel className="flex items-center justify-between">
+                        <span>按 Agent 类型筛选</span>
+                        {taskCategoryFilter.size > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setTaskCategoryFilter(new Set())}
+                            className="text-[11px] font-normal text-[#2F5FD0] hover:underline"
+                          >
+                            清除 ({taskCategoryFilter.size})
+                          </button>
+                        )}
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {availableTaskCategories.length === 0 && (
+                        <div className="px-2 py-2 text-[12px] text-slate-400">暂无 Agent 类型</div>
+                      )}
+                      {availableTaskCategories.map((category) => (
+                        <DropdownMenuCheckboxItem
+                          key={`cat-${category}`}
+                          checked={taskCategoryFilter.has(category)}
+                          onCheckedChange={(checked) => {
+                            setTaskCategoryFilter((prev) => {
+                              const next = new Set(prev)
+                              if (checked) next.add(category)
+                              else next.delete(category)
+                              return next
+                            })
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {category}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {taskCategoryFilter.size > 0 && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setTaskCategoryFilter(new Set())
+                              setFilterMenuOpen(false)
+                            }}
+                            className="text-[#2F5FD0]"
+                          >
+                            清除全部筛选
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
-              <div className="flex items-center gap-1 border-b border-slate-100 px-4">
+              <div className="flex items-center gap-1 border-b border-slate-100 px-5">
                 {(['全部', '运行中', '已完成', '失败'] as TaskListTab[]).map((tab) => {
                   const count = tab === '全部' ? recentRuns.length : recentRuns.filter((r) => r.status === tab).length
                   return (
-                    <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative px-2.5 py-2 text-xs font-medium transition', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-500 hover:text-slate-700')}>
-                      {tab}<span className={cn('ml-1 text-[10px]', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-400')}>{count}</span>
+                    <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative px-3 py-2.5 text-[13px] font-medium transition', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-500 hover:text-slate-700')}>
+                      {tab}<span className={cn('ml-1.5 text-[11px]', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-400')}>{count}</span>
                       {taskTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#2F5FD0]" />}
                     </button>
                   )
@@ -335,25 +418,25 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
   const sparkColor = tone === 'blue' ? '#2F5FD0' : tone === 'purple' ? '#7C3AED' : tone === 'emerald' ? '#10B981' : '#F43F5E'
   const trendUp = trend >= 0
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <div className={cn('flex size-8 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4" /></div>
-          <span className="text-xs font-medium text-slate-600">{label}</span>
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className={cn('flex size-9 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4" /></div>
+          <span className="text-[13px] font-medium text-slate-700">{label}</span>
         </div>
-        <div className={cn('flex size-8 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4 opacity-60" /></div>
       </div>
-      <div className="mt-2 flex items-end justify-between">
-        <div>
-          <div className="text-2xl font-bold tracking-tight text-slate-900">{value}</div>
-          <div className={cn('mt-1 flex items-center gap-1 text-xs font-medium', trendUp ? 'text-emerald-600' : 'text-rose-500')}>
-            <TrendingUp className={cn('size-3', !trendUp && 'rotate-180')} />
-            {trendUp ? '+' : ''}{trend > 100 ? `${Math.round(trend / 10) / 10}%` : trend}
+      <div className="mt-3.5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[28px] font-semibold leading-none tracking-tight text-slate-900">{value}</div>
+          <div className={cn('mt-2 flex items-center gap-1 text-[12px] font-medium', trendUp ? 'text-emerald-600' : 'text-rose-500')}>
+            <TrendingUp className={cn('size-3.5', !trendUp && 'rotate-180')} />
+            <span>{trendUp ? '+' : ''}{trend > 100 ? `${Math.round(trend / 10) / 10}%` : `${trend}%`}</span>
+            <span className="ml-1 font-normal text-slate-400">{caption}</span>
           </div>
         </div>
         <Sparkline data={sparkline} color={sparkColor} />
       </div>
-      <div className="mt-1 text-[11px] text-slate-400">{caption}</div>
+      <div className="mt-3 text-[11px] text-slate-400">{subCaption}</div>
     </article>
   )
 }
@@ -375,19 +458,19 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-/* ─ Trend Chart: bars + line, tooltips on both ── */
+/* ─ Trend Chart: bars + line, lightweight white-card tooltip on hover ── */
 function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHoverLine }: {
   data: (AutomationTrendPoint & { idx: number; completed: number })[];
   maxTrend: number; hoveredBar: number | null; hoveredLine: number | null;
   onHoverBar: (i: number | null) => void; onHoverLine: (i: number | null) => void;
 }) {
-  const chartH = 140, padL = 36, padR = 12, padT = 8, padB = 22
+  const chartH = 160, padL = 40, padR = 16, padT = 16, padB = 24
   const svgW = 560, svgH = chartH + padT + padB
   const plotW = svgW - padL - padR, plotH = chartH
   const gap = plotW / data.length
   const barW = Math.max(16, gap * 0.45)
   const yTicks = [0, Math.round(maxTrend * 0.25), Math.round(maxTrend * 0.5), Math.round(maxTrend * 0.75), maxTrend]
-
+  // 预计算折线点位（避免 render 期间就地累加）
   const linePts = data.map((p, i) => {
     const x = padL + gap * i + gap / 2
     const y = padT + plotH - (p.completed / maxTrend) * plotH
@@ -395,16 +478,24 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
   })
   const linePath = linePts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
 
+  // 共享 tooltip 尺寸常量 + 边界判定（避免遮挡当前节点、不改变图表布局）
+  const TT_W = 156, TT_H = 70, TT_GAP = 12
+
   return (
-    <div className="mt-3 w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-auto min-w-[400px] w-full" preserveAspectRatio="xMidYMid meet">
+    <div className="mt-4 w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-auto max-h-[300px] min-w-[440px] w-full" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <filter id="tt-shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0F172A" floodOpacity="0.08" />
+          </filter>
+        </defs>
         {/* Grid */}
-        {yTicks.map((tick) => {
+        {yTicks.map((tick, i) => {
           const y = padT + plotH - (tick / maxTrend) * plotH
           return (
-            <g key={`yt-${tick}`}>
-              <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="#F1F5F9" strokeWidth="1" />
-              <text x={padL - 6} y={y + 3} textAnchor="end" fill="#94A3B8" fontSize="9">{tick}</text>
+            <g key={`yt-${i}-${tick}`}>
+              <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="#F4F6FA" strokeWidth="1" />
+              <text x={padL - 8} y={y + 3} textAnchor="end" fill="#CBD5E1" fontSize="10">{tick}</text>
             </g>
           )
         })}
@@ -416,35 +507,61 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
           const isH = hoveredBar === i
           return (
             <g key={`bar-${point.idx}`} onMouseEnter={() => onHoverBar(i)} onMouseLeave={() => onHoverBar(null)} className="cursor-pointer">
-              <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx="3" fill={isH ? '#1d4ed8' : '#2F5FD0'} opacity={isH ? 1 : 0.75} />
-              <text x={cx} y={padT + plotH + 16} textAnchor="middle" fill="#94A3B8" fontSize="9">{point.label}</text>
-              {isH && (
-                <g>
-                  <rect x={cx - 36} y={y - 30} width="72" height="24" rx="4" fill="#1E293B" />
-                  <text x={cx} y={y - 14} textAnchor="middle" fill="white" fontSize="10" fontWeight="600">{point.value} 次</text>
-                </g>
-              )}
+              <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx="3" fill={isH ? '#1d4ed8' : '#2F5FD0'} opacity={isH ? 1 : 0.85} />
+              <text x={cx} y={padT + plotH + 18} textAnchor="middle" fill="#94A3B8" fontSize="10">{point.label}</text>
+              {isH && (() => {
+                // 边缘检测：靠右则左移，靠上则下移
+                const flipX = cx + TT_W / 2 > svgW - padR
+                const flipY = y - (TT_H + TT_GAP) < 0
+                const tx = flipX ? cx - TT_W / 2 : cx - TT_W / 2
+                const ty = flipY ? y + barH + TT_GAP : y - TT_H - TT_GAP
+                return (
+                  <g pointerEvents="none">
+                    <rect x={tx} y={ty} width={TT_W} height={TT_H} rx="8" fill="#FFFFFF" stroke="#E5E7EB" strokeWidth="1" filter="url(#tt-shadow)" />
+                    <text x={tx + 12} y={ty + 16} textAnchor="start" fill="#64748B" fontSize="11">{point.label}</text>
+                    {/* 第一行：Agent 运行次数 */}
+                    <circle cx={tx + 14} cy={ty + 36} r="3" fill="#2F5FD0" />
+                    <text x={tx + 22} y={ty + 39} textAnchor="start" fill="#475569" fontSize="11">Agent 运行次数</text>
+                    <text x={tx + TT_W - 12} y={ty + 39} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{point.value}</text>
+                    {/* 第二行：任务完成数（柱状图 hover 不显示完成数，因为悬停的是柱） */}
+                    <circle cx={tx + 14} cy={ty + 54} r="3" fill="#10B981" />
+                    <text x={tx + 22} y={ty + 57} textAnchor="start" fill="#475569" fontSize="11">任务完成数</text>
+                    <text x={tx + TT_W - 12} y={ty + 57} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{point.completed}</text>
+                  </g>
+                )
+              })()}
             </g>
           )
         })}
         {/* Line */}
-        <path d={linePath} fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={linePath} fill="none" stroke="#10B981" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
         {linePts.map((p, i) => {
           const isH = hoveredLine === i
           return (
             <g key={`lp-${p.idx}`} onMouseEnter={() => onHoverLine(i)} onMouseLeave={() => onHoverLine(null)} className="cursor-pointer">
-              <circle cx={p.x} cy={p.y} r={isH ? 6 : 4} fill="white" stroke="#10B981" strokeWidth="2" />
-              {isH && (
-                <g>
-                  <rect x={p.x - 40} y={p.y - 32} width="80" height="26" rx="4" fill="#1E293B" />
-                  <text x={p.x} y={p.y - 18} textAnchor="middle" fill="white" fontSize="9" fontWeight="600">{p.label}</text>
-                  <text x={p.x} y={p.y - 8} textAnchor="middle" fill="#10B981" fontSize="10" fontWeight="700">完成 {p.value}</text>
-                </g>
-              )}
+              <circle cx={p.x} cy={p.y} r={isH ? 5 : 3.5} fill="white" stroke="#10B981" strokeWidth="1.75" />
+              {isH && (() => {
+                const flipX = p.x + TT_W / 2 > svgW - padR
+                const flipY = p.y - (TT_H + TT_GAP) < padT
+                const tx = flipX ? p.x - TT_W / 2 : p.x - TT_W / 2
+                const ty = flipY ? p.y + TT_GAP : p.y - TT_H - TT_GAP
+                return (
+                  <g pointerEvents="none">
+                    <rect x={tx} y={ty} width={TT_W} height={TT_H} rx="8" fill="#FFFFFF" stroke="#E5E7EB" strokeWidth="1" filter="url(#tt-shadow)" />
+                    <text x={tx + 12} y={ty + 16} textAnchor="start" fill="#64748B" fontSize="11">{p.label}</text>
+                    <circle cx={tx + 14} cy={ty + 36} r="3" fill="#2F5FD0" />
+                    <text x={tx + 22} y={ty + 39} textAnchor="start" fill="#475569" fontSize="11">Agent 运行次数</text>
+                    <text x={tx + TT_W - 12} y={ty + 39} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{data[i]?.value ?? 0}</text>
+                    <circle cx={tx + 14} cy={ty + 54} r="3" fill="#10B981" />
+                    <text x={tx + 22} y={ty + 57} textAnchor="start" fill="#475569" fontSize="11">任务完成数</text>
+                    <text x={tx + TT_W - 12} y={ty + 57} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{p.value}</text>
+                  </g>
+                )
+              })()}
             </g>
           )
         })}
-        <line x1={padL} y1={padT + plotH} x2={svgW - padR} y2={padT + plotH} stroke="#E2E8F0" strokeWidth="1" />
+        <line x1={padL} y1={padT + plotH} x2={svgW - padR} y2={padT + plotH} stroke="#F1F5F9" strokeWidth="1" />
       </svg>
     </div>
   )
@@ -453,19 +570,21 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
 /* ─ Donut Chart ── */
 function DonutChart({ items, total }: { items: AnalyticsDistributionItem[]; total: number }) {
   const size = 120, sw = 20, r = (size - sw) / 2, circ = 2 * Math.PI * r
-  let offset = 0
+  // 预计算每段的弧长与起始偏移（不可在 render 中就地累加）
+  const segments = items.map((item, i) => {
+    const dl = (item.value / 100) * circ
+    const prev = items.slice(0, i).reduce((sum, it) => sum + (it.value / 100) * circ, 0)
+    return { item, i, dl, doff: -prev }
+  })
   return (
     <div className="relative mx-auto my-1.5" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {items.map((item, i) => {
-          const pct = item.value / 100, dl = pct * circ, doff = -offset; offset += dl
-          return (
-            <circle key={`donut-${item.label}-${i}`} cx={size / 2} cy={size / 2} r={r} fill="none"
-              stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={sw}
-              strokeDasharray={`${dl} ${circ - dl}`} strokeDashoffset={doff}
-              strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-          )
-        })}
+        {segments.map(({ item, i, dl, doff }) => (
+          <circle key={`donut-${item.label}-${i}`} cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={sw}
+            strokeDasharray={`${dl} ${circ - dl}`} strokeDashoffset={doff}
+            strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        ))}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg font-bold text-slate-900">{total}</span>
@@ -483,31 +602,149 @@ function StatusBadge({ status }: { status: '运行中' | '已完成' | '等待�
 
 /* ─ Task Table ── */
 function TaskTable({ tasks, onOpenRun }: { tasks: AnalyticsRunRecord[]; onOpenRun: (run: AnalyticsRunRecord) => void }) {
-  if (tasks.length === 0) return <div className="py-8 text-center text-sm text-slate-400"><EmptyState title="暂无匹配任务" description="尝试调整筛选条件或搜索关键词" /></div>
+  // 本地已删除 ID 集合 —— 真实后端删除接口未接入前，先在视图层隐藏，
+  // 这样删除操作有真实交互反馈（行消失 + toast），又不会触碰全局 store。
+  const [localRemovedIds, setLocalRemovedIds] = useState<Set<string>>(() => new Set())
+  const addNotification = useAppStore((s) => s.addNotification)
+  const visibleTasks = tasks.filter((task) => !localRemovedIds.has(task.id))
+
+  const handleCopyTitle = useCallback(
+    async (run: AnalyticsRunRecord) => {
+      try {
+        await navigator.clipboard.writeText(run.title)
+        addNotification({
+          id: `ntf_copy_${run.id}_${Date.now()}`,
+          title: '任务名称已复制',
+          body: `已复制「${run.title}」到剪贴板。`,
+          level: 'success',
+          source: 'ui',
+          category: 'task',
+          createdAt: Date.now(),
+          toast: true,
+        })
+      } catch {
+        addNotification({
+          id: `ntf_copy_err_${run.id}_${Date.now()}`,
+          title: '复制失败',
+          body: '剪贴板不可用，请检查浏览器权限。',
+          level: 'error',
+          source: 'ui',
+          category: 'task',
+          createdAt: Date.now(),
+          toast: true,
+        })
+      }
+    },
+    [addNotification],
+  )
+
+  const handleRerun = useCallback(
+    (run: AnalyticsRunRecord) => {
+      // 当前数据源是后端运行历史的只读视图，「重新运行」需切换到新建任务流；
+      // 这里给出明确反馈，避免静默点击。
+      if (run.status === '运行中') return
+      addNotification({
+        id: `ntf_rerun_${run.id}_${Date.now()}`,
+        title: '已记录重运行意图',
+        body: `任务「${run.title}」需要新的会话上下文，请前往「新建任务」使用相同配置。`,
+        level: 'info',
+        source: 'ui',
+        category: 'task',
+        createdAt: Date.now(),
+        toast: true,
+      })
+    },
+    [addNotification],
+  )
+
+  const handleRemove = useCallback(
+    (run: AnalyticsRunRecord) => {
+      const confirmed = typeof window === 'undefined' ? true : window.confirm(`确认从任务列表中移除「${run.title}」？`)
+      if (!confirmed) return
+      setLocalRemovedIds((prev) => {
+        const next = new Set(prev)
+        next.add(run.id)
+        return next
+      })
+      addNotification({
+        id: `ntf_remove_${run.id}_${Date.now()}`,
+        title: '已从列表移除',
+        body: `任务「${run.title}」已从当前视图移除。`,
+        level: 'success',
+        source: 'ui',
+        category: 'task',
+        createdAt: Date.now(),
+        toast: true,
+      })
+    },
+    [addNotification],
+  )
+
+  if (visibleTasks.length === 0) {
+    return (
+      <div className="py-10 text-center text-sm text-slate-400">
+        <EmptyState
+          title={localRemovedIds.size > 0 ? '所有任务都已移除' : '暂无匹配任务'}
+          description={localRemovedIds.size > 0 ? '刷新页面即可恢复列表' : '尝试调整筛选条件或搜索关键词'}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-xs">
+      <table className="w-full text-left text-[13px]">
         <thead>
-          <tr className="border-b border-slate-100 text-[11px] font-medium text-slate-400">
-            <th className="px-3 py-2">任务名称</th>
-            <th className="px-3 py-2">Agent 类型</th>
-            <th className="px-3 py-2">创建时间</th>
-            <th className="px-3 py-2">运行时长</th>
-            <th className="px-3 py-2">状态</th>
-            <th className="px-3 py-2 text-right">操作</th>
+          <tr className="border-b border-slate-100 text-[12px] font-medium text-slate-400">
+            <th className="px-5 py-2.5">任务名称</th>
+            <th className="px-5 py-2.5">Agent 类型</th>
+            <th className="px-5 py-2.5">创建时间</th>
+            <th className="px-5 py-2.5">运行时长</th>
+            <th className="px-5 py-2.5">状态</th>
+            <th className="px-5 py-2.5 text-right">操作</th>
           </tr>
         </thead>
         <tbody>
-          {tasks.map((run) => (
-            <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-slate-50/60">
-              <td className="px-3 py-2"><div className="truncate font-medium text-slate-800">{run.title}</div></td>
-              <td className="px-3 py-2"><CategoryTag category={run.category} /></td>
-              <td className="px-3 py-2 text-slate-500">{run.createdAt}</td>
-              <td className="px-3 py-2 text-slate-500">{run.duration}</td>
-              <td className="px-3 py-2"><StatusBadge status={run.status} /></td>
-              <td className="px-3 py-2 text-right">
-                <button type="button" onClick={() => onOpenRun(run)} className="mr-2 text-xs font-medium text-[#2F5FD0] hover:underline">查看</button>
-                <button type="button" className="text-slate-400 hover:text-slate-600"><MoreHorizontal className="size-3.5" /></button>
+          {visibleTasks.map((run) => (
+            <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-slate-50/50">
+              <td className="px-5 py-3"><div className="truncate font-medium text-slate-800">{run.title}</div></td>
+              <td className="px-5 py-3"><CategoryTag category={run.category} /></td>
+              <td className="px-5 py-3 text-slate-500">{run.createdAt}</td>
+              <td className="px-5 py-3 text-slate-500">{run.duration}</td>
+              <td className="px-5 py-3"><StatusBadge status={run.status} /></td>
+              <td className="px-5 py-3 text-right">
+                <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-[13px] font-medium text-[#2F5FD0] hover:text-[#244FB3]">查看</button>
+                {/* 行操作下拉：替代原本无响应的 MoreHorizontal */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`任务「${run.title}」的操作`}
+                      className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem onClick={() => onOpenRun(run)}>
+                      <Search className="size-3.5" />
+                      查看详情
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void handleCopyTitle(run)}>
+                      <FileCode2 className="size-3.5" />
+                      复制任务名称
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRerun(run)} disabled={run.status === '运行中'}>
+                      <RefreshCw className="size-3.5" />
+                      重新运行
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={() => handleRemove(run)}>
+                      <X className="size-3.5" />
+                      从列表移除
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </td>
             </tr>
           ))}
@@ -519,7 +756,7 @@ function TaskTable({ tasks, onOpenRun }: { tasks: AnalyticsRunRecord[]; onOpenRu
 
 function CategoryTag({ category }: { category: string }) {
   const c: Record<string, string> = { 代码开发: 'bg-blue-50 text-blue-600', 内容文档: 'bg-purple-50 text-purple-600', 数据分析: 'bg-emerald-50 text-emerald-600', 设计产物: 'bg-amber-50 text-amber-600', 自定义任务: 'bg-slate-100 text-slate-600', 内容推送: 'bg-sky-50 text-sky-600', 兴趣推荐: 'bg-pink-50 text-pink-600', 项目报告: 'bg-indigo-50 text-indigo-600' }
-  return <span className={cn('rounded-md px-2 py-0.5 text-[11px] font-medium', c[category] ?? 'bg-slate-100 text-slate-600')}>{category}</span>
+  return <span className={cn('rounded-md px-2 py-0.5 text-[12px] font-medium', c[category] ?? 'bg-slate-100 text-slate-600')}>{category}</span>
 }
 
 /* ─ Backward compat exports ── */
@@ -609,7 +846,14 @@ function buildLiveActivities(runs: AnalyticsRunRecord[]): LiveActivityItem[] {
   const names = ['代码生成 Agent', '数据分析 Agent', '文档撰写 Agent', '设计产物 Agent', '代码审查 Agent']
   const descs = ['正在生成项目代码结构...', '分析完成，生成可视化图表', '正在整理文档内容...', '等待依赖任务完成', '发现 2 个问题，已修复']
   const stats: Array<'运行中' | '已完成' | '等待中'> = ['运行中', '已完成', '运行中', '等待中', '已完成']
-  return runs.slice(0, 5).map((run, i) => ({ time: run.time.split(' ').pop() ?? '14:32', title: names[i % names.length], description: descs[i % descs.length], status: stats[i % stats.length] }))
+  return runs.slice(0, 5).map((run, i) => ({ time: extractLiveTime(run.time), title: names[i % names.length], description: descs[i % descs.length], status: stats[i % stats.length] }))
+}
+
+/** 从相对时间文案中提取时间轴标签：`今日 14:32`/`昨日 14:32` → `14:32`；`3 天前`/`05-21` → 原样保留 */
+function extractLiveTime(value: string): string {
+  const trimmed = value.trim()
+  const clock = trimmed.match(/(\d{1,2}:\d{2})$/)
+  return clock ? clock[1] : trimmed || '—'
 }
 
 

@@ -16,6 +16,7 @@ const PatchBody = z.object({
   openaiApiKey: z.string().nullable().optional(),
   deepseekApiKey: z.string().nullable().optional(),
   arkApiKey: z.string().nullable().optional(),
+  defaultLlmProvider: z.enum(['auto', 'deepseek', 'openai', 'anthropic', 'ark']).nullable().optional(),
   companionMode: z.enum(['off', 'lan', 'tailnet']).optional(),
   mobileDeviceToken: z.string().nullable().optional(),
   deploymentPublishEnabled: z.boolean().optional(),
