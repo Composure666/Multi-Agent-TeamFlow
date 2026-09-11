@@ -25,6 +25,7 @@ AgentHub 是一个本地优先的多 Agent 协作工作空间，把 AI 协作做
 
 - 单 Agent 与群聊式多 Agent 会话
 - Orchestrator 自动拆解任务、派发子任务并聚合结果
+- 多 Provider LLM 接入：内置 Anthropic / OpenAI / DeepSeek / 火山方舟，也支持自定义 OpenAI 兼容端点；按能力分配模型，失败自动故障转移
 - 结构化消息渲染：文本、思考、工具调用、附件、产物引用分别展示
 - 产物预览：文档、图片、网页、幻灯片、diff、代码文件
 - Workspace 沙箱与本地目录绑定
@@ -116,6 +117,19 @@ Agent 运行时按以下顺序读取 key：
 3. `process.env.<PROVIDER>_API_KEY`
 
 Agent 专属 key 优先级最高。缺失 key 时，不会阻止应用启动；只有真正调用对应 provider 时才会报错。
+
+## LLM Provider 管理
+
+AgentHub 在现有 `app_settings` Key 之上引入 Provider 层，统一管理模型接入。
+
+- **供应商接入**：内置 Anthropic、OpenAI、DeepSeek、火山方舟（Ark），也可接入任意 OpenAI 兼容端点。每个供应商保存 Base URL、可用模型和连接状态，并支持一键测试连通性。
+- **模型分配**：决定「哪个能力用哪个供应商的哪个模型」，分三层——全局默认、系统能力（提示词增强 / 任务规划 / 上下文摘要 / 系统对话）、Agent 专属。每个能力可维护一条按优先级排序的供应商列表。
+- **故障转移**：当供应商返回可重试错误（额度不足 / 鉴权失败 / 限流 / 5xx / 超时）时，按优先级自动切换到下一个供应商。重试次数、冷却时间、触发条件均可配置，每次切换都会记录事件。
+- **应用内管理**：在「设置 → Provider / 模型分配 / 故障转移」中配置。
+
+旧版 `app_settings` 中的 provider Key 会在首次启动时自动迁移到 `llm_providers` 表（幂等，已存在的供应商不覆盖）。
+
+相关 API：`/api/providers`、`/api/model-assignments`、`/api/provider-priority`、`/api/failover-config`、`/api/failover-events`。
 
 ## 运行方式
 

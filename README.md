@@ -27,6 +27,7 @@ It keeps conversations, agents, artifacts, approvals, and workspace files in one
 - Built-in Orchestrator for task planning and multi-agent dispatch
 - Structured messages with parts for text, thinking, tool calls, attachments, and artifact refs
 - Artifact previews for documents, images, web apps, slides, diffs, and code files
+- Multi-provider LLM support with per-capability model assignment and automatic failover
 - Workspace sandboxing with approval flow for risky file writes and commands
 - Desktop app support through Electron
 - Mobile companion app scaffold through Capacitor
@@ -101,6 +102,19 @@ Typical private values include:
 - `AGENTHUB_MOBILE_TOKEN`
 
 If you need to share a new non-secret setting with the team, add it to `.env.example` and document it here or in `INSTALL.md`.
+
+## LLM providers
+
+AgentHub introduces a provider layer for model access on top of the existing `app_settings` keys.
+
+- **Providers** — connect Anthropic, OpenAI, DeepSeek, Volcano Ark, or any OpenAI-compatible endpoint. Each provider stores its base URL, available models, and connection status, and can be tested from the UI.
+- **Model assignment** — choose which provider and model serve each capability. Assignment is scoped to the global default, system capabilities (prompt optimization, task planning, context summary, system chat), and individual agents, and each capability keeps a priority-ordered provider list.
+- **Failover** — when a provider returns a retryable error (insufficient balance, auth failure, rate limit, 5xx, timeout), the router falls back to the next provider in the priority list. Retries, cooldown, and trigger conditions are configurable, and every switch is recorded as an event.
+- **In-app management** — configure providers, priorities, and failover rules from the settings panel.
+
+Legacy keys stored in `app_settings` are migrated into the `llm_providers` table on first launch.
+
+Relevant API routes: `/api/providers`, `/api/model-assignments`, `/api/provider-priority`, `/api/failover-config`, `/api/failover-events`.
 
 ## Running the app
 
