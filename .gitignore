@@ -48,7 +48,7 @@ next-env.d.ts
 /.tmp/
 /drizzle/
 
-# Playwright (project-bundled artifacts; debug outputs at root only if a workspace keeps them)
+# Playwright report
 /playwright-report/
 /test-results/
 
@@ -68,18 +68,21 @@ next-env.d.ts
 /.workbuddy/
 /.pnpm-store/
 
-# Agent / debug tooling scratch outputs (NOT source)
-/.playwright-cli/        # playwright server console + page yml snapshots
-/.tmp-probe/            # temporary diagnostic probes
-/.vitest-result/        # ad-hoc vitest artifacts
-/deliverables/          # one-off briefs (the report content lives in md inside src/, deliverables/ is for raw exports only)
-/output/                # imagegen / playwright / matplotlib one-off images
+# Agent / debug tooling scratch outputs (NOT source, hidden dirs)
+# 注意:必须写完整目录名带前导斜杠才能在仓库根匹配到隐藏目录
+/.playwright-cli/
+/.tmp-probe/
+/.vitest-result/
 
-# Root-level debug log (Electron runtime spillover)
+# Project deliverables raw exports
+/deliverables/
+/output/
+
+# Root-level Electron runtime spillover
 /debug.log
 
 # Local git backup created during ref-corruption recovery
 /.git.bak/
 
-# Local agent-hub data scratch dirs (safety net)
+# Local agent scratch dir (safety net)
 /workspaces/
