@@ -209,6 +209,17 @@ const TOOL_SCRIPT: ScriptStep[] = [
   { kind: 'text', content: '已读取产物信息。这只是脚本演示，真实工具会在后续 milestone 接入。' },
 ]
 
+const TERMINAL_SCRIPT: ScriptStep[] = [
+  { kind: 'thinking', content: '我需要执行一条命令验证终端链路。' },
+  {
+    kind: 'tool',
+    toolName: 'Bash',
+    args: { command: 'echo agenthub-terminal-check', description: '终端链路验证' },
+    result: 'agenthub-terminal-ok',
+  },
+  { kind: 'text', content: '命令已执行完成，终端面板应同步显示输出。' },
+]
+
 const DEFAULT_SCRIPT: ScriptStep[] = [
   { kind: 'thinking', content: '收到了用户消息，按通用模板回应。' },
   {
@@ -222,6 +233,7 @@ function pickScript(prompt: string): ScriptStep[] {
   const p = prompt.toLowerCase()
   if (/(你好|hello|hi|您好)/.test(p)) return GREETING_SCRIPT
   if (/(写代码|代码|code|component|组件)/.test(p)) return CODE_SCRIPT
+  if (/(终端|terminal|bash)/.test(p)) return TERMINAL_SCRIPT
   if (/(执行|工具|tool|run|跑)/.test(p)) return TOOL_SCRIPT
   return DEFAULT_SCRIPT
 }

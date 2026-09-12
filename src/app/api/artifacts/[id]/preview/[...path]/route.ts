@@ -54,17 +54,22 @@ export async function GET(_req: Request, ctx: RouteContext) {
     headers: {
       'Content-Type': contentTypeFor(subPath),
       'Content-Security-Policy': [
-        'sandbox allow-scripts',
+        // Sub-resources are not supposed to be rendered as HTML; lock everything down
+        // and forbid framing / form / object / base-uri / script / style so a
+        // wayward client cannot be tricked into executing content fetched from
+        // this URL. Combined with X-Content-Type-Options: nosniff below, MIME
+        // confusion / drive-by execution are both blocked.
+        'sandbox',
         "default-src 'none'",
-        "script-src 'unsafe-inline'",
-        "style-src 'unsafe-inline'",
-        'img-src data: blob: http: https:',
-        'font-src data:',
+        "script-src 'none'",
+        "style-src 'none'",
+        "img-src 'none'",
+        "font-src 'none'",
         "connect-src 'none'",
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'none'",
-        "frame-ancestors 'self'",
+        "frame-ancestors 'none'",
       ].join('; '),
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',

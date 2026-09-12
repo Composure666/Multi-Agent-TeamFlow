@@ -113,5 +113,51 @@ describe('artifact preview helpers', () => {
       expect(out).toContain('<head>')
       expect(out).toContain(`<base href="/api/artifacts/${ARTIFACT_ID}/preview/">`)
     })
+
+    it('attaches nonce="..." to the inline guard script when opts.nonce is provided', () => {
+      const input = '<html><head></head><body></body></html>'
+      const out = prepareArtifactPreviewHtml(input, ARTIFACT_ID, { nonce: 'abc123' })
+      // guard script tag gets the nonce so it can keep running under a strict CSP
+      expect(out).toMatch(/<script nonce="abc123">/)
+      // no fallback inline <script> without nonce should be left over
+      expect(out).not.toMatch(/<script>(?![\s\S]*nonce=)/)
+    })
+
+    it('omits nonce attribute when opts.nonce is not provided (backwards compat)', () => {
+      const input = '<html><head></head><body></body></html>'
+      const out = prepareArtifactPreviewHtml(input, ARTIFACT_ID)
+      // legacy caller without nonce keeps the original behaviour
+      expect(out).toMatch(/<script>/)
+      expect(out).not.toContain('nonce=')
+    })
+  })
+
+  describe('isUnsafeArtifactLink — extended hostile protocols (P0 high #2)', () => {
+    it('blocks javascript: URLs (would execute inside sandboxed iframe)', () => {
+      expect(isUnsafeArtifactLink('javascript:alert(1)')).toBe(true)
+      expect(isUnsafeArtifactLink('JavaScript:fetch("/api/x")')).toBe(true)
+    })
+
+    it('blocks data: URLs (LLM pivot into an executed HTML context)', () => {
+      expect(isUnsafeArtifactLink('data:text/html,<script>alert(1)</script>')).toBe(true)
+      expect(isUnsafeArtifactLink('data:application/xhtml+xml,<svg/>')).toBe(true)
+    })
+
+    it('blocks blob: URLs (can resolve to execute HTML/JS)', () => {
+      expect(isUnsafeArtifactLink('blob:https://x/abc-def')).toBe(true)
+    })
+
+    it('blocks vbscript: and about: URLs (legacy / internal-scheme abuse)', () => {
+      expect(isUnsafeArtifactLink('vbscript:msgbox(1)')).toBe(true)
+      expect(isUnsafeArtifactLink('about:blank')).toBe(true)
+    })
+
+    it('still permits benign https / relative / hash / query hrefs', () => {
+      expect(isUnsafeArtifactLink('https://example.com/about')).toBe(false)
+      expect(isUnsafeArtifactLink('mailto:hi@example.com')).toBe(false)
+      expect(isUnsafeArtifactLink('tel:1234567')).toBe(false)
+      expect(isUnsafeArtifactLink('page2.html')).toBe(false)
+      expect(isUnsafeArtifactLink('#section-2')).toBe(false)
+    })
   })
 })

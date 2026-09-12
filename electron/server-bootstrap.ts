@@ -3,19 +3,28 @@ import { createServer } from 'node:net'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { startCompanionProxy, type CompanionProxyHandle } from './companion-proxy'
+
 /**
- * In-process 启动 Next.js standalone server。详见 Spec 12 §4.3。
+ * In-process 启动 Next.js standalone server。详见 Spec 12 §4.3 + Spec 14。
  *
  * - 仅在打包后（`app.isPackaged`）使用；dev 模式跳过这里，main 直接 loadURL localhost:3000
  * - PORT 走系统分配的空闲端口，避免与 3000 / 用户已开端口冲突
  * - require 触发 standalone server.js 启动；server.js 内 createServer().listen(PORT)
  * - 探活直到 HEAD / 返回 < 500，最多 15s
+ *
+ * **companion mode 安全模型**（Spec 14 §4.1 / §5.4 / §11；security audit 2026-09-12 High #1）：
+ * - 主 Next server **始终** listen 127.0.0.1（桌面 UI 用，行为不变）。
+ * - companion mode 启用时，**额外**启独立 proxy server listen 0.0.0.0:companionPort
+ *   （见 companion-proxy.ts），强制 Bearer 鉴权 + path 白名单，只把 `/api/mobile/*` 代理到主 server。
+ * - 桌面 web API（`/api/conversations`、`/api/settings` 等）**不再**对 LAN 设备开放——
+ *   LAN 设备要访问桌面能力，必须经过 companion proxy 且带 `/api/mobile/*` 前缀。
  */
-export async function startEmbeddedServer(): Promise<number> {
+export async function startEmbeddedServer(): Promise<EmbeddedServerHandle> {
   const companion = readCompanionConfig()
   const enabled = companion.companionMode !== 'off' && !!companion.mobileDeviceToken
-  const hostname = enabled ? '0.0.0.0' : '127.0.0.1'
-  const port = enabled ? companion.companionPort : await getFreePort('127.0.0.1')
+  const hostname = '127.0.0.1'
+  const port = await getFreePort(hostname)
 
   process.env.PORT = String(port)
   process.env.HOSTNAME = hostname
@@ -46,7 +55,38 @@ export async function startEmbeddedServer(): Promise<number> {
   require(standaloneEntry)
 
   await waitUntilReady(`http://127.0.0.1:${port}/`)
-  return port
+
+  let companionHandle: CompanionProxyHandle | null = null
+  if (enabled && companion.mobileDeviceToken) {
+    try {
+      companionHandle = await startCompanionProxy({
+        mainPort: port,
+        mobileDeviceToken: companion.mobileDeviceToken,
+        port: companion.companionPort,
+      })
+      console.log(
+        `[AgentHub] companion proxy listening on 0.0.0.0:${companionHandle.port} (auth + /api/mobile whitelist required)`,
+      )
+    } catch (err) {
+      // Proxy 失败不应阻断主 server / 桌面 UI；记录并在 UI 层告知用户
+      console.error('[AgentHub] failed to start companion proxy', err)
+    }
+  }
+
+  return {
+    mainPort: port,
+    closeCompanion: async () => {
+      if (companionHandle) await companionHandle.close()
+      companionHandle = null
+    },
+  }
+}
+
+export interface EmbeddedServerHandle {
+  /** 主 Next server 实际 listen 的端口（loopback）。 */
+  mainPort: number
+  /** 关闭 companion proxy（companion mode 关闭时调用；不抛错）。 */
+  closeCompanion(): Promise<void>
 }
 
 /** 从系统拿一个 ephemeral 端口（监听 :0 → 读 actual port → close）。 */

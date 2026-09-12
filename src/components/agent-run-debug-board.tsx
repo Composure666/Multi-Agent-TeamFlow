@@ -1452,7 +1452,12 @@ function DetailsPanel({
             onSelectToolCall={onSelectToolCall}
           />
         ) : tab === 'terminal' ? (
-          <TerminalPanel terminal={terminalOutput} realTerminal={realTerminal} onInput={onTerminalInput} />
+          <TerminalPanel
+            terminal={terminalOutput}
+            realTerminal={realTerminal}
+            onInput={onTerminalInput}
+            hasChildRuns={detail.childrenRuns.length > 0}
+          />
         ) : tab === 'logs' ? (
           <LogsPanel detail={detail} debugEvents={debugEvents} />
         ) : tab === 'trace' ? (
@@ -1806,10 +1811,12 @@ function TerminalPanel({
   terminal,
   realTerminal,
   onInput,
+  hasChildRuns,
 }: {
   terminal: AgentRunTerminalOutput
   realTerminal: RealAgentTerminalOutput
   onInput: (sessionId: string, input: string) => Promise<void>
+  hasChildRuns: boolean
 }) {
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -1833,7 +1840,13 @@ function TerminalPanel({
   }
 
   if (activeTerminal.status === 'empty') {
-    return <PanelEmpty icon={<TerminalSquare className="size-4" />} text="暂无终端输出" />
+    return (
+      <PanelEmpty
+        icon={<TerminalSquare className="size-4" />}
+        text="该 Run 未执行终端命令"
+        hint={hasChildRuns ? '子 Agent 的命令显示在对应节点中，点击图中 Agent 节点查看' : undefined}
+      />
+    )
   }
   return (
     <TerminalDisplay

@@ -1223,7 +1223,9 @@ export function projectAgentRunTerminalOutput(
       if (!command) return []
       const matchingEvents = eventsByCallId.get(item.callId) ?? []
       const cwd = stringProp(item.result, 'cwd') ?? stringProp(item.args, 'cwd') ?? detail.snapshot?.workspace.effectiveCwd ?? null
-      const output = stringProp(item.result, 'output') ?? matchingEvents.map((event) => stringProp(event.payload, 'text') ?? '').filter(Boolean).join('\n')
+      const output = stringProp(item.result, 'output')
+        ?? readCliToolResultOutputText(item.result)
+        ?? matchingEvents.map((event) => stringProp(event.payload, 'text') ?? '').filter(Boolean).join('\n')
       const shell = inferTerminalShell({
         command,
         cwd,
@@ -1269,9 +1271,11 @@ export function projectAgentRunTerminalOutput(
   const allSegments = [...segments, ...fallbackSegments]
   const shell = allSegments[0]?.shell ?? 'Shell'
   const cwd = allSegments.find((segment) => segment.cwd)?.cwd ?? null
+  // 只有 run 还在运行时，无状态命令段才视为 live；已完成的 run 不能因为 CLI 结果缺 exitCode 而永远显示「运行中」
+  const runRunning = detail.agentRun.status === 'running'
   const status = allSegments.length === 0
     ? 'empty'
-    : allSegments.some((segment) => segment.status === 'running' || (segment.status === null && segment.exitCode === null))
+    : runRunning && allSegments.some((segment) => segment.status === 'running' || (segment.status === null && segment.exitCode === null))
       ? 'live'
       : 'completed'
 
@@ -1568,6 +1572,18 @@ function prop(source: unknown, key: string): unknown {
 function stringProp(source: unknown, key: string): string | null {
   const value = prop(source, key)
   return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+// Claude CLI 的 tool_result 可能是纯字符串或 [{ type: 'text', text }] 块数组 —— 从中提取终端输出
+function readCliToolResultOutputText(result: unknown): string | null {
+  if (typeof result === 'string') return result.length > 0 ? result : null
+  if (Array.isArray(result)) {
+    const text = result
+      .map((block) => stringProp(block, 'text') ?? '')
+      .join('')
+    return text.length > 0 ? text : null
+  }
+  return null
 }
 
 function numberProp(source: unknown, key: string): number | null {

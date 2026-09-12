@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto'
+
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
@@ -24,7 +26,12 @@ export async function GET(_req: Request, ctx: RouteContext) {
     return NextResponse.json({ error: 'Artifact is not a web_app' }, { status: 400 })
   }
 
-  const html = prepareArtifactPreviewHtml(buildWebAppHtml(content), id)
+  // Strict CSP uses a per-request nonce so only our guard script (and any
+  // LLM-authored inline <script> that happens to share the same nonce) may
+  // run inside the sandboxed iframe. Dropping 'unsafe-inline' blocks the
+  // "<a href=javascript:..>" path that bypasses the URL regex guard.
+  const nonce = randomBytes(16).toString('base64')
+  const html = prepareArtifactPreviewHtml(buildWebAppHtml(content), id, { nonce })
 
   return new NextResponse(html, {
     headers: {
@@ -32,8 +39,8 @@ export async function GET(_req: Request, ctx: RouteContext) {
       'Content-Security-Policy': [
         'sandbox allow-scripts',
         "default-src 'none'",
-        "script-src 'unsafe-inline'",
-        "style-src 'unsafe-inline'",
+        `script-src 'nonce-${nonce}' 'self'`,
+        `style-src 'nonce-${nonce}' 'self' 'unsafe-inline'`,
         'img-src data: blob: http: https:',
         'font-src data:',
         "connect-src 'none'",

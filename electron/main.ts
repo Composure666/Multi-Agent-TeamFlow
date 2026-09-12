@@ -9,6 +9,8 @@ const isDev = process.env.AGENTHUB_DEV === '1'
 const DEV_URL = 'http://localhost:3000'
 
 let mainUrlPromise: Promise<string> | null = null
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+let closeCompanionServer: (() => Promise<void>) | null = null
 
 // Electron 默认用 package.json 的 `name` 字段（'bytedance-agenthub'）作为 app 名，
 // 用户数据会落在 ~/Library/Application Support/bytedance-agenthub/。覆盖成 productName 'AgentHub'，
@@ -119,7 +121,10 @@ function getMainUrl(): Promise<string> {
   if (!mainUrlPromise) {
     mainUrlPromise = isDev
       ? Promise.resolve(DEV_URL)
-      : startEmbeddedServer().then((port) => `http://127.0.0.1:${port}`)
+      : startEmbeddedServer().then((handle) => {
+          closeCompanionServer = handle.closeCompanion
+          return `http://127.0.0.1:${handle.mainPort}`
+        })
   }
 
   return mainUrlPromise

@@ -1694,6 +1694,7 @@ async function consumeStream(
   const outputArtifacts: Record<string, string> = {}
   const outputKeyByArtifactId = new Map<string, string>()
   const toolNameByCallId = new Map<string, string>()
+  const toolArgsByCallId = new Map<string, unknown>()
   const toolStartedAtByCallId = new Map<string, number>()
   let taskReport: TaskResultReport | undefined
   let currentMessageId: string | null = null
@@ -1702,6 +1703,7 @@ async function consumeStream(
     if (event.type === 'message.start') currentMessageId = event.messageId
     if (event.type === 'tool.call') {
       toolNameByCallId.set(event.callId, event.toolName)
+      toolArgsByCallId.set(event.callId, event.args)
       toolStartedAtByCallId.set(event.callId, event.timestamp)
     }
 
@@ -1711,7 +1713,7 @@ async function consumeStream(
       lastDeltaFlushAt = Date.now()
     }
     publish(event)
-    await recordToolDebugEvent(event, runId, agentId, toolNameByCallId, toolStartedAtByCallId)
+    await recordToolDebugEvent(event, runId, agentId, toolNameByCallId, toolArgsByCallId, toolStartedAtByCallId)
 
     if (event.type === 'artifact.create') {
       const outputKey = outputKeyByArtifactId.get(event.artifact.id)
@@ -1800,6 +1802,7 @@ async function consumeStream(
             runId,
             agentId,
             toolNameByCallId,
+            toolArgsByCallId,
             toolStartedAtByCallId,
           )
         }
@@ -2342,6 +2345,7 @@ async function recordToolDebugEvent(
   runId: string,
   agentId: string,
   toolNameByCallId: Map<string, string>,
+  toolArgsByCallId: Map<string, unknown>,
   toolStartedAtByCallId: Map<string, number>,
 ): Promise<void> {
   if (event.type === 'tool.call') {
@@ -2394,7 +2398,10 @@ async function recordToolDebugEvent(
     ...(event.isError ? { error: outputSummary } : {}),
   })
 
-  if (toolName === 'bash') {
+  if (isCommandToolName(toolName)) {
+    const command = readStringProp(toolArgsByCallId.get(event.callId), 'command')
+      ?? readStringProp(event.result, 'command')
+    const outputText = readCommandOutputText(event.result) ?? outputSummary
     await recordAndPublishDebugEvent({
       type: 'run.debug.terminal.output',
       conversationId: event.conversationId,
@@ -2406,13 +2413,43 @@ async function recordToolDebugEvent(
       status: event.isError ? 'failed' : 'complete',
       payload: {
         label: 'Terminal output',
+        ...(command ? { command } : {}),
         stream: event.isError ? 'stderr' : 'stdout',
-        text: outputSummary,
+        text: outputText,
       },
       stream: event.isError ? 'stderr' : 'stdout',
-      text: outputSummary,
+      text: outputText,
     })
   }
+}
+
+// 命令类工具名收口：AgentHub 注册表小写 bash、Claude CLI 大写 Bash、Codex command_execution
+function isCommandToolName(toolName: string): boolean {
+  const normalized = toolName.toLowerCase()
+  return normalized === 'bash' || normalized === 'codex_command'
+}
+
+function readStringProp(source: unknown, key: string): string | null {
+  if (!source || typeof source !== 'object') return null
+  const value = (source as Record<string, unknown>)[key]
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+// CLI 工具结果形态各异（AgentHub 结构化对象 / Claude 字符串或文本块数组 / Codex output 字段），统一抽出输出文本
+function readCommandOutputText(result: unknown): string | null {
+  if (typeof result === 'string') return truncateTerminalText(result)
+  if (Array.isArray(result)) {
+    const text = result
+      .map((block) => readStringProp(block, 'text') ?? '')
+      .join('')
+    return text ? truncateTerminalText(text) : null
+  }
+  const output = readStringProp(result, 'output')
+  return output ? truncateTerminalText(output) : null
+}
+
+function truncateTerminalText(value: string): string {
+  return value.length > 4000 ? `${value.slice(0, 4000)}\n…[truncated]` : value
 }
 
 function summarizeDebugValue(value: unknown): string {
