@@ -95,7 +95,7 @@ export function ChatPanel() {
             <MessagesSquare className="size-7" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg font-semibold text-slate-900">开始你的多 Agent 协作</h2>
+            <h2 className="text-lg font-semibold text-slate-900">开始你的智能协作</h2>
             <p className="text-sm leading-6 text-slate-500">
               从左侧选择一个会话继续聊天，或点击「+ 新建任务」选择一个或多个 Agent 开始
             </p>

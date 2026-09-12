@@ -15,7 +15,7 @@ let closeCompanionServer: (() => Promise<void>) | null = null
 // Electron 默认用 package.json 的 `name` 字段（'bytedance-agenthub'）作为 app 名，
 // 用户数据会落在 ~/Library/Application Support/bytedance-agenthub/。覆盖成 productName 'AgentHub'，
 // 让 userData 路径更友好；必须在任何 app.getPath('userData') 调用之前完成。
-app.setName('AgentHub')
+app.setName('Nexora Studio')
 
 type NativeNotificationTarget = {
   type: 'conversation' | 'automation' | 'artifact' | 'settings'
@@ -226,12 +226,31 @@ async function createMainWindow(): Promise<void> {
   }
 
   const isMac = process.platform === 'darwin'
+  // Window icon: in dev we read from source public/icons; in a packaged build
+  // electron-builder copies electron/build/* into dist-electron/, so __dirname/icon.png works.
+  // (macOS uses the bundled app icon set by electron-builder; calling setIcon on a
+  // frameless hidden-titleBarStyle window would error, so we skip it there.)
+  const windowIcon = (() => {
+    const candidates = [
+      path.join(__dirname, 'icon.png'),
+      path.resolve(__dirname, '..', 'electron', 'build', 'icon-256.png'),
+      path.resolve(__dirname, '..', 'public', 'icons', 'icon.png'),
+    ]
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(candidate)) return candidate
+      } catch {
+        // ignore
+      }
+    }
+    return candidates[candidates.length - 1]
+  })()
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 980,
     minHeight: 600,
-    title: 'AgentHub',
+    title: 'Nexora Studio',
     backgroundColor: '#0F1115',
     autoHideMenuBar: true,
     frame: false,
@@ -241,6 +260,7 @@ async function createMainWindow(): Promise<void> {
           trafficLightPosition: { x: 14, y: 13 },
         }
       : {}),
+    ...(isMac ? {} : { icon: windowIcon }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -249,6 +269,13 @@ async function createMainWindow(): Promise<void> {
       preload: path.join(__dirname, 'preload.js'),
     },
   })
+  if (!isMac) {
+    try {
+      win.setIcon(windowIcon)
+    } catch (err) {
+      console.warn('[AgentHub] setIcon failed', err)
+    }
+  }
   mainWindow = win
   win.on('focus', () => win.flashFrame(false))
   win.on('closed', () => {

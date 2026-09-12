@@ -108,10 +108,10 @@
   },
   "build": {
     "appId": "com.agenthub.app",
-    "productName": "AgentHub",
+    "productName": "Nexora Studio",
     "directories": {
       "output": "release",
-      "buildResources": "build"
+      "buildResources": "electron/build"
     },
     "asar": true,
     "asarUnpack": [
@@ -125,9 +125,11 @@
       "!.next/standalone/apps/**",
       "package.json"
     ],
+    "icon": "build/icon.png",
     "npmRebuild": false,
     "mac": {
       "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -141,6 +143,7 @@
       "gatekeeperAssess": false
     },
     "win": {
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "signExecutable": false,
       "target": [

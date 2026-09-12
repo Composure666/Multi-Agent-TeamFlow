@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Archive, ArchiveRestore, Bot, ChevronDown, ChevronRight, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -161,8 +161,8 @@ export function Sidebar() {
       >
         {!collapsed && (
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold">AgentHub</h1>
-            <p className="truncate text-xs text-muted-foreground">多 Agent 协作平台</p>
+            <h1 className="truncate text-base font-semibold">Nexora Studio</h1>
+            <p className="truncate text-xs text-muted-foreground">智能协作工作台</p>
           </div>
         )}
         <div className={cn('flex items-center', collapsed ? 'flex-col gap-1' : 'gap-0.5')}>

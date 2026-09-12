@@ -267,7 +267,7 @@ export function SettingsDialog({
       <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
-          <DialogDescription className="sr-only">AgentHub 设置</DialogDescription>
+          <DialogDescription className="sr-only">Nexora Studio 设置</DialogDescription>
         </DialogHeader>
 
         {loading ? (
@@ -597,7 +597,7 @@ function DeploymentPublishSettings({
             placeholder="D:\\sites\\agenthub"
           />
           <p className="text-[11px] leading-4 text-muted-foreground">
-            AgentHub 会写入该目录下的 dep_xxx 子目录。
+            Nexora Studio 会写入该目录下的 dep_xxx 子目录。
           </p>
         </div>
         <div className="grid gap-1.5">

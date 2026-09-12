@@ -1,7 +1,9 @@
 'use client'
 
-import { Copy, Minus, Square, Sparkles, X } from 'lucide-react'
+import { Copy, Minus, Square, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+
+const APP_MARK_URL = '/icons/agenthub-mark-32.png'
 
 export function ElectronTitleBar() {
   const [controls, setControls] = useState<Window['agenthubWindowControls']>()
@@ -42,10 +44,12 @@ export function ElectronTitleBar() {
       >
         {isMac && <div className="electron-titlebar-mac-spacer" />}
         <div className="electron-titlebar-title">
-          <span className="electron-titlebar-logo" aria-hidden="true">
-            <Sparkles className="size-3.5" />
-          </span>
-          <span className="truncate">AgentHub</span>
+          <span
+            className="electron-titlebar-logo"
+            aria-hidden="true"
+            style={{ backgroundImage: `url(${APP_MARK_URL})` }}
+          />
+          <span className="truncate">Nexora Studio</span>
         </div>
       </div>
 

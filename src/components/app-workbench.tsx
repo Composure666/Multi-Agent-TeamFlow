@@ -132,7 +132,7 @@ export function AppWorkbench() {
     }
   }
 
-  const currentViewLabel = navItems.find((item) => item.id === view)?.label ?? 'AgentHub'
+  const currentViewLabel = navItems.find((item) => item.id === view)?.label ?? 'Nexora Studio'
   const openMobileSidebar = () => setMobileSidebarOpen(true)
   const closeMobileSidebar = () => setMobileSidebarOpen(false)
   const changeViewFromMobile = (nextView: WorkbenchView) => {
@@ -431,7 +431,7 @@ function MobileWorkbenchTopBar({
         <Sparkles className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">AgentHub</div>
+        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">Nexora Studio</div>
         <div className="truncate text-xs text-slate-500 dark:text-slate-400">{currentLabel}</div>
       </div>
       <button
@@ -495,8 +495,8 @@ function MobileWorkbenchDrawer({
               <Sparkles className="size-4" />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">AgentHub</div>
-              <div className="truncate text-xs text-slate-500 dark:text-slate-400">个人多 Agent 工作区</div>
+              <div className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">Nexora Studio</div>
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">智能协作工作台</div>
             </div>
           </button>
           <button
@@ -793,16 +793,18 @@ function WorkbenchNav({
           type="button"
           onClick={() => onViewChange('new-task')}
           className={cn('flex min-w-0 items-center gap-2 text-left', compact ? 'w-full flex-col justify-center' : 'flex-1')}
-          title={compact ? 'AgentHub' : undefined}
+          title={compact ? 'Nexora Studio' : undefined}
         >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
-            <Sparkles className="size-4" />
-          </div>
-          {compact && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">AgentHub</span>}
+          <img
+            src="/icons/agenthub-mark-32.png"
+            alt="Nexora Studio"
+            className="size-8 shrink-0 rounded-lg object-cover"
+          />
+          {compact && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">Nexora Studio</span>}
           {!compact && (
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">AgentHub</div>
-              <div className="truncate text-[11px] text-slate-500/60 dark:text-slate-400/60">Multi-Agent Workspace</div>
+              <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">Nexora Studio</div>
+              <div className="truncate text-[11px] text-slate-500/60 dark:text-slate-400/60">AI Collaboration Workspace</div>
             </div>
           )}
         </button>
@@ -845,6 +847,7 @@ function WorkbenchNav({
         className={cn(
           'mb-2 flex h-11 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-[15px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
           compact && 'px-0',
+          view === 'new-task' && 'border-[var(--agenthub-accent,#2F5FD0)] bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/15 dark:bg-[#1E2A3A] dark:text-slate-50',
         )}
       >
         <Plus className="size-4" />
@@ -855,7 +858,7 @@ function WorkbenchNav({
       <nav className="shrink-0 space-y-1">
         {navItems.filter((item) => item.id !== 'new-task').map((item) => {
           const Icon = item.icon
-          const active = view === item.id || (item.id === 'conversations' && view === 'new-task')
+          const active = view === item.id
           const showAutomationResultNotice = item.id === 'conversations' && hasAutomationResultNotice && !active
           const showUnreadNotifications = item.id === 'information-center' && unreadNotificationCount > 0
           return (
@@ -1122,9 +1125,9 @@ function NewTaskView({
           <div className="grid items-center gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)] xl:gap-10 2xl:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
             <div className="min-w-0 translate-y-5">
               <h1 className="text-[38px] font-[760] leading-[1.25] tracking-tight text-slate-950 dark:text-slate-50 xl:text-[42px] 2xl:text-[46px]">
-                <span className="block">AgentHub</span>
+                <span className="block">Nexora Studio</span>
                 <span className="block">
-                  你的多 <span className="text-[var(--agenthub-accent)]">Agent</span> 协作工作台
+                  你的<span className="text-[var(--agenthub-accent)]">智能协作</span>工作台
                 </span>
               </h1>
               <p className="mt-3 text-[15px] leading-relaxed text-slate-500 dark:text-slate-400 xl:text-[16px] 2xl:text-[17px]">{activeCategoryMeta.description}</p>
@@ -1211,7 +1214,7 @@ function NewTaskView({
                     void submit()
                   }
                 }}
-                placeholder="今天想让 AgentHub 帮你完成什么？"
+                placeholder="今天想让 Nexora Studio 帮你完成什么？"
                 className="min-h-[150px] max-h-[280px] resize-none overflow-y-auto border-0 bg-transparent px-6 pb-3.5 pt-8 text-[15px] shadow-none placeholder:text-slate-400 focus-visible:ring-0 2xl:min-h-[168px] 2xl:max-h-[320px] 2xl:px-7 2xl:text-[16px]"
               />
               {contentOverflow && (
@@ -1354,41 +1357,113 @@ function NewTaskView({
 
 function RobotMascot() {
   return (
-    <div aria-hidden className="relative hidden h-[360px] w-[400px] shrink-0 select-none xl:block">
+    <div aria-hidden className="relative hidden h-[380px] w-[420px] shrink-0 select-none xl:block">
       <div className="absolute inset-0">
         {/* 轻蓝色氛围光 */}
-        <div className="absolute left-1/2 top-1/2 size-[310px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.12),transparent_60%)] blur-3xl" />
-        {/* 轨道环 */}
-        <div className="absolute bottom-[2px] left-1/2 h-[150px] w-[350px] -translate-x-1/2 -rotate-6 rounded-[50%] border border-slate-200/80 bg-white/30 shadow-[0_26px_44px_rgba(148,163,184,0.2)] dark:border-white/10 dark:bg-white/5" />
-        {/* 环上点缀 */}
-        <span className="absolute right-[8px] top-[28px] size-2 rounded-full bg-teal-400/90" />
-        <span className="absolute left-[5px] top-[124px] size-2 rounded-full bg-[var(--agenthub-accent)]" />
-        <span className="absolute bottom-[20px] left-[60px] size-1.5 rounded-full bg-sky-300" />
-        <span className="absolute right-[36px] top-[8px] size-2.5 rounded-full bg-[#6E9EFF] opacity-20 blur-sm" />
-        <span className="absolute left-[18px] top-[56px] size-2 rounded-full bg-[#6E9EFF] opacity-15 blur-sm" />
-        <span className="absolute right-[18px] bottom-[36px] size-2 rounded-full bg-[#6E9EFF] opacity-10 blur-sm" />
-        <span className="absolute left-[50%] top-[8px] size-[6px] rounded-full bg-[var(--agenthub-accent)] opacity-30" />
-        <span className="absolute right-[56px] top-[46%] size-2 rounded-full bg-sky-300 opacity-20" />
-        <span className="absolute left-[28px] bottom-[46px] size-1.5 rounded-full bg-[#6E9EFF] opacity-25" />
-        {/* 机器人头部 */}
-        <div className="absolute left-1/2 top-[38%] w-[240px] -translate-x-1/2 -translate-y-1/2">
-          <div className="absolute -top-[28px] left-1/2 -translate-x-1/2">
-            <div className="h-[24px] w-[4px] rounded-full bg-slate-200 dark:bg-white/20" />
-            <div className="absolute -top-[12px] left-1/2 size-[16px] -translate-x-1/2 rounded-full bg-[var(--agenthub-accent)] ring-4 ring-[var(--agenthub-accent)]/15" />
-          </div>
-          <div className="absolute -left-[11px] top-1/2 h-[56px] w-[23px] -translate-y-1/2 rounded-[11px] bg-gradient-to-b from-[#5B8DEF] to-[#2F5FD0]" />
-          <div className="absolute -right-[11px] top-1/2 h-[56px] w-[23px] -translate-y-1/2 rounded-[11px] bg-gradient-to-b from-[#5B8DEF] to-[#2F5FD0]" />
-          <div className="relative flex h-[200px] w-[240px] items-center justify-center rounded-[54px] border border-slate-200/70 bg-gradient-to-b from-white to-slate-50 shadow-[0_28px_54px_rgba(47,95,208,0.16)]">
-            <div className="flex h-[128px] w-[170px] items-center justify-center gap-6 rounded-[36px] bg-[#151C2C]">
-              <span className="h-[17px] w-[32px] rounded-t-full border-[5px] border-b-0 border-[#6AA6FF]" />
-              <span className="h-[17px] w-[32px] rounded-t-full border-[5px] border-b-0 border-[#6AA6FF]" />
-            </div>
-          </div>
-        </div>
-        {/* Bottom blur ellipse for depth */}
-        <div className="absolute bottom-[26px] left-1/2 h-[36px] w-[180px] -translate-x-1/2 rounded-[50%] bg-[#6E9EFF] opacity-[0.08] blur-xl" />
+        <div className="absolute left-1/2 top-1/2 size-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.16),transparent_60%)] blur-3xl" />
+
+        <svg
+          viewBox="0 0 420 380"
+          className="absolute inset-0 h-full w-full"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <linearGradient id="rm-orbit" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#22D3EE" />
+              <stop offset="55%" stopColor="#5B8DEF" />
+              <stop offset="100%" stopColor="#8B5CF6" />
+            </linearGradient>
+            <linearGradient id="rm-shell" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#DDE6F2" />
+            </linearGradient>
+            <linearGradient id="rm-face" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1E2A4A" />
+              <stop offset="100%" stopColor="#0B1124" />
+            </linearGradient>
+            <linearGradient id="rm-ear" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#7AAEFF" />
+              <stop offset="100%" stopColor="#2F5FD0" />
+            </linearGradient>
+            <linearGradient id="rm-chipBlue" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#7AAEFF" />
+              <stop offset="100%" stopColor="#3B6BE0" />
+            </linearGradient>
+            <linearGradient id="rm-chipTeal" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#34D399" />
+              <stop offset="100%" stopColor="#0F9D7A" />
+            </linearGradient>
+            <linearGradient id="rm-chipPurple" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#A78BFA" />
+              <stop offset="100%" stopColor="#7C4DEF" />
+            </linearGradient>
+            <filter id="rm-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#0F1125" floodOpacity="0.18" />
+            </filter>
+          </defs>
+
+          {/* 轨道环（居中靠下，呼应参考图） */}
+          <ellipse cx="210" cy="252" rx="170" ry="48" fill="none" stroke="url(#rm-orbit)" strokeWidth="9" opacity="0.9" />
+          <ellipse cx="210" cy="252" rx="170" ry="48" fill="none" stroke="#FFFFFF" strokeWidth="2" opacity="0.55" />
+
+          {/* 聊天方块（左上） */}
+          <g transform="translate(54 60) rotate(-8 38 38)" filter="url(#rm-shadow)">
+            <rect x="0" y="0" width="76" height="76" rx="18" fill="#FFFFFF" />
+            <rect x="12" y="18" width="52" height="40" rx="10" fill="url(#rm-chipBlue)" />
+            <rect x="42" y="62" width="10" height="8" rx="2" fill="#FFFFFF" />
+            <rect x="20" y="28" width="34" height="5" rx="2.5" fill="#FFFFFF" opacity="0.95" />
+            <rect x="20" y="40" width="22" height="5" rx="2.5" fill="#FFFFFF" opacity="0.7" />
+          </g>
+
+          {/* 用户方块（右上） */}
+          <g transform="translate(252 30) rotate(8 42 42)" filter="url(#rm-shadow)">
+            <rect x="0" y="0" width="84" height="84" rx="20" fill="#FFFFFF" />
+            <rect x="14" y="18" width="56" height="48" rx="11" fill="url(#rm-chipTeal)" />
+            <circle cx="42" cy="34" r="9" fill="#FFFFFF" />
+            <path d="M22 60 c4 -10 16 -10 20 -10 c4 0 16 0 20 10 v4 H22 z" fill="#FFFFFF" />
+          </g>
+
+          {/* 工具方块（右下） */}
+          <g transform="translate(282 246) rotate(12 38 38)" filter="url(#rm-shadow)">
+            <rect x="0" y="0" width="76" height="76" rx="18" fill="#FFFFFF" />
+            <rect x="12" y="18" width="52" height="40" rx="10" fill="url(#rm-chipPurple)" />
+            <path d="M24 36 a8 8 0 1 1 11 11 l-12 12 -6 -2 -2 -6 z" fill="#FFFFFF" />
+            <path d="M48 26 l9 9" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
+          </g>
+
+          {/* 耳朵（机器人两侧） */}
+          <g transform="translate(86 174)">
+            <rect x="0" y="0" width="32" height="68" rx="16" fill="url(#rm-ear)" />
+            <rect x="6" y="6" width="20" height="56" rx="10" fill="#1E2A4A" opacity="0.18" />
+          </g>
+          <g transform="translate(302 174)">
+            <rect x="0" y="0" width="32" height="68" rx="16" fill="url(#rm-ear)" />
+            <rect x="6" y="6" width="20" height="56" rx="10" fill="#1E2A4A" opacity="0.18" />
+          </g>
+
+          {/* 头部主体 */}
+          <g transform="translate(120 84)">
+            {/* 外壳 */}
+            <rect x="0" y="0" width="180" height="148" rx="56" fill="url(#rm-shell)" filter="url(#rm-shadow)" />
+            {/* 天线 */}
+            <rect x="80" y="-22" width="20" height="24" rx="6" fill="#DDE6F2" />
+            <circle cx="90" cy="-32" r="12" fill="#5B8DEF" />
+            <circle cx="90" cy="-32" r="20" fill="#5B8DEF" opacity="0.18" />
+            {/* 脸 */}
+            <rect x="22" y="28" width="136" height="92" rx="32" fill="url(#rm-face)" />
+            {/* 闭眼弧 */}
+            <g stroke="#6AA6FF" strokeWidth="9" strokeLinecap="round" fill="none">
+              <path d="M48 84 q14 -22 28 0" />
+              <path d="M104 84 q14 -22 28 0" />
+            </g>
+          </g>
+        </svg>
+
+        {/* 底部柔光椭圆 */}
+        <div className="absolute bottom-[40px] left-1/2 h-[28px] w-[150px] -translate-x-1/2 rounded-[50%] bg-[#6E9EFF] opacity-[0.10] blur-xl" />
       </div>
-      {/* 机器人下方的轻量装饰胶囊（纯背景装饰，平衡右侧留白） */}
+
+      {/* 机器人下方的轻量装饰胶囊（保留原「Orchestrator / Working… / Review Enabled」） */}
       <div className="absolute inset-x-0 bottom-[10px] flex items-center justify-center gap-2.5">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
           <Waypoints className="size-3 text-[var(--agenthub-accent)]/70" />

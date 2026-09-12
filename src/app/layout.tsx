@@ -19,8 +19,19 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'AgentHub',
-  description: '多 Agent 协作平台',
+  title: 'Nexora Studio',
+  description: '智能协作工作台',
+  icons: {
+    icon: [
+      { url: '/icons/agenthub-mark.svg', type: 'image/svg+xml' },
+      { url: '/icons/agenthub-mark-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/agenthub-mark-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icons/agenthub-mark-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/agenthub-mark-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    shortcut: ['/icons/agenthub-256.png'],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 }
 
 export default function RootLayout({

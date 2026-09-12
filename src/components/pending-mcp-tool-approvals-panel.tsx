@@ -113,7 +113,7 @@ function PendingMcpToolApprovalCard({
           <span className="whitespace-pre-wrap break-words">{argsPreview}</span>
         </div>
         <div className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
-          外部 MCP server 在 AgentHub workspace 沙箱和 bash 黑名单保护之外运行；仅在信任该 server 与本次工具参数时批准。
+          外部 MCP server 在 Nexora Studio workspace 沙箱和 bash 黑名单保护之外运行；仅在信任该 server 与本次工具参数时批准。
         </div>
       </div>
 

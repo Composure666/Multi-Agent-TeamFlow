@@ -136,7 +136,7 @@ export function McpServersSettings() {
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         <ShieldAlert className="mt-0.5 size-4 flex-none" />
         <p className="min-w-0 break-words text-[11px] leading-4">
-          外部 MCP server 是本机进程，不受 AgentHub 内置 workspace 工具沙箱保护。只添加信任来源；env 在列表中会脱敏。
+          外部 MCP server 是本机进程，不受 Nexora Studio 内置 workspace 工具沙箱保护。只添加信任来源；env 在列表中会脱敏。
         </p>
       </div>
 

@@ -324,16 +324,16 @@
 }
 
 .electron-titlebar-logo {
-  display: inline-flex;
+  display: inline-block;
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--agenthub-titlebar-border);
+  overflow: hidden;
   border-radius: 6px;
-  background: var(--agenthub-accent-soft);
-  color: var(--agenthub-accent);
+  background-color: #EAF2FF;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .electron-titlebar-actions {
