@@ -74,6 +74,8 @@ import {
   focusAgentRunDebuggerGraph,
   getDebuggerNodeIdForDebugEvent,
   getVisibleAgentDebuggerSteps,
+  mergeDetailWithLiveStatus,
+  mergeLiveRuns,
   projectAgentRunTerminalOutput,
   shouldInitializeDebuggerSelection,
   projectAgentRunBoardStages,
@@ -98,7 +100,7 @@ import {
   type AgentRunTimelineFilter,
 } from '@/lib/agent-run-debug-view'
 import { cn } from '@/lib/utils'
-import type { AgentRunRow, ConversationWithMeta } from '@/db/schema'
+import type { ConversationWithMeta } from '@/db/schema'
 import {
   useAgentRunDebugDetail,
   useAgentRunDebugEvents,
@@ -2764,74 +2766,6 @@ function CodeSnippet({ label, value }: { label: string; value: string }) {
   )
 }
 
-function mergeDetailWithLiveStatus(
-  cachedDetail: AgentRunDebugDetail,
-  runs: readonly AgentRunDebugListItem[],
-): AgentRunDebugDetail {
-  // 把 live runs 中的最新 status 叠加到 cachedDetail 上。
-  // 这样流程图、阶段条、Inspector 在 SSE run.end 到达的瞬间就能反映完成状态，
-  // 不再依赖 1.8s 轮询兜底。
-  const runsById = new Map(runs.map((run) => [run.id, run]))
-  const agentRun = runsById.get(cachedDetail.agentRun.id)
-  if (!agentRun) return cachedDetail
-  const nextAgentRun =
-    agentRun.status === cachedDetail.agentRun.status &&
-    agentRun.finishedAt === cachedDetail.agentRun.finishedAt &&
-    agentRun.usage === cachedDetail.agentRun.usage
-      ? cachedDetail.agentRun
-      : { ...cachedDetail.agentRun, status: agentRun.status, finishedAt: agentRun.finishedAt, usage: agentRun.usage ?? cachedDetail.agentRun.usage }
-  let nextChildrenRuns = cachedDetail.childrenRuns
-  let mutatedChildren = false
-  for (let i = 0; i < cachedDetail.childrenRuns.length; i += 1) {
-    const child = cachedDetail.childrenRuns[i]
-    const liveChild = runsById.get(child.id)
-    if (!liveChild || liveChild.status === child.status) continue
-    if (!mutatedChildren) {
-      nextChildrenRuns = cachedDetail.childrenRuns.slice()
-      mutatedChildren = true
-    }
-    nextChildrenRuns[i] = { ...child, status: liveChild.status, finishedAt: liveChild.finishedAt, usage: liveChild.usage ?? child.usage }
-  }
-  if (nextAgentRun === cachedDetail.agentRun && nextChildrenRuns === cachedDetail.childrenRuns) {
-    return cachedDetail
-  }
-  return { ...cachedDetail, agentRun: nextAgentRun, childrenRuns: nextChildrenRuns }
-}
-
-function mergeLiveRuns(
-  cachedRuns: AgentRunDebugListItem[],
-  liveRuns: Record<string, AgentRunRow> | undefined,
-  agents: Record<string, { name: string }>,
-): AgentRunDebugListItem[] {
-  const merged = cachedRuns.map((run) => {
-    const live = liveRuns?.[run.id]
-    return live
-      ? { ...run, status: live.status, error: live.error ?? run.error, usage: live.usage ?? run.usage, finishedAt: live.finishedAt ?? run.finishedAt }
-      : run
-  })
-  const knownIds = new Set(merged.map((run) => run.id))
-  for (const live of Object.values(liveRuns ?? {})) {
-    if (knownIds.has(live.id)) continue
-    merged.push({
-      id: live.id,
-      conversationId: live.conversationId,
-      agentId: live.agentId,
-      agentName: agents[live.agentId]?.name ?? null,
-      adapterName: null,
-      modelId: null,
-      triggerMessageId: live.triggerMessageId,
-      parentRunId: live.parentRunId ?? null,
-      status: live.status,
-      error: live.error ?? null,
-      usage: live.usage ?? null,
-      startedAt: live.startedAt,
-      finishedAt: live.finishedAt ?? null,
-      hasDebugSnapshot: false,
-    })
-  }
-  return merged.sort((a, b) => b.startedAt - a.startedAt)
-}
-
 function collectConversationDebugEvents(
   runs: AgentRunDebugListItem[],
   debugEventsByRun: Record<string, AgentRunDebugEventRecord[]>,
@@ -2902,21 +2836,6 @@ function debuggerStatusLabel(status: AgentRunDebuggerStatus): string {
   if (status === 'failed') return '失败'
   if (status === 'cancelled') return '已取消'
   return '等待'
-}
-
-function toneForRunStatus(status: AgentRunDebugListItem['status']): AgentRunBoardTone {
-  if (status === 'complete') return 'success'
-  if (status === 'running') return 'info'
-  if (status === 'failed' || status === 'aborted') return 'danger'
-  return 'warning'
-}
-
-function toneTextClass(tone: AgentRunBoardStage['tone']): string {
-  if (tone === 'success') return 'text-emerald-600 dark:text-emerald-300'
-  if (tone === 'info') return 'text-blue-600 dark:text-blue-300'
-  if (tone === 'warning') return 'text-amber-600 dark:text-amber-300'
-  if (tone === 'danger') return 'text-rose-600 dark:text-rose-300'
-  return 'text-slate-700 dark:text-slate-200'
 }
 
 function filterAgentRunDebugEvents(

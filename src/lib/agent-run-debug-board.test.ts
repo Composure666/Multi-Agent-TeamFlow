@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { AgentRunRow } from '@/db/schema'
 import type { AgentRunDebugDetail, AgentRunDebugEventRecord, AgentRunDebugListItem, MessageRecord } from '@/shared/types'
 
 import {
@@ -16,6 +17,8 @@ import {
   getBoardPanelTabForCanvasView,
   getDebuggerNodeIdForDebugEvent,
   getVisibleAgentDebuggerSteps,
+  mergeDetailWithLiveStatus,
+  mergeLiveRuns,
   projectAgentRunTerminalOutput,
   projectAgentRunBoardStages,
   shouldInitializeDebuggerSelection,
@@ -930,5 +933,214 @@ describe('agent run debug board projection', () => {
       taskTitles: ['Frontend Agent'],
       source: 'child_run',
     })
+  })
+})
+
+function makeAgentRunRow(overrides: Partial<AgentRunRow> = {}): AgentRunRow {
+  return {
+    id: 'run_1',
+    conversationId: 'conv_1',
+    agentId: 'agent_1',
+    triggerMessageId: 'msg_1',
+    parentRunId: null,
+    status: 'running',
+    error: null,
+    usage: null,
+    startedAt: 1_000,
+    finishedAt: null,
+    ...overrides,
+  } as unknown as AgentRunRow
+}
+
+function makeDetail(overrides: {
+  agentRun?: Partial<AgentRunDebugListItem>
+  childrenRuns?: AgentRunDebugListItem[]
+} = {}): AgentRunDebugDetail {
+  return {
+    agentRun: buildRun(overrides.agentRun),
+    snapshot: null,
+    triggerMessage: null,
+    outputMessages: [],
+    childrenRuns: overrides.childrenRuns ?? [],
+    parentRun: null,
+  }
+}
+
+describe('mergeDetailWithLiveStatus', () => {
+  it('returns cachedDetail unchanged when no live run exists for agentRun.id', () => {
+    const cached = makeDetail({ agentRun: { id: 'run_x' } })
+    const result = mergeDetailWithLiveStatus(cached, [])
+    // identity preserved: the same reference, not a new object
+    expect(result).toBe(cached)
+  })
+
+  it('merges agentRun fields when live status differs from cached', () => {
+    const cached = makeDetail({
+      agentRun: { id: 'run_1', status: 'running', finishedAt: null, usage: null },
+    })
+    const live = [
+      buildRun({ id: 'run_1', status: 'complete', finishedAt: 5_000, usage: { promptTokens: 1 } as never }),
+    ]
+    const result = mergeDetailWithLiveStatus(cached, live)
+    expect(result).not.toBe(cached)
+    expect(result.agentRun.status).toBe('complete')
+    expect(result.agentRun.finishedAt).toBe(5_000)
+    expect(result.agentRun.usage).toEqual({ promptTokens: 1 })
+    // snapshot / triggerMessage / outputMessages preserved
+    expect(result.snapshot).toBe(cached.snapshot)
+    expect(result.outputMessages).toBe(cached.outputMessages)
+  })
+
+  it('keeps cached reference when live matches cached exactly (memoization identity)', () => {
+    const sharedUsage = { x: 1 } as never
+    const cached = makeDetail({
+      agentRun: { id: 'run_1', status: 'complete', finishedAt: 5_000, usage: sharedUsage },
+    })
+    // Live matches cached status / finishedAt / usage identity (memoization fast-path)
+    const live = [
+      buildRun({
+        id: 'run_1',
+        status: 'complete',
+        finishedAt: 5_000,
+        usage: sharedUsage,
+      }),
+    ]
+    const result = mergeDetailWithLiveStatus(cached, live)
+    expect(result).toBe(cached)
+  })
+
+  it('updates only changed children without mutating unchanged ones', () => {
+    const cached = makeDetail({
+      agentRun: { id: 'run_parent', status: 'running', finishedAt: null, usage: null },
+      childrenRuns: [
+        buildRun({ id: 'child_a', status: 'complete', finishedAt: 100 }),
+        buildRun({ id: 'child_b', status: 'running', finishedAt: null }),
+      ],
+    })
+    const live = [
+      // Main run unchanged in this test (forces nextAgentRun === cached.agentRun)
+      buildRun({ id: 'run_parent', status: 'running', finishedAt: null }),
+      // child_a unchanged identity (liveChild.status === child.status → continue)
+      buildRun({ id: 'child_a', status: 'complete', finishedAt: 100 }),
+      buildRun({ id: 'child_b', status: 'failed', finishedAt: 200, error: 'boom' }),
+    ]
+    const result = mergeDetailWithLiveStatus(cached, live)
+    expect(result).not.toBe(cached)
+    expect(result.childrenRuns).not.toBe(cached.childrenRuns)
+    // Replaced in place — index 0 child_a unchanged identity (slice shared ref)
+    expect(result.childrenRuns[0]).toBe(cached.childrenRuns[0])
+    // child_b replaced with live fields
+    expect(result.childrenRuns[1]!.status).toBe('failed')
+    expect(result.childrenRuns[1]!.finishedAt).toBe(200)
+    // Note: mergeDetailWithLiveStatus intentionally does NOT propagate `error` —
+    // it only merges status / finishedAt / usage to keep the merge cheap. Error UI
+    // is sourced from cache-only fields elsewhere.
+  })
+
+  it('preserves cached usage when live usage is null (no regression)', () => {
+    const cachedUsage = { promptTokens: 42 } as never
+    const cached = makeDetail({ agentRun: { usage: cachedUsage } })
+    const live = [buildRun({ id: 'run_1', usage: null, status: 'complete', finishedAt: 5_000 })]
+    const result = mergeDetailWithLiveStatus(cached, live)
+    expect(result.agentRun.usage).toBe(cachedUsage)
+  })
+
+  it('reads frozen input as readonly runs (no-spread contract)', () => {
+    // readonly AgentRunDebugListItem[] is intentionally accepted — caller may pass
+    // a memoized array. We must not assume it's a mutable array.
+    const run = Object.freeze(buildRun({ id: 'run_1' }))
+    const cached = makeDetail()
+    const live: readonly AgentRunDebugListItem[] = [run]
+    expect(() => mergeDetailWithLiveStatus(cached, live)).not.toThrow()
+  })
+})
+
+describe('mergeLiveRuns', () => {
+  const agents = { agent_1: { name: 'Worker' }, agent_2: { name: 'Coder' } }
+
+  it('overlays live fields onto cached runs (status / error / usage / finishedAt)', () => {
+    const cached = [buildRun({ id: 'run_1', status: 'running', error: null, usage: null, finishedAt: null })]
+    const live = {
+      run_1: makeAgentRunRow({ status: 'failed', error: 'down', usage: { x: 1 } as never, finishedAt: 9_000 }),
+    }
+    const merged = mergeLiveRuns(cached, live, agents)
+    expect(merged).toHaveLength(1)
+    expect(merged[0]!.status).toBe('failed')
+    expect(merged[0]!.error).toBe('down')
+    expect(merged[0]!.usage).toEqual({ x: 1 })
+    expect(merged[0]!.finishedAt).toBe(9_000)
+    // agentName / adapterName preserved from cached (fallback paths)
+    expect(merged[0]!.agentName).toBe('Agent')
+    expect(merged[0]!.adapterName).toBe('codex')
+  })
+
+  it('appends unknown live runs (e.g. freshly SSE-pushed tasks) with agentName fallback', () => {
+    const cached = [buildRun({ id: 'run_cached', startedAt: 500 })]
+    const live = {
+      run_brand_new: makeAgentRunRow({
+        id: 'run_brand_new',
+        agentId: 'agent_unknown', // not present in agents map
+        status: 'running',
+        triggerMessageId: null,
+        startedAt: 1_500,
+        finishedAt: null,
+      }),
+    }
+    const merged = mergeLiveRuns(cached, live, agents)
+    expect(merged.map((r) => r.id)).toEqual(['run_brand_new', 'run_cached'])
+    // New live run gets agentName fallback to null
+    const appended = merged[0]!
+    expect(appended.id).toBe('run_brand_new')
+    expect(appended.agentName).toBeNull()
+    expect(appended.adapterName).toBeNull()
+    expect(appended.modelId).toBeNull()
+    expect(appended.hasDebugSnapshot).toBe(false)
+  })
+
+  it('sorts merged list by startedAt descending', () => {
+    const cached = [
+      buildRun({ id: 'r_old', startedAt: 100 }),
+      buildRun({ id: 'r_mid', startedAt: 500 }),
+    ]
+    const live = {
+      r_new: makeAgentRunRow({ id: 'r_new', startedAt: 999, triggerMessageId: 'm' }),
+    }
+    const merged = mergeLiveRuns(cached, live, agents)
+    expect(merged.map((r) => r.id)).toEqual(['r_new', 'r_mid', 'r_old'])
+  })
+
+  it('returns cachedRuns sorted descending when liveRuns is undefined', () => {
+    const cached = [
+      buildRun({ id: 'r_a', startedAt: 100 }),
+      buildRun({ id: 'r_b', startedAt: 200 }),
+      buildRun({ id: 'r_c', startedAt: 50 }),
+    ]
+    const merged = mergeLiveRuns(cached, undefined, agents)
+    expect(merged.map((r) => r.id)).toEqual(['r_b', 'r_a', 'r_c'])
+  })
+
+  it('returns empty list when both inputs are empty', () => {
+    expect(mergeLiveRuns([], undefined, agents)).toEqual([])
+  })
+
+  it('uses cached value when live omits optional fields', () => {
+    const cached = [
+      buildRun({
+        id: 'run_1',
+        error: 'cached-error',
+        usage: { x: 1 } as never,
+        finishedAt: 100,
+      }),
+    ]
+    const live = {
+      run_1: makeAgentRunRow({
+        status: 'complete',
+        // error / usage / finishedAt intentionally undefined
+      }),
+    }
+    const merged = mergeLiveRuns(cached, live, agents)
+    expect(merged[0]!.error).toBe('cached-error')
+    expect(merged[0]!.usage).toEqual({ x: 1 })
+    expect(merged[0]!.finishedAt).toBe(100)
   })
 })

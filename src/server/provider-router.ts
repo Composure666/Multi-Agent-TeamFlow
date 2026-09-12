@@ -13,7 +13,7 @@
  *   - 用途级优先级：scope='system'/'agent', capabilityKey='prompt_optimize'/'agent:code' 等
  *   - 用途级 useGlobal=true 或没有记录时，回退到全局优先级
  */
-import { and, desc, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type {

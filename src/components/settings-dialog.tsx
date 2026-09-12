@@ -4,8 +4,6 @@ import { AlertTriangle,
   Bell,
   Check,
   Clipboard,
-  Eye,
-  EyeOff,
   FolderUp,
   Info,
   KeyRound,
@@ -102,26 +100,6 @@ export function SettingsDialog({
     deploymentPublishEnabled: false,
     deploymentPublishDir: '',
     deploymentPublicBaseUrl: '',
-    notificationTaskEnabled: true,
-    notificationErrorEnabled: true,
-    notificationSystemEnabled: true,
-    notificationConfigurationEnabled: true,
-    notificationToastEnabled: true,
-    notificationNativeEnabled: true,
-    notificationUrgentEnabled: true,
-  })
-  const [reveal, setReveal] = useState<Record<keyof SettingsForm, boolean>>({
-    anthropicApiKey: false,
-    anthropicBaseUrl: false,
-    openaiApiKey: false,
-    deepseekApiKey: false,
-    arkApiKey: false,
-    defaultLlmProvider: true,
-    companionMode: true,
-    mobileDeviceToken: false,
-    deploymentPublishEnabled: true,
-    deploymentPublishDir: true,
-    deploymentPublicBaseUrl: true,
     notificationTaskEnabled: true,
     notificationErrorEnabled: true,
     notificationSystemEnabled: true,
@@ -709,51 +687,6 @@ function hintIcon(kind: ConnectionHint['kind']) {
     case 'local':
       return <Monitor className="size-4 flex-none text-muted-foreground" />
   }
-}
-
-function KeyField({
-  label,
-  hint,
-  value,
-  reveal,
-  type = 'password',
-  onChange,
-  onToggleReveal,
-}: {
-  label: string
-  hint?: string
-  value: string
-  reveal: boolean
-  type?: 'password' | 'text'
-  onChange: (v: string) => void
-  onToggleReveal?: () => void
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium">{label}</label>
-      <div className="relative">
-        <Input
-          type={type === 'text' || reveal ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete="off"
-          spellCheck={false}
-          className={onToggleReveal ? 'pr-9 font-mono text-xs' : 'font-mono text-xs'}
-        />
-        {onToggleReveal && (
-          <button
-            type="button"
-            onClick={onToggleReveal}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            title={reveal ? '隐藏' : '显示'}
-          >
-            {reveal ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-          </button>
-        )}
-      </div>
-      {hint && <p className="text-[10px] text-muted-foreground/80">{hint}</p>}
-    </div>
-  )
 }
 
 /** 设置 button 入口，挂在 Sidebar header。 */

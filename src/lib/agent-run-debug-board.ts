@@ -1,5 +1,7 @@
 import type { Edge, Node } from '@xyflow/react'
 
+import type { AgentRunRow } from '@/db/schema'
+
 import type {
   AgentRunDebugDetail,
   AgentRunDebugEventRecord,
@@ -1319,48 +1321,6 @@ function agentCurrentTask(agent: AgentRunDebuggerAgentNode): AgentRunInspectorTa
   }
 }
 
-function getExecutionStageStatus(
-  run: AgentRunDebugListItem,
-  hasData: boolean,
-): AgentRunBoardStageStatus {
-  if (!hasData && run.status !== 'running') return 'unavailable'
-  return getAgentRunBoardStageStatus(run.status, hasData)
-}
-
-function getOutputStageStatus(
-  run: AgentRunDebugListItem,
-  hasData: boolean,
-): AgentRunBoardStageStatus {
-  if (!hasData && run.status !== 'running') return 'unavailable'
-  return getAgentRunBoardStageStatus(run.status, hasData)
-}
-
-function getOutputNodeStatus(
-  run: AgentRunDebugListItem,
-  hasData: boolean,
-): AgentRunDebuggerStatus {
-  if (!hasData && run.status !== 'running') return 'pending'
-  return mapRunStatus(run.status)
-}
-
-function getPlanStageStatus(
-  childrenRuns: readonly AgentRunDebugListItem[],
-  parentStatus: AgentRunDebugListItem['status'],
-): AgentRunBoardStageStatus {
-  if (childrenRuns.some((run) => run.status === 'failed')) return 'failed'
-  if (childrenRuns.some((run) => run.status === 'aborted')) return 'aborted'
-  if (childrenRuns.some((run) => run.status === 'running' || run.status === 'queued')) return 'running'
-  return getAgentRunBoardStageStatus(parentStatus, childrenRuns.length > 0)
-}
-
-function toneForStatus(status: AgentRunBoardStageStatus): AgentRunBoardTone {
-  if (status === 'complete') return 'success'
-  if (status === 'running') return 'info'
-  if (status === 'pending') return 'warning'
-  if (status === 'failed' || status === 'aborted') return 'danger'
-  return 'neutral'
-}
-
 export function toneForDebuggerStatus(status: AgentRunDebuggerStatus): AgentRunBoardTone {
   if (status === 'completed') return 'success'
   if (status === 'running') return 'info'
@@ -1677,6 +1637,14 @@ function mapMessageStatus(status: MessageRecord['status']): AgentRunDebuggerStat
   return 'pending'
 }
 
+function getOutputNodeStatus(
+  run: AgentRunDebugListItem,
+  hasData: boolean,
+): AgentRunDebuggerStatus {
+  if (!hasData && run.status !== 'running') return 'pending'
+  return mapRunStatus(run.status)
+}
+
 function groupRunsByTriggerMessage(runs: readonly AgentRunDebugListItem[]): Map<string, AgentRunDebugListItem[]> {
   const grouped = new Map<string, AgentRunDebugListItem[]>()
   for (const run of runs) {
@@ -1812,4 +1780,103 @@ function stripLeadingAgentMentions(value: string, agentNames: Array<string | nul
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * 将 SSE 实时 live runs 的状态、结束时间、usage 叠加到 cachedDetail 上。
+ * 当 SSE 推送 `run.end` 让子 run 提前进入 complete 时，
+ * 不再需要 1.8s 的轮询兜底 → 流程图、阶段条、Inspector 立即反映完成状态。
+ *
+ * 若 live runs 中没有 agentRun（极少见，detail 是从外部传入 + runs 还没到），
+ * 直接返回 cachedDetail 走原有路径，调用方 useMemo 不会触发额外刷新。
+ *
+ * 若叠加结果完全等于 cachedDetail（live 与 cached 同 status、同 finishedAt、同 usage），
+ * 也返回原对象，避免下游 useMemo 误判「需要刷新」。
+ */
+export function mergeDetailWithLiveStatus(
+  cachedDetail: AgentRunDebugDetail,
+  runs: readonly AgentRunDebugListItem[],
+): AgentRunDebugDetail {
+  const runsById = new Map(runs.map((run) => [run.id, run]))
+  const agentRun = runsById.get(cachedDetail.agentRun.id)
+  if (!agentRun) return cachedDetail
+  const nextAgentRun =
+    agentRun.status === cachedDetail.agentRun.status &&
+    agentRun.finishedAt === cachedDetail.agentRun.finishedAt &&
+    agentRun.usage === cachedDetail.agentRun.usage
+      ? cachedDetail.agentRun
+      : {
+          ...cachedDetail.agentRun,
+          status: agentRun.status,
+          finishedAt: agentRun.finishedAt,
+          usage: agentRun.usage ?? cachedDetail.agentRun.usage,
+        }
+  let nextChildrenRuns = cachedDetail.childrenRuns
+  let mutatedChildren = false
+  for (let i = 0; i < cachedDetail.childrenRuns.length; i += 1) {
+    const child = cachedDetail.childrenRuns[i]
+    const liveChild = runsById.get(child.id)
+    if (!liveChild || liveChild.status === child.status) continue
+    if (!mutatedChildren) {
+      nextChildrenRuns = cachedDetail.childrenRuns.slice()
+      mutatedChildren = true
+    }
+    nextChildrenRuns[i] = {
+      ...child,
+      status: liveChild.status,
+      finishedAt: liveChild.finishedAt,
+      usage: liveChild.usage ?? child.usage,
+    }
+  }
+  if (nextAgentRun === cachedDetail.agentRun && nextChildrenRuns === cachedDetail.childrenRuns) {
+    return cachedDetail
+  }
+  return { ...cachedDetail, agentRun: nextAgentRun, childrenRuns: nextChildrenRuns }
+}
+
+/**
+ * 把 cached runs 列表叠加 live runs 的最新字段，并按 startedAt 倒序返回。
+ *
+ * - 已存在的 id：spliced（保留 cachedDetail 中的 agentName / adapterName / modelId / hasDebugSnapshot 等本地派生字段）。
+ * - 未在 cached 中但 live 有的 id（如刚推送、新出现的任务）追加到列表。
+ * - live runs 为 undefined 时按 cachedRuns 倒序返回，避免调用方 useMemo 误判 null。
+ */
+export function mergeLiveRuns(
+  cachedRuns: AgentRunDebugListItem[],
+  liveRuns: Record<string, AgentRunRow> | undefined,
+  agents: Record<string, { name: string }>,
+): AgentRunDebugListItem[] {
+  const merged = cachedRuns.map((run) => {
+    const live = liveRuns?.[run.id]
+    return live
+      ? {
+          ...run,
+          status: live.status,
+          error: live.error ?? run.error,
+          usage: live.usage ?? run.usage,
+          finishedAt: live.finishedAt ?? run.finishedAt,
+        }
+      : run
+  })
+  const knownIds = new Set(merged.map((run) => run.id))
+  for (const live of Object.values(liveRuns ?? {})) {
+    if (knownIds.has(live.id)) continue
+    merged.push({
+      id: live.id,
+      conversationId: live.conversationId,
+      agentId: live.agentId,
+      agentName: agents[live.agentId]?.name ?? null,
+      adapterName: null,
+      modelId: null,
+      triggerMessageId: live.triggerMessageId,
+      parentRunId: live.parentRunId ?? null,
+      status: live.status,
+      error: live.error ?? null,
+      usage: live.usage ?? null,
+      startedAt: live.startedAt,
+      finishedAt: live.finishedAt ?? null,
+      hasDebugSnapshot: false,
+    })
+  }
+  return merged.sort((a, b) => b.startedAt - a.startedAt)
 }

@@ -21,6 +21,9 @@ It keeps conversations, agents, artifacts, approvals, and workspace files in one
   <img src="docs/images/agenthub-preview.png" alt="AgentHub multi-agent collaboration and artifact preview" width="100%" />
 </p>
 
+> **Current release: v0.2.0-rc.1** (2026-09-12) — first ship-candidate after security audit & QA pass.
+> See [`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md) for what's new.
+
 ## What it does
 
 - Chat-style workspaces for single-agent and group-agent conversations

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, CheckCircle2, Loader2, Plus, Save, XCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { BUILTIN_PROVIDERS, type ProviderType } from '@/lib/llm-shared'
+import { BUILTIN_PROVIDERS } from '@/lib/llm-shared'
 import type { LlmProviderRow } from '@/db/schema'
 
 interface PriorityItem {
@@ -139,7 +139,6 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
           {priority.map((item, index) => {
             const provider = providers.find((p) => p.id === item.providerId)
             const displayName = provider?.displayName ?? BUILTIN_PROVIDERS[item.providerId]?.displayName ?? item.providerId
-            const providerType = (provider?.providerType ?? BUILTIN_PROVIDERS[item.providerId]?.providerType ?? 'custom') as ProviderType
             return (
               <div
                 key={item.providerId}

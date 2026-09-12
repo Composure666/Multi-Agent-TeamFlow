@@ -17,10 +17,7 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/db/client'
 import type { LlmModelAssignmentRow } from '@/db/schema'
 import {
-  AGENT_CAPABILITIES,
   GLOBAL_KEYS,
-  SYSTEM_CAPABILITIES,
-  type AssignmentScope,
   type AssignmentUpsertInput,
   type ProviderUsage,
   type ResolvedModel,

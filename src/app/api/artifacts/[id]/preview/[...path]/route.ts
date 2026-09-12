@@ -2,31 +2,11 @@ import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 
 import { db, schema } from '@/db/client'
+import { contentTypeFor } from '@/lib/artifact-preview-mime'
 import type { ArtifactContent } from '@/shared/types'
 
 interface RouteContext {
   params: Promise<{ id: string; path: string[] }>
-}
-
-const MIME_BY_EXT: Record<string, string> = {
-  html: 'text/html; charset=utf-8',
-  htm: 'text/html; charset=utf-8',
-  css: 'text/css; charset=utf-8',
-  js: 'application/javascript; charset=utf-8',
-  mjs: 'application/javascript; charset=utf-8',
-  json: 'application/json; charset=utf-8',
-  svg: 'image/svg+xml',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  ico: 'image/x-icon',
-}
-
-function contentTypeFor(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
-  return MIME_BY_EXT[ext] ?? 'text/plain; charset=utf-8'
 }
 
 export async function GET(_req: Request, ctx: RouteContext) {

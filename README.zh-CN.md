@@ -21,6 +21,9 @@ AgentHub 是一个本地优先的多 Agent 协作工作空间，把 AI 协作做
   <img src="docs/images/agenthub-preview.png" alt="AgentHub 多 Agent 协作与产物预览" width="100%" />
 </p>
 
+> **当前版本：v0.2.0-rc.1**（2026-09-12）—— 经过完整上线前全检后的首个 release-candidate。
+> 版本号与变更明细见 [`VERSION`](./VERSION) 与 [`CHANGELOG.md`](./CHANGELOG.md)。
+
 ## 核心功能
 
 - 单 Agent 与群聊式多 Agent 会话
