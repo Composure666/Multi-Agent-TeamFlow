@@ -28,9 +28,11 @@ import { useAppStore } from '@/stores/app-store'
 export function ArtifactLibrary({
   conversationId,
   showConversationTitle = true,
+  onPreview,
 }: {
   conversationId?: string
   showConversationTitle?: boolean
+  onPreview?: () => void
 }) {
   const [items, setItems] = useState<ArtifactListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,6 +106,7 @@ export function ArtifactLibrary({
 
   const openPreview = async (id: string) => {
     if (previewArtifactId === id) return
+    onPreview?.()
     if (artifactsById[id]) {
       openArtifactPreview(id)
       return

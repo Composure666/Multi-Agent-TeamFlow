@@ -576,7 +576,7 @@ function MobileWorkbenchDrawer({
             type="button"
             onClick={() => setAccountOpen((expanded) => !expanded)}
             aria-expanded={accountOpen}
-            className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
+            className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
           >
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             <div className="min-w-0 flex-1">
@@ -873,7 +873,8 @@ function WorkbenchNav({
                 onClick={() => onViewChange(item.id)}
                 title={compact ? item.label : undefined}
                 className={cn(
-                  'relative flex h-11 w-full items-center gap-2.5 rounded-[14px] px-[18px] text-[15px] transition',
+                  'relative flex w-full items-center gap-2.5 rounded-[14px] px-[18px] text-[15px] transition',
+                  'h-9',
                   compact && 'justify-center px-0',
                   item.id === 'run-board' && !compact && 'pl-5',
                   active
@@ -917,7 +918,7 @@ function WorkbenchNav({
           type="button"
           onClick={() => compact ? setCollapsed(false) : setAccountOpen((open) => !open)}
           aria-expanded={accountOpen && !compact}
-          className={cn('w-full rounded-lg border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact && 'px-2')}
+          className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact && 'px-2', !compact && 'p-2')}
           title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
         >
           <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
@@ -974,6 +975,23 @@ function NewTaskView({
   const [sceneAgentError, setSceneAgentError] = useState<string | null>(null)
   const [contentOverflow, setContentOverflow] = useState(false)
   const taskInputRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleTaskPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const files: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) files.push(file)
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault()
+      setPendingFiles((prev) => [...prev, ...files])
+    }
+  }
 
   useEffect(() => {
     const el = taskInputRef.current
@@ -1214,6 +1232,7 @@ function NewTaskView({
                     void submit()
                   }
                 }}
+                onPaste={handleTaskPaste}
                 placeholder="今天想让 Nexora Studio 帮你完成什么？"
                 className="min-h-[150px] max-h-[280px] resize-none overflow-y-auto border-0 bg-transparent px-6 pb-3.5 pt-8 text-[15px] shadow-none placeholder:text-slate-400 focus-visible:ring-0 2xl:min-h-[168px] 2xl:max-h-[320px] 2xl:px-7 2xl:text-[16px]"
               />
@@ -1513,7 +1532,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
         </div>
         <div className="relative mt-3">
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" className="h-9 rounded-lg border-0 bg-slate-100 pl-9 text-xs shadow-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)]" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" className="h-8 rounded-lg border-0 bg-slate-100 pl-9 text-xs shadow-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)]" />
         </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
@@ -1527,18 +1546,19 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                 type="button"
                 onClick={() => setActiveConversation(conversation.id)}
                 className={cn(
-                  'flex h-14 w-full items-center gap-2 rounded-lg px-2 text-left transition',
+                  'flex w-full items-center gap-2 rounded-lg px-2 text-left transition',
+                  'h-11',
                   activeId === conversation.id
                     ? 'bg-[var(--agenthub-accent-soft)] text-slate-950'
                     : 'text-slate-700 hover:bg-slate-100',
                 )}
               >
-                <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-white text-[var(--agenthub-accent)]' : 'bg-slate-100 text-slate-500')}>
+                <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-white text-[var(--agenthub-accent)]' : 'bg-slate-100 text-slate-500')}>
                   {isGroup ? <Grid2X2 className="size-3.5" /> : <MessageCircle className="size-3.5" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium leading-5">{conversation.title}</span>
-                  <span className="mt-0.5 block truncate text-[11px] leading-4 text-slate-500">
+                  <span className="block truncate text-[13px] font-medium leading-5">{conversation.title}</span>
+                  <span className="mt-0.5 block truncate text-[10px] leading-4 text-slate-500">
                     {conversation.agentIds.map((id) => agents[id] ? getAgentDisplayName(agents[id]) : null).filter(Boolean).join(' / ') || '未配置 Agent'}
                   </span>
                 </span>

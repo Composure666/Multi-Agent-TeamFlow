@@ -80,6 +80,7 @@ export interface AutomationStats {
 export interface AutomationTrendPoint {
   label: string
   value: number
+  completed: number
 }
 
 export interface AutomationDashboard {
@@ -87,7 +88,7 @@ export interface AutomationDashboard {
   automations: AutomationListItem[]
   recentRuns: AutomationRunListItem[]
   trend: AutomationTrendPoint[]
-  trendRange: AutomationTrendRange
+  trendRange: number
 }
 
 export interface UpsertAutomationInput {
@@ -125,17 +126,13 @@ function startOfDay(value: number): number {
   return date.getTime()
 }
 
-export const TREND_RANGE_OPTIONS = [7, 30] as const
+export const TREND_RANGE_OPTIONS = [7, 30, 90] as const
 
 export type AutomationTrendRange = (typeof TREND_RANGE_OPTIONS)[number]
 
 export const TREND_DEFAULT_DAYS: AutomationTrendRange = 7
 
-function normalizeTrendRange(value: number | undefined): AutomationTrendRange {
-  return TREND_RANGE_OPTIONS.includes(value as AutomationTrendRange) ? (value as AutomationTrendRange) : TREND_DEFAULT_DAYS
-}
-
-function buildTrend(runs: Array<{ startedAt: number }>, now = Date.now(), days = TREND_DEFAULT_DAYS): AutomationTrendPoint[] {
+function buildTrend(runs: Array<{ startedAt: number; status: string }>, now = Date.now(), days: number = TREND_DEFAULT_DAYS): AutomationTrendPoint[] {
   const todayStart = startOfDay(now)
   return Array.from({ length: days }, (_, index) => {
     const dayStart = todayStart - (days - 1 - index) * DAY_MS
@@ -149,16 +146,20 @@ function buildTrend(runs: Array<{ startedAt: number }>, now = Date.now(), days =
           : ''
         : TREND_LABELS[date.getDay()]
     const value = runs.filter((run) => run.startedAt >= dayStart && run.startedAt < dayEnd).length
-    return { label, value }
+    const completed = runs.filter((run) => run.startedAt >= dayStart && run.startedAt < dayEnd && run.status === 'success').length
+    return { label, value, completed }
   })
 }
 
-export async function getAutomationDashboard(trendRange?: number): Promise<AutomationDashboard> {
+export async function getAutomationDashboard(range?: { start?: number; end?: number; days?: number }): Promise<AutomationDashboard> {
   const now = Date.now()
-  const trendDays = normalizeTrendRange(trendRange)
   const todayStart = startOfDay(now)
-  const trendStart = todayStart - 6 * DAY_MS
-  const chartStart = todayStart - (trendDays - 1) * DAY_MS
+  const end = range?.end ?? now
+  const days = range?.days ?? 7
+  const rangeStart = range?.start ? startOfDay(range.start) : startOfDay(end - (days - 1) * DAY_MS)
+  const rangeDuration = end - rangeStart
+  const prevStart = rangeStart - rangeDuration
+  const prevEnd = rangeStart
 
   const automations = await db
     .select()
@@ -182,12 +183,11 @@ export async function getAutomationDashboard(trendRange?: number): Promise<Autom
     })
     .from(schema.automationRuns)
     .innerJoin(schema.automations, eq(schema.automationRuns.automationId, schema.automations.id))
+    .where(gte(schema.automationRuns.startedAt, rangeStart))
     .orderBy(desc(schema.automationRuns.startedAt))
-    .limit(8)
+    .limit(20)
 
-  // 一次取数覆盖「图表窗口」与「上一周期窗口」，避免多次全表扫描
-  const fetchStart = Math.min(chartStart, trendStart - 7 * DAY_MS)
-
+  const fetchStart = Math.min(rangeStart, prevStart)
   const runsForWindow = await db
     .select({
       status: schema.automationRuns.status,
@@ -196,27 +196,22 @@ export async function getAutomationDashboard(trendRange?: number): Promise<Autom
     .from(schema.automationRuns)
     .where(gte(schema.automationRuns.startedAt, fetchStart))
 
-  const runsForChart = runsForWindow.filter((run) => run.startedAt >= chartStart)
-  // 统计口径固定为最近 7 天，不随趋势图的时间范围变化
-  const runsForStats = runsForWindow.filter((run) => run.startedAt >= trendStart)
-  const runsForPreviousStats = runsForWindow.filter(
-    (run) => run.startedAt >= trendStart - 7 * DAY_MS && run.startedAt < trendStart,
-  )
+  const runsForRange = runsForWindow.filter((run) => run.startedAt >= rangeStart && run.startedAt < end)
+  const runsForPrev = runsForWindow.filter((run) => run.startedAt >= prevStart && run.startedAt < prevEnd)
 
   const [{ value: todayRunCount }] = await db
     .select({ value: count() })
     .from(schema.automationRuns)
     .where(gte(schema.automationRuns.startedAt, todayStart))
 
-  const successfulRuns = runsForStats.filter((run) => run.status === 'success').length
-  const completedRuns = runsForStats.filter((run) => run.status !== 'running').length
-  const failCount = runsForStats.filter((run) => run.status === 'failed').length
+  const successfulRuns = runsForRange.filter((run) => run.status === 'success').length
+  const completedRuns = runsForRange.filter((run) => run.status !== 'running').length
+  const failCount = runsForRange.filter((run) => run.status === 'failed').length
 
-  const previousCompletedRuns = runsForPreviousStats.filter((run) => run.status !== 'running').length
-  const previousSuccessRate =
-    previousCompletedRuns > 0
-      ? Math.round((runsForPreviousStats.filter((run) => run.status === 'success').length / previousCompletedRuns) * 1000) / 10
-      : 0
+  const prevCompleted = runsForPrev.filter((run) => run.status !== 'running').length
+  const previousSuccessRate = prevCompleted > 0
+    ? Math.round((runsForPrev.filter((run) => run.status === 'success').length / prevCompleted) * 1000) / 10
+    : 0
 
   const enabledCount = automations.filter((item) => item.status === 'enabled' || item.status === 'running').length
   const pendingCount = automations.filter((item) => item.status === 'draft' || item.status === 'paused').length
@@ -229,14 +224,14 @@ export async function getAutomationDashboard(trendRange?: number): Promise<Autom
       successRate,
       pendingCount,
       failCount,
-      previousRunCount: runsForPreviousStats.length,
+      previousRunCount: runsForPrev.length,
       previousSuccessRate,
-      previousFailCount: runsForPreviousStats.filter((run) => run.status === 'failed').length,
+      previousFailCount: runsForPrev.filter((run) => run.status === 'failed').length,
     },
     automations: automations.map(mapAutomationRow),
     recentRuns,
-    trend: buildTrend(runsForChart, now, trendDays),
-    trendRange: trendDays,
+    trend: buildTrend(runsForRange, end, days),
+    trendRange: days,
   }
 }
 

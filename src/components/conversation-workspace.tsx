@@ -8,16 +8,19 @@ import { ChatPanel } from '@/components/chat-panel'
 import { FileExplorerPanel } from '@/components/file-explorer-panel'
 import { useAppStore } from '@/stores/app-store'
 
-const MIN_RIGHT_PANEL_WIDTH = 280
-const MAX_RIGHT_PANEL_WIDTH = 560
+const MIN_RIGHT_PANEL_WIDTH = 320
+const MAX_RIGHT_PANEL_WIDTH = 760
 
 export function resizeConversationPanelWidth(currentWidth: number, pointerDeltaX: number) {
   return Math.min(Math.max(currentWidth - pointerDeltaX, MIN_RIGHT_PANEL_WIDTH), MAX_RIGHT_PANEL_WIDTH)
 }
 
 export function ConversationWorkspace() {
-  const [rightWidth, setRightWidth] = useState(360)
+  const [rightWidth, setRightWidth] = useState(440)
+  const previewArtifactId = useAppStore((state) => state.previewArtifactId)
   const workspaceOpen = useAppStore((state) => state.fileExplorerOpen || Boolean(state.previewArtifactId))
+  // 预览打开时自动加宽面板，方便查看文档/代码
+  const effectiveWidth = previewArtifactId ? Math.max(rightWidth, 480) : rightWidth
 
   const resizeRight = useCallback((deltaX: number) => {
     setRightWidth((width) => resizeConversationPanelWidth(width, deltaX))
@@ -27,7 +30,7 @@ export function ConversationWorkspace() {
     <div className="flex h-[calc(100vh-var(--agenthub-titlebar-height,0px))] min-w-0 gap-3 p-3 xl:p-4">
       <section className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-[var(--agenthub-shadow-card)] sm:min-w-[360px] dark:bg-neutral-900">
         <ChatPanel />
-        {workspaceOpen && <ResizableRightPanel width={rightWidth} />}
+        {workspaceOpen && <ResizableRightPanel width={effectiveWidth} />}
       </section>
       {workspaceOpen && <ResizeHandle onDrag={resizeRight} />}
     </div>

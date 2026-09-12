@@ -233,7 +233,7 @@ export function ChatPanel() {
               {conv.title}
             </DialogDescription>
           </DialogHeader>
-          <ArtifactLibrary conversationId={conv.id} showConversationTitle={false} />
+          <ArtifactLibrary conversationId={conv.id} showConversationTitle={false} onPreview={() => setArtifactsOpen(false)} />
         </DialogContent>
       </Dialog>
 

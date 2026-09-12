@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Clock, Copy, Download, ExternalLink, Eye, FileCode, FileText, FolderGit2, FolderTree, GitCompare, History, Image as ImageIcon, Layers, Loader2, Maximize, Pencil, Presentation, RefreshCw, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Clock, Copy, Download, ExternalLink, Eye, FileCode, FileText, FolderGit2, FolderTree, GitCompare, History, Image as ImageIcon, Layers, Loader2, Maximize, Minimize, Pencil, Presentation, RefreshCw, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useTheme } from 'next-themes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -60,6 +60,26 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
   const [showCompare, setShowCompare] = useState(false)
   const [compareBaseId, setCompareBaseId] = useState<string | null>(null)
   const [compareTargetId, setCompareTargetId] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // ESC 退出全屏
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isFullscreen])
+
+  // 切换产物时：代码/项目类型默认全屏，其他退出全屏
+  useEffect(() => {
+    if (artifact && (artifact.type === 'code_file' || artifact.type === 'project')) {
+      setIsFullscreen(true)
+    } else {
+      setIsFullscreen(false)
+    }
+  }, [id, artifact])
 
   // 切到新 artifact 时拉它的版本链
   useEffect(() => {
@@ -129,6 +149,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
       className={cn(
         'flex min-w-0 flex-1 shrink flex-col overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm shadow-slate-200/70 max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:min-w-0 max-md:rounded-none xl:min-w-[520px]',
         fullHeight && 'h-full self-stretch',
+        isFullscreen && 'fixed inset-0 z-50 !max-w-none !w-full !rounded-none !m-0',
       )}
     >
       <header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
@@ -188,7 +209,15 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
               </Button>
             </>
           )}
-          <a
+                    <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setIsFullscreen((v) => !v)}
+            title={isFullscreen ? '退出全屏 (ESC)' : '全屏预览'}
+          >
+            {isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+          </Button>
+<a
             href={`/api/artifacts/${artifact.id}/export`}
             download
             title={`下载${

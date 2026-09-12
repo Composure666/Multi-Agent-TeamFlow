@@ -37,6 +37,15 @@ export interface ArtifactListItem {
   parentArtifactId: string | null
   createdByAgentId: string
   createdAt: number
+  imageUrl?: string
+  description?: string
+  pptCover?: {
+    title?: string
+    subtitle?: string
+    bullets?: string[]
+    primaryColor?: string
+    bgColor?: string
+  }
 }
 
 export type AutomationStatus = 'enabled' | 'running' | 'draft' | 'paused'
@@ -110,9 +119,10 @@ export interface AutomationStats {
 export interface AutomationTrendPoint {
   label: string
   value: number
+  completed: number
 }
 
-export const AUTOMATION_TREND_RANGES = [7, 30] as const
+export const AUTOMATION_TREND_RANGES = [7, 30, 90] as const
 
 export type AutomationTrendRange = (typeof AUTOMATION_TREND_RANGES)[number]
 
@@ -579,8 +589,12 @@ export async function optimizePrompt(prompt: string): Promise<{ enhancedText: st
   )
 }
 
-export async function fetchAutomationDashboard(trendRange?: AutomationTrendRange): Promise<AutomationDashboard> {
-  const query = trendRange ? `?trendRange=${trendRange}` : ''
+export async function fetchAutomationDashboard(range?: { days?: number; start?: number; end?: number }): Promise<AutomationDashboard> {
+  const params = new URLSearchParams()
+  if (range?.days) params.set('days', String(range.days))
+  if (range?.start) params.set('start', String(range.start))
+  if (range?.end) params.set('end', String(range.end))
+  const query = params.toString() ? `?${params.toString()}` : ''
   const { dashboard } = await json<{ dashboard: AutomationDashboard }>(fetch(`/api/automations${query}`))
   return dashboard
 }
@@ -1398,6 +1412,8 @@ export interface UsageSummary {
   today: UsageBucket
   week: UsageBucket
   allTime: UsageBucket
+  selected: UsageBucket
+  prevSelected: UsageBucket
   topConversations: Array<{
     id: string
     title: string
@@ -1409,8 +1425,12 @@ export interface UsageSummary {
   byModel: Array<{ model: string; totalTokens: number; runs: number }>
 }
 
-export async function fetchUsageSummary(): Promise<UsageSummary> {
-  return json<UsageSummary>(fetch('/api/usage/summary'))
+export async function fetchUsageSummary(range?: { start?: number; end?: number }): Promise<UsageSummary> {
+  const params = new URLSearchParams()
+  if (range?.start) params.set('start', String(range.start))
+  if (range?.end) params.set('end', String(range.end))
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return json<UsageSummary>(fetch(`/api/usage/summary${query}`))
 }
 
 // ─── Mobile companion connection hints ─────────────

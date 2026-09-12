@@ -1788,7 +1788,7 @@ export function AutomationWorkspace() {
         setError(null)
       }
       try {
-        const nextDashboard = await fetchAutomationDashboard(trendRangeRef.current)
+        const nextDashboard = await fetchAutomationDashboard({ days: trendRangeRef.current })
         if (requestSeq !== requestSeqRef.current) return
         setDashboard(nextDashboard)
         hasDashboardRef.current = true

@@ -1,12 +1,14 @@
 'use client'
 // analytics-workspace.tsx - v3: full feature restore, real data, unique keys
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bot,
   Calendar,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   Download,
   FileCode2,
@@ -64,12 +66,20 @@ type LiveActivityItem = {
   time: string
   title: string
   description: string
-  status: '运行中' | '已完成' | '等待中'
+  status: '运行中' | '已完成' | '失败'
 }
 
 type TaskListTab = '全部' | '运行中' | '已完成' | '失败'
 
 const CHART_COLORS = ['#2F5FD0', '#7C3AED', '#10B981', '#F59E0B', '#6B7280']
+
+function getDateRangeForPreset(preset: string): { start: string; end: string; days: number } {
+  const now = new Date()
+  const end = now.toISOString().slice(0, 10)
+  if (preset === '最近30天') return { start: new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10), end, days: 30 }
+  if (preset === '最近90天') return { start: new Date(now.getTime() - 89 * 86400000).toISOString().slice(0, 10), end, days: 90 }
+  return { start: new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10), end, days: 7 }
+}
 
 export function AnalyticsWorkspace() {
   const [usageData, setUsageData] = useState<UsageSummary | null>(null)
@@ -85,47 +95,77 @@ export function AnalyticsWorkspace() {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [hoveredLine, setHoveredLine] = useState<number | null>(null)
   const [dateRangeOpen, setDateRangeOpen] = useState(false)
+  const dateRangeRef = useRef<HTMLDivElement>(null)
   const [datePreset, setDatePreset] = useState('最近7天')
-  const [dateStart, setDateStart] = useState('2025-05-15')
-  const [dateEnd, setDateEnd] = useState('2025-05-21')
+  const [dateStart, setDateStart] = useState(() => getDateRangeForPreset('最近7天').start)
+  const [dateEnd, setDateEnd] = useState(() => getDateRangeForPreset('最近7天').end)
   const openRunBoardTarget = useAppStore((state) => state.openRunBoardTarget)
 
   const load = useCallback(async () => {
     setLoading(true); setUsageLoading(true); setError(null); setUsageError(null)
     try {
-      const [nextDashboard, nextUsage] = await Promise.all([fetchAutomationDashboard(), fetchUsageSummary()])
+      const startTs = new Date(dateStart).getTime()
+      const endTs = new Date(dateEnd).getTime() + 86400000 - 1
+      const days = Math.max(1, Math.round((endTs - startTs) / 86400000))
+      const [nextDashboard, nextUsage] = await Promise.all([
+        fetchAutomationDashboard({ start: startTs, end: endTs, days }),
+        fetchUsageSummary({ start: startTs, end: endTs }),
+      ])
       setDashboard(nextDashboard); setUsageData(nextUsage)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setError(message); setUsageError(message)
     } finally { setLoading(false); setUsageLoading(false) }
-  }, [])
+  }, [dateStart, dateEnd])
 
   useEffect(() => { void load() }, [load])
+
+  // 点击日期范围选择器外部时关闭下拉
+  useEffect(() => {
+    if (!dateRangeOpen) return
+    const handler = (e: MouseEvent) => {
+      if (dateRangeRef.current && !dateRangeRef.current.contains(e.target as Node)) {
+        setDateRangeOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [dateRangeOpen])
 
   const recentRuns = useMemo(() => (dashboard?.recentRuns ?? []).map(mapAutomationRun), [dashboard?.recentRuns])
   const trend = useMemo(() => {
     const raw = dashboard?.trend.length ? dashboard.trend : buildEmptyWeekTrend()
-    return raw.map((p, i) => ({ ...p, completed: Math.round(p.value * 0.85), idx: i }))
+    // 长周期（>31 天）按周聚合，避免柱体过密
+    if (raw.length > 31) {
+      const weeks: (AutomationTrendPoint & { idx: number })[] = []
+      for (let i = 0; i < raw.length; i += 7) {
+        const chunk = raw.slice(i, i + 7)
+        const value = chunk.reduce((s, p) => s + p.value, 0)
+        const completed = chunk.reduce((s, p) => s + (p.completed ?? 0), 0)
+        weeks.push({ label: chunk[0].label, value, completed, idx: weeks.length })
+      }
+      return weeks
+    }
+    return raw.map((p, i) => ({ ...p, idx: i }))
   }, [dashboard])
-  const maxTrend = Math.max(...trend.map((p) => p.value), 1)
+  const maxTrend = Math.max(...trend.map((p) => Math.max(p.value, p.completed ?? 0)), 1)
   const distribution = useMemo(() => buildAgentDistribution(dashboard?.recentRuns ?? []), [dashboard?.recentRuns])
   const successRate = calculateSuccessRate(dashboard?.recentRuns ?? [])
   const failedRuns = dashboard?.recentRuns.filter((r) => r.status === 'failed').length ?? 0
   const totalRuns = usageData?.allTime.runs ?? 0
-  const weekRuns = usageData?.week.runs ?? 0
+  const selectedRuns = usageData?.selected.runs ?? 0
   const todayRuns = usageData?.today.runs ?? 0
-  const weekTokens = usageData?.week.totalTokens ?? 0
+  const selectedTokens = usageData?.selected.totalTokens ?? 0
   const todayTokens = usageData?.today.totalTokens ?? 0
+  const prevSelectedRuns = usageData?.prevSelected.runs ?? 0
+  const prevSelectedTokens = usageData?.prevSelected.totalTokens ?? 0
   const allTokens = usageData?.allTime.totalTokens ?? 0
   const automationCount = dashboard?.automations.length ?? 0
   const activeAutomationCount = dashboard?.automations.filter((a) => a.status === 'enabled' || a.status === 'running').length ?? 0
 
   // Compute trend values for KPI sparklines and trend arrows
-  const prevWeekRuns = weekRuns > 0 ? Math.round(weekRuns * 0.88) : 0
-  const prevWeekTokens = weekTokens > 0 ? Math.round(weekTokens * 0.92) : 0
-  const runsTrend = prevWeekRuns > 0 ? Math.round(((weekRuns - prevWeekRuns) / prevWeekRuns) * 100) : 0
-  const tokensTrend = prevWeekTokens > 0 ? Math.round(((weekTokens - prevWeekTokens) / prevWeekTokens) * 1000) / 10 : 0
+  const runsTrend = prevSelectedRuns > 0 ? Math.round(((selectedRuns - prevSelectedRuns) / prevSelectedRuns) * 100) : 0
+  const tokensTrend = prevSelectedTokens > 0 ? Math.round(((selectedTokens - prevSelectedTokens) / prevSelectedTokens) * 1000) / 10 : 0
 
   const openRunTarget = useCallback((run: AnalyticsRunRecord) => {
     if (!run.conversationId) return
@@ -158,19 +198,33 @@ export function AnalyticsWorkspace() {
 
   const handleExport = useCallback(() => {
     const data = {
-      timestamp: new Date().toISOString(),
+      exportedAt: new Date().toISOString(),
       dateRange: { preset: datePreset, start: dateStart, end: dateEnd },
-      kpis: { totalRuns, weekRuns, todayRuns, weekTokens, todayTokens, allTokens, automationCount, successRate },
+      summary: {
+        totalRuns, selectedRuns, todayRuns,
+        selectedTokens, todayTokens, allTokens,
+        automationCount, successRate,
+        prevSelectedRuns, prevSelectedTokens,
+      },
+      usage: {
+        allTime: usageData?.allTime,
+        today: usageData?.today,
+        selected: usageData?.selected,
+        prevSelected: usageData?.prevSelected,
+      },
+      automationStats: dashboard?.stats,
       trend: trend.map(p => ({ label: p.label, value: p.value, completed: p.completed })),
-      distribution: distribution,
+      agentDistribution: distribution,
+      taskTypeDistribution,
       recentRuns: recentRuns,
+      liveActivities,
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
-    a.href = url; a.download = "agenthub-data-" + Date.now() + ".json"; a.click()
+    a.href = url; a.download = "agenthub-analytics-" + dateStart + "_" + dateEnd + ".json"; a.click()
     URL.revokeObjectURL(url)
-  }, [datePreset, dateStart, dateEnd, totalRuns, weekRuns, todayRuns, weekTokens, todayTokens, allTokens, automationCount, successRate, trend, distribution, recentRuns])
+  }, [datePreset, dateStart, dateEnd, totalRuns, selectedRuns, todayRuns, selectedTokens, todayTokens, allTokens, automationCount, successRate, prevSelectedRuns, prevSelectedTokens, usageData, dashboard, trend, distribution, taskTypeDistribution, recentRuns, liveActivities])
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F0F2F5] dark:bg-[#0F1115]">
       {/* Header */}
@@ -180,26 +234,26 @@ export function AnalyticsWorkspace() {
           <p className="mt-1 text-[13px] text-slate-500">多维度了解 Agent 的运行情况、任务效率与资源使用</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
+          <div className="relative" ref={dateRangeRef}>
             <button type="button" onClick={() => setDateRangeOpen(!dateRangeOpen)} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition">
               <Calendar className="size-3.5 text-slate-400" />
               <span>{datePreset}</span>
               <ChevronDown className={cn("size-3 text-slate-400 transition", dateRangeOpen && "rotate-180")} />
             </button>
             {dateRangeOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
                 {["最近7天", "最近30天", "最近90天"].map((p) => (
-                  <button key={p} type="button" onClick={() => { setDatePreset(p); setDateRangeOpen(false) }} className={cn("block w-full px-3 py-2 text-left text-xs transition hover:bg-slate-50", datePreset === p ? "text-[#2F5FD0] font-medium bg-blue-50/50" : "text-slate-600")}>{p}</button>
+                  <button key={p} type="button" onClick={() => { const r = getDateRangeForPreset(p); setDatePreset(p); setDateStart(r.start); setDateEnd(r.end); setDateRangeOpen(false) }} className={cn("block w-full px-3 py-2 text-left text-xs transition hover:bg-slate-50", datePreset === p ? "text-[#2F5FD0] font-medium bg-blue-50/50" : "text-slate-600")}>{p}</button>
                 ))}
                 <div className="my-1 border-t border-slate-100" />
                 <div className="px-3 py-2">
                   <div className="text-[10px] font-medium text-slate-400 mb-1.5">自定义范围</div>
                   <div className="flex items-center gap-1">
-                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-[11px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
                     <span className="text-slate-300">~</span>
-                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-[11px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
                   </div>
-                  <button type="button" onClick={() => { setDatePreset("自定义"); setDateRangeOpen(false) }} className="mt-1.5 w-full rounded bg-[#2F5FD0] py-1 text-[11px] font-medium text-white hover:bg-[#244FB3] transition">应用</button>
+                  <button type="button" onClick={() => { setDatePreset("自定义"); setDateRangeOpen(false) }} className="mt-1.5 w-full rounded bg-[#2F5FD0] py-1 text-xs font-medium text-white hover:bg-[#244FB3] transition">应用</button>
                 </div>
               </div>
             )}
@@ -229,20 +283,20 @@ export function AnalyticsWorkspace() {
           <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
             {/* KPI Cards */}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:gap-4">
-              <KpiCard icon={Bot} label="Agent 运行数" value={`${totalRuns}`} trend={runsTrend} caption={`较上周 ${prevWeekRuns}`} subCaption={`本周 ${weekRuns} 次 · 今日 ${todayRuns} 次`} sparkline={generateSparkline(weekRuns, 7)} tone="blue" />
-              <KpiCard icon={Coins} label="Token 用量" value={formatTok(weekTokens)} trend={tokensTrend} caption={`较上周 ${formatTok(prevWeekTokens)}`} subCaption={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`} sparkline={generateSparkline(weekTokens, 7, 0.3)} tone="purple" />
-              <KpiCard icon={Workflow} label="自动化任务" value={`${automationCount}`} trend={2} caption={`${activeAutomationCount} 个任务进行中`} subCaption={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`} sparkline={generateSparkline(automationCount, 7, 0.5)} tone="emerald" />
-              <KpiCard icon={CheckCircle2} label="自动化成功率" value={`${successRate}%`} trend={3} caption="近7天任务成功率" subCaption={failedRuns > 0 ? `${failedRuns} 次失败需关注` : '全部任务运行正常'} sparkline={generateSparkline(successRate, 7, 0.1, 80)} tone={failedRuns > 0 ? 'rose' : 'emerald'} />
+              <KpiCard icon={Bot} label="Agent 运行数" value={`${selectedRuns}`} trend={runsTrend} caption={`较上周期 ${prevSelectedRuns}`} subCaption={`今日 ${todayRuns} 次 · 全部 ${totalRuns} 次`} sparkline={trend.map(p => p.value)} tone="blue" />
+              <KpiCard icon={Coins} label="Token 用量" value={formatTok(selectedTokens)} trend={tokensTrend} caption={`较上周期 ${formatTok(prevSelectedTokens)}`} subCaption={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`} sparkline={trend.map(p => p.value)} tone="purple" />
+              <KpiCard icon={Workflow} label="自动化任务" value={`${automationCount}`} trend={0} caption={`${activeAutomationCount} 个任务进行中`} subCaption={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`} sparkline={trend.map(p => p.completed)} tone="emerald" />
+              <KpiCard icon={CheckCircle2} label="自动化成功率" value={`${successRate}%`} trend={dashboard?.stats.previousSuccessRate ? Math.round(successRate - dashboard.stats.previousSuccessRate) : 0} caption="选中范围成功率" subCaption={failedRuns > 0 ? `${failedRuns} 次失败需关注` : '全部任务运行正常'} sparkline={trend.map(p => p.value > 0 ? Math.round((p.completed / p.value) * 100) : 0)} tone={failedRuns > 0 ? 'rose' : 'emerald'} />
             </div>
 
             {/* Main area: 3-column layout */}
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(220px,1fr)_minmax(240px,1.1fr)] lg:gap-5">
               {/* Left: Trend Chart */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-2"><div><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">运行趋势</h2>
-                    <p className="mt-1 text-[12px] text-slate-500">展示近7天 Agent 运行次数与任务完成情况</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-start justify-between gap-2"><div><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">运行趋势</h2>
+                    <p className="mt-1 text-sm text-slate-500">展示近7天 Agent 运行次数与任务完成情况</p>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-5 text-[12px] text-slate-500">
+                <div className="mt-3 flex items-center gap-5 text-sm text-slate-500">
                   <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[#2F5FD0]" />Agent 运行次数</span>
                   <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[#10B981]" />任务完成数</span>
                 </div>
@@ -250,8 +304,7 @@ export function AnalyticsWorkspace() {
               </div>
 
               {/* Middle: Agent Type Distribution Donut */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">Agent 类型分布</h2>
-                  <button type="button" className="text-slate-400 hover:text-slate-600"><X className="size-4" /></button>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">Agent 类型分布</h2>
                 </div>
                 <DonutChart items={distribution} total={totalRuns} />
                 <div className="mt-3 space-y-2">
@@ -270,28 +323,41 @@ export function AnalyticsWorkspace() {
 
               {/* Right: Sidebar */}
               <div className="space-y-4 lg:row-span-2">{/* Live Activity */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-center justify-between">
                     <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">实时运行动态</h2>
-                    <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
                   </div>
-                  <div className="mt-3 space-y-2.5">
+                  <div className="mt-3 space-y-0">
                     {liveActivities.length === 0 ? (
                       <div className="py-3 text-center text-xs text-slate-400">暂无实时动态</div>
-                    ) : liveActivities.map((item, i) => (
-                      <div key={`live-${i}-${item.title}`} className="flex gap-2.5">
-                        <div className="flex flex-col items-center"><span className="text-[11px] text-slate-400">{item.time}</span><span className="mt-1 size-1 rounded-full bg-slate-200" /></div>
-                        <div className="min-w-0 flex-1 pb-2.5">
-                          <div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
-                          <p className="mt-0.5 truncate text-[11px] text-slate-400">{item.description}</p>
+                    ) : liveActivities.map((item, i) => {
+                      const dotColor = item.status === '已完成' ? 'bg-emerald-500' : item.status === '运行中' ? 'bg-blue-500' : 'bg-rose-500'
+                      const prevStatus = i > 0 ? liveActivities[i - 1].status : item.status
+                      const lineColor = prevStatus === '已完成' ? 'bg-emerald-200' : prevStatus === '运行中' ? 'bg-blue-200' : 'bg-rose-200'
+                      const isLast = i === liveActivities.length - 1
+                      return (
+                        <div key={`live-${i}-${item.title}`} className="flex gap-3">
+                          {/* 时间线：时间 + 圆点 + 连接线 */}
+                          <div className="flex w-12 shrink-0 flex-col items-center">
+                            <span className="text-xs leading-none text-slate-400">{item.time}</span>
+                            <div className="relative mt-1.5 flex flex-1 flex-col items-center">
+                              <span className={cn('size-2.5 shrink-0 rounded-full ring-2 ring-white', dotColor, item.status === '运行中' && 'animate-pulse')} />
+                              {!isLast && <span className={cn('mt-0.5 w-px flex-1', lineColor)} />}
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1 pb-3.5">
+                            <div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
+                            <p className="mt-0.5 truncate text-sm text-slate-400">{item.description}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
 
                 {/* Task Type Distribution */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
                   <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">最近任务类型</h2>
                   <div className="mt-3 space-y-2.5">
                     {taskTypeDistribution.map((item, i) => (
@@ -308,7 +374,7 @@ export function AnalyticsWorkspace() {
                 </div>
               </div>
             {/* Task List */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md lg:col-span-2">
               <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
                 <div><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">任务列表</h2></div>
                 <div className="flex items-center gap-2">
@@ -338,7 +404,7 @@ export function AnalyticsWorkspace() {
                           <button
                             type="button"
                             onClick={() => setTaskCategoryFilter(new Set())}
-                            className="text-[11px] font-normal text-[#2F5FD0] hover:underline"
+                            className="text-xs font-normal text-[#2F5FD0] hover:underline"
                           >
                             清除 ({taskCategoryFilter.size})
                           </button>
@@ -346,7 +412,7 @@ export function AnalyticsWorkspace() {
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       {availableTaskCategories.length === 0 && (
-                        <div className="px-2 py-2 text-[12px] text-slate-400">暂无 Agent 类型</div>
+                        <div className="px-2 py-2 text-sm text-slate-400">暂无 Agent 类型</div>
                       )}
                       {availableTaskCategories.map((category) => (
                         <DropdownMenuCheckboxItem
@@ -388,7 +454,7 @@ export function AnalyticsWorkspace() {
                   const count = tab === '全部' ? recentRuns.length : recentRuns.filter((r) => r.status === tab).length
                   return (
                     <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative px-3 py-2.5 text-[13px] font-medium transition', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-500 hover:text-slate-700')}>
-                      {tab}<span className={cn('ml-1.5 text-[11px]', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-400')}>{count}</span>
+                      {tab}<span className={cn('ml-1.5 text-xs', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-400')}>{count}</span>
                       {taskTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#2F5FD0]" />}
                     </button>
                   )
@@ -418,7 +484,7 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
   const sparkColor = tone === 'blue' ? '#2F5FD0' : tone === 'purple' ? '#7C3AED' : tone === 'emerald' ? '#10B981' : '#F43F5E'
   const trendUp = trend >= 0
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className={cn('flex size-9 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4" /></div>
@@ -428,7 +494,7 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
       <div className="mt-3.5 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[28px] font-semibold leading-none tracking-tight text-slate-900">{value}</div>
-          <div className={cn('mt-2 flex items-center gap-1 text-[12px] font-medium', trendUp ? 'text-emerald-600' : 'text-rose-500')}>
+          <div className={cn('mt-2 flex items-center gap-1 text-sm font-medium', trendUp ? 'text-emerald-600' : 'text-rose-500')}>
             <TrendingUp className={cn('size-3.5', !trendUp && 'rotate-180')} />
             <span>{trendUp ? '+' : ''}{trend > 100 ? `${Math.round(trend / 10) / 10}%` : `${trend}%`}</span>
             <span className="ml-1 font-normal text-slate-400">{caption}</span>
@@ -436,7 +502,7 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
         </div>
         <Sparkline data={sparkline} color={sparkColor} />
       </div>
-      <div className="mt-3 text-[11px] text-slate-400">{subCaption}</div>
+      <div className="mt-3 text-xs text-slate-400">{subCaption}</div>
     </article>
   )
 }
@@ -458,7 +524,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
-/* ─ Trend Chart: bars + line, lightweight white-card tooltip on hover ── */
+/* ─ Trend Chart: bars + area line, HTML tooltip that never overflows ── */
 function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHoverLine }: {
   data: (AutomationTrendPoint & { idx: number; completed: number })[];
   maxTrend: number; hoveredBar: number | null; hoveredLine: number | null;
@@ -468,26 +534,30 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
   const svgW = 560, svgH = chartH + padT + padB
   const plotW = svgW - padL - padR, plotH = chartH
   const gap = plotW / data.length
-  const barW = Math.max(16, gap * 0.45)
+  const barW = Math.max(12, Math.min(32, gap * 0.45))
   const yTicks = [0, Math.round(maxTrend * 0.25), Math.round(maxTrend * 0.5), Math.round(maxTrend * 0.75), maxTrend]
-  // 预计算折线点位（避免 render 期间就地累加）
+  // 折线点位（与柱体共用同一 x 轴和 y 轴，确保共生）
   const linePts = data.map((p, i) => {
     const x = padL + gap * i + gap / 2
-    const y = padT + plotH - (p.completed / maxTrend) * plotH
-    return { x, y, value: p.completed, label: p.label, idx: p.idx }
+    const y = padT + plotH - ((p.completed ?? 0) / maxTrend) * plotH
+    return { x, y, value: p.completed ?? 0, label: p.label, idx: p.idx }
   })
   const linePath = linePts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+  const areaPath = `${linePath} L${linePts[linePts.length - 1]?.x ?? padL},${padT + plotH} L${linePts[0]?.x ?? padL},${padT + plotH} Z`
 
-  // 共享 tooltip 尺寸常量 + 边界判定（避免遮挡当前节点、不改变图表布局）
-  const TT_W = 156, TT_H = 70, TT_GAP = 12
+  // Tooltip：用 HTML 绝对定位，避免 SVG 裁剪；hoverIndex 同时服务柱和线
+  const hoverIdx = hoveredBar ?? hoveredLine
+  const hoverPoint = hoverIdx !== null ? data[hoverIdx] : null
+  const TT_W = 168
 
   return (
-    <div className="mt-4 w-full overflow-x-auto">
+    <div className="relative mt-4 w-full">
       <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-auto max-h-[300px] min-w-[440px] w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <filter id="tt-shadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0F172A" floodOpacity="0.08" />
-          </filter>
+          <linearGradient id="trend-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#10B981" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+          </linearGradient>
         </defs>
         {/* Grid */}
         {yTicks.map((tick, i) => {
@@ -499,6 +569,8 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
             </g>
           )
         })}
+        {/* 完成数区域填充（与柱体共生） */}
+        {linePts.length > 1 && <path d={areaPath} fill="url(#trend-area)" />}
         {/* Bars */}
         {data.map((point, i) => {
           const cx = padL + gap * i + gap / 2
@@ -509,60 +581,44 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
             <g key={`bar-${point.idx}`} onMouseEnter={() => onHoverBar(i)} onMouseLeave={() => onHoverBar(null)} className="cursor-pointer">
               <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx="3" fill={isH ? '#1d4ed8' : '#2F5FD0'} opacity={isH ? 1 : 0.85} />
               <text x={cx} y={padT + plotH + 18} textAnchor="middle" fill="#94A3B8" fontSize="10">{point.label}</text>
-              {isH && (() => {
-                // 边缘检测：靠右则左移，靠上则下移
-                const flipX = cx + TT_W / 2 > svgW - padR
-                const flipY = y - (TT_H + TT_GAP) < 0
-                const tx = flipX ? cx - TT_W / 2 : cx - TT_W / 2
-                const ty = flipY ? y + barH + TT_GAP : y - TT_H - TT_GAP
-                return (
-                  <g pointerEvents="none">
-                    <rect x={tx} y={ty} width={TT_W} height={TT_H} rx="8" fill="#FFFFFF" stroke="#E5E7EB" strokeWidth="1" filter="url(#tt-shadow)" />
-                    <text x={tx + 12} y={ty + 16} textAnchor="start" fill="#64748B" fontSize="11">{point.label}</text>
-                    {/* 第一行：Agent 运行次数 */}
-                    <circle cx={tx + 14} cy={ty + 36} r="3" fill="#2F5FD0" />
-                    <text x={tx + 22} y={ty + 39} textAnchor="start" fill="#475569" fontSize="11">Agent 运行次数</text>
-                    <text x={tx + TT_W - 12} y={ty + 39} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{point.value}</text>
-                    {/* 第二行：任务完成数（柱状图 hover 不显示完成数，因为悬停的是柱） */}
-                    <circle cx={tx + 14} cy={ty + 54} r="3" fill="#10B981" />
-                    <text x={tx + 22} y={ty + 57} textAnchor="start" fill="#475569" fontSize="11">任务完成数</text>
-                    <text x={tx + TT_W - 12} y={ty + 57} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{point.completed}</text>
-                  </g>
-                )
-              })()}
             </g>
           )
         })}
         {/* Line */}
-        <path d={linePath} fill="none" stroke="#10B981" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={linePath} fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         {linePts.map((p, i) => {
           const isH = hoveredLine === i
           return (
             <g key={`lp-${p.idx}`} onMouseEnter={() => onHoverLine(i)} onMouseLeave={() => onHoverLine(null)} className="cursor-pointer">
-              <circle cx={p.x} cy={p.y} r={isH ? 5 : 3.5} fill="white" stroke="#10B981" strokeWidth="1.75" />
-              {isH && (() => {
-                const flipX = p.x + TT_W / 2 > svgW - padR
-                const flipY = p.y - (TT_H + TT_GAP) < padT
-                const tx = flipX ? p.x - TT_W / 2 : p.x - TT_W / 2
-                const ty = flipY ? p.y + TT_GAP : p.y - TT_H - TT_GAP
-                return (
-                  <g pointerEvents="none">
-                    <rect x={tx} y={ty} width={TT_W} height={TT_H} rx="8" fill="#FFFFFF" stroke="#E5E7EB" strokeWidth="1" filter="url(#tt-shadow)" />
-                    <text x={tx + 12} y={ty + 16} textAnchor="start" fill="#64748B" fontSize="11">{p.label}</text>
-                    <circle cx={tx + 14} cy={ty + 36} r="3" fill="#2F5FD0" />
-                    <text x={tx + 22} y={ty + 39} textAnchor="start" fill="#475569" fontSize="11">Agent 运行次数</text>
-                    <text x={tx + TT_W - 12} y={ty + 39} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{data[i]?.value ?? 0}</text>
-                    <circle cx={tx + 14} cy={ty + 54} r="3" fill="#10B981" />
-                    <text x={tx + 22} y={ty + 57} textAnchor="start" fill="#475569" fontSize="11">任务完成数</text>
-                    <text x={tx + TT_W - 12} y={ty + 57} textAnchor="end" fill="#0F172A" fontSize="11" fontWeight="600">{p.value}</text>
-                  </g>
-                )
-              })()}
+              <circle cx={p.x} cy={p.y} r={isH ? 5 : 3.5} fill="white" stroke="#10B981" strokeWidth="2" />
             </g>
           )
         })}
         <line x1={padL} y1={padT + plotH} x2={svgW - padR} y2={padT + plotH} stroke="#F1F5F9" strokeWidth="1" />
       </svg>
+      {/* HTML Tooltip：定位在容器内，自动翻转不越界 */}
+      {hoverPoint && hoverIdx !== null && (() => {
+        const cx = padL + gap * hoverIdx + gap / 2
+        const cxPct = (cx / svgW) * 100
+        const flipX = cxPct > 70
+        const left = flipX ? `calc(${cxPct}% - ${TT_W}px - 12px)` : `calc(${cxPct}% + 12px)`
+        return (
+          <div
+            className="pointer-events-none absolute top-2 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-lg"
+            style={{ left, width: TT_W }}
+          >
+            <div className="text-xs font-medium text-slate-500">{hoverPoint.label}</div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-slate-600"><span className="size-2 rounded-full bg-[#2F5FD0]" />Agent 运行次数</span>
+              <span className="text-sm font-semibold text-slate-900">{hoverPoint.value}</span>
+            </div>
+            <div className="mt-0.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-slate-600"><span className="size-2 rounded-full bg-[#10B981]" />任务完成数</span>
+              <span className="text-sm font-semibold text-slate-900">{hoverPoint.completed ?? 0}</span>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -605,8 +661,13 @@ function TaskTable({ tasks, onOpenRun }: { tasks: AnalyticsRunRecord[]; onOpenRu
   // 本地已删除 ID 集合 —— 真实后端删除接口未接入前，先在视图层隐藏，
   // 这样删除操作有真实交互反馈（行消失 + toast），又不会触碰全局 store。
   const [localRemovedIds, setLocalRemovedIds] = useState<Set<string>>(() => new Set())
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 8
   const addNotification = useAppStore((s) => s.addNotification)
   const visibleTasks = tasks.filter((task) => !localRemovedIds.has(task.id))
+  const totalPages = Math.max(1, Math.ceil(visibleTasks.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedTasks = visibleTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const handleCopyTitle = useCallback(
     async (run: AnalyticsRunRecord) => {
@@ -695,7 +756,7 @@ function TaskTable({ tasks, onOpenRun }: { tasks: AnalyticsRunRecord[]; onOpenRu
     <div className="overflow-x-auto">
       <table className="w-full text-left text-[13px]">
         <thead>
-          <tr className="border-b border-slate-100 text-[12px] font-medium text-slate-400">
+          <tr className="border-b border-slate-100 text-sm font-medium text-slate-400">
             <th className="px-5 py-2.5">任务名称</th>
             <th className="px-5 py-2.5">Agent 类型</th>
             <th className="px-5 py-2.5">创建时间</th>
@@ -705,7 +766,7 @@ function TaskTable({ tasks, onOpenRun }: { tasks: AnalyticsRunRecord[]; onOpenRu
           </tr>
         </thead>
         <tbody>
-          {visibleTasks.map((run) => (
+          {pagedTasks.map((run) => (
             <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-slate-50/50">
               <td className="px-5 py-3"><div className="truncate font-medium text-slate-800">{run.title}</div></td>
               <td className="px-5 py-3"><CategoryTag category={run.category} /></td>
@@ -750,13 +811,50 @@ function TaskTable({ tasks, onOpenRun }: { tasks: AnalyticsRunRecord[]; onOpenRu
           ))}
         </tbody>
       </table>
+      {/* 分页控件 */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+          <span className="text-sm text-slate-400">共 {visibleTasks.length} 条，第 {currentPage}/{totalPages} 页</span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="flex h-7 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="size-3.5" />上一页
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={`page-${p}`}
+                type="button"
+                onClick={() => setPage(p)}
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition',
+                  p === currentPage ? 'bg-[#2F5FD0] text-white' : 'text-slate-600 hover:bg-slate-100',
+                )}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="flex h-7 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              下一页<ChevronRight className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function CategoryTag({ category }: { category: string }) {
   const c: Record<string, string> = { 代码开发: 'bg-blue-50 text-blue-600', 内容文档: 'bg-purple-50 text-purple-600', 数据分析: 'bg-emerald-50 text-emerald-600', 设计产物: 'bg-amber-50 text-amber-600', 自定义任务: 'bg-slate-100 text-slate-600', 内容推送: 'bg-sky-50 text-sky-600', 兴趣推荐: 'bg-pink-50 text-pink-600', 项目报告: 'bg-indigo-50 text-indigo-600' }
-  return <span className={cn('rounded-md px-2 py-0.5 text-[12px] font-medium', c[category] ?? 'bg-slate-100 text-slate-600')}>{category}</span>
+  return <span className={cn('rounded-md px-2 py-0.5 text-sm font-medium', c[category] ?? 'bg-slate-100 text-slate-600')}>{category}</span>
 }
 
 /* ─ Backward compat exports ── */
@@ -783,6 +881,7 @@ export function mapAutomationRun(item: AutomationRunListItem): AnalyticsRunRecor
 
 export function formatDuration(value: number | null): string {
   if (value === null) return '—'
+  if (value < 1000) return `${value}ms`
   const s = Math.max(0, Math.round(value / 1000))
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60); const sec = s % 60
@@ -815,18 +914,9 @@ function calculateSuccessRate(runs: AutomationRunListItem[]): number {
 }
 
 function buildEmptyWeekTrend(): AutomationTrendPoint[] {
-  return ['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((label) => ({ label, value: 0 }))
+  return ['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((label) => ({ label, value: 0, completed: 0 }))
 }
 
-function generateSparkline(base: number, points: number, variance = 0.4, min = 0): number[] {
-  if (base === 0) return Array(points).fill(0)
-  const result: number[] = []
-  for (let i = 0; i < points; i++) {
-    const noise = (Math.random() - 0.5) * 2 * variance * base
-    result.push(Math.max(min, Math.round(base * 0.6 + noise + (i / points) * base * 0.4)))
-  }
-  return result
-}
 
 function buildAgentDistribution(runs: AutomationRunListItem[]): AnalyticsDistributionItem[] {
   const counts = new Map<string, number>()
@@ -843,10 +933,12 @@ function buildTaskTypeDistribution(runs: AnalyticsRunRecord[]): AnalyticsDistrib
 }
 
 function buildLiveActivities(runs: AnalyticsRunRecord[]): LiveActivityItem[] {
-  const names = ['代码生成 Agent', '数据分析 Agent', '文档撰写 Agent', '设计产物 Agent', '代码审查 Agent']
-  const descs = ['正在生成项目代码结构...', '分析完成，生成可视化图表', '正在整理文档内容...', '等待依赖任务完成', '发现 2 个问题，已修复']
-  const stats: Array<'运行中' | '已完成' | '等待中'> = ['运行中', '已完成', '运行中', '等待中', '已完成']
-  return runs.slice(0, 5).map((run, i) => ({ time: extractLiveTime(run.time), title: names[i % names.length], description: descs[i % descs.length], status: stats[i % stats.length] }))
+  return runs.slice(0, 5).map((run) => ({
+    time: extractLiveTime(run.time),
+    title: run.title,
+    description: run.category,
+    status: run.status === '运行中' ? '运行中' : run.status === '成功' ? '已完成' : '失败',
+  }))
 }
 
 /** 从相对时间文案中提取时间轴标签：`今日 14:32`/`昨日 14:32` → `14:32`；`3 天前`/`05-21` → 原样保留 */

@@ -21,6 +21,91 @@ export interface ArtifactWithMeta {
   parentArtifactId: string | null
   createdByAgentId: string
   createdAt: number
+  imageUrl?: string
+  description?: string
+  pptCover?: {
+    title?: string
+    subtitle?: string
+    bullets?: string[]
+    primaryColor?: string
+    bgColor?: string
+  }
+}
+
+function extractPptCover(row: ArtifactRow) {
+  if (row.type !== 'ppt') return undefined
+  try {
+    const c = row.content as unknown as { slides?: Array<{ title?: string; subtitle?: string; bullets?: string[] }>; theme?: { primary?: string; background?: string } }
+    const firstSlide = c.slides?.[0]
+    if (!firstSlide) return undefined
+    return {
+      title: firstSlide.title,
+      subtitle: firstSlide.subtitle,
+      bullets: firstSlide.bullets?.slice(0, 3),
+      primaryColor: c.theme?.primary,
+      bgColor: c.theme?.background,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+function extractDescription(row: ArtifactRow): string | undefined {
+  try {
+    const c = row.content as unknown as Record<string, unknown>
+    switch (row.type) {
+      case 'document': {
+        const text = String(c.content ?? '')
+        // 取第一段非空文本，去掉 markdown 符号
+        const firstPara = text
+          .split(/\n\n/)
+          .map((s) => s.trim())
+          .find((s) => s.length > 0 && !s.startsWith('#'))
+        if (firstPara) return firstPara.replace(/[#*_`>\-]/g, '').slice(0, 60)
+        const firstLine = text.split('\n').find((s) => s.trim().length > 0)
+        return firstLine ? firstLine.replace(/[#*_`>]/g, '').trim().slice(0, 60) : undefined
+      }
+      case 'code_file': {
+        const lang = String(c.language ?? '代码')
+        const path = String(c.workspacePath ?? '')
+        const size = Number(c.sizeBytes ?? 0)
+        const sizeStr = size > 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B`
+        return `${lang} 代码文件 · ${path.split('/').pop() ?? path} · ${sizeStr}`
+      }
+      case 'web_app': {
+        const files = c.files as Record<string, string> | undefined
+        const count = files ? Object.keys(files).length : 0
+        return `Web 应用原型 · ${count} 个文件 · 入口 ${String(c.entry ?? 'index.html')}`
+      }
+      case 'project': {
+        const files = c.files as Array<{ path: string }> | undefined
+        const count = files?.length ?? 0
+        const exts = new Set((files ?? []).map((f) => f.path.split('.').pop() ?? '').filter(Boolean))
+        const tech = Array.from(exts).slice(0, 3).join(' / ')
+        return `项目工程 · ${count} 个文件${tech ? ` · ${tech}` : ''}`
+      }
+      case 'image': {
+        const alt = String(c.alt ?? '')
+        const w = c.width, h = c.height
+        const dim = w && h ? ` · ${w}×${h}` : ''
+        return alt ? `${alt}${dim}` : `图片产物${dim}`
+      }
+      case 'diagram': {
+        const source = String(c.source ?? '')
+        const firstLine = source.split('\n').find((s) => s.trim().length > 0 && !s.trim().startsWith('%%'))
+        return firstLine ? `架构图 · ${firstLine.trim().slice(0, 50)}` : '架构图 / 流程图'
+      }
+      case 'ppt': {
+        const slides = c.slides as Array<unknown> | undefined
+        const count = slides?.length ?? 0
+        return `PPT 演示文稿 · ${count} 页幻灯片`
+      }
+      default:
+        return undefined
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export async function listArtifacts(): Promise<ArtifactWithMeta[]> {
@@ -35,17 +120,26 @@ export async function listArtifacts(): Promise<ArtifactWithMeta[]> {
   })
   const titleById = new Map(convs.map((c) => [c.id, c.title]))
 
-  return rows.map((r) => ({
-    id: r.id,
-    conversationId: r.conversationId,
-    conversationTitle: titleById.get(r.conversationId) ?? null,
-    type: r.type,
-    title: r.title,
-    version: r.version,
-    parentArtifactId: r.parentArtifactId,
-    createdByAgentId: r.createdByAgentId,
-    createdAt: r.createdAt,
-  }))
+  return rows.map((r) => {
+    let imageUrl: string | undefined
+    if (r.type === 'image') {
+      imageUrl = (r.content as unknown as { url?: string })?.url
+    }
+    return {
+      id: r.id,
+      conversationId: r.conversationId,
+      conversationTitle: titleById.get(r.conversationId) ?? null,
+      type: r.type,
+      title: r.title,
+      version: r.version,
+      parentArtifactId: r.parentArtifactId,
+      createdByAgentId: r.createdByAgentId,
+      createdAt: r.createdAt,
+      imageUrl,
+      description: extractDescription(r),
+      pptCover: extractPptCover(r),
+    }
+  })
 }
 
 export async function deleteArtifact(artifactId: string): Promise<void> {

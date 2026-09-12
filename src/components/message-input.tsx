@@ -47,6 +47,7 @@ import {
   sendMessage as sendMessageAPI,
   setFsWriteApprovalMode,
   uploadAttachment as uploadAttachmentAPI,
+  deleteAttachment as deleteAttachmentAPI,
 } from '@/lib/api'
 import { getToolDisplayName } from '@/lib/tool-display'
 import { emitUiCommand } from '@/lib/ui-command-events'
@@ -481,6 +482,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
   const removePending = (id: string) => {
     removePendingAttachment(conversationId, id)
+    // 同时删除服务器上的附件，避免出现在文件库中
+    void deleteAttachmentAPI(id).catch((err) => console.error('[MessageInput] delete attachment failed', err))
   }
 
   const handleFileSelect = async (files: FileList | null) => {
@@ -502,6 +505,25 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         }
       }),
     )
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const files: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) files.push(file)
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault()
+      const dt = new DataTransfer()
+      files.forEach((f) => dt.items.add(f))
+      void handleFileSelect(dt.files)
+    }
   }
 
   const clearSlashCommandInput = () => {
@@ -1040,6 +1062,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
           onChange={handleChange}
           onSelect={handleSelect}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={
             planReview
               ? '对计划提修改意见，或点上方执行/拒绝…'

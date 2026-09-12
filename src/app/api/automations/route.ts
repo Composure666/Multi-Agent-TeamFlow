@@ -26,8 +26,12 @@ const CreateBody = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const rawRange = Number(req.nextUrl.searchParams.get('trendRange'))
-  const dashboard = await getAutomationDashboard(Number.isFinite(rawRange) ? rawRange : undefined)
+  const params = req.nextUrl.searchParams
+  const days = Number(params.get('days')) || Number(params.get('trendRange')) || undefined
+  const start = params.get('start') ? Number(params.get('start')) : undefined
+  const end = params.get('end') ? Number(params.get('end')) : undefined
+  const range = days || start || end ? { days, start, end } : undefined
+  const dashboard = await getAutomationDashboard(range)
   return NextResponse.json({ dashboard })
 }
 

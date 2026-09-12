@@ -337,7 +337,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
 
   const openPreview = async (id: string) => {
     setSelectedId(id)
-    setArtifactDetailOpen(true)
+    setArtifactDetailOpen(false)
     try {
       const artifact = await fetchArtifact(id)
       upsertArtifact(artifact)
@@ -668,7 +668,7 @@ function ArtifactCard({
       >
         <div className={cn('relative h-full min-h-[80px] overflow-hidden', t.cover)}>
           <div className="absolute inset-0 transition-transform duration-200 group-hover:scale-[1.02]">
-            <CoverShape shape={t.shape} compact />
+            <CoverShape shape={t.shape} title={item.title} compact imageUrl={item.imageUrl} pptCover={item.pptCover} />
           </div>
         </div>
         <div className="min-w-0 py-2">
@@ -739,11 +739,17 @@ function ArtifactCard({
         deleting && 'pointer-events-none opacity-60',
       )}
     >
-      {/* Type-specific cover — a mock "first page" preview */}
-      <div className={cn('relative h-36 w-full overflow-hidden', t.cover)}>
+      {/* Type-specific cover — authentic first-page preview */}
+      <div className={cn('relative h-44 w-full overflow-hidden', t.cover)}>
         <div className="absolute inset-0 transition-transform duration-200 group-hover:scale-[1.02]">
-          <CoverShape shape={t.shape} />
+          <CoverShape shape={t.shape} title={item.title} imageUrl={item.imageUrl} pptCover={item.pptCover} />
         </div>
+
+        {/* Type badge (top-left) */}
+        <span className={cn('absolute left-2.5 top-2.5 z-10 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-sm backdrop-blur-sm', t.chip)}>
+          <t.Icon className="size-3" />
+          {t.label}
+        </span>
 
         {/* Selection checkbox (top-left when in selection mode) */}
         {selectable && (
@@ -777,7 +783,12 @@ function ArtifactCard({
           <h3 className="line-clamp-1 text-lg font-semibold leading-tight text-slate-950 hover:text-[var(--agenthub-accent)] dark:text-slate-50">
             {item.title}
           </h3>
-          <p className="mt-2 line-clamp-1 text-[13px] leading-4 text-slate-500 dark:text-slate-400">
+          {item.description && (
+            <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+              {item.description}
+            </p>
+          )}
+          <p className="mt-1.5 line-clamp-1 text-[12px] leading-4 text-slate-400 dark:text-slate-500">
             {subtitle}
           </p>
         </button>
@@ -818,13 +829,13 @@ function ArtifactCard({
   )
 }
 
-// ─── Type-specific "first page" mock preview inside the cover ────────
-// Each type renders a white sheet that mimics a real thumbnail of the
-// artifact's first page (document page / browser window / slide / photo /
-// file tree / code with syntax colors / diff / node graph).
-function CoverShape({ shape, compact = false }: { shape: 'lines' | 'browser' | 'slides' | 'image' | 'tree' | 'code' | 'diff' | 'nodes'; compact?: boolean }) {
-  const inset = compact ? 'inset-x-2 top-1.5 bottom-1.5' : 'inset-x-5 top-3.5 bottom-3.5'
+// ─── Type-specific "first page" preview inside the cover ────────
+// Each type renders a sheet that mimics a real thumbnail, using the
+// artifact's actual title for a more authentic preview.
+function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: { shape: 'lines' | 'browser' | 'slides' | 'image' | 'tree' | 'code' | 'diff' | 'nodes'; title?: string; compact?: boolean; imageUrl?: string; pptCover?: { title?: string; subtitle?: string; bullets?: string[]; primaryColor?: string; bgColor?: string } }) {
+  const inset = compact ? 'inset-x-2 top-1.5 bottom-1.5' : 'inset-x-4 top-3 bottom-3'
   const line = 'rounded bg-slate-200 dark:bg-white/10'
+  const shortTitle = title.length > 16 ? title.slice(0, 14) + '…' : title
   const page = (children: ReactNode, className?: string) => (
     <div
       className={cn(
@@ -845,15 +856,18 @@ function CoverShape({ shape, compact = false }: { shape: 'lines' | 'browser' | '
           <span className="size-1.5 rounded-full bg-emerald-400" />
           <div className="ml-1 h-2 flex-1 rounded-sm bg-slate-100 dark:bg-white/10" />
         </div>
-        <div className="flex-1 px-2.5 pt-2">
-          <div className="h-2.5 w-1/2 rounded bg-emerald-300 dark:bg-emerald-500/40" />
-          <div className="mt-1.5 space-y-1">
+        <div className="flex-1 px-3 pt-2.5">
+          {shortTitle && <div className="h-2.5 w-3/4 rounded bg-slate-700/70 dark:bg-slate-300/70" />}
+          <div className="mt-1.5 h-1.5 w-1/2 rounded bg-emerald-300 dark:bg-emerald-500/40" />
+          <div className="mt-2 space-y-1">
             <div className={`h-1 w-full ${line}`} />
-            <div className={`h-1 w-4/6 ${line}`} />
+            <div className={`h-1 w-5/6 ${line}`} />
+            <div className={`h-1 w-2/3 ${line}`} />
           </div>
-          <div className="mt-2 flex gap-1">
-            <div className={`h-3.5 flex-1 ${line}`} />
-            <div className={`h-3.5 flex-1 ${line}`} />
+          <div className="mt-2.5 flex gap-1.5">
+            <div className={`h-4 flex-1 rounded ${line}`} />
+            <div className={`h-4 flex-1 rounded ${line}`} />
+            <div className={`h-4 flex-1 rounded ${line}`} />
           </div>
         </div>
       </div>,
@@ -862,35 +876,78 @@ function CoverShape({ shape, compact = false }: { shape: 'lines' | 'browser' | '
   }
 
   if (shape === 'slides') {
+    const primary = pptCover?.primaryColor ? `#${pptCover.primaryColor}` : undefined
+    const bg = pptCover?.bgColor ? `#${pptCover.bgColor}` : undefined
+    const slideTitle = pptCover?.title || shortTitle
+    const slideSubtitle = pptCover?.subtitle
+    const slideBullets = pptCover?.bullets ?? []
     return page(
-      <div className="flex h-full flex-col">
-        <div className="shrink-0 bg-gradient-to-r from-orange-400 to-orange-300 px-3 pb-2.5 pt-3 dark:from-orange-500 dark:to-orange-400">
-          <div className="h-1.5 w-1/2 rounded bg-white/85" />
-          <div className="mt-1 h-1 w-1/3 rounded bg-white/50" />
+      <div className="relative flex h-full flex-col overflow-hidden" style={bg ? { background: bg } : undefined}>
+        <div
+          className="shrink-0 px-3 pb-2.5 pt-3"
+          style={{ background: primary ?? 'linear-gradient(to bottom right, #f97316, #fb923c, #fbbf24)' }}
+        >
+          {slideTitle ? (
+            <div className="line-clamp-2 text-[11px] font-bold leading-tight text-white drop-shadow-sm">{slideTitle}</div>
+          ) : (
+            <div className="h-2.5 w-2/3 rounded bg-white/85" />
+          )}
+          {slideSubtitle ? (
+            <div className="mt-1 line-clamp-1 text-[8px] text-white/80">{slideSubtitle}</div>
+          ) : (
+            <div className="mt-1 h-1 w-1/3 rounded bg-white/50" />
+          )}
         </div>
-        <div className="flex flex-1 items-end gap-1.5 px-3 pb-3 pt-2.5">
-          <div className="h-5 w-3.5 rounded-t bg-orange-200 dark:bg-orange-500/30" />
-          <div className="h-9 w-3.5 rounded-t bg-orange-300 dark:bg-orange-500/50" />
-          <div className="h-6 w-3.5 rounded-t bg-orange-200 dark:bg-orange-500/30" />
-          <div className="h-11 w-3.5 rounded-t bg-orange-400 dark:bg-orange-500/70" />
-          <div className="ml-2.5 flex-1 space-y-1 pt-0.5">
-            <div className={`h-1 w-full ${line}`} />
-            <div className={`h-1 w-4/5 ${line}`} />
-            <div className={`h-1 w-3/5 ${line}`} />
-          </div>
+        <div className="flex flex-1 flex-col justify-center gap-1.5 px-3 py-2">
+          {slideBullets.length > 0 ? (
+            slideBullets.map((b, i) => (
+              <div key={i} className="flex items-start gap-1.5">
+                <span
+                  className="mt-0.5 size-1.5 shrink-0 rounded-full"
+                  style={{ background: primary ?? '#fb923c' }}
+                />
+                <span className="line-clamp-1 text-[8px] text-slate-600 dark:text-slate-300">{b}</span>
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="flex items-end gap-1">
+                <div className="h-5 w-2 rounded-t" style={{ background: primary ? `${primary}40` : '#fed7aa' }} />
+                <div className="h-8 w-2 rounded-t" style={{ background: primary ? `${primary}60` : '#fdba74' }} />
+                <div className="h-6 w-2 rounded-t" style={{ background: primary ? `${primary}40` : '#fed7aa' }} />
+                <div className="h-10 w-2 rounded-t" style={{ background: primary ?? '#fb923c' }} />
+              </div>
+              <div className={`h-1 w-full ${line}`} />
+              <div className={`h-1 w-4/5 ${line}`} />
+            </>
+          )}
         </div>
       </div>,
     )
   }
 
   if (shape === 'image') {
+    if (imageUrl) {
+      return (
+        <div className={`absolute ${inset} overflow-hidden rounded-lg bg-slate-100 dark:bg-neutral-800`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={title || 'image'}
+            className="size-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      )
+    }
     return (
-      <div className={`absolute ${inset} overflow-hidden rounded-lg bg-gradient-to-br from-rose-300 via-amber-200 to-sky-200 shadow-[0_1px_4px_rgb(15_23_42/0.10)] dark:from-rose-500/40 dark:via-amber-500/25 dark:to-sky-500/20`}>
-        <div className="absolute left-1/2 top-[30%] size-9 -translate-x-1/2 rounded-full bg-white/60 dark:bg-white/25" />
-        <div className="absolute bottom-0 left-0 right-0 h-5 rounded-t-xl bg-white/50 dark:bg-white/15" />
-        {!compact && (
-          <span className="absolute bottom-1.5 left-2 rounded bg-black/45 px-1.5 py-0.5 text-[9px] font-mono text-white">
-            PNG · 2.4MB
+      <div className={`absolute ${inset} overflow-hidden rounded-lg bg-gradient-to-br from-sky-300 via-emerald-200 to-amber-200 shadow-[0_1px_4px_rgb(15_23_42/0.10)] dark:from-sky-500/40 dark:via-emerald-500/25 dark:to-amber-500/20`}>
+        <div className="absolute right-3 top-2.5 size-6 rounded-full bg-white/70 dark:bg-white/30" />
+        <div className="absolute bottom-0 left-0 right-0 h-6 rounded-t-[50%] bg-emerald-400/60 dark:bg-emerald-600/40" />
+        <div className="absolute bottom-0 left-1/4 h-4 w-1/2 rounded-t-[60%] bg-emerald-500/50 dark:bg-emerald-700/40" />
+        {!compact && shortTitle && (
+          <span className="absolute bottom-1.5 left-2 max-w-[70%] truncate rounded bg-black/40 px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm">
+            {shortTitle}
           </span>
         )}
       </div>
@@ -899,43 +956,32 @@ function CoverShape({ shape, compact = false }: { shape: 'lines' | 'browser' | '
 
   if (shape === 'tree') {
     return page(
-      <div className="px-3 pt-2.5 font-mono text-[9px] leading-[18px] text-slate-500 dark:text-slate-400">
-        <div className="font-semibold text-slate-700 dark:text-slate-300">▸ src/</div>
+      <div className="px-3 pt-2.5 font-mono text-[9px] leading-[17px] text-slate-500 dark:text-slate-400">
+        <div className="font-semibold text-slate-700 dark:text-slate-300">▸ {shortTitle || 'src/'}</div>
         <div className="pl-3">▸ components/</div>
+        <div className="pl-6">▸ Button.tsx</div>
+        <div className="pl-6">▸ Card.tsx</div>
         <div className="pl-3">▸ utils/</div>
+        <div className="pl-3">▸ styles/</div>
         {!compact && <div>▸ package.json</div>}
       </div>,
     )
   }
 
   if (shape === 'code') {
-    // Dark editor window — visually unmistakable vs the white document sheet.
     return page(
-      <div className="h-full bg-neutral-900 px-2.5 pt-2 font-mono text-[9px] leading-[18px] dark:bg-black/70">
+      <div className="h-full bg-neutral-900 px-2.5 pt-2 font-mono text-[9px] leading-[17px] dark:bg-black/70">
         <div className="flex items-center gap-1 pb-1.5">
           <span className="size-1 rounded-full bg-rose-400/80" />
           <span className="size-1 rounded-full bg-amber-400/80" />
           <span className="size-1 rounded-full bg-emerald-400/80" />
+          <span className="ml-1.5 text-[8px] text-slate-500">{shortTitle || 'main.ts'}</span>
         </div>
-        <div>
-          <span className="mr-2 text-slate-600">1</span>
-          <span className="text-sky-400">const</span>
-          <span className="text-slate-300"> app = </span>
-          <span className="text-emerald-400">create()</span>
-        </div>
-        <div>
-          <span className="mr-2 text-slate-600">2</span>
-          <span className="text-slate-300">app.</span>
-          <span className="text-sky-400">use</span>
-          <span className="text-slate-300">(plugin)</span>
-        </div>
-        {!compact && (
-          <div>
-            <span className="mr-2 text-slate-600">3</span>
-            <span className="text-violet-400">export default</span>
-            <span className="text-slate-300"> app</span>
-          </div>
-        )}
+        <div><span className="mr-1.5 text-slate-600">1</span><span className="text-violet-400">import</span><span className="text-slate-300"> {'{ useState }'} </span><span className="text-violet-400">from</span><span className="text-emerald-400"> 'react'</span></div>
+        <div><span className="mr-1.5 text-slate-600">2</span><span className="text-violet-400">const</span><span className="text-sky-300"> App</span><span className="text-slate-300"> = () ={'>'} </span><span className="text-violet-400">{'{'}</span></div>
+        <div><span className="mr-1.5 text-slate-600">3</span><span className="text-slate-400">  </span><span className="text-violet-400">const</span><span className="text-slate-300"> [data, setData] = </span><span className="text-sky-300">useState</span><span className="text-slate-300">(</span><span className="text-amber-300">null</span><span className="text-slate-300">)</span></div>
+        <div><span className="mr-1.5 text-slate-600">4</span><span className="text-slate-400">  </span><span className="text-violet-400">return</span><span className="text-slate-300"> </span><span className="text-emerald-400">{'<div/>'}</span></div>
+        {!compact && <div><span className="mr-1.5 text-slate-600">5</span><span className="text-violet-400">{'}'}</span></div>}
       </div>,
       'bg-neutral-900 dark:bg-black/70',
     )
@@ -943,40 +989,51 @@ function CoverShape({ shape, compact = false }: { shape: 'lines' | 'browser' | '
 
   if (shape === 'diff') {
     return page(
-      <div className="space-y-0.5 px-2 pt-2.5 font-mono text-[9px] leading-[18px]">
-        <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ export function App()</div>
+      <div className="space-y-0.5 px-2 pt-2.5 font-mono text-[9px] leading-[17px]">
+        <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ {shortTitle || 'export function App()'}</div>
         <div className="rounded-r bg-rose-500/10 px-1.5 text-rose-600 dark:text-rose-400">- export default Old</div>
-        <div className="px-1.5 text-slate-400 dark:text-slate-500">  import {`{ x }`} from&apos;y&apos;</div>
-        {!compact && <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ return &lt;App /&gt;</div>}
+        <div className="px-1.5 text-slate-400 dark:text-slate-500">  import {'{ x }'} from 'y'</div>
+        <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ return {'<App />'}</div>
+        {!compact && <div className="px-1.5 text-slate-400 dark:text-slate-500">  console.log('ready')</div>}
       </div>,
     )
   }
 
   if (shape === 'nodes') {
     return page(
-      <div className="absolute inset-0 flex items-center justify-center">
-        <svg viewBox="0 0 100 44" className="h-[70%] w-[70%] text-violet-400 dark:text-violet-500">
-          <path d="M14 22 L50 8 M14 22 L50 36 M50 8 L86 22 M50 36 L86 22" stroke="currentColor" strokeWidth="1.2" fill="none" opacity="0.5" />
-          <circle cx="14" cy="22" r="5" fill="currentColor" />
-          <circle cx="50" cy="8" r="4" fill="currentColor" opacity="0.7" />
-          <circle cx="50" cy="36" r="4" fill="currentColor" opacity="0.7" />
-          <circle cx="86" cy="22" r="5" fill="currentColor" />
+      <div className="relative h-full">
+        <svg viewBox="0 0 100 50" className="absolute inset-0 h-full w-full text-violet-400 dark:text-violet-500">
+          <path d="M12 25 L42 10 M12 25 L42 40 M42 10 L72 25 M42 40 L72 25 M72 25 L90 15 M72 25 L90 35" stroke="currentColor" strokeWidth="1" fill="none" opacity="0.4" />
+          <rect x="6" y="20" width="12" height="10" rx="2" fill="currentColor" opacity="0.8" />
+          <rect x="36" y="5" width="12" height="10" rx="2" fill="currentColor" opacity="0.6" />
+          <rect x="36" y="35" width="12" height="10" rx="2" fill="currentColor" opacity="0.6" />
+          <rect x="66" y="20" width="12" height="10" rx="2" fill="currentColor" opacity="0.8" />
+          <circle cx="90" cy="15" r="3" fill="currentColor" opacity="0.5" />
+          <circle cx="90" cy="35" r="3" fill="currentColor" opacity="0.5" />
         </svg>
+        {shortTitle && <span className="absolute bottom-1 left-2 text-[8px] font-medium text-violet-500/70 dark:text-violet-400/60">{shortTitle}</span>}
       </div>,
     )
   }
 
-  // default: document — first page with title bar + text lines + highlight
+  // default: document — first page with title + paragraphs + list
   return page(
-    <div className="px-3 pt-3">
-      <div className="h-1.5 w-2/5 rounded bg-slate-700/80 dark:bg-slate-300/80" />
-      <div className="mt-2.5 space-y-1.5">
+    <div className="px-3 pt-2.5">
+      {shortTitle ? (
+        <div className="text-[10px] font-bold leading-tight text-slate-800 dark:text-slate-200">{shortTitle}</div>
+      ) : (
+        <div className="h-1.5 w-2/5 rounded bg-slate-700/80 dark:bg-slate-300/80" />
+      )}
+      <div className="mt-0.5 h-1 w-1/3 rounded bg-sky-300 dark:bg-sky-500/40" />
+      <div className="mt-2 space-y-1">
         <div className={`h-1 w-full ${line}`} />
         <div className={`h-1 w-11/12 ${line}`} />
         <div className={`h-1 w-4/6 ${line}`} />
-        <div className="h-1 w-1/3 rounded bg-sky-200 dark:bg-sky-500/30" />
-        <div className={`h-1 w-full ${line}`} />
-        {!compact && <div className={`h-1 w-2/3 ${line}`} />}
+      </div>
+      <div className="mt-2 space-y-1">
+        <div className="flex items-center gap-1.5"><span className="size-1 rounded-full bg-sky-400" /><div className={`h-1 w-3/4 ${line}`} /></div>
+        <div className="flex items-center gap-1.5"><span className="size-1 rounded-full bg-sky-400" /><div className={`h-1 w-2/3 ${line}`} /></div>
+        <div className="flex items-center gap-1.5"><span className="size-1 rounded-full bg-sky-400" /><div className={`h-1 w-1/2 ${line}`} /></div>
       </div>
     </div>,
   )

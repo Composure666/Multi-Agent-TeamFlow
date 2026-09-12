@@ -1047,7 +1047,7 @@ function CapabilityCard({
   return (
     <section
       className={cn(
-        'rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950',
+        'rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950',
         className,
       )}
     >
@@ -1068,7 +1068,7 @@ function KpiCard({ label, value, trend, trendLabel, caption, icon: Icon, tone, s
   const trendFlat = trend === 0
 
   return (
-    <article className="flex h-[140px] items-stretch rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <article className="flex h-[140px] items-stretch rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950">
       <div className="flex flex-1 flex-col justify-between">
         <div className="flex items-center gap-2">
           <span

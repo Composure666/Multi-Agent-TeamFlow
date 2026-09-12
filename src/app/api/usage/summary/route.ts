@@ -1,5 +1,5 @@
 import { inArray, isNotNull } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 import { db, schema } from '@/db/client'
 import type { RunUsage } from '@/db/schema'
@@ -21,6 +21,8 @@ export interface UsageSummary {
   today: UsageBucket
   week: UsageBucket
   allTime: UsageBucket
+  selected: UsageBucket
+  prevSelected: UsageBucket
   topConversations: Array<{
     id: string
     title: string
@@ -54,8 +56,11 @@ function accumulate(b: UsageBucket, u: RunUsage) {
   b.runs++
 }
 
-export async function GET() {
-  // 拉取所有 usage 非空的 run（per-run JSON，量级几百~几万，全表扫够用）
+export async function GET(req: NextRequest) {
+  const params = req.nextUrl.searchParams
+  const rangeStart = params.get('start') ? Number(params.get('start')) : undefined
+  const rangeEnd = params.get('end') ? Number(params.get('end')) : undefined
+
   const runs = await db.query.agentRuns.findMany({
     where: isNotNull(schema.agentRuns.usage),
   })
@@ -67,6 +72,8 @@ export async function GET() {
   const today = empty()
   const week = empty()
   const allTime = empty()
+  const selected = empty()
+  const prevSelected = empty()
   const byAgentMap = new Map<string, UsageBucket>()
   const byModelMap = new Map<string, UsageBucket>()
   const byConvMap = new Map<string, UsageBucket>()
@@ -77,6 +84,11 @@ export async function GET() {
     accumulate(allTime, u)
     if (row.startedAt >= weekStart) accumulate(week, u)
     if (row.startedAt >= todayStart) accumulate(today, u)
+    if (rangeStart !== undefined && row.startedAt >= rangeStart && (rangeEnd === undefined || row.startedAt < rangeEnd)) accumulate(selected, u)
+    if (rangeStart !== undefined) {
+      const rangeDuration = (rangeEnd ?? now) - rangeStart
+      if (row.startedAt >= rangeStart - rangeDuration && row.startedAt < rangeStart) accumulate(prevSelected, u)
+    }
 
     let agentB = byAgentMap.get(row.agentId)
     if (!agentB) {
@@ -128,6 +140,8 @@ export async function GET() {
     today,
     week,
     allTime,
+    selected: rangeStart !== undefined ? selected : week,
+    prevSelected: rangeStart !== undefined ? prevSelected : empty(),
     topConversations: topConvIds
       .map((id) => {
         const c = convById.get(id)
