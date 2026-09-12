@@ -48,7 +48,7 @@ next-env.d.ts
 /.tmp/
 /drizzle/
 
-# Playwright
+# Playwright (project-bundled artifacts; debug outputs at root only if a workspace keeps them)
 /playwright-report/
 /test-results/
 
@@ -67,3 +67,19 @@ next-env.d.ts
 /.codebuddy/
 /.workbuddy/
 /.pnpm-store/
+
+# Agent / debug tooling scratch outputs (NOT source)
+/.playwright-cli/        # playwright server console + page yml snapshots
+/.tmp-probe/            # temporary diagnostic probes
+/.vitest-result/        # ad-hoc vitest artifacts
+/deliverables/          # one-off briefs (the report content lives in md inside src/, deliverables/ is for raw exports only)
+/output/                # imagegen / playwright / matplotlib one-off images
+
+# Root-level debug log (Electron runtime spillover)
+/debug.log
+
+# Local git backup created during ref-corruption recovery
+/.git.bak/
+
+# Local agent-hub data scratch dirs (safety net)
+/workspaces/
