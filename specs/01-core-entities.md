@@ -278,6 +278,7 @@ interface Attachment {
 | Workspace | `ws_` |
 | AgentRun | `run_` |
 | Attachment | `att_` |
+| Experience | `exp_` |
 | Automation | `auto_` |
 | AutomationRun | `arun_` |
 | AutomationRunLog | `alog_` |

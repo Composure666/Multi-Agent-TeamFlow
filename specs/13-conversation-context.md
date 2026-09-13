@@ -21,6 +21,7 @@ CustomAgentAdapter 已有 within-run 的 turn 累计（一个 run 内 LLM 调用
 3. **artifact 不内联**：history 里的 `artifact_ref` part 折叠成 `[Artifact: title (id=...)]` 文本占位，agent 真要看内容自己 `read_artifact`。`deploy_status` 只折叠为部署 URL / 失败原因，不内联 artifact 内容。
 4. **pinned 永远在**：pinned messages 不计入「最近 N 条」额度，永远注入（去重）。
 5. **Workspace Memory 不属于 conversation history**：Workspace Memory 由 `AgentRunner` 组装 system prompt 时单独注入，不进入 `buildHistoryFor` / `PromptContextSnapshot`，也不参与 compaction。
+6. **Experience 同样不属于 conversation history**：经验（Spec 20）由 AgentRunner 按任务关键词命中后注入 system prompt，不进入 `buildHistoryFor` / `PromptContextSnapshot`，不参与 compaction。
 
 ---
 
@@ -71,7 +72,7 @@ export async function buildHistoryFor(
 ): Promise<ChatCompletionMessageParam[]>
 ```
 
-`buildPromptContextSnapshot` 是阶段五后的规范边界：它返回可解释的上下文快照，包括 summary、pinned、recent message 以及预算裁剪结果。`buildHistoryFor` 是适配器兼容入口，只返回 `snapshot.messages`。Workspace Memory 不在该快照内；它是 `AgentRunner.buildAdapterInput` 组装 system prompt 时的独立输入，见 Spec 16。
+`buildPromptContextSnapshot` 是阶段五后的规范边界：它返回可解释的上下文快照，包括 summary、pinned、recent message 以及预算裁剪结果。`buildHistoryFor` 是适配器兼容入口，只返回 `snapshot.messages`。Workspace Memory 不在该快照内；它是 `AgentRunner.buildAdapterInput` 组装 system prompt 时的独立输入，见 Spec 16。 Experience（Spec 20）同理：不在快照内，由 `buildAdapterInput` 独立注入（顺序 workspace_memory → relevant_experiences → skills），见 Spec 20。
 
 返回的 `messages` 类型来自 `openai/resources/chat/completions` 的 `ChatCompletionMessageParam` 联合类型（system / user / assistant / tool）。**不含**当前触发消息——那条由 adapter 自己拼到末尾（保持现状）。
 

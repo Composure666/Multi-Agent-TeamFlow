@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     '@modelcontextprotocol/sdk',
     'pptxgenjs',
     'pdf-parse',
+    'ali-oss',
   ],
 
   outputFileTracingIncludes: {

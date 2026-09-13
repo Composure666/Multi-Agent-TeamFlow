@@ -123,6 +123,24 @@ describe('artifact preview helpers', () => {
       expect(out).not.toMatch(/<script>(?![\s\S]*nonce=)/)
     })
 
+    it('grants the CSP nonce to LLM-authored inline scripts so interactive web_apps (e.g. slide decks) keep working', () => {
+      const input = [
+        '<html><head></head><body>',
+        '<script>function next(){}</script>',
+        '<script nonce="pre-existing">alert(1)</script>',
+        '<script src="app.js"></script>',
+        '</body></html>',
+      ].join('\n')
+      const out = prepareArtifactPreviewHtml(input, ARTIFACT_ID, { nonce: 'xyz789' })
+      // 产物自带的内联脚本获得 nonce（原本会被 strict CSP 拦截 → PPT 翻页失效）
+      expect(out).toContain('<script nonce="xyz789">function next(){}</script>')
+      // 已带 nonce 的脚本不被重复注入
+      expect(out).toContain('<script nonce="pre-existing">alert(1)</script>')
+      expect(out).not.toContain('nonce="xyz789" nonce')
+      // 外部脚本不加 nonce（nonce 只对内联生效；sandbox 下 'self' 本就不匹配）
+      expect(out).toContain('<script src="app.js"></script>')
+    })
+
     it('omits nonce attribute when opts.nonce is not provided (backwards compat)', () => {
       const input = '<html><head></head><body></body></html>'
       const out = prepareArtifactPreviewHtml(input, ARTIFACT_ID)

@@ -520,6 +520,75 @@ export const workspaceMemories = sqliteTable(
   ],
 )
 
+export type ExperienceKind = 'experience' | 'reflection' | 'profile_fact'
+
+// ─── Experience Assets（Spec 20）────────────────────────────
+export const experiences = sqliteTable(
+  'experiences',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind', { enum: ['experience', 'reflection', 'profile_fact'] })
+      .$type<ExperienceKind>()
+      .notNull(),
+    agentId: text('agent_id').references(() => agents.id),
+    scope: text('scope', { enum: ['agent', 'global'] }).notNull().default('agent'),
+    conversationId: text('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+    runId: text('run_id'),
+    title: text('title').notNull(),
+    trigger: text('trigger').notNull(),
+    content: text('content').notNull(),
+    tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    source: text('source', { enum: ['auto', 'manual'] }).notNull().default('auto'),
+    active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    usageCount: integer('usage_count').notNull().default(0),
+    lastUsedAt: integer('last_used_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    index('idx_experiences_agent_active').on(t.agentId, t.active, t.updatedAt),
+    index('idx_experiences_conv').on(t.conversationId),
+  ],
+)
+
+// 经验注入使用记录：每次 run 注入某条经验时写一条
+export const experienceUsages = sqliteTable(
+  'experience_usages',
+  {
+    id: text('id').primaryKey(),
+    experienceId: text('experience_id').notNull().references(() => experiences.id, { onDelete: 'cascade' }),
+    runId: text('run_id').notNull(),
+    agentId: text('agent_id'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_exp_usages_experience').on(t.experienceId, t.createdAt),
+    index('idx_exp_usages_run').on(t.runId),
+  ],
+)
+
+export type ExperienceUsageRow = typeof experienceUsages.$inferSelect
+
+// 经验资产参考附件：上传的文件元数据（二进制存 DATA_DIR/experience-files/，不写 workspace 沙箱）
+export const experienceAttachments = sqliteTable(
+  'experience_attachments',
+  {
+    id: text('id').primaryKey(),
+    experienceId: text('experience_id').notNull().references(() => experiences.id, { onDelete: 'cascade' }),
+    fileName: text('file_name').notNull(), // 原始文件名（仅展示用）
+    storedName: text('stored_name').notNull(), // 磁盘存储名（id + 白名单后缀）
+    size: integer('size').notNull(),
+    mimeType: text('mime_type').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_exp_attachments_experience').on(t.experienceId, t.createdAt),
+  ],
+)
+
+export type ExperienceAttachmentRow = typeof experienceAttachments.$inferSelect
+export type ExperienceAttachmentInsert = typeof experienceAttachments.$inferInsert
+
 export type McpCheckStatus = 'ok' | 'failed'
 
 // ─── External MCP Servers ───────────────────────────────────
@@ -593,6 +662,16 @@ export const appSettings = sqliteTable('app_settings', {
   notificationToastEnabled: integer('notification_toast_enabled', { mode: 'boolean' }).notNull().default(true),
   notificationNativeEnabled: integer('notification_native_enabled', { mode: 'boolean' }).notNull().default(true),
   notificationUrgentEnabled: integer('notification_urgent_enabled', { mode: 'boolean' }).notNull().default(true),
+  /** run 收尾后是否自动反思沉淀经验（Spec 20 §5.1）。默认开。 */
+  experienceExtractionEnabled: integer('experience_extraction_enabled', { mode: 'boolean' }).notNull().default(true),
+  // ─── 阿里云 OSS（图片产物远程存储）────────────────────────────
+  // 四项齐备才启用 OSS；否则图片产物回退本地存储（artifact-images）。
+  ossBucket: text('oss_bucket'),
+  ossEndpoint: text('oss_endpoint'),                // 如 oss-cn-beijing.aliyuncs.com
+  ossAccessKeyId: text('oss_access_key_id'),
+  ossAccessKeySecret: text('oss_access_key_secret'),
+  // 图片对象 ACL：1 = public-read（URL 永久直连）；0 = private（需签名，暂不支持预览直连）
+  ossPublicRead: integer('oss_public_read', { mode: 'boolean' }).notNull().default(true),
   updatedAt: integer('updated_at').notNull(),
 })
 
@@ -666,6 +745,9 @@ export const llmFailoverEvents = sqliteTable('llm_failover_events', {
 
 export type WorkspaceMemoryRow = typeof workspaceMemories.$inferSelect
 export type WorkspaceMemoryInsert = typeof workspaceMemories.$inferInsert
+
+export type ExperienceRow = typeof experiences.$inferSelect
+export type ExperienceInsert = typeof experiences.$inferInsert
 
 export type AgentRunDebugSnapshotRow = typeof agentRunDebugSnapshots.$inferSelect
 export type AgentRunDebugSnapshotInsert = typeof agentRunDebugSnapshots.$inferInsert

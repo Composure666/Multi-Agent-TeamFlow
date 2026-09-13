@@ -299,6 +299,14 @@ Codex adapter 额外约束：运行时 `CODEX_HOME` / `CODEX_SQLITE_HOME` 指向
 - `13-conversation-context.md` — 跨 run 对话历史序列化（MessagePart → OpenAI ChatMessage、pinned 注入、agent 视角）
 - `14-mobile-remote.md` — 移动端伴随 App（Capacitor / Tailscale / 远程审批）
 - `15-external-mcp.md` — 外部 MCP 工具接入（设计提案,未实现;统一三 adapter 接入用户配置的 MCP server）
+- `16-workspace-memory.md` — Workspace Memory（会话级长期备注,有界 `<workspace_memory>` 注入）
+- `16-message-search.md` — 消息全文搜索（FTS5 + bm25）
+- `16-task-contract-handoff.md` — Orchestrator 子任务产物交接契约（Task Contract / outputKey）
+- `17-agent-run-debugging.md` — Agent Run 调试面板（debug snapshot / events）
+- `17-orchestrator-plan-review.md` — Orchestrator 计划审批与对话式修订
+- `18-skills.md` — Skills 管理与 Agent 绑定（`agents.skill_ids` 注入）
+- `19-agent-run-debugger-upgrade.md` — Agent Run Debugger 升级开发文档
+- `20-experience-assets.md` — 经验资产（设计提案,未实现;run 收尾反思沉淀 + 按需检索注入）
 
 ### `skills/`（可复用开发任务模板）
 
@@ -308,6 +316,7 @@ Codex adapter 额外约束：运行时 `CODEX_HOME` / `CODEX_SQLITE_HOME` 指向
 - `add-tool.md` — 新增一个工具（LLM 可调用的 function）
 - `add-message-part.md` — 新增一种 MessagePart 类型
 - `add-artifact-type.md` — 新增一种 Artifact 类型
+- `add-experience.md` — 实现 spec 20「经验沉淀/反思/按需注入」闭环（P0 起）
 
 ---
 

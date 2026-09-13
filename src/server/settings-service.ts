@@ -39,6 +39,12 @@ const EMPTY: AppSettingsRow = {
   notificationToastEnabled: true,
   notificationNativeEnabled: true,
   notificationUrgentEnabled: true,
+  experienceExtractionEnabled: true,
+  ossBucket: null,
+  ossEndpoint: null,
+  ossAccessKeyId: null,
+  ossAccessKeySecret: null,
+  ossPublicRead: true,
   updatedAt: 0,
 }
 
@@ -68,6 +74,12 @@ export interface AppSettingsPatch {
   notificationToastEnabled?: boolean
   notificationNativeEnabled?: boolean
   notificationUrgentEnabled?: boolean
+  experienceExtractionEnabled?: boolean
+  ossBucket?: string | null
+  ossEndpoint?: string | null
+  ossAccessKeyId?: string | null
+  ossAccessKeySecret?: string | null
+  ossPublicRead?: boolean
 }
 
 /** UPSERT 全部字段：传 null 清空，undefined 不动。 */
@@ -111,6 +123,7 @@ export async function updateAppSettings(patch: AppSettingsPatch): Promise<AppSet
         notificationToastEnabled: next.notificationToastEnabled,
         notificationNativeEnabled: next.notificationNativeEnabled,
         notificationUrgentEnabled: next.notificationUrgentEnabled,
+        experienceExtractionEnabled: next.experienceExtractionEnabled,
         updatedAt: next.updatedAt,
       },
     })

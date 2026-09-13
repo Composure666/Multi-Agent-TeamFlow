@@ -227,6 +227,8 @@ export interface AgentRunDebugSnapshot {
     historyMessageCount: number
     historyTokenBudget: number | null
     historyTokenEstimate: number | null
+    experiencesInjected?: string[]
+    experienceCount?: number
   }
   tools: {
     toolNames: string[]
@@ -239,6 +241,7 @@ export interface AgentRunDebugSnapshot {
 export type AgentRunDebugPromptSectionKind =
   | 'workspace_info'
   | 'workspace_memory'
+  | 'relevant_experiences'
   | 'skills'
   | 'agent_system'
   | 'tool_guidance'

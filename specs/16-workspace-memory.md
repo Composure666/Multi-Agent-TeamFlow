@@ -1,6 +1,6 @@
 # Spec 16 — Workspace Memory
 
-> Workspace Memory 是当前 conversation/workspace 的长期项目备注。它用于把用户明确维护的项目约束、命令、架构注意事项注入后续 Agent 运行上下文；不是跨会话全局记忆，也不是自动 RAG。
+> Workspace Memory 是当前 conversation/workspace 的长期项目备注。它用于把用户明确维护的项目约束、命令、架构注意事项注入后续 Agent 运行上下文；不是跨会话全局记忆，也不是自动 RAG。 跨会话的「经验沉淀」由 Experience Assets（Spec 20）承担：经验按任务关键词命中注入、per-agent、可停用。
 
 源文件：`src/server/workspace-memory-service.ts` · `src/server/agent-runner.ts` · `src/db/schema.ts`
 
@@ -101,7 +101,7 @@ AgentHub tool guidance
 2. pinned messages。
 3. summary 覆盖边界之后的 complete messages。
 
-Workspace Memory 不进入 `PromptContextSnapshotItem`，不访问 workspace 文件，也不参与 conversation compaction。它是 AgentRunner system prompt assembly 的独立输入。
+Workspace Memory 不进入 `PromptContextSnapshotItem`，不访问 workspace 文件，也不参与 conversation compaction。它是 AgentRunner system prompt assembly 的独立输入。 Experience（Spec 20）与其并列注入（顺序：workspace_memory → relevant_experiences → skills），两者均不进快照、不参与 compaction。
 
 ---
 

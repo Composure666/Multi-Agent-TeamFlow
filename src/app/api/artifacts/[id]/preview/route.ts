@@ -40,7 +40,12 @@ export async function GET(_req: Request, ctx: RouteContext) {
         'sandbox allow-scripts',
         "default-src 'none'",
         `script-src 'nonce-${nonce}' 'self'`,
-        `style-src 'nonce-${nonce}' 'self' 'unsafe-inline'`,
+        // 注意：不能把 nonce 放进 style-src——CSP3 规定指令中同时存在
+        // nonce/hash 源时 'unsafe-inline' 会被忽略，产物内联 <style> 与
+        // style 属性将全部被禁，导致 LLM 产出的 HTML 布局（如 PPT）完全错乱。
+        // 样式无脚本执行能力，'self' + 'unsafe-inline' 已足够；脚本仍由
+        // script-src 的 nonce 严格管控。
+        "style-src 'self' 'unsafe-inline'",
         'img-src data: blob: http: https:',
         'font-src data:',
         "connect-src 'none'",

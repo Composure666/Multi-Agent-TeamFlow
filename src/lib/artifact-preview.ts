@@ -107,6 +107,19 @@ export function prepareArtifactPreviewHtml(
     sanitized = `<head>\n${baseTag}\n${guardScript}\n</head>\n${sanitized}`
   }
 
+  // 3. 让产物自身的内联 <script> 也能在严格 CSP（script-src 'nonce-..' 'self'）下运行：
+  //    路由注释约定「LLM-authored inline script 共享 nonce 时可运行」，但此前实现只给
+  //    guard 脚本注入了 nonce，产物自带的内联脚本（如 PPT 翻页逻辑）会被浏览器全部拦截，
+  //    导致交互型 web_app 产物「只剩第一页 / 结构错乱」。
+  //    这里把无 nonce 的内联脚本补上请求 nonce；外部 <script src> 不加（sandbox 无
+  //    allow-same-origin 时 'self' 不匹配本就无法加载，nonce 也只对内联生效）。
+  if (opts?.nonce) {
+    sanitized = sanitized.replace(
+      /<script\b(?![^>]*\bnonce=)[^>]*>/gi,
+      (tag) => (/\bsrc\s*=/.test(tag) ? tag : tag.replace(/^<script/i, `<script nonce="${opts.nonce}"`)),
+    )
+  }
+
   return sanitized
 }
 

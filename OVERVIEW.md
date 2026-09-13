@@ -68,6 +68,7 @@ L1 Persistence                          src/db/**（Drizzle+SQLite） + workspac
 | 全局 API Key 设置面板 | ✅ | app_settings 单行表 · 三层 key 优先级 |
 | 移动端伴随 App | ⏳ | 响应式 Web 已适配;Capacitor 原生壳脚手架已建,配对通信待打通 |
 | 斜杠命令菜单 | ✅ | 输入 `/` 弹命令浮层（打开设置 / Agents 库等 UI 命令） |
+| 经验资产（沉淀/反思/注入） | ⏳ | 设计提案已落（spec 20）;P0 待实现——run 收尾自动反思沉淀,后续按任务关键词检索注入（配方 `skills/add-experience.md`） |
 | 测试覆盖 | 🟡 | Vitest 纯函数（security / workspace-utils / dispatch-plan / artifact-content / ppt-export / ppt-theme）；Playwright **E2E 基建 + 核心 IM 流**（mock agent，见附录）；产物/群聊调度 E2E 待补（需测试假 adapter） |
 
 ---
@@ -192,4 +193,4 @@ DB 文件：`.agenthub-data/agenthub.db`;workspace：`.agenthub-data/workspaces/
 
 ---
 
-*最后更新：2026-06-06 · 同步本批成果（会话归档 / Orchestrator 冲突检测 / PPT 产物+真 pptx+theme / Playwright E2E 基建）到功能矩阵、代码地图、当前现状三节。改动较大后请同步本文件的「功能矩阵」与「当前现状」两节。*
+*最后更新：2026-09-13 · 功能矩阵补「经验资产」行（spec 20 设计提案 + `skills/add-experience.md` 配方已落,未实现）。注意：本文件 06-06 后已过时——自动化（Automation/scheduler）、Skills（spec 18）、消息搜索（FTS5）、Workspace Memory、MCP（spec 15 P0）、Run 调试（spec 17/19）等均已落地,功能矩阵 / 代码地图未逐项回填,**以 `git log` 与 `specs/` 目录为准**。改动较大后请同步本文件的「功能矩阵」与「当前现状」两节。*

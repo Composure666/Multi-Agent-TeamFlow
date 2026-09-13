@@ -45,7 +45,7 @@ function rowToHit(row: HitRow): SearchHit {
  * - contains `-` → wrap in double quotes (otherwise FTS5 reads it as a column-restricted query)
  * - else → pass through
  */
-function maybeQuote(s: string): string {
+export function maybeQuote(s: string): string {
   if (s.endsWith('*')) return s
   if (s.includes('(')) return s
   if (s.includes('-')) return `"${s.replace(/"/g, '""')}"`

@@ -27,7 +27,7 @@ import type {
 
 enableMapSet()
 
-export type AppWorkbenchView = 'new-task' | 'conversations' | 'agents' | 'capability-center' | 'artifacts' | 'automation' | 'run-board' | 'analytics' | 'information-center'
+export type AppWorkbenchView = 'new-task' | 'conversations' | 'agents' | 'capability-center' | 'artifacts' | 'experiences' | 'automation' | 'run-board' | 'analytics' | 'information-center'
 
 export type SettingsSection = 'api-keys' | 'providers' | 'workspaces' | 'notifications'
 

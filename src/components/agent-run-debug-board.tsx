@@ -15,6 +15,7 @@ import {
   Eraser,
   FileCode2,
   GitBranch,
+  BookOpen,
   Loader2,
   Maximize2,
   MessageSquare,
@@ -53,6 +54,7 @@ import {
   fetchMessages,
   regenerateLastResponse,
   writeTerminalInput,
+  triggerExperienceReflection,
 } from '@/lib/api'
 import {
   projectAgentRunArtifacts,
@@ -149,6 +151,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [pausingRun, setPausingRun] = useState(false)
   const [rerunningRun, setRerunningRun] = useState(false)
+  const [reflectingRun, setReflectingRun] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('overview')
   const [canvasView, setCanvasView] = useState<AgentRunDebuggerCanvasView>('graph')
@@ -497,6 +500,40 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     }
   }
 
+  const reflectSelectedRun = async () => {
+    if (!selectedRun || reflectingRun) return
+    setReflectingRun(true)
+    try {
+      const result = await triggerExperienceReflection(selectedRun.id)
+      addNotification({
+        id: `reflect-${Date.now()}`,
+        title: result.saved > 0 ? `已沉淀 ${result.saved} 条经验` : '未沉淀经验',
+        body:
+          result.saved > 0
+            ? '已写入经验库，可在侧栏「资产」查看。'
+            : '该 Run 没有提炼出可沉淀的经验（可能不满足提取条件）。',
+        level: 'info',
+        source: 'agent_run',
+        createdAt: Date.now(),
+        runId: selectedRun.id,
+        conversationId: conversationId ?? undefined,
+      })
+    } catch (err) {
+      console.error('[DebugBoard] reflect failed', err)
+      addNotification({
+        id: `reflect-error-${Date.now()}`,
+        title: '沉淀经验失败',
+        body: err instanceof Error ? err.message : String(err),
+        level: 'error',
+        source: 'agent_run',
+        createdAt: Date.now(),
+        conversationId: conversationId ?? undefined,
+      })
+    } finally {
+      setReflectingRun(false)
+    }
+  }
+
   const selectStage = (stageId: AgentRunBoardStage['id']) => {
     setSelectedStageId(stageId)
     setInspectorOpen(true)
@@ -703,6 +740,18 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={!selectedRun || reflectingRun}
+              title="对选中的 Run 立即执行反思，提炼可复用经验写入资产库"
+              onClick={() => void reflectSelectedRun()}
+            >
+              {reflectingRun ? <Loader2 className="size-3.5 animate-spin" /> : <BookOpen className="size-3.5" />}
+              沉淀经验
+            </Button>
             <Button
               type="button"
               size="sm"
@@ -2432,9 +2481,18 @@ function VariablesPanel({ detail }: { detail: AgentRunDebugDetail }) {
       <PanelMetric label="工作区" value={snapshot.workspace.mode} />
       <PanelMetric label="历史" value={`${snapshot.context.historyMessageCount} messages`} />
       <PanelMetric label="记忆" value={`${snapshot.context.workspaceMemoryNoteCount} notes`} />
+      <PanelMetric label="经验" value={`${snapshot.context.experienceCount ?? 0} 条注入`} />
       <PanelMetric label="工具" value={`${snapshot.tools.toolNames.length}`} />
       <div className="sm:col-span-2 lg:col-span-4">
         <CodeSnippet label="Effective CWD" value={snapshot.workspace.effectiveCwd} />
+      </div>
+      <div className="sm:col-span-2 lg:col-span-4">
+        <CodeSnippet
+          label="注入的经验"
+          value={snapshot.context.experiencesInjected?.length
+            ? snapshot.context.experiencesInjected.join('\n')
+            : '未注入经验（触发条件未命中 / 经验未启用 / 不在该 Agent 或全局范围内）'}
+        />
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/db/client'
 import type { ArtifactRow } from '@/db/schema'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
+import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
 
 /**
@@ -183,6 +184,16 @@ export async function createArtifactVersion(
       ok: false,
       error: describeArtifactContentError(parent.type, rawContent) ?? `Invalid content for type ${parent.type}`,
       status: 400,
+    }
+  }
+
+  // 图片产物统一存储：已配置 OSS → 上传 OSS（稳定远程，不落本地）；否则本地化兜底
+  if (content.type === 'image') {
+    const stored = await ensureImageStored(content.url)
+    if (stored.ok) {
+      content.url = stored.url
+    } else {
+      console.warn(`[createArtifactVersion] image store failed (${stored.error}); keep original url`)
     }
   }
 

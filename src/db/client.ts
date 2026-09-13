@@ -11,6 +11,7 @@ const DATA_DIR =
   process.env.AGENTHUB_DATA_DIR ??
   path.resolve(/* turbopackIgnore: true */ process.cwd(), '.agenthub-data')
 const DB_PATH = path.join(DATA_DIR, 'agenthub.db')
+export { DATA_DIR }
 
 mkdirSync(DATA_DIR, { recursive: true })
 mkdirSync(path.join(DATA_DIR, 'workspaces'), { recursive: true })

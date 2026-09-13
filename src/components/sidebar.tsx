@@ -1,12 +1,13 @@
 ﻿'use client'
 
-import { Archive, ArchiveRestore, Bot, ChevronDown, ChevronRight, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, BookOpen, Bot, ChevronDown, ChevronRight, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentLibrary } from '@/components/agent-library'
 import { AgentAvatar } from '@/components/agent-avatar'
 import { GlobalSearchTrigger } from '@/components/global-search-trigger'
 import { ArtifactLibrary } from '@/components/artifact-library'
+import { ExperienceLibrary } from '@/components/experience-library'
 import { NewConversationDialog } from '@/components/new-conversation-dialog'
 import { SettingsButton } from '@/components/settings-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -34,7 +35,7 @@ import { cn } from '@/lib/utils'
 import type { AgentRow, ConversationRow } from '@/db/schema'
 import { useAppStore, useConversationList, useUnreadCount } from '@/stores/app-store'
 
-type Mode = 'conversations' | 'artifacts' | 'agents'
+type Mode = 'conversations' | 'artifacts' | 'experiences' | 'agents'
 
 export function Sidebar() {
   const mobileOpen = useAppStore((s) => s.mobileSidebarOpen)
@@ -216,6 +217,14 @@ export function Sidebar() {
         />
         <TabButton
           mode={mode}
+          self="experiences"
+          collapsed={collapsed}
+          onClick={() => setMode('experiences')}
+          icon={<BookOpen className="size-4" />}
+          label="经验资产"
+        />
+        <TabButton
+          mode={mode}
           self="agents"
           collapsed={collapsed}
           onClick={() => setMode('agents')}
@@ -366,6 +375,8 @@ export function Sidebar() {
         </>
       ) : mode === 'artifacts' ? (
         !collapsed && <ArtifactLibrary />
+      ) : mode === 'experiences' ? (
+        !collapsed && <ExperienceLibrary agents={Object.values(agents)} />
       ) : (
         !collapsed && <AgentLibrary />
       )}

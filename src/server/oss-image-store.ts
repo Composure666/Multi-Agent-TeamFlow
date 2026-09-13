@@ -1,0 +1,133 @@
+import OSS from 'ali-oss'
+import { randomBytes } from 'node:crypto'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+
+import { db } from '@/db/client'
+import {
+  IMAGE_DIR,
+  LOCAL_IMAGE_PREFIX,
+  decodeDataUri,
+  isLocalImageUrl,
+  localizeImageUrl,
+  sniffImageExt,
+} from '@/server/artifact-image-store'
+
+/**
+ * 阿里云 OSS —— 图片产物的稳定远程存储。
+ *
+ * 原则（用户要求）：能不存本地就不存本地；远程必须稳定。
+ * OSS 对象一旦存在，URL 即永久可用（bucket 不删）→ 满足稳定远程。
+ *
+ * 策略：
+ * - 已配置 OSS → 图片产物统一上传 OSS（无论来源是远程 URL / data URI / 本地文件），
+ *   content.url 存 OSS 公开 URL，本地副本上传成功后删除；
+ * - 未配置 OSS / 上传失败 → 回退本地 artifact-images（保持可用性兜底）。
+ */
+
+export const OSS_IMAGE_URL_RE = /^https:\/\/[a-z0-9.-]+\.oss-[a-z0-9-]+\.aliyuncs\.com\//i
+
+export interface OssImageConfig {
+  bucket: string
+  endpoint: string
+  accessKeyId: string
+  accessKeySecret: string
+  publicRead: boolean
+}
+
+/** 从 app_settings（UI/DB 自填）读取，环境变量（.env.local）优先。四项齐备才算已配置。 */
+export async function getOssImageConfig(): Promise<OssImageConfig | null> {
+  const row = await db.query.appSettings.findFirst()
+  const bucket = process.env.OSS_BUCKET ?? row?.ossBucket ?? undefined
+  const endpoint = process.env.OSS_ENDPOINT ?? row?.ossEndpoint ?? undefined
+  const accessKeyId = process.env.OSS_ACCESS_KEY_ID ?? row?.ossAccessKeyId ?? undefined
+  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET ?? row?.ossAccessKeySecret ?? undefined
+  if (!bucket || !endpoint || !accessKeyId || !accessKeySecret) return null
+  return { bucket, endpoint, accessKeyId, accessKeySecret, publicRead: row?.ossPublicRead ?? true }
+}
+
+export function isOssImageUrl(url: string): boolean {
+  return OSS_IMAGE_URL_RE.test(url)
+}
+
+export type UploadImageResult = { ok: true; url: string } | { ok: false; error: string }
+
+export async function uploadImageToOss(buf: Buffer, cfg: OssImageConfig): Promise<UploadImageResult> {
+  const key = `artifacts/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${randomBytes(6).toString('hex')}.${sniffImageExt(buf)}`
+  try {
+    const client = new OSS({
+      bucket: cfg.bucket,
+      endpoint: cfg.endpoint,
+      accessKeyId: cfg.accessKeyId,
+      accessKeySecret: cfg.accessKeySecret,
+      secure: true,
+    })
+    await client.put(
+      key,
+      buf,
+      cfg.publicRead ? { headers: { 'x-oss-object-acl': 'public-read' } } : undefined,
+    )
+    return { ok: true, url: `https://${cfg.bucket}.${cfg.endpoint}/${key}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 把图片 URL 解析为 Buffer（本地文件 / data URI / 远程下载），失败返回 null。 */
+async function resolveImageBuffer(url: string): Promise<Buffer | null> {
+  if (isLocalImageUrl(url)) {
+    const name = url.slice(LOCAL_IMAGE_PREFIX.length)
+    if (!/^[a-zA-Z0-9._-]+$/.test(name)) return null
+    try {
+      return await fs.readFile(path.join(IMAGE_DIR, name))
+    } catch {
+      return null
+    }
+  }
+  if (url.startsWith('data:')) return decodeDataUri(url)
+  if (!/^https?:\/\//i.test(url)) return null
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'follow' })
+    if (!res.ok) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.length === 0 || buf.length > 25 * 1024 * 1024) return null
+    return buf
+  } catch {
+    return null
+  }
+}
+
+export type EnsureImageStoredResult =
+  | { ok: true; url: string; storage: 'oss' | 'local' }
+  | { ok: false; error: string }
+
+/**
+ * 图片产物的统一存储入口（写库前调用）：
+ * - 已是 OSS URL → 原样（幂等）
+ * - 已配置 OSS → 解析图片 → 上传 OSS；本地来源上传成功后删除本地副本
+ * - 未配置 OSS → 回退本地化（原 localizeImageUrl 逻辑）
+ */
+export async function ensureImageStored(url: string): Promise<EnsureImageStoredResult> {
+  if (isOssImageUrl(url)) return { ok: true, url, storage: 'oss' }
+
+  const cfg = await getOssImageConfig()
+
+  if (cfg) {
+    const buf = await resolveImageBuffer(url)
+    if (!buf) return { ok: false, error: 'image unreachable and not stored locally' }
+    const up = await uploadImageToOss(buf, cfg)
+    if (up.ok) {
+      // 本地来源转传 OSS 成功后删除本地副本（能不存本地就不存本地）
+      if (isLocalImageUrl(url)) {
+        const name = url.slice(LOCAL_IMAGE_PREFIX.length)
+        await fs.rm(path.join(IMAGE_DIR, name), { force: true }).catch(() => {})
+      }
+      return { ok: true, url: up.url, storage: 'oss' }
+    }
+    return { ok: false, error: `oss upload failed: ${up.error}` }
+  }
+
+  const loc = await localizeImageUrl(url)
+  if (loc.ok) return { ok: true, url: loc.url, storage: 'local' }
+  return { ok: false, error: loc.error }
+}

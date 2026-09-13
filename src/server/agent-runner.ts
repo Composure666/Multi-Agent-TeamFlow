@@ -72,6 +72,7 @@ import { pendingDispatchPlans, type PlanReviewOutcome } from './pending-dispatch
 import { buildProjectFiles, buildProjectFilesFromTargetPaths, filterExistingProjectFiles } from './project-artifact'
 import { getAppSettings } from './settings-service'
 import { buildWorkspaceMemoryBlock } from './workspace-memory-service'
+import { buildExperienceBlock, extractFromRun } from './experience-service'
 import {
   evaluateTaskResultReport,
   isTaskResultReportToolName,
@@ -2259,12 +2260,17 @@ function buildUnresolvedToolFailureResult(
     : '工具调用未完成：本次运行失败。'
 }
 
-function finalizeOk(
+async function finalizeOk(
   runId: string,
   args: RunArgs,
   result: RunExecutionResult,
 ) {
-  return finalize(runId, args, 'complete', result)
+  const outcome = await finalize(runId, args, 'complete', result)
+  // Spec 20：run 收尾后异步反思沉淀经验（fire-and-forget，不阻塞收尾）。
+  void extractFromRun(runId).catch((err) => {
+    console.warn('[agent-runner] extractFromRun failed; continuing without experience extraction', err)
+  })
+  return outcome
 }
 
 function finalizeFailed(runId: string, args: RunArgs, error: string) {
@@ -2554,6 +2560,21 @@ async function buildAdapterInput(
       systemPromptSections.push(createPromptSection('workspace_memory', memoryBlock))
     }
   }
+  // Spec 20：按当前任务关键词注入相关经验（双守卫：overridePrompt/overrideSystemPrompt 均不注入）。
+  let experiencesInjected: string[] = []
+  let experienceCount = 0
+  if (!args.overridePrompt && !args.overrideSystemPrompt) {
+    const experienceBlock = await buildExperienceBlock(agent.id, prompt, { runId }).catch((err) => {
+      console.warn('[agent-runner] buildExperienceBlock failed; continuing without experiences', err)
+      return { block: null, injectedIds: [] }
+    })
+    if (experienceBlock.block) {
+      experiencesInjected = experienceBlock.injectedIds
+      experienceCount = experienceBlock.injectedIds.length
+      systemPromptParts.push(experienceBlock.block)
+      systemPromptSections.push(createPromptSection('relevant_experiences', experienceBlock.block))
+    }
+  }
   const enabledSkills = args.overridePrompt || args.overrideSystemPrompt
     ? []
     : await listEnabledSkillsByIds(agent.skillIds).catch((err) => {
@@ -2705,6 +2726,8 @@ async function buildAdapterInput(
         summaryId,
         workspaceMemoryInjected: workspaceMemoryNoteCount > 0,
         workspaceMemoryNoteCount,
+        experiencesInjected,
+        experienceCount,
         historyInjected: history.length > 0,
         historyMessageCount: history.length,
         historyTokenBudget: historyBudget,

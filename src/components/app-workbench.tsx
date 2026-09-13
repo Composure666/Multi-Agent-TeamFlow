@@ -41,6 +41,7 @@ import { AutomationWorkspace } from '@/components/automation-workspace'
 import { ArtifactWorkspace } from '@/components/artifact-workspace'
 import { CapabilityCenterWorkspace } from '@/components/capability-center-workspace'
 import { ConversationWorkspace } from '@/components/conversation-workspace'
+import { ExperienceLibrary } from '@/components/experience-library'
 import { InformationCenterWorkspace } from '@/components/information-center-workspace'
 import { MessageHighlightLayer } from '@/components/message-highlight-layer'
 import { PromptEnhanceModal } from '@/components/prompt-enhance-modal'
@@ -157,6 +158,7 @@ export function AppWorkbench() {
             agents: () => <AgentWorkspace onOpenConversations={() => setView('conversations')} onOpenTeamDetail={openTeamDetail} />,
             'capability-center': () => <CapabilityCenterWorkspace />,
             artifacts: () => <ArtifactWorkspace onOpenConversations={() => setView('conversations')} />,
+            experiences: () => <ExperienceLibrary agents={agents.map((a) => ({ id: a.id, name: a.name }))} />,
             automation: () => <AutomationWorkspace />,
             'information-center': () => <InformationCenterWorkspace />,
             'run-board': () => <AgentRunDebugBoard onFocusChange={setAnalyticsFocusMode} />,

@@ -59,7 +59,7 @@ Debug events 是 append-only：运行期间只追加，不修改历史事件。p
 - `agent`：id、name、adapter、model、是否 orchestrator
 - `workspace`：mode、effective cwd、boundPath
 - `prompt`：override 标记、用户 prompt/effective prompt/system prompt 字符数、prompt sections 的 chars/tokenEstimate/present
-- `context`：summary、workspace memory、history 注入情况与预算/估算
+- `context`：summary、workspace memory、experience（`experiencesInjected` / `experienceCount`）、history 注入情况与预算/估算
 - `tools`：toolNames 与 external MCP server `{ id, name, trust, envKeys }`
 - `attachments`：附件 id、kind、fileName、size、mimeType
 
@@ -146,7 +146,7 @@ Debug events 是 append-only：运行期间只追加，不修改历史事件。p
 - token 用量：input/output/cache/lastInput
 - workspace：mode/effective cwd
 - prompt sections：kind、present、chars、tokenEstimate
-- context：summary、workspace memory、history
+- context：summary、workspace memory、experience、history
 - tools：内置工具名与外部 MCP server 名称/trust/envKeys
 - messages：触发消息与输出消息数量
 - runtime events：run、dispatch task、tool、terminal output 的摘要事件

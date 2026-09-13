@@ -13,7 +13,7 @@ import { AlertTriangle,
   Power,
   RotateCw,
   Settings as SettingsIcon,
-  Smartphone, Layers, ShieldCheck } from 'lucide-react'
+  Smartphone, Layers, ShieldCheck, BookOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -62,6 +62,7 @@ interface SettingsForm {
   notificationToastEnabled: boolean
   notificationNativeEnabled: boolean
   notificationUrgentEnabled: boolean
+  experienceExtractionEnabled: boolean
 }
 
 /**
@@ -107,6 +108,7 @@ export function SettingsDialog({
     notificationToastEnabled: true,
     notificationNativeEnabled: true,
     notificationUrgentEnabled: true,
+    experienceExtractionEnabled: true,
   })
 
   useEffect(() => {
@@ -186,6 +188,7 @@ export function SettingsDialog({
         notificationToastEnabled: form.notificationToastEnabled,
         notificationNativeEnabled: form.notificationNativeEnabled,
         notificationUrgentEnabled: form.notificationUrgentEnabled,
+        experienceExtractionEnabled: form.experienceExtractionEnabled,
       }
       await updateAppSettings(patch)
       onOpenChange(false)
@@ -384,10 +387,24 @@ export function SettingsDialog({
               </TabsContent>
 
               <TabsContent value="notifications" className="mt-0 py-1">
+                <div className="flex flex-col gap-4">
+                  <section className="rounded-xl border bg-muted/30 p-3">
+                    <div className="mb-3 flex items-center gap-2">
+                      <BookOpen className="size-4 text-muted-foreground" />
+                      <div>
+                        <h3 className="text-sm font-medium">经验资产</h3>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">run 收尾后自动反思沉淀可复用经验；关闭后仍可手动沉淀。</p>
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-background p-2">
+                      <CheckboxRow label="自动反思沉淀经验" checked={form.experienceExtractionEnabled} onChange={(experienceExtractionEnabled) => setForm((f) => ({ ...f, experienceExtractionEnabled }))} />
+                    </div>
+                  </section>
                 <NotificationPreferenceSettings
                   form={form}
                   onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
                 />
+                </div>
               </TabsContent>
             </div>
           </Tabs>
@@ -736,5 +753,6 @@ function rowToForm(row: AppSettingsRow): SettingsForm {
     notificationToastEnabled: row.notificationToastEnabled,
     notificationNativeEnabled: row.notificationNativeEnabled,
     notificationUrgentEnabled: row.notificationUrgentEnabled,
+    experienceExtractionEnabled: row.experienceExtractionEnabled,
   }
 }

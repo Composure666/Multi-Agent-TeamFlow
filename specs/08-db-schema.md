@@ -2,7 +2,7 @@
 
 > Drizzle ORM + SQLite。本 spec 描述核心业务表、自动化表、上下文基础设施表、外部 MCP 表、Workspace Memory 表、Agent Run 调试快照表与全局设置表的字段、索引、外键级联策略，是 Spec 01/16/17 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
 >
-> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试摘要事件表；`terminal_sessions` / `terminal_events` 是 AgentHub 自管 bash 的真实 PTY 终端记录；`app_settings` 是单行配置表，不对应实体。
+> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`experiences` 是跨会话经验资产表（Spec 20）；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试摘要事件表；`terminal_sessions` / `terminal_events` 是 AgentHub 自管 bash 的真实 PTY 终端记录；`app_settings` 是单行配置表，不对应实体。
 
 源文件：`src/db/schema.ts`
 
@@ -540,6 +540,7 @@ app_settings {
   deployment_publish_enabled int NOT NULL // boolean，默认 false
   deployment_publish_dir     text         // 外部静态发布目录，绝对路径
   deployment_public_base_url text         // 外部静态服务公开根 URL
+  experience_extraction_enabled int NOT NULL // boolean，默认 true（Spec 20 §5.1 自动反思开关）
   updated_at          int  NOT NULL
 }
 ```
@@ -569,6 +570,40 @@ app_settings {
 
 ---
 
+---
+
+## 20. experiences（Spec 20 经验资产）
+
+```ts
+experiences {
+  id                  text PK             // exp_<nanoid>
+  kind                text NOT NULL       // 'experience' | 'reflection' | 'profile_fact'
+  agent_id            text FK→agents      // 可空：跨 agent 经验 / 全局经验时为空
+  scope               text NOT NULL       // 'agent' | 'global'，默认 'agent'
+  conversation_id     text FK→conversations // 可空 + ON DELETE SET NULL：删会话保留经验
+  run_id              text                // 来源 run（不建外键，run 可删）
+  title               text NOT NULL
+  trigger             text NOT NULL       // 何时适用（一句话）
+  content             text NOT NULL
+  tags                text NOT NULL       // JSON string[]，默认 '[]'
+  source              text NOT NULL       // 'auto' | 'manual'，默认 'auto'
+  active              int  NOT NULL       // boolean，默认 true；false = 草稿/停用
+  usage_count         int  NOT NULL       // 默认 0，注入命中时 +1
+  last_used_at        int                 // 最近注入时间
+  created_at          int  NOT NULL
+  updated_at          int  NOT NULL
+}
+INDEX idx_experiences_agent_active ON (agent_id, active, updated_at)
+INDEX idx_experiences_conv ON (conversation_id)
+```
+
+**配套 FTS 表**：`experiences_fts`（虚拟表，`title/trigger/tags/content`，`tokenize='trigram'`），由 `src/db/migrate-add-experiences-fts.ts` 创建（镜像 messages_fts 的三触发器模式；`active=0` 时从索引删除）。不建 embedding / vector 列。
+
+**边界**：经验是「跨会话」资产，随 agent 存活，不随会话删除而删除（`conversation_id` SET NULL 后仍可检索）。注入有预算上限（≤6 条 / ≤1500 token），不进历史/摘要（Spec 13）。
+
+**ID**：`exp_<nanoid>`（`src/server/ids.ts:newExperienceId`）。**JSON 列**：`tags` 为 trusted internal data（服务端/LLM 写入，schema 校验后落库）。
+
+
 ## Cascade 关系图
 
 ```
@@ -580,12 +615,13 @@ conversations  ─── CASCADE ──┬─► messages
                              ├─► conversation_context_summaries
                              └─► workspace_memories
 
+conversations  ─── SET NULL ──► experiences.conversation_id
 automations ─── CASCADE ───────► automation_runs
 
 agents ──(no cascade)──── messages.agent_id
                           artifacts.created_by_agent_id
                           agent_runs.agent_id
-
+                          experiences.agent_id
 app_settings ──(独立，无外键)── 单行表，与任何业务表都无 FK 关系
 ```
 

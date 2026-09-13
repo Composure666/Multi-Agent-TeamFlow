@@ -5,6 +5,8 @@ import type {
   AttachmentRow,
   ConversationWithMeta,
   ContextSummaryRow,
+  ExperienceKind,
+  ExperienceRow,
   MessageRow,
   WorkspaceMemoryRow,
 } from '@/db/schema'
@@ -1364,6 +1366,166 @@ export async function deleteArtifact(artifactId: string): Promise<void> {
   )
 }
 
+// ─── Experiences（Spec 20）───────────────────────────────
+export interface FetchExperiencesParams {
+  agentId?: string | null
+  kind?: ExperienceKind | null
+  active?: boolean | null
+  source?: 'auto' | 'manual' | null
+  q?: string | null
+}
+
+export async function fetchExperiences(params: FetchExperiencesParams = {}): Promise<ExperienceRow[]> {
+  const search = new URLSearchParams()
+  if (params.agentId) search.set('agentId', params.agentId)
+  if (params.kind) search.set('kind', params.kind)
+  if (params.active !== null && params.active !== undefined) search.set('active', String(params.active))
+  if (params.source) search.set('source', params.source)
+  if (params.q) search.set('q', params.q)
+  const qs = search.toString()
+  const { experiences } = await json<{ experiences: ExperienceRow[] }>(
+    fetch(`/api/experiences${qs ? `?${qs}` : ''}`),
+  )
+  return experiences
+}
+
+export interface ExperienceStats {
+  total: number
+  active: number
+  drafts: number
+  frequentlyUsed: number
+  cold: number
+  totalUsage: number
+  weeklyNew: number[]
+  weeklyUsage: number[]
+}
+
+export interface ExperienceUsageItem {
+  id: string
+  experienceId: string
+  runId: string
+  agentId: string | null
+  createdAt: number
+}
+
+export async function fetchExperienceStats(): Promise<ExperienceStats> {
+  const { stats } = await json<{ stats: ExperienceStats }>(fetch('/api/experiences/stats'))
+  return stats
+}
+
+export async function fetchExperienceUsage(experienceId: string): Promise<ExperienceUsageItem[]> {
+  const { items } = await json<{ items: ExperienceUsageItem[] }>(
+    fetch(`/api/experiences/${experienceId}/usage`),
+  )
+  return items
+}
+
+export interface CreateExperienceInput {
+  kind?: ExperienceKind
+  agentId?: string | null
+  scope?: 'agent' | 'global'
+  conversationId?: string | null
+  runId?: string | null
+  title: string
+  trigger: string
+  content: string
+  tags?: string[]
+}
+
+export async function createExperience(input: CreateExperienceInput): Promise<ExperienceRow> {
+  const { experience } = await json<{ experience: ExperienceRow }>(
+    fetch('/api/experiences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  )
+  return experience
+}
+
+export async function updateExperience(
+  experienceId: string,
+  patch: {
+    kind?: ExperienceKind
+    agentId?: string | null
+    title?: string
+    trigger?: string
+    content?: string
+    tags?: string[]
+    active?: boolean
+  },
+): Promise<ExperienceRow> {
+  const { experience } = await json<{ experience: ExperienceRow }>(
+    fetch(`/api/experiences/${experienceId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  )
+  return experience
+}
+
+export async function deleteExperience(experienceId: string): Promise<void> {
+  await json<{ ok: true }>(
+    fetch(`/api/experiences/${experienceId}`, { method: 'DELETE' }),
+  )
+}
+
+export interface ReflectRunResult {
+  saved: number
+  experiences: ExperienceRow[]
+}
+
+/** 对指定 Run 立即执行反思沉淀（POST /api/runs/[id]/reflect）。 */
+export async function triggerExperienceReflection(runId: string): Promise<ReflectRunResult> {
+  return json<ReflectRunResult>(fetch(`/api/runs/${runId}/reflect`, { method: 'POST' }))
+}
+
+// ─── Experience 参考附件 ─────────────────────────────
+export interface ExperienceAttachment {
+  id: string
+  experienceId: string
+  fileName: string
+  size: number
+  mimeType: string
+  createdAt: number
+}
+
+export async function fetchExperienceFiles(experienceId: string): Promise<ExperienceAttachment[]> {
+  const { items } = await json<{ items: ExperienceAttachment[] }>(
+    fetch(`/api/experiences/${experienceId}/attachments`),
+  )
+  return items
+}
+
+export async function uploadExperienceFiles(
+  experienceId: string,
+  files: File[],
+): Promise<ExperienceAttachment[]> {
+  const form = new FormData()
+  for (const f of files) form.append('file', f)
+  const res = await fetch(`/api/experiences/${experienceId}/attachments`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`HTTP ${res.status}: ${body || res.statusText}`)
+  }
+  const { items } = (await res.json()) as { items: ExperienceAttachment[] }
+  return items
+}
+
+export async function deleteExperienceFile(experienceId: string, fileId: string): Promise<void> {
+  await json<{ ok: true }>(
+    fetch(`/api/experiences/${experienceId}/attachments/${fileId}`, { method: 'DELETE' }),
+  )
+}
+
+export function experienceFileDownloadUrl(experienceId: string, fileId: string): string {
+  return `/api/experiences/${experienceId}/attachments/${fileId}/file`
+}
+
 // ─── Attachments ───────────────────────────────
 export async function fetchAttachments(conversationId: string): Promise<AttachmentRow[]> {
   const { attachments } = await json<{ attachments: AttachmentRow[] }>(
@@ -1472,6 +1634,7 @@ export interface AppSettingsPatchBody {
   notificationToastEnabled?: boolean
   notificationNativeEnabled?: boolean
   notificationUrgentEnabled?: boolean
+  experienceExtractionEnabled?: boolean
 }
 
 export async function updateAppSettings(patch: AppSettingsPatchBody): Promise<AppSettingsRow> {

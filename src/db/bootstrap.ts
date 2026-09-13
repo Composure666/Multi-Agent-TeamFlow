@@ -381,6 +381,55 @@ const DDL: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_workspace_memories_conv_updated ON workspace_memories(conversation_id, updated_at)`,
   `CREATE INDEX IF NOT EXISTS idx_workspace_memories_conv_pinned ON workspace_memories(conversation_id, pinned, updated_at)`,
 
+  // ─── experiences（Spec 20）────────────────────────
+  `CREATE TABLE IF NOT EXISTS experiences (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    agent_id TEXT REFERENCES agents(id),
+    scope TEXT NOT NULL DEFAULT 'agent',
+    conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+    run_id TEXT,
+    title TEXT NOT NULL,
+    trigger TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    source TEXT NOT NULL DEFAULT 'auto',
+    active INTEGER NOT NULL DEFAULT 1,
+    usage_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_experiences_agent_active ON experiences(agent_id, active, updated_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_experiences_conv ON experiences(conversation_id)`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS experiences_fts USING fts5(title, trigger, tags, content, tokenize='trigram')`,
+  `CREATE TRIGGER IF NOT EXISTS experiences_fts_ai AFTER INSERT ON experiences WHEN new.active = 1 BEGIN INSERT INTO experiences_fts(rowid, title, trigger, tags, content) VALUES (new.rowid, new.title, new.trigger, coalesce(new.tags, ''), new.content); END`,
+  `CREATE TRIGGER IF NOT EXISTS experiences_fts_au AFTER UPDATE ON experiences BEGIN DELETE FROM experiences_fts WHERE rowid = old.rowid; INSERT INTO experiences_fts(rowid, title, trigger, tags, content) SELECT new.rowid, new.title, new.trigger, coalesce(new.tags, ''), new.content WHERE new.active = 1; END`,
+  `CREATE TRIGGER IF NOT EXISTS experiences_fts_ad AFTER DELETE ON experiences BEGIN DELETE FROM experiences_fts WHERE rowid = old.rowid; END`,
+  `INSERT OR IGNORE INTO experiences_fts(rowid, title, trigger, tags, content) SELECT rowid, title, trigger, coalesce(tags, ''), content FROM experiences WHERE active = 1`,
+
+  // ─── experience_usages ─────────────────────────
+  `CREATE TABLE IF NOT EXISTS experience_usages (
+    id TEXT PRIMARY KEY,
+    experience_id TEXT NOT NULL REFERENCES experiences(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL,
+    agent_id TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_exp_usages_experience ON experience_usages(experience_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_exp_usages_run ON experience_usages(run_id)`,
+  // ─── experience_attachments（经验参考附件）──────────────
+  `CREATE TABLE IF NOT EXISTS experience_attachments (
+    id text PRIMARY KEY NOT NULL,
+    experience_id text NOT NULL REFERENCES experiences(id) ON DELETE CASCADE,
+    file_name text NOT NULL,
+    stored_name text NOT NULL,
+    size integer NOT NULL,
+    mime_type text NOT NULL,
+    created_at integer NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_exp_attachments_experience ON experience_attachments(experience_id, created_at)`,
+
   // ─── mcp_servers ───────────────────────────────
   `CREATE TABLE IF NOT EXISTS mcp_servers (
     id TEXT PRIMARY KEY,
@@ -435,6 +484,11 @@ const DDL: string[] = [
     notification_toast_enabled INTEGER NOT NULL DEFAULT 1,
     notification_native_enabled INTEGER NOT NULL DEFAULT 1,
     notification_urgent_enabled INTEGER NOT NULL DEFAULT 1,
+    oss_bucket TEXT,
+    oss_endpoint TEXT,
+    oss_access_key_id TEXT,
+    oss_access_key_secret TEXT,
+    oss_public_read INTEGER NOT NULL DEFAULT 1,
     updated_at INTEGER NOT NULL
   )`,
 
@@ -529,6 +583,12 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_native_enabled INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN notification_urgent_enabled INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN default_llm_provider TEXT NOT NULL DEFAULT 'auto'`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN experience_extraction_enabled INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_bucket TEXT`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_endpoint TEXT`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_access_key_id TEXT`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_access_key_secret TEXT`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_public_read INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE llm_model_assignments ADD COLUMN use_global INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN prompt TEXT NOT NULL DEFAULT ''`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN agent_id TEXT REFERENCES agents(id)`)

@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
+import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
 
 import type { ToolDef } from './types'
@@ -105,6 +106,16 @@ export const writeArtifactTool: ToolDef = {
 
     const artifactId = newArtifactId()
     const createdAt = Date.now()
+
+    // 图片产物统一存储：已配置 OSS → 上传 OSS（稳定远程，不落本地）；否则本地化兜底
+    if (fullContent.type === 'image') {
+      const stored = await ensureImageStored(fullContent.url)
+      if (stored.ok) {
+        fullContent.url = stored.url
+      } else {
+        console.warn(`[write-artifact] image store failed (${stored.error}); keep original url`)
+      }
+    }
 
     await db.insert(schema.artifacts).values({
       id: artifactId,
