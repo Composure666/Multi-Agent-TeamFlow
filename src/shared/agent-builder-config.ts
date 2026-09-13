@@ -1,6 +1,6 @@
 import type { ModelProvider } from './types'
 
-export type AgentBuilderAdapter = 'custom' | 'claude-code' | 'codex'
+export type AgentBuilderAdapter = 'custom' | 'claude-code' | 'codex' | 'image-gen'
 export type AgentBuilderProvider = ModelProvider
 
 export const AGENT_BUILDER_PROVIDER_DEFAULTS: Record<
@@ -104,6 +104,8 @@ export interface AgentConfigDraft {
   adapterName: AgentBuilderAdapter
   modelProvider?: AgentBuilderProvider
   modelId?: string
+  /** Agent 模态分类，用于自动匹配模型（text/vision/image/audio/code/multimodal）。 */
+  modality?: string
   toolNames: AgentToolName[]
   supportsVision: boolean
   rationale: string[]

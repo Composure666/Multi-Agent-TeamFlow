@@ -67,9 +67,45 @@ export const agents = sqliteTable('agents', {
   isBuiltin: integer('is_builtin', { mode: 'boolean' }).notNull().default(false),
   isOrchestrator: integer('is_orchestrator', { mode: 'boolean' }).notNull().default(false),
   supportsVision: integer('supports_vision', { mode: 'boolean' }).notNull().default(false),
+  /** Agent 模态分类，用于创建时自动匹配模型（text/vision/image/audio/code/multimodal）。 */
+  modality: text('modality').notNull().default('text'),
 
   createdAt: integer('created_at').notNull(),
 })
+
+// ─── Agent Teams ───────────────────────────────────────────
+export const agentTeams = sqliteTable(
+  'agent_teams',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    avatar: text('avatar').notNull().default('👥'),
+    description: text('description').notNull().default(''),
+    /** 团队目标 / 使命 */
+    goal: text('goal').notNull().default(''),
+    /** 团队级 system prompt（可选） */
+    systemPrompt: text('system_prompt').notNull().default(''),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+)
+
+export const agentTeamMembers = sqliteTable(
+  'agent_team_members',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('team_id').notNull().references(() => agentTeams.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id').notNull().references(() => agents.id, { onDelete: 'cascade' }),
+    /** 成员在团队中的角色描述 */
+    role: text('role').notNull().default(''),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isLead: integer('is_lead', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('agent_team_members_team_agent_idx').on(t.teamId, t.agentId),
+  }),
+)
 
 // ─── Conversations ───────────────────────────────────────────
 export const conversations = sqliteTable(

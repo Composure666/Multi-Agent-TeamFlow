@@ -84,6 +84,7 @@ describe('mcp server service', () => {
       isBuiltin: false,
       isOrchestrator: false,
       supportsVision: false,
+    modality: 'text',
       createdAt: Date.now(),
     }
 
@@ -123,6 +124,7 @@ describe('mcp server service', () => {
       isBuiltin: false,
       isOrchestrator: false,
       supportsVision: false,
+    modality: 'text',
       createdAt: Date.now(),
     }
 

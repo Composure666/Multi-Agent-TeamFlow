@@ -41,6 +41,7 @@ import { subscribeUiCommand } from '@/lib/ui-command-events'
 import { ProvidersPanel } from '@/components/settings/providers-panel'
 import { ProviderPriorityPanel } from '@/components/settings/provider-priority-panel'
 import { FailoverPanel } from '@/components/settings/failover-panel'
+import { ModelAssignmentPanel } from '@/components/settings/model-assignment-panel'
 import { useAppStore } from '@/stores/app-store'
 
 interface SettingsForm {
@@ -337,14 +338,7 @@ export function SettingsDialog({
               </TabsContent>
 
               <TabsContent value="assignment" className="mt-0 py-1">
-                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                  <Layers className="size-8 text-muted-foreground/50" />
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">模型与分配</div>
-                  <div className="max-w-xs text-xs text-muted-foreground">
-                    全局策略、系统能力分配、Agent 模型策略即将上线。
-                    目前可在「供应商」tab 管理供应商接入。
-                  </div>
-                </div>
+                <ModelAssignmentPanel />
               </TabsContent>
 
               <TabsContent value="failover" className="mt-0 py-1">

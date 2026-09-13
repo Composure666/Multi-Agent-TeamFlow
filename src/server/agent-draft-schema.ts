@@ -26,6 +26,7 @@ export const AgentConfigDraftSchema = z
     adapterName: AdapterSchema.default('custom'),
     modelProvider: ProviderSchema.optional(),
     modelId: z.string().trim().min(1).optional(),
+    modality: z.string().trim().min(1).max(32).optional(),
     toolNames: z.array(ToolNameSchema).default([]),
     supportsVision: z.boolean().default(true),
     rationale: z.array(z.string().trim().min(1).max(240)).max(8).default([]),

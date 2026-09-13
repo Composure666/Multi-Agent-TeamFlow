@@ -4,6 +4,7 @@ import type { AdapterName } from '@/shared/types'
 import { ClaudeCodeAdapter } from './claude-code-adapter'
 import { CodexAdapter } from './codex-adapter'
 import { CustomAgentAdapter } from './custom-agent-adapter'
+import { ImageGenAdapter } from './image-gen-adapter'
 import { MockAdapter } from './mock-adapter'
 import type { AgentPlatformAdapter } from './types'
 
@@ -34,6 +35,7 @@ function buildRegistry(): AgentRegistry {
   const reg = new AgentRegistry()
   reg.register(new MockAdapter())
   reg.register(new CustomAgentAdapter())
+  reg.register(new ImageGenAdapter())
   reg.register(new ClaudeCodeAdapter())
   reg.register(new CodexAdapter())
   return reg

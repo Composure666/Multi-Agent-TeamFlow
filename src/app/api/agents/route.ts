@@ -15,7 +15,7 @@ const CreateBody = z
     description: z.string().min(1).max(280),
     capabilities: z.array(z.string()).default([]),
     systemPrompt: z.string().min(1),
-    adapterName: z.enum(['custom', 'claude-code', 'codex']).default('custom'),
+    adapterName: z.enum(['custom', 'claude-code', 'codex', 'image-gen']).default('custom'),
     modelProvider: z
       .enum(['anthropic', 'openai', 'deepseek', 'volcano-ark', 'openai-compatible'])
       .optional(),
@@ -24,12 +24,17 @@ const CreateBody = z
     mcpServerIds: z.array(z.string()).default([]),
     skillIds: z.array(z.string()).default([]),
     supportsVision: z.boolean().optional(),
+    modality: z.string().min(1).max(32).optional(),
     apiKey: z.string().optional(),
     apiBaseUrl: z.string().optional(),
   })
   .refine(
-    (d) => d.adapterName !== 'custom' || (d.modelProvider && d.modelId),
-    { message: 'Custom adapter requires modelProvider and modelId' },
+    (d) => {
+      if (d.adapterName === 'custom') return !!(d.modelProvider && d.modelId)
+      if (d.adapterName === 'image-gen') return !!(d.apiKey && d.apiBaseUrl && d.modelId)
+      return true
+    },
+    { message: 'Adapter requires specific configuration' },
   )
 
 export async function POST(req: NextRequest) {

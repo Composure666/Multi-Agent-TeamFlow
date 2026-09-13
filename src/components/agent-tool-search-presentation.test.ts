@@ -24,6 +24,7 @@ function createAgent(adapterName: AgentRow['adapterName'], skillIds: string[] = 
     isBuiltin: false,
     isOrchestrator: false,
     supportsVision: false,
+    modality: 'text',
     createdAt: 0,
   }
 }

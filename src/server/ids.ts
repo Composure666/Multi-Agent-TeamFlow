@@ -31,3 +31,5 @@ export const newAutomationRunLogId = () => `alog_${nano()}`
 export const newMcpServerId = () => `mcp_${nano()}`
 export const newSkillId = () => `skill_${nano()}`
 export const newNotificationId = () => `ntf_${nano()}`
+export const newTeamId = () => `team_${nano()}`
+export const newTeamMemberId = () => `tm_${nano()}`

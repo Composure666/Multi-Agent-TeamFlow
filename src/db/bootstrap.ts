@@ -115,7 +115,30 @@ const DDL: string[] = [
     is_builtin INTEGER NOT NULL DEFAULT 0,
     is_orchestrator INTEGER NOT NULL DEFAULT 0,
     supports_vision INTEGER NOT NULL DEFAULT 0,
+    modality TEXT NOT NULL DEFAULT 'text',
     created_at INTEGER NOT NULL
+  )`,
+
+  // ─── agent_teams ───────────────────────────────
+  `CREATE TABLE IF NOT EXISTS agent_teams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    avatar TEXT NOT NULL DEFAULT '👥',
+    description TEXT NOT NULL DEFAULT '',
+    goal TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS agent_team_members (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_lead INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    UNIQUE(team_id, agent_id)
   )`,
 
   // ─── conversations ─────────────────────────────
@@ -566,6 +589,7 @@ function ensureSchema(sqlite: Database.Database): void {
   }
   safeAlter(sqlite, `ALTER TABLE agents ADD COLUMN mcp_server_ids TEXT NOT NULL DEFAULT '[]'`)
   safeAlter(sqlite, `ALTER TABLE agents ADD COLUMN skill_ids TEXT NOT NULL DEFAULT '[]'`)
+  safeAlter(sqlite, `ALTER TABLE agents ADD COLUMN modality TEXT NOT NULL DEFAULT 'text'`)
   safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_checked_at INTEGER`)
   safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_check_status TEXT`)
   safeAlter(sqlite, `ALTER TABLE mcp_servers ADD COLUMN last_check_message TEXT`)
@@ -605,6 +629,7 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE terminal_events ADD COLUMN task_id TEXT`)
+  // agent_teams / agent_team_members 是新表，CREATE TABLE IF NOT EXISTS 已覆盖，无需 safeAlter
   sqlite.exec(`UPDATE automation_runs SET created_at = started_at WHERE created_at = 0`)
   sqlite.exec(`UPDATE automation_runs SET updated_at = COALESCE(finished_at, started_at) WHERE updated_at = 0`)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_automations_next_run ON automations(status, next_run_at)`)

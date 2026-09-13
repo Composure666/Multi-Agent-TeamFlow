@@ -59,6 +59,22 @@ export const AGENT_CAPABILITIES = [
   { key: 'agent:writer', label: '写作 Agent', description: '文案 / 报告 / 摘要' },
 ] as const
 
+/** Agent 模态分类 —— 用于创建时自动匹配模型。 */
+export type AgentModality = 'text' | 'vision' | 'image' | 'audio' | 'code' | 'multimodal'
+
+export const MODALITY_CAPABILITIES: Array<{ key: string; label: string; description: string }> = [
+  { key: 'agent:text', label: '文本 Agent', description: '文案、写作、对话、分析' },
+  { key: 'agent:vision', label: '视觉 Agent', description: '识图、截图理解、设计稿分析' },
+  { key: 'agent:image', label: '生图 Agent', description: '生成图片、海报、插画' },
+  { key: 'agent:audio', label: '音频 Agent', description: '语音、视频音轨处理' },
+  { key: 'agent:code', label: '代码 Agent', description: '编程、调试、重构' },
+  { key: 'agent:multimodal', label: '多模态 Agent', description: '图文混合、视频理解' },
+]
+
+export function modalityToCapabilityKey(modality: AgentModality): string {
+  return `agent:${modality}`
+}
+
 /** 全局策略的 capabilityKey。 */
 export const GLOBAL_KEYS = {
   defaultProvider: 'global:default_provider',

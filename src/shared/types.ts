@@ -185,7 +185,7 @@ export interface DiffHunk {
 }
 
 // ─── Adapter 名称 ──────────────────────────────────────────
-export type AdapterName = 'claude-code' | 'codex' | 'custom' | 'mock'
+export type AdapterName = 'claude-code' | 'codex' | 'custom' | 'image-gen' | 'mock'
 
 export type ModelProvider =
   | 'anthropic'

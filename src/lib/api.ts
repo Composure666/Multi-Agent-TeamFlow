@@ -172,7 +172,7 @@ export interface CreateAgentBody {
   capabilities: string[]
   systemPrompt: string
   /** 默认 'custom'。SDK adapter 使用各自内置工具集 */
-  adapterName?: 'custom' | 'claude-code' | 'codex'
+  adapterName?: 'custom' | 'claude-code' | 'codex' | 'image-gen'
   /** custom: required；SDK adapter: 忽略 */
   modelProvider?: 'anthropic' | 'openai' | 'deepseek' | 'volcano-ark' | 'openai-compatible'
   /** custom: required；SDK adapter: 可选，默认 SDK 默认模型 */

@@ -26,6 +26,7 @@ function agent(patch: Partial<AgentRow>): AgentRow {
     mcpServerIds: [],
     skillIds: [],
     supportsVision: false,
+    modality: 'text',
     isBuiltin: false,
     isOrchestrator: false,
     createdAt: 1,

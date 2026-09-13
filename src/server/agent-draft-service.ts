@@ -7,13 +7,37 @@ import {
   type AgentDraftRequest,
   type AgentToolPresetId,
 } from '@/shared/agent-builder-config'
+import { resolveModelForCapability } from '@/server/model-assignment-service'
+import type { AgentModality } from '@/lib/llm-shared'
 
 import { AgentConfigDraftSchema } from './agent-draft-schema'
 
-const DEFAULT_PROVIDER = 'deepseek' as const
-
 export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<AgentConfigDraft> {
-  return AgentConfigDraftSchema.parse(buildHeuristicAgentConfigDraft(input))
+  const draft = buildHeuristicAgentConfigDraft(input)
+  // 按模态自动匹配模型（替代硬编码 deepseek）
+  const modality = (draft.modality as AgentModality) || 'text'
+  const resolved = await resolveModelForCapability(`agent:${modality}`)
+  if (resolved?.providerId && resolved.modelName) {
+    draft.modelProvider = providerIdToModelProvider(resolved.providerId)
+    draft.modelId = resolved.modelName
+    draft.assumptions = [
+      ...draft.assumptions.filter((a) => a.label !== '模型'),
+      {
+        label: '模型',
+        detail: `按「${modality}」模态自动匹配：${draft.modelProvider} / ${draft.modelId}（可在详细配置中修改）`,
+      },
+    ]
+  }
+  return AgentConfigDraftSchema.parse(draft)
+}
+
+/** llm_providers.id → ModelProvider 类型映射 */
+function providerIdToModelProvider(providerId: string): AgentConfigDraft['modelProvider'] {
+  if (providerId === 'ark') return 'volcano-ark'
+  if (providerId === 'anthropic' || providerId === 'openai' || providerId === 'deepseek') {
+    return providerId
+  }
+  return 'openai-compatible'
 }
 
 export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentConfigDraft {
@@ -39,8 +63,9 @@ export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentC
       permissionSummaries,
     }),
     adapterName: 'custom',
-    modelProvider: DEFAULT_PROVIDER,
-    modelId: AGENT_BUILDER_PROVIDER_DEFAULTS[DEFAULT_PROVIDER].defaultModel,
+    modelProvider: 'deepseek',
+    modelId: AGENT_BUILDER_PROVIDER_DEFAULTS.deepseek.defaultModel,
+    modality: inferModality(combined, presetId),
     toolNames: permissionSummaries.map((summary) => summary.toolName),
     supportsVision: true,
     rationale: [
@@ -51,9 +76,7 @@ export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentC
     assumptions: [
       {
         label: '模型',
-        detail: `默认使用 ${AGENT_BUILDER_PROVIDER_DEFAULTS[DEFAULT_PROVIDER].label} / ${
-          AGENT_BUILDER_PROVIDER_DEFAULTS[DEFAULT_PROVIDER].defaultModel
-        }，可在详细配置中改成其他 provider。`,
+        detail: '将按 Agent 模态自动匹配设置里配置的模型，可在详细配置中修改。',
       },
       {
         label: '视觉',
@@ -158,6 +181,18 @@ function inferCapabilities(text: string, presetId: AgentToolPresetId): string[] 
   if (/图片|截图|视觉|image|screenshot|visual/.test(lower)) capabilities.push('视觉理解')
 
   return Array.from(new Set(capabilities)).slice(0, 8)
+}
+
+/** 从提示词推断 Agent 模态 */
+function inferModality(text: string, presetId: AgentToolPresetId): AgentModality {
+  const lower = text.toLowerCase()
+  if (/画图|生图|海报|插画|logo|icon|image.?gen|text.?to.?image|stable.?diffusion|dall|midjourney/.test(lower)) return 'image'
+  if (/识图|截图|设计稿|视觉理解|vision|ocr|看图|图片理解/.test(lower)) return 'vision'
+  if (/语音|音频|视频|配音|transcribe|speech|whisper|音轨/.test(lower)) return 'audio'
+  if (/代码|编程|debug|重构|python|java|typescript|前端|后端|算法/.test(lower)) return 'code'
+  if (/多模态|图文|视频理解|multimodal/.test(lower)) return 'multimodal'
+  if (presetId === 'local-code') return 'code'
+  return 'text'
 }
 
 function normalizeText(text: string): string {

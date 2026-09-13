@@ -258,6 +258,7 @@ function toMcpCatalogItem(row: McpServerRow): McpCatalogItem {
       'claude-code': row.enabled ? 'supported' : 'unsupported',
       codex: row.enabled && row.trust === 'always' ? 'supported' : 'unsupported',
       custom: 'unsupported',
+      'image-gen': 'unsupported',
       mock: 'unsupported',
     },
   }

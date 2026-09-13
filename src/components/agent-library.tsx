@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import type { AgentRow } from '@/db/schema'
 import { deleteAgent as deleteAgentAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { TeamLibrary } from '@/components/team-library'
 import { useAgentList, useAppStore } from '@/stores/app-store'
 
 /**
@@ -31,6 +32,7 @@ export function AgentLibrary() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<AgentRow | null>(null)
+  const [tab, setTab] = useState<'agent' | 'team'>('agent')
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -65,6 +67,24 @@ export function AgentLibrary() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 px-3 pt-3">
+        <div className="mb-2 flex rounded-md bg-muted p-0.5">
+          <button
+            className={`flex-1 rounded px-2 py-1 text-xs font-medium transition ${tab === 'agent' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => setTab('agent')}
+          >
+            Agent
+          </button>
+          <button
+            className={`flex-1 rounded px-2 py-1 text-xs font-medium transition ${tab === 'team' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+            onClick={() => setTab('team')}
+          >
+            团队
+          </button>
+        </div>
+      </div>
+      {tab === 'team' ? <TeamLibrary /> : (
+      <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 space-y-2 px-3 pt-3">
         <Button
           className="w-full justify-start gap-2"
@@ -172,6 +192,8 @@ export function AgentLibrary() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
+      )}
     </div>
   )
 }

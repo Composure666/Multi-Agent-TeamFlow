@@ -21,8 +21,8 @@ export interface CreateAgentArgs {
   description: string
   capabilities: string[]
   systemPrompt: string
-  /** 'custom' (默认) | 'claude-code' | 'codex'。SDK adapter 用内置工具集 + 仅需 modelId */
-  adapterName?: 'custom' | 'claude-code' | 'codex'
+  /** 'custom' (默认) | 'claude-code' | 'codex' | 'image-gen' */
+  adapterName?: AdapterName
   /** custom: required；SDK adapter: 忽略（可不传） */
   modelProvider?: ModelProvider
   /** custom: required；SDK adapter: 可选，默认 SDK 默认模型 */
@@ -34,6 +34,7 @@ export interface CreateAgentArgs {
   /** 本地 Skills opt-in，运行时作为 prompt section 注入 */
   skillIds?: string[]
   supportsVision?: boolean
+  modality?: string
   apiKey?: string | null
   /** 自定义 API base URL。Claude/Codex 对 endpoint 协议兼容性要求不同；NULL 走默认 */
   apiBaseUrl?: string | null
@@ -53,6 +54,11 @@ export async function createCustomAgent(args: CreateAgentArgs) {
     const apiKeyError = validateOpenAICompatibleApiKey(args.modelProvider, args.apiKey)
     if (apiKeyError) throw new Error(apiKeyError)
   }
+  if (adapterName === 'image-gen') {
+    if (!args.apiKey) throw new Error('Image-gen adapter requires apiKey')
+    if (!args.apiBaseUrl) throw new Error('Image-gen adapter requires apiBaseUrl')
+    if (!args.modelId) throw new Error('Image-gen adapter requires modelId')
+  }
 
   const row = {
     id,
@@ -62,7 +68,7 @@ export async function createCustomAgent(args: CreateAgentArgs) {
     capabilities: args.capabilities,
     systemPrompt: args.systemPrompt,
     adapterName,
-    modelProvider: adapterName === 'custom' ? (args.modelProvider ?? null) : null,
+    modelProvider: adapterName === 'custom' || adapterName === 'image-gen' ? (args.modelProvider ?? (adapterName === 'image-gen' ? 'openai-compatible' : null)) : null,
     modelId: args.modelId ?? null,
     apiKey: args.apiKey?.trim() || null,
     apiBaseUrl: args.apiBaseUrl?.trim() || null,
@@ -73,6 +79,7 @@ export async function createCustomAgent(args: CreateAgentArgs) {
     isBuiltin: false,
     isOrchestrator: false,
     supportsVision: args.supportsVision ?? false,
+    modality: args.modality ?? 'text',
     createdAt,
   }
 
@@ -103,7 +110,7 @@ export interface UpdateAgentPatch {
   description?: string
   capabilities?: string[]
   systemPrompt?: string
-  adapterName?: 'custom' | 'claude-code' | 'codex'
+  adapterName?: AdapterName
   modelProvider?: ModelProvider
   modelId?: string | null
   toolNames?: string[]
@@ -134,6 +141,11 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   if (nextAdapterName === 'custom' && (!nextModelProvider || !nextModelId)) {
     throw new Error('Custom adapter requires modelProvider and modelId')
   }
+  if (nextAdapterName === 'image-gen') {
+    if (!nextApiKey) throw new Error('Image-gen adapter requires apiKey')
+    if (!nextApiBaseUrl) throw new Error('Image-gen adapter requires apiBaseUrl')
+    if (!nextModelId) throw new Error('Image-gen adapter requires modelId')
+  }
   if (nextAdapterName === 'custom') {
     const baseUrlError = validateOpenAICompatibleBaseUrl(nextModelProvider, nextApiBaseUrl)
     if (baseUrlError) throw new Error(baseUrlError)
@@ -153,9 +165,10 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   if (patch.apiKey !== undefined) updates.apiKey = patch.apiKey?.trim() || null
   if (patch.apiBaseUrl !== undefined) updates.apiBaseUrl = patch.apiBaseUrl?.trim() || null
 
-  if (nextAdapterName === 'custom') {
+  if (nextAdapterName === 'custom' || nextAdapterName === 'image-gen') {
     if (patch.modelProvider !== undefined) updates.modelProvider = patch.modelProvider
-    if (patch.toolNames !== undefined) updates.toolNames = patch.toolNames
+    if (nextAdapterName === 'image-gen' && patch.modelProvider === undefined) updates.modelProvider = 'openai-compatible'
+    if (patch.toolNames !== undefined && nextAdapterName === 'custom') updates.toolNames = patch.toolNames
   } else {
     // SDK adapter 走各自内置工具集，不消费 modelProvider/toolNames。
     if (patch.adapterName !== undefined && patch.modelId === undefined) {

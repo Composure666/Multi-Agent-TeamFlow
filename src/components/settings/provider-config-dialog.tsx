@@ -36,7 +36,8 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ connected: boolean; error?: string } | null>(null)
+  const [testResult, setTestResult] = useState<{ connected: boolean; error?: string; models?: string[] } | null>(null)
+  const [fetchingModels, setFetchingModels] = useState(false)
   const [revealKey, setRevealKey] = useState(false)
 
   const isBuiltin = providerId ? BUILTIN_PROVIDER_IDS.includes(providerId) : false
@@ -139,6 +140,23 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
       console.error('[ProviderConfigDialog] delete failed', err)
     }
   }
+  const handleFetchModels = async () => {
+    if (!providerId) return
+    setFetchingModels(true)
+    try {
+      await saveProvider(true)
+      const res = await fetch(`/api/providers/${encodeURIComponent(providerId)}/test`, { method: 'POST' })
+      const data = await res.json()
+      setTestResult(data)
+      if (data.connected && Array.isArray(data.models) && data.models.length > 0) {
+        setForm((f) => ({ ...f, models: data.models.join(', ') }))
+      }
+    } catch (err) {
+      setTestResult({ connected: false, error: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setFetchingModels(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -214,7 +232,21 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
                     : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400'
                 }`}
               >
-                {testResult.connected ? '✓ 连接成功' : `✗ 连接失败：${testResult.error ?? '未知错误'}`}
+                {testResult.connected
+                  ? `✓ 连接成功${testResult.models?.length ? `，已拉取 ${testResult.models.length} 个模型` : ''}`
+                  : `✗ 连接失败：${testResult.error ?? '未知错误'}`}
+                {testResult.connected && testResult.models && testResult.models.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {testResult.models.slice(0, 12).map((m) => (
+                      <span key={m} className="rounded bg-white/60 px-1.5 py-0.5 text-[10px] text-green-800 dark:bg-black/20 dark:text-green-300">
+                        {m}
+                      </span>
+                    ))}
+                    {testResult.models.length > 12 && (
+                      <span className="text-[10px] text-green-600">+{testResult.models.length - 12} more</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -229,9 +261,9 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
               </Button>
             )}
             {!isNew && (
-              <Button type="button" variant="outline" size="sm" onClick={() => void handleTest()} disabled={testing || loading}>
-                {testing && <Loader2 className="size-4 animate-spin" />}
-                测试连接
+              <Button type="button" variant="outline" size="sm" onClick={() => void handleFetchModels()} disabled={fetchingModels || testing || loading}>
+                {(fetchingModels || testing) && <Loader2 className="size-4 animate-spin" />}
+                测试并拉取模型
               </Button>
             )}
           </div>

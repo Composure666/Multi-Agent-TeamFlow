@@ -67,6 +67,7 @@ export async function listSkillCatalogItems(): Promise<SkillCatalogItem[]> {
       'claude-code': skill.enabled ? 'supported' : 'unsupported',
       codex: skill.enabled ? 'supported' : 'unsupported',
       custom: skill.enabled ? 'supported' : 'unsupported',
+      'image-gen': 'unsupported',
       mock: skill.enabled ? 'supported' : 'unsupported',
     },
   }))

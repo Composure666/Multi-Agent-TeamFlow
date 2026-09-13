@@ -79,13 +79,44 @@ export async function deleteProvider(id: string): Promise<void> {
   await db.delete(schema.llmProviders).where(eq(schema.llmProviders.id, id))
 }
 
-// ─── 连接测试 ───────────────────────────────────────────────────
+// ─── 连接测试 + 拉取模型列表 ────────────────────────────────────
+
+/**
+ * 从上游 {baseUrl}/models 拉取模型列表（OpenAI 兼容格式），并存入 llm_providers.models。
+ * 返回拉到的模型名数组；失败返回 error。
+ */
+export async function fetchAndSaveModels(id: string): Promise<{ models: string[]; error?: string }> {
+  const provider = await getProvider(id)
+  if (!provider) return { models: [], error: '供应商不存在' }
+  if (!provider.apiKey) return { models: [], error: '未配置 API Key' }
+  const baseUrl = provider.baseUrl ?? BUILTIN_PROVIDERS[id]?.baseUrl
+  if (!baseUrl) return { models: [], error: '未配置 Base URL' }
+
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/models`, {
+      headers: { Authorization: `Bearer ${provider.apiKey}` },
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return { models: [], error: `HTTP ${res.status}` }
+    const data = await res.json()
+    const models: string[] = Array.isArray(data?.data)
+      ? data.data.map((m: { id?: string }) => m?.id).filter(Boolean)
+      : []
+    if (models.length > 0) {
+      await upsertProvider({ id, models })
+    }
+    return { models }
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err)
+    return { models: [], error }
+  }
+}
 
 /**
  * 测试供应商连接：发 GET /models 请求（OpenAI 兼容格式）。
- * 成功后更新 isConnected / lastTestedAt / lastError。
+ * 成功后自动拉取模型列表并存入 models 字段。
  */
-export async function testProviderConnection(id: string): Promise<{ connected: boolean; error?: string }> {
+export async function testProviderConnection(id: string): Promise<{ connected: boolean; error?: string; models?: string[] }> {
   const provider = await getProvider(id)
   if (!provider) return { connected: false, error: '供应商不存在' }
   if (!provider.apiKey) return { connected: false, error: '未配置 API Key' }
@@ -101,7 +132,13 @@ export async function testProviderConnection(id: string): Promise<{ connected: b
     const connected = res.ok
     const error = connected ? undefined : `HTTP ${res.status}`
     await upsertProvider({ id, isConnected: connected, lastTestedAt: Date.now(), lastError: error ?? null })
-    return { connected, error }
+
+    let models: string[] | undefined
+    if (connected) {
+      const fetched = await fetchAndSaveModels(id)
+      models = fetched.models
+    }
+    return { connected, error, models }
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err)
     await upsertProvider({ id, isConnected: false, lastTestedAt: Date.now(), lastError: error })

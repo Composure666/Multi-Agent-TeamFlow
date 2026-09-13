@@ -23,6 +23,7 @@ function createAgent(id: string, skillIds: string[] = [], mcpServerIds: string[]
     isBuiltin: false,
     isOrchestrator: false,
     supportsVision: false,
+    modality: 'text',
     createdAt: 0,
   }
 }

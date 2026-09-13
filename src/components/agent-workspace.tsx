@@ -3,6 +3,8 @@
 import { Check, CheckCircle2, ChevronDown, ChevronRight, FileCode2, FileText, History, MessageCircle, Pencil, Plus, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { TeamDetailDialog } from '@/components/team-detail-dialog'
+import type { TeamWithMembers } from '@/server/team-service'
 import { AgentAvatar } from '@/components/agent-avatar'
 import {
   RESOURCE_AGENT_PRESETS,
@@ -19,6 +21,8 @@ import {
 } from '@/components/agent-catalog'
 import { filterAgentPresets, filterMyAgents, getVisibleAgentPresets, projectMyAgents } from '@/components/agent-workspace-model'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
+import { CreateTeamDialog } from '@/components/create-team-dialog'
+import { UnifiedCreateDialog } from '@/components/unified-create-dialog'
 import { HorizontalScrollControls } from '@/components/horizontal-scroll-controls'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -147,16 +151,23 @@ export function AgentWorkspace({
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('全部')
   const [agentView, setAgentView] = useState<'featured' | 'mine'>('featured')
+  const [mineFilter, setMineFilter] = useState<'all' | 'agent' | 'team'>('all')
+  const [teams, setTeams] = useState<Array<TeamWithMembers & { memberCount: number }>>([])
+  const [detailTeamId, setDetailTeamId] = useState<string | null>(null)
+  const [detailTeamOpen, setDetailTeamOpen] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
   const [agentDetailOpen, setAgentDetailOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
+  const [teamFormOpen, setTeamFormOpen] = useState(false)
+  const [unifiedCreateOpen, setUnifiedCreateOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<AgentRow | undefined>(undefined)
   const [startingPresetId, setStartingPresetId] = useState<string | null>(null)
   const [deleteTargetAgentId, setDeleteTargetAgentId] = useState<string | null>(null)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [agentFeedback, setAgentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [selectedDeleteAgentIds, setSelectedDeleteAgentIds] = useState<Set<string>>(() => new Set())
+  const [selectedDeleteTeamIds, setSelectedDeleteTeamIds] = useState<Set<string>>(() => new Set())
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [featuredMyAgentIds, setFeaturedMyAgentIds] = useState<Set<string>>(() => new Set())
@@ -176,6 +187,13 @@ export function AgentWorkspace({
   useEffect(() => {
     setFeaturedMyAgentIds(readFeaturedMyAgentIds())
   }, [])
+
+  useEffect(() => {
+    fetch('/api/teams')
+      .then((r) => r.json())
+      .then((d) => setTeams(d.teams ?? []))
+      .catch(() => {})
+  }, [teamFormOpen, detailTeamOpen])
 
   useEffect(() => {
     setSelectedDeleteAgentIds((current) => {
@@ -283,6 +301,26 @@ export function AgentWorkspace({
     }
   }
 
+  const startTeamConversation = async (team: TeamWithMembers) => {
+    if (team.members.length === 0) return
+    try {
+      const agentIds = team.members.map((m) => m.agentId)
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: team.name, mode: 'group', agentIds }),
+      })
+      const conv = await res.json()
+      if (conv.id) {
+        upsertConversation(conv)
+        setActiveConversation(conv.id)
+        onOpenConversations()
+      }
+    } catch (err) {
+      console.error('[AgentWorkspace] start team conversation failed', err)
+    }
+  }
+
   const confirmDeleteAgent = async () => {
     if (!deleteTargetAgentId || deletingAgentId) return
 
@@ -311,40 +349,71 @@ export function AgentWorkspace({
     }
   }
 
-  const deleteSelectedAgents = async () => {
-    const targetIds = Array.from(selectedDeleteAgentIds)
-    if (targetIds.length === 0 || batchDeleting) return
+  const deleteSelected = async () => {
+    const agentIds = Array.from(selectedDeleteAgentIds)
+    const teamIds = Array.from(selectedDeleteTeamIds)
+    if ((agentIds.length === 0 && teamIds.length === 0) || batchDeleting) return
 
     setBatchDeleting(true)
     setAgentFeedback(null)
     try {
-      const results = await Promise.allSettled(targetIds.map(async (id) => {
+      // 删除 Agent
+      const agentResults = await Promise.allSettled(agentIds.map(async (id) => {
         const agent = agents.find((item) => item.id === id)
-        if (!agent || agent.isBuiltin) throw new Error(`Agent cannot be deleted: ${id}`)
+        if (!agent || agent.isBuiltin) throw new Error('Agent cannot be deleted: ' + id)
         await deleteAgent(id)
         return agent
       }))
-      const succeededAgents = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
-      const succeededIds = new Set(succeededAgents.map((agent) => agent.id))
-      const failedCount = targetIds.length - succeededIds.size
+      const succeededAgents = agentResults.flatMap((r) => r.status === 'fulfilled' ? [r.value] : [])
+      const succeededAgentIds = new Set(succeededAgents.map((a) => a.id))
+      const agentFailed = agentIds.length - succeededAgentIds.size
 
       for (const agent of succeededAgents) removeAgent(agent.id)
       setSelectedDeleteAgentIds((current) => {
         const next = new Set(current)
-        for (const id of succeededIds) next.delete(id)
+        for (const id of succeededAgentIds) next.delete(id)
         return next
       })
-      setSelectedAgentId((current) => current && succeededIds.has(current) ? null : current)
-      if (selectedAgentId && succeededIds.has(selectedAgentId)) setAgentDetailOpen(false)
-      if (failedCount > 0) {
-        setAgentFeedback({ type: 'error', message: `已删除 ${succeededIds.size} 个，${failedCount} 个删除失败。` })
+      if (selectedAgentId && succeededAgentIds.has(selectedAgentId)) {
+        setSelectedAgentId(null)
+        setAgentDetailOpen(false)
+      }
+
+      // 删除团队
+      const teamResults = await Promise.allSettled(teamIds.map(async (id) => {
+        const team = teams.find((t) => t.id === id)
+        if (!team) throw new Error('Team not found: ' + id)
+        await fetch('/api/teams/' + id, { method: 'DELETE' })
+        return team
+      }))
+      const succeededTeams = teamResults.flatMap((r) => r.status === 'fulfilled' ? [r.value] : [])
+      const succeededTeamIds = new Set(succeededTeams.map((t) => t.id))
+      const teamFailed = teamIds.length - succeededTeamIds.size
+
+      setSelectedDeleteTeamIds((current) => {
+        const next = new Set(current)
+        for (const id of succeededTeamIds) next.delete(id)
+        return next
+      })
+      if (detailTeamId && succeededTeamIds.has(detailTeamId)) {
+        setDetailTeamId(null)
+        setDetailTeamOpen(false)
+      }
+      if (teamIds.length > 0) {
+        fetch('/api/teams').then((r) => r.json()).then((d) => setTeams(d.teams ?? [])).catch(() => {})
+      }
+
+      const totalSucceeded = succeededAgentIds.size + succeededTeamIds.size
+      const totalFailed = agentFailed + teamFailed
+      if (totalFailed > 0) {
+        setAgentFeedback({ type: 'error', message: '已删除 ' + totalSucceeded + ' 个，' + totalFailed + ' 个删除失败。' })
       } else {
         setBatchDeleteOpen(false)
-        setAgentFeedback({ type: 'success', message: `已删除 ${succeededIds.size} 个 Agent。` })
+        setAgentFeedback({ type: 'success', message: '已删除 ' + totalSucceeded + ' 个。' })
       }
     } catch (err) {
-      console.error('[AgentWorkspace] batch delete agents failed', err)
-      setAgentFeedback({ type: 'error', message: '批量删除 Agent 失败，请稍后重试。' })
+      console.error('[AgentWorkspace] batch delete failed', err)
+      setAgentFeedback({ type: 'error', message: '批量删除失败，请稍后重试。' })
     } finally {
       setBatchDeleting(false)
     }
@@ -355,6 +424,15 @@ export function AgentWorkspace({
       const next = new Set(current)
       if (next.has(agentId)) next.delete(agentId)
       else next.add(agentId)
+      return next
+    })
+  }
+
+  const toggleTeamDeleteSelection = (teamId: string) => {
+    setSelectedDeleteTeamIds((current) => {
+      const next = new Set(current)
+      if (next.has(teamId)) next.delete(teamId)
+      else next.add(teamId)
       return next
     })
   }
@@ -372,25 +450,42 @@ export function AgentWorkspace({
               <p className="mt-1 text-[13px] text-slate-500">发现、配置和复用你的协作 Agent</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setFormOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
+              <Button onClick={() => setUnifiedCreateOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
                 <Plus className="mr-2 size-4" />
-                创建 Agent
+                创建
               </Button>
               {agentView === 'mine' && (
                 <Button
                   variant="outline"
-                  disabled={selectedDeleteAgentIds.size === 0 || batchDeleting}
+                  disabled={selectedDeleteAgentIds.size === 0 && selectedDeleteTeamIds.size === 0 || batchDeleting}
                   onClick={() => setBatchDeleteOpen(true)}
                   className="rounded-md border-slate-200"
                 >
                   <Trash2 className="mr-2 size-4" />
-                  {selectedDeleteAgentIds.size > 0 ? `批量删除 (${selectedDeleteAgentIds.size})` : '批量删除'}
+                  {(selectedDeleteAgentIds.size + selectedDeleteTeamIds.size) > 0 ? `批量删除 (${selectedDeleteAgentIds.size + selectedDeleteTeamIds.size})` : '批量删除'}
                 </Button>
               )}
               <Button
                 variant="outline"
                 onClick={() => {
-                  setAgentView((view) => (view === 'mine' ? 'featured' : 'mine'))
+                  setAgentView('featured')
+                  setAgentDetailOpen(false)
+                  setSelectedAgentId(null)
+                  setSelectedPresetId(null)
+                  setSelectedDeleteAgentIds(new Set())
+                  setSelectedDeleteTeamIds(new Set())
+                }}
+                className={cn(
+                  'rounded-md border-slate-200',
+                  agentView === 'featured' && 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-100',
+                )}
+              >
+                精选 Agent
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAgentView('mine')
                   setAgentDetailOpen(false)
                   setSelectedAgentId(null)
                   setSelectedPresetId(null)
@@ -401,8 +496,9 @@ export function AgentWorkspace({
                   agentView === 'mine' && 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-100',
                 )}
               >
-                {agentView === 'mine' ? '精选 Agent' : '我的 Agent'}
+                我的 Agent
               </Button>
+
             </div>
           </div>
           <div className="relative mt-4">
@@ -410,7 +506,7 @@ export function AgentWorkspace({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={agentView === 'mine' ? '搜索我的 Agent、模型或能力' : '搜索精选 Agent、预设或能力'}
+              placeholder={agentView === 'mine' ? '搜索我的 Agent、团队、模型或能力' : '搜索精选 Agent、预设或能力'}
               className="h-9 rounded-lg border-slate-200 bg-slate-50 pl-10"
             />
           </div>
@@ -484,42 +580,79 @@ export function AgentWorkspace({
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold">我的 Agent</h2>
-                    <p className="mt-1 text-xs text-slate-500">仅展示你创建的自定义 Agent，可直接开始对话或继续配置</p>
+                    <h2 className="text-sm font-semibold">我的 Agent 与团队</h2>
+                    <p className="mt-1 text-xs text-slate-500">自定义 Agent 和协作团队，可直接开始对话或继续配置</p>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500">{filteredAgents.length} 个</span>
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                    {(['all', 'agent', 'team'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setMineFilter(f)}
+                        className={cn(
+                          'rounded-md px-2.5 py-1 text-xs font-medium transition',
+                          mineFilter === f
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                        )}
+                      >
+                        {f === 'all' ? '全部' : f === 'agent' ? 'Agent' : '团队'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {agentFeedback && (
                   <div className={cn(
-                    'mb-3 rounded-lg border px-3 py-2 text-xs',
+                    'mb-3 flex items-center justify-between rounded-lg border px-3 py-2 text-xs',
                     agentFeedback.type === 'success'
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                       : 'border-red-200 bg-red-50 text-red-600',
                   )}>
-                    {agentFeedback.message}
+                    <span>{agentFeedback.message}</span>
+                    <button onClick={() => setAgentFeedback(null)} className="ml-2 opacity-60 hover:opacity-100">✕</button>
                   </div>
                 )}
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-                  {filteredAgents.map((agent) => (
-                    <AgentCard
-                      key={agent.id}
-                      agent={agent}
-                      selected={agentDetailOpen && selectedAgent?.id === agent.id}
-                      selectable={agentView === 'mine'}
-                      checked={selectedDeleteAgentIds.has(agent.id)}
-                      onToggleSelected={() => toggleDeleteSelection(agent.id)}
-                      onSelect={() => {
-                        setSelectedAgentId(agent.id)
-                        setAgentDetailOpen(true)
-                      }}
-                      onStart={() => void startConversation(agent)}
-                    />
-                  ))}
-                </div>
-                {filteredAgents.length === 0 && (
+                {(mineFilter === 'all' || mineFilter === 'agent') && (
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+                    {filteredAgents.map((agent) => (
+                      <AgentCard
+                        key={agent.id}
+                        agent={agent}
+                        selected={agentDetailOpen && selectedAgent?.id === agent.id}
+                        selectable={agentView === 'mine'}
+                        checked={selectedDeleteAgentIds.has(agent.id)}
+                        onToggleSelected={() => toggleDeleteSelection(agent.id)}
+                        onSelect={() => {
+                          setSelectedAgentId(agent.id)
+                          setAgentDetailOpen(true)
+                        }}
+                        onStart={() => void startConversation(agent)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {(mineFilter === 'all' || mineFilter === 'team') && teams.length > 0 && (
+                  <div className={cn('grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3', mineFilter === 'all' && filteredAgents.length > 0 && 'mt-4')}>
+                    {teams.map((team) => (
+                      <TeamCard
+                        key={team.id}
+                        team={team}
+                        selected={detailTeamOpen && detailTeamId === team.id}
+                        selectable={agentView === 'mine'}
+                        checked={selectedDeleteTeamIds.has(team.id)}
+                        onToggleSelected={() => toggleTeamDeleteSelection(team.id)}
+                        onSelect={() => {
+                          setDetailTeamId(team.id)
+                          setDetailTeamOpen(true)
+                        }}
+                        onStartChat={() => void startTeamConversation(team)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {filteredAgents.length === 0 && teams.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
-                    <div className="text-sm font-medium text-slate-900">还没有我的 Agent</div>
-                    <p className="mt-2 text-xs text-slate-500">点击右上角「创建 Agent」添加自定义 Agent，或从精选 Agent 直接开始对话。</p>
+                    <div className="text-sm font-medium text-slate-900">还没有 Agent 或团队</div>
+                    <p className="mt-2 text-xs text-slate-500">点击右上角「创建」添加自定义 Agent 或团队，或从精选 Agent 直接开始对话。</p>
                   </div>
                 )}
               </section>
@@ -555,6 +688,46 @@ export function AgentWorkspace({
           }}
         />
       )}
+      <UnifiedCreateDialog
+        open={unifiedCreateOpen}
+        onOpenChange={setUnifiedCreateOpen}
+        onCreateAgent={() => setFormOpen(true)}
+        onCreateTeam={() => setTeamFormOpen(true)}
+      />
+      <CreateTeamDialog
+        open={teamFormOpen}
+        onOpenChange={setTeamFormOpen}
+        onStartChat={(teamId) => {
+          fetch('/api/teams/' + teamId).then(r => r.json()).then(d => {
+            if (d.team && d.team.members.length > 0) {
+              const agentIds = d.team.members.map((m: any) => m.agentId)
+              fetch('/api/conversations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: d.team.name, mode: 'group', agentIds })
+              }).then(r => r.json()).then(conv => {
+                if (conv.id) {
+                  upsertConversation(conv)
+                  setActiveConversation(conv.id)
+                  onOpenConversations()
+                }
+              })
+            }
+          })
+        }}
+      />
+      <TeamDetailDialog
+        teamId={detailTeamId}
+        open={detailTeamOpen}
+        onOpenChange={setDetailTeamOpen}
+        onUpdated={() => {
+          fetch('/api/teams').then((r) => r.json()).then((d) => setTeams(d.teams ?? [])).catch(() => {})
+        }}
+        onDeleted={() => {
+          fetch('/api/teams').then((r) => r.json()).then((d) => setTeams(d.teams ?? [])).catch(() => {})
+        }}
+        onStartChat={(conv) => { upsertConversation(conv as any); setActiveConversation(conv.id); onOpenConversations() }}
+      />
       <CreateAgentDialog open={formOpen} onOpenChange={(open) => {
         setFormOpen(open)
         if (!open) setEditingAgent(undefined)
@@ -582,14 +755,14 @@ export function AgentWorkspace({
       }}>
         <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
           <DialogHeader>
-            <DialogTitle>批量删除 Agent</DialogTitle>
+            <DialogTitle>批量删除</DialogTitle>
             <DialogDescription>
-              确定删除已选择的 {selectedDeleteAgentIds.size} 个 Agent 吗？已使用这些 Agent 的会话可能无法继续调用它们。此操作不可撤销。
+              确定删除已选择的 {selectedDeleteAgentIds.size} 个 Agent 和 {selectedDeleteTeamIds.size} 个团队吗？此操作不可撤销。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBatchDeleteOpen(false)} disabled={batchDeleting}>取消</Button>
-            <Button onClick={() => void deleteSelectedAgents()} disabled={batchDeleting || selectedDeleteAgentIds.size === 0} className="bg-red-600 text-white hover:bg-red-700">
+            <Button onClick={() => void deleteSelected()} disabled={batchDeleting || (selectedDeleteAgentIds.size === 0 && selectedDeleteTeamIds.size === 0)} className="bg-red-600 text-white hover:bg-red-700">
               {batchDeleting ? '删除中…' : '确认删除'}
             </Button>
           </DialogFooter>
@@ -872,6 +1045,71 @@ function AgentCard({
   )
 }
 
+function TeamCard({
+  team,
+  selected,
+  selectable,
+  checked,
+  onToggleSelected,
+  onSelect,
+  onStartChat,
+}: {
+  team: TeamWithMembers & { memberCount: number }
+  selected: boolean
+  selectable: boolean
+  checked: boolean
+  onToggleSelected: () => void
+  onSelect: () => void
+  onStartChat: () => void
+}) {
+  return (
+    <article className={cn('relative rounded-lg border bg-white p-3.5 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70', selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10')}>
+      {selectable && (
+        <button
+          type="button"
+          aria-pressed={checked}
+          title={checked ? '取消选择' : '选择用于批量删除'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleSelected()
+          }}
+          className={cn(
+            'absolute right-3 top-3 z-10 flex size-6 items-center justify-center rounded-md border text-xs transition',
+            checked
+              ? 'border-[var(--agenthub-accent,#2F5FD0)] bg-[var(--agenthub-accent,#2F5FD0)] text-white'
+              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-200',
+          )}
+        >
+          {checked && <Check className="size-4" />}
+        </button>
+      )}
+      <div className="flex items-start gap-3 pr-7">
+        <AgentAvatar agent={{ id: team.id, name: team.name }} size="lg" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{team.name}</h3>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{team.memberCount} 人</span>
+          </div>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{team.description || '多 Agent 协作团队'}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">团队</span>
+        {team.members.find((m) => m.isLead) && (
+          <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/30 dark:text-amber-400">含负责人</span>
+        )}
+      </div>
+      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
+        <div className="truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">{team.goal || '协作完成任务'}</div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onSelect}>详情</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onStartChat}>开始对话</Button>
+        </div>
+      </div>
+    </article>
+  )
+}
+
 function AgentDetailPanel({
   agent,
   deleting,
@@ -1058,3 +1296,5 @@ function formatToolName(toolName: string) {
   }
   return labels[toolName] ?? toolName.replaceAll('_', ' ')
 }
+
+
