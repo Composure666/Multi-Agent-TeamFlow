@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
@@ -8,6 +8,7 @@ import { recordRunArtifact } from '@/server/dispatch-run-evidence'
 import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
 
+import type { ArtifactType } from '@/shared/types'
 import type { ToolDef } from './types'
 
 /**
@@ -108,6 +109,24 @@ export const writeArtifactTool: ToolDef = {
       }
       version = parent.version + 1
       resolvedParent = parent.id
+    } else if (ctx.taskId && type !== 'image') {
+      // 派单子任务的重做兜底：agent 没主动传 parentArtifactId 时，把同标题同类型的
+      // 再次交付自动挂成新版本，避免验收重试堆出一串独立产物。详见 findRedeliveryParent。
+      //
+      // 跳过 image：图片走 artifact-image-group 的图集聚合（同批次追加 / 近 6 小时
+      // 建新版本），语义比「标题相同即新版本」更准 —— 在这里抢先设 resolvedParent
+      // 会让「一次任务出多张图合成一个图集」退化成一串独立版本。
+      const redelivery = await findRedeliveryParent({
+        conversationId: ctx.conversationId,
+        agentId: ctx.agentId,
+        type,
+        title,
+        now: Date.now(),
+      })
+      if (redelivery) {
+        version = redelivery.version + 1
+        resolvedParent = redelivery.id
+      }
     }
 
     const artifactId = newArtifactId()
@@ -213,6 +232,43 @@ export const writeArtifactTool: ToolDef = {
 
 function isEmptyObject(value: unknown): value is Record<string, never> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0
+}
+
+/**
+ * 重做幂等窗口。窗口内、同 agent、同 type、同标题的再次交付视为「改稿」。
+ *
+ * 为什么需要：验收门禁不通过时 runChildTask 会重试（最多 MAX_CHILD_TASK_ATTEMPTS 次），
+ * 重试仍失败会进 Orchestrator 补救轮（最多 MAX_DISPATCH_ROUNDS 轮）—— 每一轮都是
+ * 一次全新的子 agent 执行，而 write_artifact 默认每次都 `newArtifactId()`。
+ * 于是同一个交付物被反复重做，产物库里堆出一串同标题的独立卡片（不是版本链），
+ * 用户看到的是「Agent 疯狂刷产物」。提示词里已经要求 agent 传 parentArtifactId，
+ * 但那是软约束，LLM 重试时经常不遵守 —— 这里是服务端的硬兜底。
+ *
+ * 只在派单子任务（ctx.taskId 有值）里生效：顶层自由对话不受影响，
+ * 避免把用户主动创建的多个同名产物误合并成一串版本。
+ */
+const REDELIVERY_WINDOW_MS = 30 * 60_000
+
+async function findRedeliveryParent(args: {
+  conversationId: string
+  agentId: string
+  type: ArtifactType
+  title: string
+  now: number
+}): Promise<{ id: string; version: number } | null> {
+  const rows = await db.query.artifacts.findMany({
+    where: and(
+      eq(schema.artifacts.conversationId, args.conversationId),
+      eq(schema.artifacts.createdByAgentId, args.agentId),
+      eq(schema.artifacts.type, args.type),
+      eq(schema.artifacts.title, args.title),
+    ),
+    columns: { id: true, version: true, createdAt: true },
+    orderBy: [desc(schema.artifacts.createdAt)],
+    limit: 5,
+  })
+  const latest = rows.find((row) => args.now - row.createdAt <= REDELIVERY_WINDOW_MS)
+  return latest ? { id: latest.id, version: latest.version } : null
 }
 
 /**

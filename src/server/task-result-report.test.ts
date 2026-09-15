@@ -550,4 +550,79 @@ describe('evaluateTaskResultReport', () => {
     expect(result.error).toContain('artifacts: [document:说明文档]')
     expect(result.error).toContain('commands: [ls]')
   })
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 以下 3 个用例复现「产物验收恒失败 → 重试放大 → 产物爆炸」的死锁。
+  // 共同点：产物的确是该任务的交付物，但 targetPath 的扩展名 / 文件名主干
+  // 与产物 type / title 对不上，门禁每次都判不过 —— agent 只能反复重做，
+  // 每次 write_artifact 又生成一个全新独立产物（不是新版本）。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('accepts a mermaid diagram delivered as type=diagram for a .svg target path', () => {
+    // svg → ARTIFACT_TYPE_BY_EXTENSION 映射到 image，而 Mermaid 源码类交付的
+    // write_artifact type 是 diagram：扩展名与语义 type 错位 → 以前恒失败。
+    expect(
+      evaluateTaskResultReport(
+        task({
+          task: '画订单流程图',
+          taskKind: 'design',
+          targetPaths: ['output/order-flow.svg'],
+        }),
+        { status: 'complete', summary: '流程图已交付。' },
+        {
+          fileWrites: [],
+          commands: [],
+          artifacts: [
+            { artifactId: 'art_1', title: '订单流程图', type: 'diagram', version: 1 },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
+  it('accepts a short CJK filename stem when the artifact is clearly the deliverable', () => {
+    // stem = '流程图' 只有 3 个字符，被 `stem.length < 4` 直接拒掉；
+    // 中文命名在这个门禁里天然吃亏 → 恒失败。
+    expect(
+      evaluateTaskResultReport(
+        task({
+          task: '画流程图',
+          taskKind: 'design',
+          targetPaths: ['output/流程图.mmd'],
+        }),
+        { status: 'complete', summary: '流程图已交付。' },
+        {
+          fileWrites: [],
+          commands: [],
+          artifacts: [
+            { artifactId: 'art_1', title: '订单流程图', type: 'diagram', version: 1 },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
+  it('explains the type mismatch in the error so the agent can actually fix it', () => {
+    const result = evaluateTaskResultReport(
+      task({
+        task: '画订单流程图',
+        taskKind: 'design',
+        targetPaths: ['output/order-flow.svg'],
+      }),
+      { status: 'complete', summary: '流程图已交付。' },
+      {
+        fileWrites: [],
+        commands: [],
+        artifacts: [
+          { artifactId: 'art_1', title: '订单流程图', type: 'diagram', version: 1 },
+        ],
+      },
+    )
+    // 即使这一条最终判不过，错误信息也必须说清「期望什么 type、实际是什么 type」，
+    // 否则 agent 拿到的只是 "missing target path evidence"，只能瞎重试。
+    if (!result.ok) {
+      expect(result.error).toMatch(/expects? (artifact )?type|expected type/i)
+      expect(result.error).toContain('diagram')
+    }
+  })
 })

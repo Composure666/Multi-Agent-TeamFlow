@@ -1348,6 +1348,22 @@ async function maybeCreateProjectArtifact(args: {
     ...(args.taskId ? { taskId: args.taskId } : {}),
     agentId: args.agentId,
   }
+
+  // 重做幂等：验收失败重试 / 补救轮重跑时，同一会话同一 agent 的项目清单产物挂成
+  // 新版本，而不是每轮再建一个独立卡片（和 write_artifact 的兜底口径一致）。
+  const existing = await db.query.artifacts.findFirst({
+    where: and(
+      eq(schema.artifacts.conversationId, args.conversationId),
+      eq(schema.artifacts.createdByAgentId, args.agentId),
+      eq(schema.artifacts.type, 'project'),
+      eq(schema.artifacts.title, title),
+    ),
+    columns: { id: true, version: true },
+    orderBy: [desc(schema.artifacts.createdAt)],
+  })
+  const version = existing ? existing.version + 1 : 1
+  const parentArtifactId = existing?.id ?? null
+
   const artifactId = newArtifactId()
   const createdAt = Date.now()
   await db.insert(schema.artifacts).values({
@@ -1356,8 +1372,8 @@ async function maybeCreateProjectArtifact(args: {
     type: 'project',
     title,
     content,
-    version: 1,
-    parentArtifactId: null,
+    version,
+    parentArtifactId,
     createdByAgentId: args.agentId,
     createdAt,
   })
@@ -1372,8 +1388,8 @@ async function maybeCreateProjectArtifact(args: {
       type: 'project',
       title,
       content,
-      version: 1,
-      parentArtifactId: undefined,
+      version,
+      parentArtifactId: parentArtifactId ?? undefined,
       createdByAgentId: args.agentId,
       createdAt,
     },

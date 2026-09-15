@@ -185,7 +185,7 @@ export function evaluateTaskResultReport(
   if (missingTargetPaths.length > 0) {
     return {
       ok: false,
-      error: `Task "${task.id}" report is missing target path evidence: ${missingTargetPaths.join('; ')}. ${describeSeenEvidence(report, evidence)}`,
+      error: `Task "${task.id}" report is missing target path evidence: ${missingTargetPaths.join('; ')}. ${describeSeenEvidence(report, evidence)}${describeTargetPathExpectations(missingTargetPaths, evidence)}`,
     }
   }
 
@@ -253,15 +253,32 @@ function artifactMatchesTargetPath(
   if (dotIndex <= 0) return false
 
   const extension = basename.slice(dotIndex + 1).toLowerCase()
-  const expectedType = ARTIFACT_TYPE_BY_EXTENSION[extension]
-  if (expectedType && artifacts.some((artifact) => artifact.type === expectedType)) return true
+  const acceptedTypes = ARTIFACT_TYPES_BY_EXTENSION[extension]
+  if (acceptedTypes && acceptedTypes.some((type) => artifacts.some((a) => a.type === type))) {
+    return true
+  }
 
   const stem = basename.slice(0, dotIndex)
-  if (stem.length < 4) return false
+  // CJK 文件名的信息密度远高于 ASCII：`流程图.mmd` 三个字已经足够判定归属，
+  // 沿用 ASCII 的 4 字符阈值会让中文命名在这个门禁里天然吃亏（恒判不过）。
+  const minStemLength = hasNonAscii(stem) ? 2 : 4
+  if (stem.length < minStemLength) return false
   return artifacts.some((artifact) => {
     const title = normalizePath(artifact.title)
     return title.includes(stem) || stem.includes(title)
   })
+}
+
+function hasNonAscii(value: string): boolean {
+  return /[^\x20-\x7E]/.test(value)
+}
+
+/** 该 targetPath 期望的产物 type（用于门禁失败时给出可执行诊断）。 */
+function expectedArtifactTypesForPath(targetPath: string): readonly string[] {
+  const basename = normalizePath(targetPath).split('/').pop() ?? ''
+  const dotIndex = basename.lastIndexOf('.')
+  if (dotIndex <= 0) return []
+  return ARTIFACT_TYPES_BY_EXTENSION[basename.slice(dotIndex + 1).toLowerCase()] ?? []
 }
 
 /** 门禁失败时把「实际看到了什么」一并列出 —— 否则 LLM 和人都无从判断差在哪。 */
@@ -277,6 +294,30 @@ function describeSeenEvidence(report: TaskResultReport, evidence: RunToolEvidenc
   }]; artifacts: [${artifacts.slice(0, 8).join(', ') || 'none'}]; commands: [${commands
     .slice(0, 8)
     .join(' | ') || 'none'}].`
+}
+
+/**
+ * 门禁失败时把「期望什么 / 实际交付了什么」讲清楚。
+ *
+ * 只列 Evidence seen 是不够的：agent 看到 "missing target path evidence" 无从判断
+ * 差在哪，只能原样重做一遍 —— 而每次 write_artifact 又生成一个全新产物，
+ * 于是「验收恒失败」直接放大成「产物爆炸」。这里把 type 错位直接点名。
+ */
+function describeTargetPathExpectations(
+  targetPaths: readonly string[],
+  evidence: RunToolEvidence,
+): string {
+  const deliveredTypes = [...new Set((evidence.artifacts ?? []).map((a) => a.type))]
+  if (deliveredTypes.length === 0) return ''
+  const hints = targetPaths
+    .map((targetPath) => {
+      const expected = expectedArtifactTypesForPath(targetPath)
+      if (expected.length === 0) return null
+      return `${targetPath} expects artifact type ${expected.join(' or ')}, but delivered types are ${deliveredTypes.join(', ')}`
+    })
+    .filter((hint): hint is string => Boolean(hint))
+  if (hints.length === 0) return ''
+  return ` Type mismatch — ${hints.join('; ')}. Deliver an artifact whose type matches, or write the file to the target path with fs_write.`
 }
 
 function hasSuccessfulCommandEvidence(
@@ -430,36 +471,44 @@ function normalizedPackageScript(command: string): string {
   return match ? `package:${match[1].toLowerCase()}` : command
 }
 
-/** 文件扩展名 → write_artifact 的 type，用于「产物本身即 targetPath 证据」的匹配。 */
-const ARTIFACT_TYPE_BY_EXTENSION: Record<string, string> = {
-  png: 'image',
-  jpg: 'image',
-  jpeg: 'image',
-  gif: 'image',
-  webp: 'image',
-  bmp: 'image',
-  avif: 'image',
-  svg: 'image',
-  html: 'web_app',
-  htm: 'web_app',
-  css: 'web_app',
-  js: 'web_app',
-  mjs: 'web_app',
-  jsx: 'web_app',
-  ts: 'web_app',
-  tsx: 'web_app',
-  md: 'document',
-  markdown: 'document',
-  txt: 'document',
-  doc: 'document',
-  docx: 'document',
-  pdf: 'document',
-  csv: 'document',
-  ppt: 'ppt',
-  pptx: 'ppt',
-  key: 'ppt',
-  mmd: 'diagram',
-  mermaid: 'diagram',
+/**
+ * 文件扩展名 → 可接受的 write_artifact type 集合。
+ *
+ * 一个扩展名可能对应多种交付语义，必须都接受：`output/order-flow.svg` 既可能是
+ * 导出的位图（image），也可能是 Mermaid 矢量图（diagram）。以前 svg 只映射到 image，
+ * 于是「.svg 命名 + diagram 类型交付」恒判不过 → 门禁每次失败 → 重试放大成十几个
+ * 独立产物（每次 write_artifact 都是全新 artifactId，不是新版本）。
+ */
+const ARTIFACT_TYPES_BY_EXTENSION: Record<string, readonly string[]> = {
+  png: ['image'],
+  jpg: ['image'],
+  jpeg: ['image'],
+  gif: ['image'],
+  webp: ['image'],
+  bmp: ['image'],
+  avif: ['image'],
+  svg: ['image', 'diagram'],
+  mmd: ['diagram'],
+  mermaid: ['diagram'],
+  drawio: ['diagram'],
+  html: ['web_app'],
+  htm: ['web_app'],
+  css: ['web_app'],
+  js: ['web_app'],
+  mjs: ['web_app'],
+  jsx: ['web_app'],
+  ts: ['web_app'],
+  tsx: ['web_app'],
+  md: ['document'],
+  markdown: ['document'],
+  txt: ['document'],
+  doc: ['document'],
+  docx: ['document'],
+  pdf: ['document'],
+  csv: ['document'],
+  ppt: ['ppt'],
+  pptx: ['ppt'],
+  key: ['ppt'],
 }
 
 const VERIFICATION_COMMAND_PATTERNS = [
