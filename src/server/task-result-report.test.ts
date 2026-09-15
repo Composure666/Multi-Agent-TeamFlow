@@ -186,7 +186,8 @@ describe('evaluateTaskResultReport', () => {
       ),
     ).toEqual({
       ok: false,
-      error: 'Task "t1" report is missing target path evidence: src/server/foo.ts',
+      error:
+        'Task "t1" report is missing target path evidence: src/server/foo.ts. Evidence seen — filesChanged/fileWrites: [none]; artifacts: [none]; commands: [none].',
     })
 
     expect(
@@ -490,5 +491,63 @@ describe('evaluateTaskResultReport', () => {
         },
       ),
     ).toEqual({ ok: true })
+  })
+
+  // 回归：交付方式是「bash 生成 + write_artifact」时，磁盘上可能根本没有 workspace 文件，
+  // 以前 targetPaths 门禁永远判不过并触发重试放大（一次生图任务曾放大成 12 个 run）。
+  it('counts artifacts created by write_artifact as target path evidence', () => {
+    expect(
+      evaluateTaskResultReport(
+        task({
+          task: '生成信息图',
+          taskKind: 'design',
+          targetPaths: ['output/xiaomi-band-11-infographic.png'],
+        }),
+        { status: 'complete', summary: '信息图已生成并通过 write_artifact 交付。' },
+        {
+          fileWrites: [],
+          commands: [],
+          artifacts: [
+            {
+              artifactId: 'art_1',
+              title: '小米手环11 横版科技酷炫风信息图（1920×1080）',
+              type: 'image',
+              version: 1,
+            },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
+  it('does not let an artifact satisfy a directory target path', () => {
+    expect(
+      evaluateTaskResultReport(
+        task({ task: '实现前端', taskKind: 'code', targetPaths: ['frontend/'] }),
+        { status: 'complete', summary: 'Done.' },
+        {
+          fileWrites: [],
+          commands: [],
+          artifacts: [{ artifactId: 'art_1', title: '首页', type: 'web_app', version: 1 }],
+        },
+      ),
+    ).toMatchObject({ ok: false })
+  })
+
+  it('lists the evidence it did see when target path evidence is missing', () => {
+    const result = evaluateTaskResultReport(
+      task({ targetPaths: ['src/server/foo.ts'] }),
+      { status: 'complete', summary: 'Done.' },
+      {
+        fileWrites: [],
+        commands: [
+          { command: 'ls', cwd: 'E:/repo', exitCode: 0, timedOut: false, isError: false },
+        ],
+        artifacts: [{ artifactId: 'art_1', title: '说明文档', type: 'document', version: 1 }],
+      },
+    )
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('artifacts: [document:说明文档]')
+    expect(result.error).toContain('commands: [ls]')
   })
 })

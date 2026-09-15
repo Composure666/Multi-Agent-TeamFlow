@@ -4,7 +4,7 @@ import {
   CODE_TASK_RUNNABLE_REQUIRED_EVIDENCE,
   isCodeImplementationTask,
 } from '@/server/dispatch-plan'
-import type { RunToolEvidence } from '@/server/dispatch-run-evidence'
+import type { RunArtifactEvidence, RunToolEvidence } from '@/server/dispatch-run-evidence'
 import type { DispatchPlanItem, TaskResultReport } from '@/shared/types'
 
 export const REPORT_TASK_RESULT_TOOL_NAME = 'report_task_result'
@@ -185,7 +185,7 @@ export function evaluateTaskResultReport(
   if (missingTargetPaths.length > 0) {
     return {
       ok: false,
-      error: `Task "${task.id}" report is missing target path evidence: ${missingTargetPaths.join('; ')}`,
+      error: `Task "${task.id}" report is missing target path evidence: ${missingTargetPaths.join('; ')}. ${describeSeenEvidence(report, evidence)}`,
     }
   }
 
@@ -230,7 +230,53 @@ function hasPathEvidence(
     ...(report.filesChanged ?? []).map((file) => file.path),
     ...evidence.fileWrites.flatMap((file) => [file.path, file.absolutePath]),
   ]
-  return candidates.some((candidate) => pathsMatch(targetPath, candidate))
+  if (candidates.some((candidate) => pathsMatch(targetPath, candidate))) return true
+  // 产物也算证据：交付方式常常是 bash 生成文件 + write_artifact 交付，磁盘路径未必在 workspace。
+  return artifactMatchesTargetPath(targetPath, evidence.artifacts ?? [])
+}
+
+/**
+ * 产物 → targetPath 的匹配。
+ *
+ * 只在「扩展名能对应到产物类型」或「文件名主干与产物标题互相包含」时算命中；
+ * 目录型 targetPath（无扩展名）不认产物，代码类任务仍然必须落到真实文件。
+ */
+function artifactMatchesTargetPath(
+  targetPath: string,
+  artifacts: readonly RunArtifactEvidence[],
+): boolean {
+  if (artifacts.length === 0) return false
+
+  const normalizedTarget = normalizePath(targetPath)
+  const basename = normalizedTarget.split('/').pop() ?? ''
+  const dotIndex = basename.lastIndexOf('.')
+  if (dotIndex <= 0) return false
+
+  const extension = basename.slice(dotIndex + 1).toLowerCase()
+  const expectedType = ARTIFACT_TYPE_BY_EXTENSION[extension]
+  if (expectedType && artifacts.some((artifact) => artifact.type === expectedType)) return true
+
+  const stem = basename.slice(0, dotIndex)
+  if (stem.length < 4) return false
+  return artifacts.some((artifact) => {
+    const title = normalizePath(artifact.title)
+    return title.includes(stem) || stem.includes(title)
+  })
+}
+
+/** 门禁失败时把「实际看到了什么」一并列出 —— 否则 LLM 和人都无从判断差在哪。 */
+function describeSeenEvidence(report: TaskResultReport, evidence: RunToolEvidence): string {
+  const files = [
+    ...(report.filesChanged ?? []).map((file) => file.path),
+    ...evidence.fileWrites.map((file) => file.path),
+  ]
+  const commands = evidence.commands.map((command) => command.command)
+  const artifacts = (evidence.artifacts ?? []).map((a) => `${a.type}:${a.title}`)
+  return `Evidence seen — filesChanged/fileWrites: [${
+    files.slice(0, 8).join(', ') || 'none'
+  }]; artifacts: [${artifacts.slice(0, 8).join(', ') || 'none'}]; commands: [${commands
+    .slice(0, 8)
+    .join(' | ') || 'none'}].`
 }
 
 function hasSuccessfulCommandEvidence(
@@ -301,6 +347,11 @@ function evidenceMentions(
     ...(report.commandsRun ?? []).flatMap((command) => [command.command, command.summary ?? '']),
     ...(report.tests ?? []).flatMap((test) => [test.command, test.summary ?? '']),
     ...evidence.fileWrites.flatMap((file) => [file.path, file.absolutePath, String(file.bytes ?? '')]),
+    ...(evidence.artifacts ?? []).flatMap((artifact) => [
+      artifact.artifactId,
+      artifact.title,
+      artifact.type,
+    ]),
     ...evidence.commands.flatMap((command) => [
       command.command,
       command.cwd,
@@ -377,6 +428,38 @@ function normalizeCommand(value: string): string {
 function normalizedPackageScript(command: string): string {
   const match = /^(?:pnpm|npm|yarn|bun)(?:\.cmd)?\s+(?:run\s+)?([\w:-]+)(?:\s|$)/i.exec(command)
   return match ? `package:${match[1].toLowerCase()}` : command
+}
+
+/** 文件扩展名 → write_artifact 的 type，用于「产物本身即 targetPath 证据」的匹配。 */
+const ARTIFACT_TYPE_BY_EXTENSION: Record<string, string> = {
+  png: 'image',
+  jpg: 'image',
+  jpeg: 'image',
+  gif: 'image',
+  webp: 'image',
+  bmp: 'image',
+  avif: 'image',
+  svg: 'image',
+  html: 'web_app',
+  htm: 'web_app',
+  css: 'web_app',
+  js: 'web_app',
+  mjs: 'web_app',
+  jsx: 'web_app',
+  ts: 'web_app',
+  tsx: 'web_app',
+  md: 'document',
+  markdown: 'document',
+  txt: 'document',
+  doc: 'document',
+  docx: 'document',
+  pdf: 'document',
+  csv: 'document',
+  ppt: 'ppt',
+  pptx: 'ppt',
+  key: 'ppt',
+  mmd: 'diagram',
+  mermaid: 'diagram',
 }
 
 const VERIFICATION_COMMAND_PATTERNS = [

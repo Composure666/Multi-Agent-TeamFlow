@@ -358,7 +358,13 @@ export function validateDispatchPlan(
     const depIds = new Set<string>()
     for (const dep of task.dependsOn ?? []) {
       if (dep === task.id) {
-        throw new Error(`Invalid dispatch plan: task "${task.id}" cannot depend on itself`)
+        const occupied = externalTaskById.has(task.id)
+        throw new Error(
+          `Invalid dispatch plan: task "${task.id}" cannot depend on itself` +
+            (occupied
+              ? `, and "${task.id}" is already used by a previous round — give the new task a fresh id such as "${suggestNextTaskId([...externalTaskById.keys(), ...taskIds])}"`
+              : ''),
+        )
       }
       if (depIds.has(dep)) {
         throw new Error(
@@ -478,12 +484,33 @@ function buildDispatchPlanCorrectionFeedback(
     const outputs = (task.expectedOutputs ?? []).map((output) => output.id).join(', ') || '(none)'
     return `Task "${task.id}" declares expectedOutputs: ${outputs}`
   })
-  return [
-    message,
-    `Available task ids: ${taskIdList}`,
-    ...outputLines,
-    'Fix the plan contract: every dependsOn id must be one of the available task ids, and every inputs.outputId must exactly match an upstream expectedOutputs.id. Then call plan_tasks again with the full corrected plan, not only a text explanation.',
-  ].join('\n')
+
+  const lines = [message, `Available task ids: ${taskIdList}`]
+
+  // 补救轮最常见的错误：复用上一轮已完成的 task id（进而触发自依赖或重复执行）。
+  // 只说「available」会被模型理解成「可以拿来当新任务 id」，这里必须显式区分。
+  const occupiedIds = resolvedExternalTasks.map((task) => task.id)
+  if (occupiedIds.length > 0) {
+    lines.push(
+      `Occupied task ids from previous rounds — do NOT reuse them as new task ids: ${occupiedIds.join(', ')}.`,
+      `Give every new task a fresh id, for example "${suggestNextTaskId(tasks.map((task) => task.id))}".`,
+    )
+  }
+  lines.push(...outputLines)
+  lines.push(
+    'Fix the plan contract: every new task must use a fresh id, every dependsOn id must be one of the available task ids, and every inputs.outputId must exactly match an upstream expectedOutputs.id. Then call plan_tasks again with the full corrected plan, not only a text explanation.',
+  )
+  return lines.join('\n')
+}
+
+/** 依据已占用的 id 推断下一个可用 id（t1 → t2，t1_baseline 这类非数字 id 则退化为 t{n}）。 */
+function suggestNextTaskId(usedIds: readonly string[]): string {
+  const numbers = usedIds
+    .map((id) => /^t(\d+)$/.exec(id))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .map((match) => Number(match[1]))
+  const next = numbers.length > 0 ? Math.max(...numbers) + 1 : usedIds.length + 1
+  return `t${next}`
 }
 
 export function normalizeTaskContract(task: DispatchPlanItem): DispatchPlanItem {

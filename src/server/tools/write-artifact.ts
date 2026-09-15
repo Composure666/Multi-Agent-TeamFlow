@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
+import { recordRunArtifact } from '@/server/dispatch-run-evidence'
 import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
 
@@ -128,6 +129,10 @@ export const writeArtifactTool: ToolDef = {
       createdByAgentId: ctx.agentId,
       createdAt,
     })
+
+    // 产物也要计入 run 的验收证据：只认 fs_write 会让「bash 生成 + write_artifact 交付」
+    // 的任务永远过不了 targetPaths 门禁。详见 dispatch-run-evidence 的注释。
+    recordRunArtifact(ctx.runId, { artifactId, title, type, version })
 
     return {
       ok: true,

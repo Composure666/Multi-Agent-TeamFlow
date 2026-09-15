@@ -235,10 +235,34 @@ const ORCHESTRATOR_PLAN_ALLOWED_TOOLS = new Set([
   'read_artifact',
   'read_attachment',
 ])
+/**
+ * 超时阈值支持环境变量覆盖。
+ *
+ * 这几个值是按本机 run 历史校准出来的经验值（见下方注释），不同环境的模型速度与任务
+ * 形态差别很大；现场调整不该依赖改代码 + 重新编译，所以统一留了环境变量入口。
+ */
+function envMs(name: string, fallbackMs: number): number {
+  const raw = process.env[name]
+  const parsed = raw ? Number(raw) : NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs
+}
+
 /** Orchestrator 动态重规划上限：首轮 + 最多 (N-1) 轮补救（呼应 spec 06「不无限重试」）。 */
-const MAX_DISPATCH_ROUNDS = 4
+const MAX_DISPATCH_ROUNDS = 3
 const MAX_PLAN_STAGE_ATTEMPTS = 3
 const MAX_CHILD_TASK_ATTEMPTS = 4
+/**
+ * 顶层 Orchestrator run 的 wall-clock 上限。
+ *
+ * 只按轮次/次数限流挡不住放大：多轮补救 x 多次重试 x 单次 100~420s 可以拖到近 1 小时且永不收尾。
+ * 超时不是报错 —— 停止继续补救，拿已有结果进聚合收尾。
+ */
+// 45min：本机 187 条顶层 run 里 p95=1634s、自然完成的最长一条 2629s(约 44min)，
+// 定在 45min 刚好不误伤正常长任务；它限制的是「再开一轮补救」，不会杀掉正在跑的 attempt。
+const MAX_ORCHESTRATOR_WALL_CLOCK_MS = envMs(
+  'AGENTHUB_ORCHESTRATOR_WALL_CLOCK_MS',
+  45 * 60_000,
+)
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 5 * 60_000
 const DEFAULT_PREPARE_TIMEOUT_MS = 10 * 60_000
 
@@ -454,8 +478,18 @@ async function executeOrchestratorRun(
   const planItemsById = new Map<string, DispatchPlanItem>()
   let lastConflicts: FileWriteConflict[] = []
 
+  const dispatchStartedAt = Date.now()
+
   for (let round = 1; round <= MAX_DISPATCH_ROUNDS; round++) {
     if (signal.aborted) throw new Error('Orchestrator run aborted')
+
+    // 全局熔断：超时后不再开新一轮补救，直接拿已有结果进聚合收尾
+    if (round > 1 && Date.now() - dispatchStartedAt > MAX_ORCHESTRATOR_WALL_CLOCK_MS) {
+      console.warn(
+        `[agent-runner] Orchestrator run ${runId} exceeded wall-clock budget of ${MAX_ORCHESTRATOR_WALL_CLOCK_MS}ms after ${round - 1} round(s); stopping remediation and aggregating existing results.`,
+      )
+      break
+    }
 
     // 补救轮把上一轮的失败/冲突上下文喂回 Orchestrator，由它（LLM）决定补救 plan
     const replanContext =
@@ -972,7 +1006,7 @@ async function runChildTask(
     let continuationContext: string | null = null
     let lastEvaluation: ChildAttemptEvaluation | null = null
     const aggregate: RunExecutionResult = emptyRunExecutionResult()
-    const aggregateEvidence: RunToolEvidence = { fileWrites: [], commands: [] }
+    const aggregateEvidence: RunToolEvidence = { fileWrites: [], commands: [], artifacts: [] }
     const attemptRunIds: string[] = []
 
     for (let attempt = 1; attempt <= MAX_CHILD_TASK_ATTEMPTS; attempt++) {
@@ -1057,7 +1091,7 @@ async function runChildTask(
       if (attempt < MAX_CHILD_TASK_ATTEMPTS) {
         await publishDispatchProgressMessage(ctx, task, currentEvaluation.result, attempt, 'retry')
       }
-      continuationContext = buildTaskContinuationContext(
+      continuationContext = await buildTaskContinuationContext(
         task,
         currentEvaluation,
         attempt,
@@ -1240,12 +1274,16 @@ function mergeRunExecutionResult(target: RunExecutionResult, source: RunExecutio
 function mergeRunToolEvidence(target: RunToolEvidence, source: RunToolEvidence): void {
   target.fileWrites.push(...source.fileWrites)
   target.commands.push(...source.commands)
+  if (source.artifacts && source.artifacts.length > 0) {
+    target.artifacts = [...(target.artifacts ?? []), ...source.artifacts]
+  }
 }
 
 function cloneRunToolEvidence(source: RunToolEvidence): RunToolEvidence {
   return {
     fileWrites: [...source.fileWrites],
     commands: [...source.commands],
+    artifacts: [...(source.artifacts ?? [])],
   }
 }
 
@@ -1453,17 +1491,18 @@ function buildContinuationPrompt(
     '<continuation>',
     `You are continuing the same dispatched task "${task.id}". This is attempt ${attempt}/${MAX_CHILD_TASK_ATTEMPTS}.`,
     'Do not restart from scratch if useful files already exist. Inspect the workspace, fix the missing or failing parts, run the relevant verification, and then call report_task_result.',
+    'Do not create a duplicate deliverable: if you re-deliver something an earlier attempt already produced, pass that artifact id as parentArtifactId to write_artifact so the new output becomes a new version instead of another standalone artifact.',
     continuationContext,
     '</continuation>',
   ].join('\n')
 }
 
-function buildTaskContinuationContext(
+async function buildTaskContinuationContext(
   task: DispatchPlanItem,
   evaluation: ChildAttemptEvaluation,
   attempt: number,
   maxAttempts: number,
-): string {
+): Promise<string> {
   const lines = [
     '<previous_attempt>',
     `  <attempt>${attempt}/${maxAttempts}</attempt>`,
@@ -1482,6 +1521,19 @@ function buildTaskContinuationContext(
     }
     lines.push('  </target_paths>')
   }
+  const createdArtifacts = await loadArtifactSummaries(evaluation.result.artifactIds ?? [])
+  if (createdArtifacts.length > 0) {
+    lines.push('  <artifacts_created>')
+    for (const artifact of createdArtifacts) {
+      lines.push(
+        `    <artifact id=${JSON.stringify(artifact.id)} type=${JSON.stringify(artifact.type)} version="${artifact.version}" title=${JSON.stringify(artifact.title)} />`,
+      )
+    }
+    lines.push('  </artifacts_created>')
+    lines.push(
+      '  <artifacts_note>These already exist and are visible to the user. To rework one, call write_artifact with parentArtifactId set to its id instead of creating a new standalone artifact.</artifacts_note>',
+    )
+  }
   if (evaluation.verificationResults.length > 0) {
     lines.push('  <verification_results>')
     for (const result of evaluation.verificationResults) {
@@ -1497,6 +1549,17 @@ function buildTaskContinuationContext(
   }
   lines.push('</previous_attempt>')
   return lines.join('\n')
+}
+
+async function loadArtifactSummaries(
+  artifactIds: readonly string[],
+): Promise<Array<{ id: string; title: string; type: string; version: number }>> {
+  const ids = artifactIds.filter((id) => typeof id === 'string' && id.length > 0)
+  if (ids.length === 0) return []
+  return db.query.artifacts.findMany({
+    where: inArray(schema.artifacts.id, ids),
+    columns: { id: true, title: true, type: true, version: true },
+  })
 }
 
 function bindImplicitSingleOutput(

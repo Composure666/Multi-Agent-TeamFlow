@@ -554,6 +554,34 @@ describe('compileDispatchPlan', () => {
       expect(result.error).toContain('depends on unknown task "ghost_task"')
     }
   })
+
+  // 回归：补救轮里 LLM 复用上一轮已完成的 id，反馈只说「Available task ids」会被理解成
+  // 「这些 id 可以拿来当新任务 id」，于是一直撞车。
+  it('tells the model which task ids are already occupied and suggests a fresh one', () => {
+    const result = tryCompileAndValidateDispatchPlan(
+      [task('t1', 'ag_frontend', ['ghost'])],
+      agents,
+      'ag_orchestrator',
+      [task('t1', 'ag_pm'), task('t2', 'ag_designer')],
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('Occupied task ids from previous rounds')
+      expect(result.error).toContain('do NOT reuse them as new task ids: t1, t2')
+      expect(result.error).toContain('"t3"')
+    }
+  })
+
+  it('explains that a self-dependency on an occupied id needs a fresh id', () => {
+    expect(() =>
+      validateDispatchPlan([task('t1', 'ag_frontend', ['t1'])], agents, 'ag_orchestrator', [
+        task('t1', 'ag_pm'),
+      ]),
+    ).toThrow(
+      /cannot depend on itself[\s\S]*already used by a previous round[\s\S]*"t2"/,
+    )
+  })
 })
 
 describe('collectDependencyClosure', () => {
