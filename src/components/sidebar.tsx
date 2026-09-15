@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { Archive, ArchiveRestore, BookOpen, Bot, ChevronDown, ChevronRight, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, BookOpen, Bot, ChevronDown, ChevronRight, Copy, Layers, MessageSquare, PanelLeftClose, PanelLeftOpen, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentLibrary } from '@/components/agent-library'
@@ -8,6 +8,7 @@ import { AgentAvatar } from '@/components/agent-avatar'
 import { GlobalSearchTrigger } from '@/components/global-search-trigger'
 import { ArtifactLibrary } from '@/components/artifact-library'
 import { ExperienceLibrary } from '@/components/experience-library'
+import { ContextMenu } from '@/components/conversation-context-menu'
 import { NewConversationDialog } from '@/components/new-conversation-dialog'
 import { SettingsButton } from '@/components/settings-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -57,6 +58,8 @@ export function Sidebar() {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  // 右键菜单：记录被点的会话与鼠标坐标（菜单自己负责贴边夹取）
+  const [contextMenu, setContextMenu] = useState<{ convId: string; x: number; y: number } | null>(null)
 
   const activeConversations = useMemo(
     () => conversations.filter((c) => !c.archived),
@@ -120,6 +123,9 @@ export function Sidebar() {
   }, [setMobileSidebarOpen])
 
   const deleteTarget = deleteTargetId ? conversations.find((c) => c.id === deleteTargetId) : null
+  const contextConversation = contextMenu
+    ? conversations.find((c) => c.id === contextMenu.convId) ?? null
+    : null
 
   const confirmDelete = async () => {
     if (!deleteTargetId) return
@@ -324,6 +330,7 @@ export function Sidebar() {
                         onStartRename={() => setRenamingId(c.id)}
                         onFinishRename={(next) => void finishRename(c.id, c.title, next)}
                         onRequestDelete={() => setDeleteTargetId(c.id)}
+                        onOpenContextMenu={(x, y) => setContextMenu({ convId: c.id, x, y })}
                       />
                     )
                   })}
@@ -364,6 +371,7 @@ export function Sidebar() {
                           onStartRename={() => setRenamingId(c.id)}
                           onFinishRename={(next) => void finishRename(c.id, c.title, next)}
                           onRequestDelete={() => setDeleteTargetId(c.id)}
+                          onOpenContextMenu={(x, y) => setContextMenu({ convId: c.id, x, y })}
                         />
                       )
                     })}
@@ -379,6 +387,64 @@ export function Sidebar() {
         !collapsed && <ExperienceLibrary agents={Object.values(agents)} />
       ) : (
         !collapsed && <AgentLibrary />
+      )}
+
+      {contextConversation && contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          label={`「${contextConversation.title}」操作`}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              key: 'open',
+              label: '打开对话',
+              icon: <MessageSquare className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => setActive(contextConversation.id),
+            },
+            {
+              key: 'pin',
+              label: contextConversation.pinnedAt ? '取消置顶' : '置顶',
+              icon: contextConversation.pinnedAt
+                ? <PinOff className="size-3.5 shrink-0 opacity-70" />
+                : <Pin className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => void handleTogglePin(contextConversation.id),
+            },
+            {
+              key: 'archive',
+              label: contextConversation.archived ? '取消归档' : '归档',
+              icon: contextConversation.archived
+                ? <ArchiveRestore className="size-3.5 shrink-0 opacity-70" />
+                : <Archive className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => void handleToggleArchive(contextConversation.id),
+            },
+            {
+              key: 'rename',
+              label: '重命名',
+              icon: <Pencil className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => {
+                // 归档区的列表默认折叠，重命名输入框得先展开才看得见
+                if (contextConversation.archived) setShowArchived(true)
+                setRenamingId(contextConversation.id)
+              },
+            },
+            {
+              key: 'copy-title',
+              label: '复制标题',
+              icon: <Copy className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => {
+                void navigator.clipboard?.writeText(contextConversation.title).catch(() => {})
+              },
+            },
+            {
+              key: 'delete',
+              label: '删除会话',
+              tone: 'danger',
+              icon: <Trash2 className="size-3.5 shrink-0" />,
+              onSelect: () => setDeleteTargetId(contextConversation.id),
+            },
+          ]}
+        />
       )}
 
       <NewConversationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
@@ -464,6 +530,7 @@ function ConversationItem({
   onStartRename,
   onFinishRename,
   onRequestDelete,
+  onOpenContextMenu,
 }: {
   conversation: ConversationRow
   firstAgent: AgentRow | null
@@ -476,11 +543,17 @@ function ConversationItem({
   onStartRename: () => void
   onFinishRename: (next: string) => void | Promise<void>
   onRequestDelete: () => void
+  onOpenContextMenu: (x: number, y: number) => void
 }) {
   const isPinned = !!conversation.pinnedAt
   const unread = useUnreadCount(conversation.id)
   return (
     <div
+      onContextMenu={(event) => {
+        // 右键不该同时触发浏览器原生菜单（会把自绘菜单顶掉）
+        event.preventDefault()
+        onOpenContextMenu(event.clientX, event.clientY)
+      }}
       className={cn(
         'group flex w-full items-center gap-3 rounded-md px-2 py-2 transition hover:bg-accent',
         isActive && 'bg-accent',
