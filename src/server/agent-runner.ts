@@ -70,7 +70,7 @@ import { eventBus } from './event-bus'
 import { newArtifactId, newMessageId, newRunId } from './ids'
 import { pendingDispatchPlans, type PlanReviewOutcome } from './pending-dispatch-plans'
 import { buildProjectFiles, buildProjectFilesFromTargetPaths, filterExistingProjectFiles } from './project-artifact'
-import { getAppSettings } from './settings-service'
+import { getAppSettings, getEffectiveApiKey } from './settings-service'
 import { buildWorkspaceMemoryBlock } from './workspace-memory-service'
 import { buildExperienceBlock, extractFromRun } from './experience-service'
 import {
@@ -2886,7 +2886,7 @@ async function buildAdapterInput(
   if (!effectiveApiKey || (!effectiveApiBaseUrl && agent.adapterName === 'claude-code')) {
     const settings = await getAppSettings()
     if (!effectiveApiKey) {
-      effectiveApiKey = pickSettingsKey(settings, agent)
+      effectiveApiKey = await pickSettingsKey(agent)
     }
     if (!effectiveApiBaseUrl && agent.adapterName === 'claude-code') {
       effectiveApiBaseUrl = settings.anthropicBaseUrl
@@ -3188,36 +3188,30 @@ function buildAttachmentDebugSnapshot(attachments: AdapterAttachment[]): AgentRu
   }))
 }
 
-/** 按 agent 的 adapter/provider 选对应字段。Claude Code 走 anthropic，Codex 走 openai，custom 按 modelProvider 走。 */
-function pickSettingsKey(
-  settings: Awaited<ReturnType<typeof getAppSettings>>,
-  agent: AgentRow,
-): string | null {
+/**
+ * 按 agent 的 adapter/provider 选对应字段。Claude Code 走 anthropic，Codex 走 openai，custom 按 modelProvider 走。
+ *
+ * 每个 provider 内部按「llm_providers（供应商中心，UI 主入口）→ app_settings → env」取，
+ * 见 settings-service.getEffectiveApiKey。这里不要再自己读 process.env 兜底就返回 ——
+ * 那样会导致用户在供应商中心配的 key 被整个跳过（历史 bug：配了 deepseek key，
+ * Agent 仍报 `DEEPSEEK_API_KEY not set and agent has no apiKey`）。
+ */
+async function pickSettingsKey(agent: AgentRow): Promise<string | null> {
   if (agent.adapterName === 'claude-code') {
-    return (
-      settings.anthropicApiKey ??
-      process.env.ANTHROPIC_AUTH_TOKEN ??
-      process.env.ANTHROPIC_API_KEY ??
-      null
-    )
+    return (await getEffectiveApiKey('anthropic')) ?? process.env.ANTHROPIC_AUTH_TOKEN ?? null
   }
   if (agent.adapterName === 'codex') {
-    return (
-      settings.openaiApiKey ??
-      process.env.CODEX_API_KEY ??
-      process.env.OPENAI_API_KEY ??
-      null
-    )
+    return (await getEffectiveApiKey('openai')) ?? process.env.CODEX_API_KEY ?? null
   }
   switch (agent.modelProvider) {
     case 'anthropic':
-      return settings.anthropicApiKey ?? process.env.ANTHROPIC_API_KEY ?? null
+      return getEffectiveApiKey('anthropic')
     case 'openai':
-      return settings.openaiApiKey ?? process.env.OPENAI_API_KEY ?? null
+      return getEffectiveApiKey('openai')
     case 'deepseek':
-      return settings.deepseekApiKey ?? process.env.DEEPSEEK_API_KEY ?? null
+      return getEffectiveApiKey('deepseek')
     case 'volcano-ark':
-      return settings.arkApiKey ?? process.env.ARK_API_KEY ?? null
+      return getEffectiveApiKey('ark')
     case 'openai-compatible':
       return null
     default:
