@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 
-import { and, desc, eq, gt, inArray } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 
 import { db, schema } from '@/db/client'
@@ -300,12 +300,200 @@ export const AgentRunner = {
     return { runId, promise }
   },
 
-  abort(runId: string): boolean {
+  /**
+   * 中止 run。
+   *
+   * 除了打 abort signal，这里还会**立刻**把 DB 中仍在 running 的 run（含整棵子 run 树）
+   * 标记为 aborted 并广播 run.end。signal 只负责让 in-flight 的 LLM 流 / 长命令尽快退出，
+   * 而退出前不会写库 —— 用户点了停止却要等几十秒甚至几分钟才看到状态变化，
+   * 体感就是「点了停止没反应」。
+   *
+   * 返回值表示「是否中止了点什么」：内存里有 controller，或库里确实有 running 行被收尾。
+   * 以前只认 controller —— 进程重启后残留的孤儿 run（DB 仍 running、内存里没人管）
+   * 会让 abort 接口返回 404，用户点了停止毫无反应。
+   */
+  async abort(runId: string): Promise<boolean> {
     const ac = activeRuns.get(runId)
-    if (!ac) return false
-    ac.abort()
-    return true
+    if (ac) ac.abort()
+
+    const marked = await markRunsAbortedEagerly(runId)
+
+    return Boolean(ac) || marked > 0
   },
+}
+
+/**
+ * 乐观中止：不等 in-flight 操作收尾，直接把 run 子树的状态落到 DB 并广播。
+ * finalize() 稍后仍会按实际收尾结果再写一次，这里只负责让 UI 立刻响应。
+ */
+async function markRunsAbortedEagerly(rootRunId: string, error?: string): Promise<number> {
+  try {
+    // 收集整棵子 run 树：只中止顶层 run 会让子任务继续跑，用户等到的还是「没停」。
+    // 按层向下查(parentRunId IN frontier)，避免把整张 run 表读进内存。
+    const subtree = new Set<string>([rootRunId])
+    let frontier: string[] = [rootRunId]
+    while (frontier.length > 0) {
+      const children = await db
+        .select({ id: schema.agentRuns.id })
+        .from(schema.agentRuns)
+        .where(inArray(schema.agentRuns.parentRunId, frontier))
+      const next: string[] = []
+      for (const child of children) {
+        if (subtree.has(child.id)) continue
+        subtree.add(child.id)
+        next.push(child.id)
+      }
+      frontier = next
+    }
+
+    const runs = await db
+      .select({
+        id: schema.agentRuns.id,
+        conversationId: schema.agentRuns.conversationId,
+        status: schema.agentRuns.status,
+      })
+      .from(schema.agentRuns)
+      .where(inArray(schema.agentRuns.id, [...subtree]))
+
+    const pending = runs.filter((run) => run.status === 'running')
+    if (pending.length === 0) return 0
+
+    const finishedAt = Date.now()
+    const ids = pending.map((run) => run.id)
+
+    await db
+      .update(schema.agentRuns)
+      .set({ status: 'aborted', finishedAt, error: error ?? null })
+      .where(inArray(schema.agentRuns.id, ids))
+
+    await db
+      .update(schema.messages)
+      .set({ status: 'aborted' })
+      .where(and(inArray(schema.messages.runId, ids), eq(schema.messages.status, 'streaming')))
+
+    for (const run of pending) {
+      publish({
+        type: 'run.end',
+        conversationId: run.conversationId,
+        timestamp: finishedAt,
+        runId: run.id,
+        status: 'aborted',
+        error,
+      })
+    }
+
+    return pending.length
+  } catch (err) {
+    console.warn('[agent-runner] eager abort marking failed', err)
+    return 0
+  }
+}
+
+// ─── 孤儿 run 回收 / 停滞看门狗 ────────────────────────────
+/**
+ * 一次运行「卡住不结束」的两种形态，都要能自愈：
+ *
+ * 1. 孤儿 run —— DB 里 status 还是 running，但本进程根本没有它的 AbortController
+ *    （进程重启 / dev 热重载 / 执行器异常丢失）。此时 abort 接口拿不到 controller，
+ *    返回 404，用户点停止完全没反应，界面上就一直转圈。
+ * 2. 停滞 run —— controller 还在，但 LLM 流或工具调用挂死了，几十分钟没有任何新消息。
+ */
+const RUN_SWEEP_INTERVAL_MS = 60_000
+// 30min：单条 LLM 请求 + 工具调用中途可能没有任何新消息/新子 run。旧值 15min 低于本机
+// p95 运行时长(1634s)，长响应会被误判卡死；放宽到 30min 才真正只收「挂死」的 run。
+const RUN_STALL_TIMEOUT_MS = envMs('AGENTHUB_RUN_STALL_TIMEOUT_MS', 30 * 60_000)
+const RUN_SWEEP_GUARD = '__agenthub_run_sweeper_started__'
+const ORPHAN_RUN_ERROR = '运行已中断：进程重启或执行器丢失（孤儿 run 已回收）'
+const STALLED_RUN_ERROR =
+  `运行已自动中止：超过 ${Math.round(RUN_STALL_TIMEOUT_MS / 60_000)} 分钟没有任何进展`
+
+export function startRunSweeper(): void {
+  const g = globalThis as unknown as Record<string, unknown>
+  if (g[RUN_SWEEP_GUARD]) return
+  g[RUN_SWEEP_GUARD] = true
+
+  const tick = () => {
+    sweepStaleRuns().catch((err) => console.warn('[agent-runner] run sweep failed', err))
+  }
+  const timer = setInterval(tick, RUN_SWEEP_INTERVAL_MS)
+  if (typeof timer.unref === 'function') timer.unref()
+  // 启动先扫一遍：上一次进程残留的 running 行立刻收尾，不用等第一个 60s
+  tick()
+}
+
+async function sweepStaleRuns(): Promise<void> {
+  const all = await db
+    .select({
+      id: schema.agentRuns.id,
+      parentRunId: schema.agentRuns.parentRunId,
+      conversationId: schema.agentRuns.conversationId,
+      status: schema.agentRuns.status,
+      startedAt: schema.agentRuns.startedAt,
+      finishedAt: schema.agentRuns.finishedAt,
+    })
+    .from(schema.agentRuns)
+
+  const running = all.filter((run) => run.status === 'running')
+  if (running.length === 0) return
+
+  // 1) 孤儿：本进程没有 controller → 直接收尾（不看空闲时长）
+  for (const run of running) {
+    if (activeRuns.has(run.id)) continue
+    console.warn(
+      `[agent-runner] reclaim orphan run ${run.id} (started ${Math.round((Date.now() - run.startedAt) / 1000)}s ago)`,
+    )
+    await markRunsAbortedEagerly(run.id, ORPHAN_RUN_ERROR)
+  }
+
+  // 2) 停滞：controller 还在，但整棵子树长时间没有任何动静
+  const owned = running.filter((run) => activeRuns.has(run.id))
+  if (owned.length === 0) return
+
+  const ownedIds = owned.map((run) => run.id)
+  const msgRows = await db
+    .select({
+      runId: schema.messages.runId,
+      lastAt: sql<number>`max(${schema.messages.createdAt})`,
+    })
+    .from(schema.messages)
+    .where(inArray(schema.messages.runId, ownedIds))
+    .groupBy(schema.messages.runId)
+  const lastMsgAt = new Map(msgRows.map((row) => [row.runId, Number(row.lastAt ?? 0)]))
+
+  const childrenOf = new Map<string, string[]>()
+  for (const run of all) {
+    if (!run.parentRunId) continue
+    const list = childrenOf.get(run.parentRunId)
+    if (list) list.push(run.id)
+    else childrenOf.set(run.parentRunId, [run.id])
+  }
+  const byId = new Map(all.map((run) => [run.id, run]))
+
+  const lastActivityOf = (runId: string, seen: Set<string> = new Set()): number => {
+    if (seen.has(runId)) return 0
+    seen.add(runId)
+    const run = byId.get(runId)
+    let latest = run ? Math.max(run.startedAt, run.finishedAt ?? 0) : 0
+    latest = Math.max(latest, lastMsgAt.get(runId) ?? 0)
+    for (const childId of childrenOf.get(runId) ?? []) {
+      latest = Math.max(latest, lastActivityOf(childId, seen))
+    }
+    return latest
+  }
+
+  const now = Date.now()
+  for (const run of owned) {
+    // 等用户确认派单计划时 run 本来就是静默的，别误杀
+    if (pendingDispatchPlans.listByConversation(run.conversationId).length > 0) continue
+
+    const lastAt = lastActivityOf(run.id)
+    if (now - lastAt < RUN_STALL_TIMEOUT_MS) continue
+    console.warn(
+      `[agent-runner] abort stalled run ${run.id} (idle ${Math.round((now - lastAt) / 1000)}s)`,
+    )
+    activeRuns.get(run.id)?.abort()
+    await markRunsAbortedEagerly(run.id, STALLED_RUN_ERROR)
+  }
 }
 
 // ─── 主入口 ────────────────────────────────────────────────
@@ -1129,6 +1317,15 @@ async function maybeCreateProjectArtifact(args: {
   task?: DispatchPlanItem
   workspace?: WorkspaceRow
 }): Promise<string | null> {
+  // 收口：任务没有声明 project 类型的交付物、而且这次已经有明确的产物时，
+  // 这份「工作区文件清单」纯属噪声 —— 生图 / 写作类任务每个子任务都会附一份
+  // 「XX · 项目产物」，一次会话就能堆出十几个产物，产物库因此爆炸。
+  // 只有任务真的约定要交 project 包（expectedOutputs.type === "project"）时才打包。
+  if (args.task && args.result.artifactIds.length > 0) {
+    const needsProjectOutput = getRequiredExpectedOutputs(args.task).some((o) => o.type === "project")
+    if (!needsProjectOutput) return null
+  }
+
   const workspace = args.workspace ?? await db.query.workspaces.findFirst({
     where: eq(schema.workspaces.conversationId, args.conversationId),
   })
@@ -2049,6 +2246,20 @@ async function finalize(
   error?: string,
 ): Promise<RunResult> {
   const finishedAt = Date.now()
+
+  // 用户点过停止后，in-flight 的执行流可能仍以 complete / failed 正常收尾。
+  // 一旦库里已经是 aborted 就不再回改，否则 UI 会先跳成「已停止」又被刷回「进行中 / 已完成」。
+  if (status !== 'aborted') {
+    const [currentRun] = await db
+      .select({ status: schema.agentRuns.status })
+      .from(schema.agentRuns)
+      .where(eq(schema.agentRuns.id, runId))
+      .limit(1)
+    if (currentRun?.status === 'aborted') {
+      status = 'aborted'
+      error = error ?? '用户中止'
+    }
+  }
 
   if (status === 'failed' || status === 'aborted') {
     await persistUnresolvedToolFailures(runId, args.conversationId, status, error, finishedAt)

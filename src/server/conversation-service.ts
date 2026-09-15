@@ -32,7 +32,10 @@ const DATA_DIR =
 const WORKSPACES_ROOT = path.join(DATA_DIR, 'workspaces')
 
 async function getAgentRunner() {
-  return import('./agent-runner')
+  const mod = await import('./agent-runner')
+  // 每次真正用到 runner 时兜一下：保证孤儿 run 回收 / 停滞看门狗已经起来
+  mod.startRunSweeper()
+  return mod
 }
 
 /**
