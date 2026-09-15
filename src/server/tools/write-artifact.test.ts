@@ -1,6 +1,9 @@
 import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+
+import { eq } from 'drizzle-orm'
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -127,5 +130,55 @@ describe('writeArtifactTool redelivery idempotency', () => {
 
     expect(secondValue.version).toBe(2)
     expect(secondValue.parentArtifactId).toBe(firstId)
+  })
+})
+
+// 回归（2026-09-15 线上裂图）：buildArtifactContent 会把封面原始 url 复制进 images[0]，
+// agent 还会附带更多 gallery 条目 —— 以前只对顶层 url 做存储改写，图集里存着
+// outputs/xxx.png 这类工作区相对路径，前端 <img> 必然 404。
+describe('writeArtifactTool image gallery storage', () => {
+  // 1x1 PNG
+  const pngDataUri =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+  it('stores every gallery image, not just the cover', async () => {
+    // 工作区里放一张真实图片，模拟 agent 用脚本生成后的相对路径交付
+    await mkdir(path.join(dataDir, 'outputs'), { recursive: true })
+    await writeFile(
+      path.join(dataDir, 'outputs', 'gallery.png'),
+      Buffer.from(pngDataUri.slice(pngDataUri.indexOf(',') + 1), 'base64'),
+    )
+
+    const result = await tool.handler(
+      {
+        type: 'image',
+        title: '图集存储回归',
+        content: {
+          url: pngDataUri,
+          alt: 'cover',
+          images: [{ url: 'outputs/gallery.png', alt: 'second' }],
+        },
+      },
+      ctx({ taskId: null }),
+    )
+    expect(result.ok).toBe(true)
+
+    const row = await dbClient.db.query.artifacts.findFirst({
+      where: eq(dbClient.schema.artifacts.title, '图集存储回归'),
+    })
+    expect(row).toBeDefined()
+    const content = row!.content as {
+      url: string
+      images: Array<{ url: string; alt?: string }>
+    }
+
+    // 封面已本地化
+    expect(content.url.startsWith('/api/artifact-images/')).toBe(true)
+    // 图集[0]（封面的复制）同步改写，不再保留原始 data URI/相对路径
+    expect(content.images[0].url).toBe(content.url)
+    // 图集[1]（工作区相对路径）也被收编进存储，前端可访问
+    expect(content.images[1].url.startsWith('/api/artifact-images/')).toBe(true)
+    expect(content.images[1].url.endsWith('.png')).toBe(true)
+    expect(content.images[1].url).not.toBe('outputs/gallery.png')
   })
 })

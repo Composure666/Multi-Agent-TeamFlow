@@ -169,20 +169,34 @@ export const writeArtifactTool: ToolDef = {
     // 传 ctx.workspacePath 是为了收编「agent 拿工作区文件路径当 url」的常见写法
     // （scene_assets/x.png、或模仿前缀的 /api/artifact-images/x.jpg）—— 不收编就是裂图。
     if (fullContent.type === 'image') {
+      const originalCoverUrl = fullContent.url
       const stored = await ensureImageStored(fullContent.url, ctx.workspacePath)
       if (stored.ok) {
         fullContent.url = stored.url
-      } else if (isNonUrlImageSource(fullContent.url)) {
+      } else if (isNonUrlImageSource(originalCoverUrl)) {
         // 既不是 URL、工作区里也找不到 → 别静默落库成裂图，直接把问题交回给 agent
         return {
           ok: false,
           error:
-            `image url "${String(fullContent.url).slice(0, 120)}" is neither a fetchable URL nor an existing file in the workspace. ` +
+            `image url "${String(originalCoverUrl).slice(0, 120)}" is neither a fetchable URL nor an existing file in the workspace. ` +
             `Pass one of: an http(s) image URL, a data URI, or a path relative to the workspace root that actually exists. ` +
             `Workspace root: ${ctx.workspacePath}. Detail: ${stored.error}`,
         }
       } else {
         console.warn(`[write-artifact] image store failed (${stored.error}); keep original url`)
+      }
+      // 图集里的每一张都必须走同一存储链路。buildArtifactContent 会把封面「原始 url」
+      // 复制进 images[0]，agent 还可能附带更多 gallery 条目 —— 只改写顶层 url 的结果是
+      // 图集里存着工作区相对路径（outputs/xxx.png）或会过期的外部直链，前端 <img> 必 404
+      // （线上生图会话的裂图就是这条漏网之鱼）。单张存储失败保留原值并继续，不阻塞交付。
+      if (fullContent.images && fullContent.images.length > 0) {
+        fullContent.images = await Promise.all(
+          fullContent.images.map(async (img) => {
+            if (img.url === originalCoverUrl) return { ...img, url: fullContent.url }
+            const imgStored = await ensureImageStored(img.url, ctx.workspacePath)
+            return imgStored.ok ? { ...img, url: imgStored.url } : img
+          }),
+        )
       }
     }
 
