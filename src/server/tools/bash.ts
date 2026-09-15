@@ -12,6 +12,7 @@ import { currentPlatform, type Platform } from '@/server/platform'
 import { findBannedPattern } from '@/server/security'
 import { runTerminalCommand } from '@/server/terminal-session-service'
 import { assertPathWithinWorkspace, getEffectiveCwd } from '@/server/workspace-utils'
+import { adaptCommandForWindowsPowerShell } from './windows-command-compat'
 
 import type { ToolContext, ToolDef, ToolResult } from './types'
 
@@ -93,6 +94,8 @@ const DESCRIPTION_WINDOWS =
   'Examples of correct commands: `Get-ChildItem -Force` (NOT `ls -la`), `Get-Content file.txt` (NOT `cat`), ' +
   '`Select-String pattern file.txt` (NOT `grep`), `Remove-Item path` (NOT `rm`), `New-Item -ItemType Directory` (NOT `mkdir -p`), ' +
   '`Copy-Item src dst` (NOT `cp`), `Move-Item src dst` (NOT `mv`). git/npm/python/node work as usual. ' +
+  'NEVER use bash-only syntax: no `sudo`, no heredoc (`cat <<EOF`), no backslash line continuation, no `/dev/null` (use $null), no `-rf`/`-p` style flags. ' +
+  'If you must chain commands, use `;` or `if ($?) { ... }`. ' +
   'Output is UTF-8, stdout + stderr combined, truncated to 10000 chars. ' +
   'Destructive commands (Remove-Item -Recurse -Force, format, shutdown, iex(iwr ...), reg delete, Set-ExecutionPolicy Unrestricted) are blocked. No interactive stdin. ' +
   'Do not leave persistent background servers running; start test servers only inside a command that cleans them up.'
@@ -145,6 +148,24 @@ export async function executeBashCommand(
     return { ok: false, error: `Command rejected by safety policy: ${banned.source}` }
   }
 
+  // Windows 上 shell 固定是 PowerShell 5.1，但模型常写 POSIX 语法。
+  // 先做兼容改写 / 提前报错，避免「必然失败的命令」被记成 failed command evidence。
+  const adapted =
+    PLATFORM === 'windows' ? adaptCommandForWindowsPowerShell(args.command) : null
+  if (adapted?.error) {
+    return {
+      ok: false,
+      error: `Command uses bash syntax that cannot run on Windows PowerShell: ${adapted.error} Original command: ${args.command}`,
+    }
+  }
+  const executedCommand = adapted?.command ?? args.command
+  if (adapted?.rewritten) {
+    const rewrittenBanned = findBannedPattern(executedCommand, PLATFORM)
+    if (rewrittenBanned) {
+      return { ok: false, error: `Command rejected by safety policy: ${rewrittenBanned.source}` }
+    }
+  }
+
   const workspace = await db.query.workspaces.findFirst({
     where: eq(schema.workspaces.conversationId, ctx.conversationId),
   })
@@ -162,13 +183,13 @@ export async function executeBashCommand(
     }
   }
 
-  const approval = classifyBashApproval(args.command, PLATFORM)
+  const approval = classifyBashApproval(executedCommand, PLATFORM)
   if (approval.required) {
     const approved = await waitForBashApproval({
       conversationId: ctx.conversationId,
       agentId: ctx.agentId,
       runId: ctx.runId,
-      command: args.command,
+      command: executedCommand,
       cwd,
       reason: approval.reason,
       signal: ctx.abortSignal,
@@ -178,16 +199,18 @@ export async function executeBashCommand(
     }
   }
 
-  return runShellCommand(args, cwd, ctx)
+  return runShellCommand(args, cwd, ctx, executedCommand, adapted?.notes ?? [])
 }
 
 function runShellCommand(
   args: BashExecutionArgs,
   cwd: string,
   ctx: ToolContext,
+  executedCommand: string,
+  rewriteNotes: string[],
 ): Promise<ToolResult> {
   const timeoutMs = clampTimeout(args.timeoutMs)
-  const shell = buildShellInvocation(args.command, PLATFORM)
+  const shell = buildShellInvocation(executedCommand, PLATFORM)
 
   return runTerminalCommand({
     conversationId: ctx.conversationId,
@@ -198,12 +221,13 @@ function runShellCommand(
     toolCallId: ctx.toolCallId ?? null,
     shell: shell.cmd,
     shellArgs: shell.args,
-    command: args.command,
+    command: executedCommand,
     cwd,
     timeoutMs,
     abortSignal: ctx.abortSignal,
   })
     .then((result) => {
+      // 证据里记原始命令：plan 里的 requiredCommands 是模型写的原文，比对必须用同一份字符串。
       recordRunCommand(ctx.runId, {
         command: args.command,
         cwd,
@@ -224,6 +248,9 @@ function runShellCommand(
           output: result.output,
           truncated: result.truncated,
           timedOut: result.timedOut,
+          ...(rewriteNotes.length > 0
+            ? { rewrittenTo: executedCommand, rewriteNotes }
+            : {}),
         },
       }
     })
