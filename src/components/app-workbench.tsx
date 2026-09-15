@@ -1,21 +1,27 @@
 'use client'
 
 import {
+  Archive,
   BarChart3,
   Bell,
   CheckCircle2,
   ChevronDown,
   Coins,
+  Copy,
   Grid2X2,
   Menu,
   MessageCircle,
   MessageSquare,
   Paperclip,
+  Pencil,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Send,
   Settings,
   Sparkles,
+  Trash2,
   Users,
   Waypoints,
   X
@@ -35,6 +41,7 @@ import {
   type SceneCategoryId,
   type SummonableTeam,
 } from '@/components/agent-catalog'
+import { ContextMenu } from '@/components/conversation-context-menu'
 import { AgentWorkspace } from '@/components/agent-workspace'
 import { AnalyticsWorkspace } from '@/components/analytics-workspace'
 import { AutomationWorkspace } from '@/components/automation-workspace'
@@ -58,12 +65,16 @@ import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow } from '@/db/schema'
 import {
   createConversation,
+  deleteConversation,
   fetchAgents,
   fetchConversations,
   fetchUsageSummary,
   optimizePrompt,
+  renameConversation,
   sendMessage,
   setFsWriteApprovalMode,
+  toggleArchiveConversation,
+  togglePinConversation,
   uploadAttachment,
   type UsageSummary,
 } from '@/lib/api'
@@ -1508,7 +1519,63 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
   const activeId = useAppStore((s) => s.activeConversationId)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
   const agents = useAppStore((s) => s.agents)
+  const removeConversation = useAppStore((s) => s.removeConversation)
+  const upsertConversation = useAppStore((s) => s.upsertConversation)
   const [query, setQuery] = useState('')
+  // 右键菜单：记录被点的会话与鼠标坐标（菜单自己负责贴边夹取）
+  const [contextMenu, setContextMenu] = useState<{ convId: string; x: number; y: number } | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+
+  const handleTogglePin = async (convId: string) => {
+    try {
+      const updated = await togglePinConversation(convId)
+      upsertConversation(updated)
+    } catch (err) {
+      console.error('[ConversationListPanel] toggle pin failed', err)
+    }
+  }
+
+  const handleToggleArchive = async (convId: string) => {
+    try {
+      const updated = await toggleArchiveConversation(convId)
+      upsertConversation(updated)
+    } catch (err) {
+      console.error('[ConversationListPanel] toggle archive failed', err)
+    }
+  }
+
+  const finishRename = async (convId: string, currentTitle: string, next: string) => {
+    const trimmed = next.trim()
+    setRenamingId(null)
+    if (!trimmed || trimmed === currentTitle) return
+    try {
+      const updated = await renameConversation(convId, trimmed)
+      upsertConversation(updated)
+    } catch (err) {
+      console.error('[ConversationListPanel] rename failed', err)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return
+    setDeleting(true)
+    try {
+      await deleteConversation(deleteTargetId)
+      removeConversation(deleteTargetId)
+      setDeleteTargetId(null)
+    } catch (err) {
+      console.error('[ConversationListPanel] delete failed', err)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const deleteTarget = deleteTargetId ? conversations.find((c) => c.id === deleteTargetId) : null
+  const contextConversation = contextMenu
+    ? conversations.find((c) => c.id === contextMenu.convId) ?? null
+    : null
 
   const filtered = conversations.filter((conversation) => conversation.title.toLowerCase().includes(query.trim().toLowerCase()))
 
@@ -1547,6 +1614,11 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                 key={conversation.id}
                 type="button"
                 onClick={() => setActiveConversation(conversation.id)}
+                onContextMenu={(event) => {
+                  // 右键不该同时触发浏览器原生菜单（会把自绘菜单顶掉）
+                  event.preventDefault()
+                  setContextMenu({ convId: conversation.id, x: event.clientX, y: event.clientY })
+                }}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-lg px-2 text-left transition',
                   'h-11',
@@ -1559,7 +1631,16 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                   {isGroup ? <Grid2X2 className="size-3.5" /> : <MessageCircle className="size-3.5" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium leading-5">{conversation.title}</span>
+                  {renamingId === conversation.id ? (
+                    <RenameInput
+                      key={conversation.id}
+                      initial={conversation.title}
+                      onCommit={(next) => void finishRename(conversation.id, conversation.title, next)}
+                      onCancel={() => setRenamingId(null)}
+                    />
+                  ) : (
+                    <span className="block truncate text-[13px] font-medium leading-5">{conversation.title}</span>
+                  )}
                   <span className="mt-0.5 block truncate text-[10px] leading-4 text-slate-500">
                     {conversation.agentIds.map((id) => agents[id] ? getAgentDisplayName(agents[id]) : null).filter(Boolean).join(' / ') || '未配置 Agent'}
                   </span>
@@ -1571,7 +1652,122 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
           {filtered.length === 0 && <div className="px-3 py-8 text-center text-xs text-slate-500">暂无匹配会话</div>}
         </div>
       </ScrollArea>
+
+      {contextConversation && contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          label={`「${contextConversation.title}」操作`}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              key: 'open',
+              label: '打开对话',
+              icon: <MessageSquare className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => setActiveConversation(contextConversation.id),
+            },
+            {
+              key: 'pin',
+              label: contextConversation.pinnedAt ? '取消置顶' : '置顶',
+              icon: contextConversation.pinnedAt
+                ? <PinOff className="size-3.5 shrink-0 opacity-70" />
+                : <Pin className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => void handleTogglePin(contextConversation.id),
+            },
+            {
+              key: 'archive',
+              label: '归档',
+              icon: <Archive className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => void handleToggleArchive(contextConversation.id),
+            },
+            {
+              key: 'rename',
+              label: '重命名',
+              icon: <Pencil className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => setRenamingId(contextConversation.id),
+            },
+            {
+              key: 'copy-title',
+              label: '复制标题',
+              icon: <Copy className="size-3.5 shrink-0 opacity-70" />,
+              onSelect: () => {
+                void navigator.clipboard?.writeText(contextConversation.title).catch(() => {})
+              },
+            },
+            {
+              key: 'delete',
+              label: '删除会话',
+              tone: 'danger',
+              icon: <Trash2 className="size-3.5 shrink-0" />,
+              onSelect: () => setDeleteTargetId(contextConversation.id),
+            },
+          ]}
+        />
+      )}
+
+      <Dialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除会话</DialogTitle>
+            <DialogDescription>
+              确定要删除「{deleteTarget?.title}」吗？该会话的所有消息、产物和工作区都会一并清除，无法恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTargetId(null)}>
+              取消
+            </Button>
+            <Button
+              variant="default"
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => void confirmDelete()}
+              disabled={deleting}
+            >
+              {deleting ? '删除中...' : '删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
+  )
+}
+
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string
+  onCommit: (next: string) => void
+  onCancel: () => void
+}) {
+  const [draft, setDraft] = useState(initial)
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    ref.current?.focus()
+    ref.current?.select()
+  }, [])
+
+  return (
+    <input
+      ref={ref}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          onCommit(draft)
+        } else if (e.key === 'Escape') {
+          e.preventDefault()
+          onCancel()
+        }
+      }}
+      maxLength={100}
+      className="w-full rounded border border-primary/40 bg-background px-1.5 py-0.5 text-[13px] font-medium outline-none ring-2 ring-primary/30"
+    />
   )
 }
 
