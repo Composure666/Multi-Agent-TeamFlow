@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import {
+  imageContentTypeForBuffer,
   isLocalImageUrl,
   isServableImageUrl,
   localizeImageUrl,
@@ -38,8 +39,20 @@ describe('sniffImageExt', () => {
     expect(sniffImageExt(AVIF)).toBe('avif')
   })
 
+  it('detects svg text content (no magic bytes, only the tag)', () => {
+    expect(sniffImageExt(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>", 'utf8'))).toBe('svg')
+    expect(sniffImageExt(Buffer.from("<?xml version='1.0'?>\n<svg width='10'/>", 'utf8'))).toBe('svg')
+    expect(sniffImageExt(Buffer.from('\n\n  <svg>'))).toBe('svg')
+  })
+
   it('falls back to bin for unknown bytes', () => {
     expect(sniffImageExt(Buffer.from([1, 2, 3, 4, 5]))).toBe('bin')
+  })
+
+  it('maps sniffed bytes to the Content-Type OSS must be told', () => {
+    expect(imageContentTypeForBuffer(PNG)).toBe('image/png')
+    expect(imageContentTypeForBuffer(Buffer.from('<svg/>'))).toBe('image/svg+xml')
+    expect(imageContentTypeForBuffer(Buffer.from([1, 2, 3]))).toBe('application/octet-stream')
   })
 })
 
@@ -59,6 +72,19 @@ describe('isServableImageUrl', () => {
     expect(isServableImageUrl('scene_assets/sheet.png')).toBe(false)
     expect(isServableImageUrl('/deployments/dep_1/infographic.png')).toBe(false)
     expect(isServableImageUrl(undefined)).toBe(false)
+  })
+
+  it('treats an OSS url with a non-image suffix as a broken link', () => {
+    // 2026-09-15 线上封面图裂图的形态：SVG 被存成 .bin，OSS 回 octet-stream + attachment
+    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/2026-09-15/x.bin')).toBe(false)
+    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x')).toBe(false)
+    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x.svg')).toBe(true)
+    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x.png?v=2')).toBe(true)
+  })
+
+  it('keeps extension-less urls on non-OSS hosts servable', () => {
+    // 无后缀图床地址很常见，误判会带来无谓重传
+    expect(isServableImageUrl('https://cdn.example.com/image/abc123')).toBe(true)
   })
 })
 

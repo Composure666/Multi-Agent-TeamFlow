@@ -7,12 +7,19 @@ import { db } from '@/db/client'
 import {
   IMAGE_DIR,
   LOCAL_IMAGE_PREFIX,
+  OSS_IMAGE_URL_RE,
   decodeDataUri,
+  imageContentTypeForBuffer,
   isLocalImageUrl,
+  isOssImageUrl,
+  isOssUrlWithBadExtension,
   localizeImageUrl,
   resolveWorkspaceImagePath,
   sniffImageExt,
 } from '@/server/artifact-image-store'
+
+// 正则与判定连同 store 一起对外暴露（历史调用方从这里 import）
+export { OSS_IMAGE_URL_RE, isOssImageUrl }
 
 /**
  * 阿里云 OSS —— 图片产物的稳定远程存储。
@@ -25,8 +32,6 @@ import {
  *   content.url 存 OSS 公开 URL，本地副本上传成功后删除；
  * - 未配置 OSS / 上传失败 → 回退本地 artifact-images（保持可用性兜底）。
  */
-
-export const OSS_IMAGE_URL_RE = /^https:\/\/[a-z0-9.-]+\.oss-[a-z0-9-]+\.aliyuncs\.com\//i
 
 export interface OssImageConfig {
   bucket: string
@@ -47,28 +52,83 @@ export async function getOssImageConfig(): Promise<OssImageConfig | null> {
   return { bucket, endpoint, accessKeyId, accessKeySecret, publicRead: row?.ossPublicRead ?? true }
 }
 
-export function isOssImageUrl(url: string): boolean {
-  return OSS_IMAGE_URL_RE.test(url)
+export type UploadImageResult = { ok: true; url: string } | { ok: false; error: string }
+
+const OSS_MAX_BYTES = 25 * 1024 * 1024
+
+/**
+ * OSS 写入统一带的响应头。
+ *
+ * **必须显式声明 Content-Type**：只靠 key 后缀时，OSS 对 `.bin` 之类的后缀会给出
+ * `application/octet-stream` + `Content-Disposition: attachment`，浏览器 <img> 拒渲染。
+ * 按字节嗅探比按后缀可靠 —— 历史上 SVG 就被存成了 `.bin`。
+ */
+function ossObjectHeaders(buf: Buffer, publicRead: boolean): Record<string, string> {
+  return {
+    'Content-Type': imageContentTypeForBuffer(buf),
+    'Content-Disposition': 'inline',
+    ...(publicRead ? { 'x-oss-object-acl': 'public-read' } : {}),
+  }
 }
 
-export type UploadImageResult = { ok: true; url: string } | { ok: false; error: string }
+function ossClient(cfg: OssImageConfig): OSS {
+  return new OSS({
+    bucket: cfg.bucket,
+    endpoint: cfg.endpoint,
+    accessKeyId: cfg.accessKeyId,
+    accessKeySecret: cfg.accessKeySecret,
+    secure: true,
+  })
+}
+
+/** OSS 公开 URL → object key；不是本 bucket 的地址 / 解析不出 key 时返回 null。 */
+export function ossKeyFromUrl(url: string, cfg: OssImageConfig): string | null {
+  const prefix = `https://${cfg.bucket}.${cfg.endpoint}/`
+  if (!url.startsWith(prefix)) return null
+  const key = url.slice(prefix.length).split('?')[0].split('#')[0]
+  return key.length > 0 ? key : null
+}
+
+function toBuffer(raw: unknown): Buffer {
+  if (Buffer.isBuffer(raw)) return raw
+  if (raw instanceof ArrayBuffer) return Buffer.from(new Uint8Array(raw))
+  if (ArrayBuffer.isView(raw)) return Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
+  return Buffer.alloc(0)
+}
 
 export async function uploadImageToOss(buf: Buffer, cfg: OssImageConfig): Promise<UploadImageResult> {
   const key = `artifacts/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${randomBytes(6).toString('hex')}.${sniffImageExt(buf)}`
   try {
-    const client = new OSS({
-      bucket: cfg.bucket,
-      endpoint: cfg.endpoint,
-      accessKeyId: cfg.accessKeyId,
-      accessKeySecret: cfg.accessKeySecret,
-      secure: true,
-    })
-    await client.put(
-      key,
-      buf,
-      cfg.publicRead ? { headers: { 'x-oss-object-acl': 'public-read' } } : undefined,
-    )
+    await ossClient(cfg).put(key, buf, { headers: ossObjectHeaders(buf, cfg.publicRead) })
     return { ok: true, url: `https://${cfg.bucket}.${cfg.endpoint}/${key}` }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export type OssRepairResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * 原地补元数据：把 OSS 上已有的对象读回来、用正确的 Content-Type / Content-Disposition 覆盖回去。
+ *
+ * 为什么不能只做「重新上传拿新地址」：同一个 `.bin` 地址还被写进了产物文档的 markdown
+ * 内联图（`![](https://…xxx.bin)`）—— 换地址等于文档里那条引用依旧裂着。
+ * 原地覆盖 URL 不变，产物封面 + 图集 + 文档内联图会一起被救活。
+ */
+export async function repairOssObjectInPlace(
+  url: string,
+  cfg: OssImageConfig,
+): Promise<OssRepairResult> {
+  const key = ossKeyFromUrl(url, cfg)
+  if (!key) return { ok: false, error: 'url is not an object of the configured bucket' }
+  try {
+    const client = ossClient(cfg)
+    const got = (await client.get(key)) as { content?: unknown }
+    const buf = toBuffer(got.content)
+    if (buf.length === 0) return { ok: false, error: 'object body is empty' }
+    if (buf.length > OSS_MAX_BYTES) return { ok: false, error: `object too large: ${buf.length} bytes` }
+    await client.put(key, buf, { headers: ossObjectHeaders(buf, cfg.publicRead) })
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -140,26 +200,39 @@ export async function ensureImageStored(
   url: string,
   workspaceDir?: string,
 ): Promise<EnsureImageStoredResult> {
-  if (isOssImageUrl(url)) return { ok: true, url, storage: 'oss' }
-
   const cfg = await getOssImageConfig()
 
-  if (cfg) {
-    const buf = await resolveImageBuffer(url, workspaceDir)
-    if (!buf) return { ok: false, error: 'image unreachable and not stored locally' }
-    const up = await uploadImageToOss(buf, cfg)
-    if (up.ok) {
-      // 本地来源转传 OSS 成功后删除本地副本（能不存本地就不存本地）
-      if (isLocalImageUrl(url)) {
-        const name = url.slice(LOCAL_IMAGE_PREFIX.length)
-        await fs.rm(path.join(IMAGE_DIR, name), { force: true }).catch(() => {})
-      }
-      return { ok: true, url: up.url, storage: 'oss' }
-    }
-    return { ok: false, error: `oss upload failed: ${up.error}` }
+  if (isOssImageUrl(url)) {
+    // 后缀正常的 OSS 地址直接幂等返回
+    if (!isOssUrlWithBadExtension(url)) return { ok: true, url, storage: 'oss' }
+    // 后缀异常（历史 .bin）→ 优先原地补元数据，URL 不变、文档里的同地址也跟着好
+    if (!cfg) return { ok: true, url, storage: 'oss' }
+    const inPlace = await repairOssObjectInPlace(url, cfg)
+    if (inPlace.ok) return { ok: true, url, storage: 'oss' }
+    console.warn(
+      `[oss-image-store] in-place metadata repair failed (${url.slice(0, 96)}): ${inPlace.error}; ` +
+        `falling back to re-upload`,
+    )
+    // 落到下面的「下载 + 重新上传」，换一个后缀正确的新地址
+  } else if (!cfg) {
+    // 未配置 OSS → 本地化兜底
+    const loc = await localizeImageUrl(url, undefined, workspaceDir)
+    if (loc.ok) return { ok: true, url: loc.url, storage: 'local' }
+    return { ok: false, error: loc.error }
   }
 
-  const loc = await localizeImageUrl(url, undefined, workspaceDir)
-  if (loc.ok) return { ok: true, url: loc.url, storage: 'local' }
-  return { ok: false, error: loc.error }
+  if (!cfg) return { ok: false, error: 'oss is not configured' }
+
+  const buf = await resolveImageBuffer(url, workspaceDir)
+  if (!buf) return { ok: false, error: 'image unreachable and not stored locally' }
+  const up = await uploadImageToOss(buf, cfg)
+  if (up.ok) {
+    // 本地来源转传 OSS 成功后删除本地副本（能不存本地就不存本地）
+    if (isLocalImageUrl(url)) {
+      const name = url.slice(LOCAL_IMAGE_PREFIX.length)
+      await fs.rm(path.join(IMAGE_DIR, name), { force: true }).catch(() => {})
+    }
+    return { ok: true, url: up.url, storage: 'oss' }
+  }
+  return { ok: false, error: `oss upload failed: ${up.error}` }
 }

@@ -26,6 +26,47 @@ export function isLocalImageUrl(url: string): boolean {
   return url.startsWith(LOCAL_IMAGE_PREFIX)
 }
 
+/** OSS 对象地址（写入链路与修复链路共用这一份正则，别在别处另写）。 */
+export const OSS_IMAGE_URL_RE = /^https:\/\/[a-z0-9.-]+\.oss-[a-z0-9-]+\.aliyuncs\.com\//i
+
+export function isOssImageUrl(url: string): boolean {
+  return OSS_IMAGE_URL_RE.test(url)
+}
+
+/** 浏览器 <img> 能直接渲染的扩展名。 */
+const IMAGE_FILE_EXT_RE = /\.(png|jpe?g|webp|gif|avif|svg|bmp|ico)$/i
+
+const CONTENT_TYPE_BY_EXT: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  avif: 'image/avif',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+}
+
+/** 按字节嗅探结果给出 Content-Type —— 上传时必须显式声明，别让 OSS 按后缀猜。 */
+export function imageContentTypeForBuffer(buf: Buffer): string {
+  return CONTENT_TYPE_BY_EXT[sniffImageExt(buf)] ?? 'application/octet-stream'
+}
+
+/**
+ * 是不是「OSS 地址，但路径后缀不是图片扩展名」—— 例如历史数据里 SVG 被存成 `xxx.bin`。
+ *
+ * 这类地址必须在修复链路里被认成坏链：OSS 按后缀给出 Content-Type = octet-stream、
+ * Content-Disposition = attachment，浏览器 <img> 拿到的是「待下载文件」而不是图片，页面就是裂图。
+ * 只看后缀不发请求，是有意为之（修复链路不该为每张图各发一次 HEAD）。
+ * 非 OSS 的 http(s) 地址不做此判断 —— 无后缀图床地址很常见，误判会带来无谓重传。
+ */
+export function isOssUrlWithBadExtension(url: string): boolean {
+  if (!isOssImageUrl(url)) return false
+  const pathname = url.split('?')[0].split('#')[0]
+  return !IMAGE_FILE_EXT_RE.test(pathname)
+}
+
 /** 从文件头嗅探图片扩展名，避免依赖 URL 后缀（可能缺失或伪装）。 */
 export function sniffImageExt(buf: Buffer): string {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg'
@@ -39,13 +80,27 @@ export function sniffImageExt(buf: Buffer): string {
     buf.toString('latin1', 0, 4) === 'RIFF' &&
     buf.toString('latin1', 8, 12) === 'WEBP'
   ) return 'webp'
-  if (buf.length >= 6 && buf.toString('latin1', 0, 6) === 'GIF87a' || (buf.length >= 6 && buf.toString('latin1', 0, 6) === 'GIF89a')) return 'gif'
+  if (buf.length >= 6 && /^GIF8[79]a$/.test(buf.toString('latin1', 0, 6))) return 'gif'
   if (
     buf.length >= 12 &&
     buf.toString('latin1', 4, 8) === 'ftyp' &&
     (buf.toString('latin1', 8, 12) === 'avif' || buf.toString('latin1', 8, 12) === 'avis')
   ) return 'avif'
+  if (looksLikeSvg(buf)) return 'svg'
   return 'bin'
+}
+
+/**
+ * SVG 是纯文本，没有 magic bytes —— 只能看头部有没有 <svg 标签。
+ *
+ * 漏掉它的代价很大：agent 生成的图表 / 封面大量是 SVG，被判成 `bin` 后 OSS 会按后缀
+ * 推断出 `application/octet-stream` + `Content-Disposition: attachment`，
+ * 浏览器 <img> 直接拒渲染（2026-09-15 线上「清华计算机封面图」裂图即此因）。
+ */
+function looksLikeSvg(buf: Buffer): boolean {
+  if (buf.length === 0) return false
+  const head = buf.subarray(0, 1024).toString('utf8')
+  return /<svg[\s/>]/i.test(head)
 }
 
 export function decodeDataUri(uri: string): Buffer | null {
@@ -108,11 +163,15 @@ export function resolveWorkspaceImagePath(workspaceDir: string, rawUrl: string):
   return abs
 }
 
-/** 前端 <img> 能直接用的 url 形态；其余（工作区相对路径、/deployments/… 等）都算坏链。 */
+/**
+ * 前端 <img> 能直接用的 url 形态；其余都算坏链：
+ * 工作区相对路径、`/deployments/…` 这类磁盘路径，以及「OSS 地址但后缀不是图片扩展名」
+ * （会被 OSS 以 octet-stream + attachment 返回，浏览器拒渲染 —— 也是坏链）。
+ */
 export function isServableImageUrl(url: string | undefined | null): boolean {
   if (!url) return false
   if (url.startsWith('data:')) return true
-  if (/^https?:\/\//i.test(url)) return true
+  if (/^https?:\/\//i.test(url)) return !isOssUrlWithBadExtension(url)
   return isLocalImageUrl(url)
 }
 
