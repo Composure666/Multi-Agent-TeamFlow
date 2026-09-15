@@ -646,11 +646,96 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE automation_runs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`)
   safeAlter(sqlite, `ALTER TABLE terminal_events ADD COLUMN task_id TEXT`)
+  safeAlter(sqlite, `ALTER TABLE artifacts ADD COLUMN merged_into TEXT`)
+  safeAlter(sqlite, `ALTER TABLE artifacts ADD COLUMN updated_at INTEGER`)
   // agent_teams / agent_team_members 是新表，CREATE TABLE IF NOT EXISTS 已覆盖，无需 safeAlter
   sqlite.exec(`UPDATE automation_runs SET created_at = started_at WHERE created_at = 0`)
   sqlite.exec(`UPDATE automation_runs SET updated_at = COALESCE(finished_at, started_at) WHERE updated_at = 0`)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_automations_next_run ON automations(status, next_run_at)`)
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_automation_run_logs_run_created ON automation_run_logs(run_id, created_at)`)
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_artifacts_merged ON artifacts(merged_into)`)
+  sqlite.exec(`UPDATE artifacts SET updated_at = created_at WHERE updated_at IS NULL`)
+  mergeImageArtifactBatches(sqlite)
+}
+
+/**
+ * 存量图片产物按「批次」归并成图集（幂等）。
+ *
+ * 背景：一次「电商爆图工厂」任务会在几秒内连出 7、8 个 image artifact，
+ * 产物库里就是 8 张碎片卡片。这里把同会话 + 同 Agent + 相邻间隔 ≤ 批次窗口
+ * 的产物并成一个「图集」：最早那行当图集根（content.images 收集全部图片），
+ * 其余行写 merged_into = 根 id，列表里不再单独出现。
+ *
+ * 只处理 parent_artifact_id IS NULL 的行 —— 带父版本的行是明确的「修改某一张」，
+ * 保持它自己的版本链，不参与聚合。
+ */
+function mergeImageArtifactBatches(sqlite: Database.Database): void {
+  const BATCH_WINDOW_MS = 5 * 60 * 1000
+  const rows = sqlite
+    .prepare(
+      `SELECT id, conversation_id, type, content, created_by_agent_id, created_at
+       FROM artifacts
+       WHERE type = 'image' AND merged_into IS NULL AND parent_artifact_id IS NULL
+       ORDER BY conversation_id, created_by_agent_id, created_at`,
+    )
+    .all() as Array<{
+    id: string
+    conversation_id: string
+    content: string
+    created_by_agent_id: string
+    created_at: number
+  }>
+
+  let batch: typeof rows = []
+  let key = ''
+  const flush = () => {
+    if (batch.length < 2) {
+      batch = []
+      return
+    }
+    const root = batch[0]
+    const images: Array<Record<string, unknown>> = []
+    for (const row of batch) {
+      try {
+        const c = JSON.parse(row.content) as { url?: string; alt?: string; width?: number; height?: number; images?: unknown[] }
+        if (Array.isArray(c.images) && c.images.length > 0) images.push(...(c.images as Array<Record<string, unknown>>))
+        else if (typeof c.url === 'string') images.push({ url: c.url, alt: c.alt ?? '' })
+      } catch {
+        // content 坏了就算了，别让归并阻塞启动
+      }
+    }
+    if (images.length < 2) {
+      batch = []
+      return
+    }
+    let rootContent: Record<string, unknown> = {}
+    try {
+      rootContent = JSON.parse(root.content) as Record<string, unknown>
+    } catch {
+      rootContent = {}
+    }
+    rootContent.url = String(images[0].url ?? '')
+    rootContent.alt = String(images[0].alt ?? '')
+    rootContent.images = images
+    sqlite
+      .prepare(`UPDATE artifacts SET content = ?, updated_at = ? WHERE id = ?`)
+      .run(JSON.stringify(rootContent), batch[batch.length - 1].created_at, root.id)
+    const mark = sqlite.prepare(`UPDATE artifacts SET merged_into = ?, updated_at = ? WHERE id = ?`)
+    for (const row of batch.slice(1)) mark.run(root.id, row.created_at, row.id)
+    console.log(`[bootstrap] merged ${batch.length} image artifacts into ${root.id}`)
+    batch = []
+  }
+
+  for (const row of rows) {
+    const rowKey = `${row.conversation_id}|${row.created_by_agent_id}`
+    const prev = batch[batch.length - 1]
+    if (rowKey !== key || !prev || row.created_at - prev.created_at > BATCH_WINDOW_MS) {
+      flush()
+      key = rowKey
+    }
+    batch.push(row)
+  }
+  flush()
 }
 
 function safeAlter(sqlite: Database.Database, stmt: string): void {

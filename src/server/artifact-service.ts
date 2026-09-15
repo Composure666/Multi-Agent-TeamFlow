@@ -2,6 +2,7 @@ import { desc, eq, inArray } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type { ArtifactRow } from '@/db/schema'
+import { countArtifactImages } from '@/shared/artifact-images'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
 import { repairBrokenImageArtifacts } from '@/server/artifact-image-repair'
 import { ensureImageStored } from '@/server/oss-image-store'
@@ -24,6 +25,8 @@ export interface ArtifactWithMeta {
   createdByAgentId: string
   createdAt: number
   imageUrl?: string
+  /** 图集张数（图片产物一次任务连出多张时 > 1）；非图片类型为 undefined。 */
+  imageCount?: number
   description?: string
   pptCover?: {
     title?: string
@@ -90,7 +93,9 @@ function extractDescription(row: ArtifactRow): string | undefined {
         const alt = String(c.alt ?? '')
         const w = c.width, h = c.height
         const dim = w && h ? ` · ${w}×${h}` : ''
-        return alt ? `${alt}${dim}` : `图片产物${dim}`
+        const count = countArtifactImages(c)
+        const suffix = count > 1 ? ` · 共 ${count} 张` : dim
+        return alt ? `${alt}${suffix}` : `图片产物${suffix}`
       }
       case 'diagram': {
         const source = String(c.source ?? '')
@@ -131,29 +136,37 @@ export async function listArtifacts(): Promise<ArtifactWithMeta[]> {
     console.warn('[artifact-service] image repair skipped:', err)
   }
 
-  return rows.map((r) => {
-    let imageUrl: string | undefined
-    if (r.type === 'image') {
-      imageUrl = repaired.get(r.id) ?? (r.content as unknown as { url?: string })?.url
-    }
-    return {
-      id: r.id,
-      conversationId: r.conversationId,
-      conversationTitle: titleById.get(r.conversationId) ?? null,
-      type: r.type,
-      title: r.title,
-      version: r.version,
-      parentArtifactId: r.parentArtifactId,
-      createdByAgentId: r.createdByAgentId,
-      createdAt: r.createdAt,
-      imageUrl,
-      description: extractDescription(r),
-      pptCover: extractPptCover(r),
-    }
-  })
+  // 图集成员（已并入别的产物的那几张图）不再单独出现 —— 产物库里一次任务只显示 1 张卡片。
+  return rows
+    .filter((r) => !r.mergedInto)
+    .map((r) => {
+      let imageUrl: string | undefined
+      let imageCount: number | undefined
+      if (r.type === 'image') {
+        imageUrl = repaired.get(r.id) ?? (r.content as unknown as { url?: string })?.url
+        imageCount = countArtifactImages(r.content)
+      }
+      return {
+        id: r.id,
+        conversationId: r.conversationId,
+        conversationTitle: titleById.get(r.conversationId) ?? null,
+        type: r.type,
+        title: r.title,
+        version: r.version,
+        parentArtifactId: r.parentArtifactId,
+        createdByAgentId: r.createdByAgentId,
+        createdAt: r.createdAt,
+        imageUrl,
+        imageCount,
+        description: extractDescription(r),
+        pptCover: extractPptCover(r),
+      }
+    })
 }
 
 export async function deleteArtifact(artifactId: string): Promise<void> {
+  // 图集：一并删掉被并入本产物的那些成员行，否则它们会在库里永不可见地烂掉
+  await db.delete(schema.artifacts).where(eq(schema.artifacts.mergedInto, artifactId))
   const deleted = await db
     .delete(schema.artifacts)
     .where(eq(schema.artifacts.id, artifactId))

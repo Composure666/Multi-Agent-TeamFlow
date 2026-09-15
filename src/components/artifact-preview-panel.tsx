@@ -16,6 +16,7 @@ import { createArtifactVersion, fetchArtifactVersions, workspaceReadFile, worksp
 import { artifactPreviewPath } from '@/lib/artifact-preview'
 import { normalizeLang } from '@/lib/highlighter'
 import { cn } from '@/lib/utils'
+import { readArtifactImages } from '@/shared/artifact-images'
 import { buildArtifactVersionDiff } from '@/shared/artifact-version-diff'
 import { formatMermaidError } from '@/shared/mermaid-normalize'
 import { normalizePptDeck, toEditablePptContent } from '@/shared/ppt-normalize'
@@ -1198,14 +1199,59 @@ function toneColor(tone: PptTone | undefined, theme: ResolvedPptTheme): string {
 
 // ─── image ─────────────────────────────────────────────
 function ImageView({ content }: { content: Extract<ArtifactContent, { type: 'image' }> }) {
+  // 图集：一次任务连出的多张图合并进了同一个产物，这里要能逐张翻，
+  // 否则用户只能看到封面那一张，其余几张等于丢了。
+  const images = useMemo(() => readArtifactImages(content), [content])
+  const [selected, setSelected] = useState(0)
+  // 换产物时 selected 可能越界（新图集更短）——夹一下即可，不必用 effect 重置
+  const index = selected < images.length ? selected : 0
+  const active = images[index]
+
+  if (!active) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-zinc-100 p-4 text-sm text-zinc-500 dark:bg-zinc-900">
+        图片内容为空
+      </div>
+    )
+  }
+
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-zinc-100 p-4 dark:bg-zinc-900">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={content.url}
-        alt={content.alt}
-        className="max-h-full max-w-full object-contain"
-      />
+    <div className="flex min-h-0 flex-1 flex-col bg-zinc-100 dark:bg-zinc-900">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={active.url}
+          alt={active.alt ?? content.alt}
+          className="max-h-full max-w-full object-contain"
+        />
+      </div>
+      {images.length > 1 && (
+        <div className="shrink-0 border-t border-zinc-200 bg-white/80 px-3 py-2 dark:border-white/10 dark:bg-neutral-950/60">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+            <span>共 {images.length} 张</span>
+            <span className="tabular-nums">{index + 1} / {images.length}</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
+            {images.map((image, i) => (
+              <button
+                key={`${image.url}-${i}`}
+                type="button"
+                onClick={() => setSelected(i)}
+                title={image.title ?? image.alt ?? `第 ${i + 1} 张`}
+                className={cn(
+                  'size-14 shrink-0 overflow-hidden rounded border bg-zinc-100 transition dark:bg-zinc-800',
+                  i === index
+                    ? 'border-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent)]'
+                    : 'border-zinc-200 hover:border-zinc-400 dark:border-white/10',
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={image.url} alt={image.alt ?? ''} className="size-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

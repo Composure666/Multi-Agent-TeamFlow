@@ -1,8 +1,18 @@
+import { readArtifactImages } from '@/shared/artifact-images'
 import { normaliseMermaidSource } from '@/shared/mermaid-normalize'
 import { normalizeBlocks } from '@/shared/ppt-normalize'
 import type { ArtifactContent, ArtifactType, DiffHunk, MermaidTheme, PptLayout, PptSlide, PptTheme } from '@/shared/types'
 
 const MAX_DIAGRAM_SOURCE_CHARS = 50_000
+
+/** 封面必须排在 images[0]，且不能重复出现第二次。 */
+function mergeCover(
+  items: Array<{ url: string; alt?: string; title?: string; width?: number; height?: number }>,
+  cover: { url: string; alt: string },
+): Array<{ url: string; alt?: string; title?: string; width?: number; height?: number }> {
+  const rest = items.filter((item) => item.url !== cover.url)
+  return [{ url: cover.url, alt: cover.alt }, ...rest]
+}
 
 /**
  * 把 LLM 或用户给的松散 content 规整成强类型 ArtifactContent;非法返回 null。
@@ -123,16 +133,24 @@ export function buildArtifactContent(type: ArtifactType, rawInput: unknown): Art
   if (type === 'image') {
     if (raw && typeof raw === 'object') {
       const obj = raw as Record<string, unknown>
-      if (typeof obj.url === 'string') {
+      // 图集：images 里可能带多张（一次任务连出 7、8 张图时由写入侧合并），
+      // url 只作封面。cover 优先取显式 url，其次 images[0]。
+      const items = readArtifactImages(obj)
+      const cover = typeof obj.url === 'string' && obj.url.trim() ? obj.url.trim() : items[0]?.url
+      if (cover) {
+        const alt = typeof obj.alt === 'string' ? obj.alt : (items[0]?.alt ?? '')
         return {
           type: 'image',
-          url: obj.url,
-          alt: typeof obj.alt === 'string' ? obj.alt : '',
+          url: cover,
+          alt,
+          ...(typeof obj.width === 'number' ? { width: obj.width } : {}),
+          ...(typeof obj.height === 'number' ? { height: obj.height } : {}),
+          images: mergeCover(items, { url: cover, alt }),
         }
       }
     }
-    if (typeof raw === 'string') {
-      return { type: 'image', url: raw, alt: '' }
+    if (typeof raw === 'string' && raw.trim()) {
+      return { type: 'image', url: raw, alt: '', images: [{ url: raw, alt: '' }] }
     }
     return null
   }

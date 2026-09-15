@@ -11,6 +11,7 @@ import {
   Grid2X2,
   History,
   Image as ImageIcon,
+  Images,
   Layers,
   MoreHorizontal,
   Network,
@@ -732,6 +733,11 @@ function ArtifactCard({
           <div className="absolute inset-0 transition-transform duration-200 group-hover:scale-[1.02]">
             <CoverShape shape={t.shape} title={item.title} compact imageUrl={item.imageUrl} pptCover={item.pptCover} />
           </div>
+          {item.type === 'image' && (item.imageCount ?? 0) > 1 && (
+            <span className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">
+              {item.imageCount} 张
+            </span>
+          )}
         </div>
         <div className="min-w-0 py-2">
           <button type="button" onClick={onSelect} className="min-w-0 block max-w-full truncate text-left text-sm font-semibold text-slate-900 hover:text-[var(--agenthub-accent)] dark:text-slate-50">
@@ -812,6 +818,14 @@ function ArtifactCard({
           <t.Icon className="size-3" />
           {t.label}
         </span>
+
+        {/* 图集张数（bottom-left）：一次任务连出的多张图合并成一个产物，别让用户以为只交付了封面那一张 */}
+        {item.type === 'image' && (item.imageCount ?? 0) > 1 && (
+          <span className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white shadow-sm backdrop-blur-sm">
+            <Images className="size-3" />
+            {item.imageCount} 张
+          </span>
+        )}
 
         {/* Selection checkbox (top-left when in selection mode) */}
         {selectable && (

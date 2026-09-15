@@ -41,6 +41,8 @@ export interface ArtifactListItem {
   createdByAgentId: string
   createdAt: number
   imageUrl?: string
+  /** 图集张数：一次任务连出多张图会被合并成一个产物，这里是被合并的张数。 */
+  imageCount?: number
   description?: string
   pptCover?: {
     title?: string

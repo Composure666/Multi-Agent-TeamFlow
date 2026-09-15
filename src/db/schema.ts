@@ -198,13 +198,24 @@ export const artifacts = sqliteTable(
 
     version: integer('version').notNull().default(1),
     parentArtifactId: text('parent_artifact_id'),
+    /**
+     * 图片图集聚合：非空表示该行已被并入 mergedInto 指向的那个产物（本行是图集成员）。
+     * 产物库列表会隐藏这些行 —— 一次任务连出 7、8 张图，用户看到的是 1 张「N 张图」的卡片，
+     * 而不是 8 张碎片卡片。行本身不删除，按 id 直查（消息里的 artifact_ref、版本链）依然能拿到内容。
+     */
+    mergedInto: text('merged_into'),
+    /** 最后一次写入/追加内容的时间。图集追加新图时推进，用来判定「是不是同一批次」。 */
+    updatedAt: integer('updated_at'),
 
     createdByAgentId: text('created_by_agent_id')
       .notNull()
       .references(() => agents.id),
     createdAt: integer('created_at').notNull(),
   },
-  (t) => [index('idx_artifacts_conv').on(t.conversationId)],
+  (t) => [
+    index('idx_artifacts_conv').on(t.conversationId),
+    index('idx_artifacts_merged').on(t.mergedInto),
+  ],
 )
 
 // ─── Workspaces ──────────────────────────────────────────────

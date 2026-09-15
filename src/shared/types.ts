@@ -50,6 +50,14 @@ export type WritableArtifactType = Extract<
 >
 export type DispatchExpectedOutputType = WritableArtifactType | 'project'
 
+export interface ArtifactImageItem {
+  url: string
+  alt?: string
+  title?: string
+  width?: number
+  height?: number
+}
+
 export type ArtifactContent =
   | {
       type: 'web_app'
@@ -76,10 +84,16 @@ export type ArtifactContent =
     }
   | {
       type: 'image'
+      /** 封面图（== images[0].url）。单独存一份是为了兼容只认识 url 的旧数据与渲染路径。 */
       url: string
       alt: string
       width?: number
       height?: number
+      /**
+       * 图集：一次任务里连出的多张图合并进同一个产物，避免产物库被 7、8 张碎片卡片刷屏。
+       * 老数据没有这个字段 —— 读的时候一律用 readArtifactImages() 兜底成单图。
+       */
+      images?: ArtifactImageItem[]
     }
   | {
       type: 'diagram'
@@ -742,6 +756,10 @@ export interface ArtifactRecord {
   parentArtifactId?: string
   createdByAgentId: string
   createdAt: number
+  /** 图集聚合：非空表示本行已被并入该产物（产物库列表里隐藏）。 */
+  mergedInto?: string | null
+  /** 最后一次写入/追加内容的时间（图集追加新图时推进）。 */
+  updatedAt?: number | null
 }
 
 // 用于事件 payload 的完整消息（与 db/schema.ts 的 MessageRow 同形）。

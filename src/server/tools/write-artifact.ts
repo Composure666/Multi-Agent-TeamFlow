@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
+import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
 import { recordRunArtifact } from '@/server/dispatch-run-evidence'
 import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
@@ -16,6 +17,10 @@ import type { ToolDef } from './types'
  *  - 全新产物：传 type / title / content
  *  - 修改已有产物：额外传 parentArtifactId，新 row 的 version = parent.version + 1，
  *    parentArtifactId 链接父行；ArtifactPreviewPanel 的版本切换器据此构造版本链
+ *
+ * 图片产物会自动聚合：一次任务里连续产出的多张图合并进同一个产物的 content.images
+ * （产物库里是 1 张「N 张图」的卡片，不是 N 张碎片）；之后同一会话内再次出图则在上一个
+ * 版本上继续（version+1）。详见 @/server/artifact-image-group。
  *
  * 仅写入 DB 并返回 artifactId；不直接发布 artifact.create 事件。Adapter 在 tool.result
  * 之后检测到返回值里的 artifactId 会统一发 artifact.create，AgentRunner 再注入
@@ -107,6 +112,7 @@ export const writeArtifactTool: ToolDef = {
 
     const artifactId = newArtifactId()
     const createdAt = Date.now()
+    let mergedIntoGallery = false
 
     // 图片产物统一存储：已配置 OSS → 上传 OSS（稳定远程，不落本地）；否则本地化兜底。
     // 传 ctx.workspacePath 是为了收编「agent 拿工作区文件路径当 url」的常见写法
@@ -129,6 +135,50 @@ export const writeArtifactTool: ToolDef = {
       }
     }
 
+    // 图片产物聚合：未显式指定 parent 时，按「同批次追加 / 近 6 小时建新版本」归拢。
+    if (fullContent.type === 'image' && !resolvedParent) {
+      const decision = await resolveImageArtifactTarget({
+        conversationId: ctx.conversationId,
+        now: createdAt,
+      })
+      if (decision.mode === 'append') {
+        const image = {
+          url: fullContent.url,
+          alt: fullContent.alt,
+          ...(fullContent.width ? { width: fullContent.width } : {}),
+          ...(fullContent.height ? { height: fullContent.height } : {}),
+        }
+        const { images } = await appendImageToArtifact(decision.target, image, createdAt)
+        mergedIntoGallery = true
+        // 产物也要计入 run 的验收证据：只认 fs_write 会让「bash 生成 + write_artifact 交付」
+        // 的任务永远过不了 targetPaths 门禁。详见 dispatch-run-evidence 的注释。
+        recordRunArtifact(ctx.runId, {
+          artifactId: decision.target.id,
+          title: decision.target.title,
+          type,
+          version: decision.target.version,
+        })
+        return {
+          ok: true,
+          value: {
+            artifactId: decision.target.id,
+            title: decision.target.title,
+            type,
+            version: decision.target.version,
+            parentArtifactId: decision.target.parentArtifactId,
+            // 告诉 Agent 这张图被并进了图集——它不必（也不该）为每张图单独起名
+            mergedIntoGallery: true,
+            imageCount: images.length,
+            ...(outputKey ? { outputKey } : {}),
+          },
+        }
+      }
+      if (decision.mode === 'version') {
+        resolvedParent = decision.parent.id
+        version = decision.version
+      }
+    }
+
     await db.insert(schema.artifacts).values({
       id: artifactId,
       conversationId: ctx.conversationId,
@@ -139,6 +189,7 @@ export const writeArtifactTool: ToolDef = {
       parentArtifactId: resolvedParent,
       createdByAgentId: ctx.agentId,
       createdAt,
+      updatedAt: createdAt,
     })
 
     // 产物也要计入 run 的验收证据：只认 fs_write 会让「bash 生成 + write_artifact 交付」
@@ -153,6 +204,7 @@ export const writeArtifactTool: ToolDef = {
         type,
         version,
         parentArtifactId: resolvedParent,
+        ...(mergedIntoGallery ? { mergedIntoGallery: true } : {}),
         ...(outputKey ? { outputKey } : {}),
       },
     }

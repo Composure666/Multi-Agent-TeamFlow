@@ -39,6 +39,7 @@ function makeArtifactRow(id: string, type: ArtifactType, files: Record<string, s
   const content: ArtifactContent = type === 'web_app'
     ? { type: 'web_app', files, entry: 'index.html' }
     : { type: 'document', format: 'markdown', content: '# hello' }
+  const createdAt = Date.now()
   return {
     id,
     conversationId: 'conv_1',
@@ -47,8 +48,10 @@ function makeArtifactRow(id: string, type: ArtifactType, files: Record<string, s
     content,
     version: 1,
     parentArtifactId: null,
+    mergedInto: null,
     createdByAgentId: 'agent_test',
-    createdAt: Date.now(),
+    createdAt,
+    updatedAt: createdAt,
   }
 }
 

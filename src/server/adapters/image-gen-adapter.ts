@@ -1,12 +1,11 @@
 import { writeFileSync, mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-
-import { eq } from 'drizzle-orm'
+import { join } from 'node:path'
 
 import { db, schema } from '@/db/client'
+import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
 import { newArtifactId, newMessageId } from '@/server/ids'
 import { getOssImageConfig, uploadImageToOss } from '@/server/oss-image-store'
-import type { ArtifactRecord, StreamEvent } from '@/shared/types'
+import type { ArtifactContent, ArtifactRecord, StreamEvent } from '@/shared/types'
 
 import type { AdapterInput, AgentPlatformAdapter } from './types'
 
@@ -203,7 +202,12 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     return `/api/files/generated-images/${conversationId}/${filename}`
   }
 
-  /** 创建 image 类型 artifact */
+  /**
+   * 创建 image 类型 artifact。
+   *
+   * 与 write_artifact 同一套聚合规则：一次任务连续生多张图时合并进同一个「图集」产物
+   * （content.images），之后的改稿挂成新版本，产物库里始终是一个交付物。
+   */
   private async createImageArtifact(
     conversationId: string,
     agentId: string,
@@ -212,28 +216,47 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     width?: number,
     height?: number,
   ) {
-    const id = newArtifactId()
     const now = Date.now()
-    const content = {
-      type: 'image' as const,
+    const image = {
       url: imageUrl,
       alt: alt.slice(0, 200),
       ...(width ? { width } : {}),
       ...(height ? { height } : {}),
     }
+    const decision = await resolveImageArtifactTarget({ conversationId, now })
 
-    const row = {
-      id,
+    if (decision.mode === 'append') {
+      // 必须用追加后的 images 回执：decision.target.content 是 append 之前的快照，
+      // 直接拿它发 artifact.create 会让前端的图集里缺刚生成的这张图。
+      const { images } = await appendImageToArtifact(decision.target, image, now)
+      const content = {
+        ...(decision.target.content as unknown as Record<string, unknown>),
+        images,
+      } as ArtifactContent
+      return { ...decision.target, content, updatedAt: now }
+    }
+
+    const base = {
+      id: newArtifactId(),
       conversationId,
       type: 'image' as const,
       title: `生成的图片 · ${alt.slice(0, 30)}`,
-      content,
-      version: 1,
-      parentArtifactId: null,
+      content: {
+        type: 'image' as const,
+        url: imageUrl,
+        alt: alt.slice(0, 200),
+        images: [image],
+        ...(width ? { width } : {}),
+        ...(height ? { height } : {}),
+      },
       createdByAgentId: agentId,
       createdAt: now,
       updatedAt: now,
     }
+    const row =
+      decision.mode === 'version'
+        ? { ...base, version: decision.version, parentArtifactId: decision.parent.id }
+        : { ...base, version: 1, parentArtifactId: null }
 
     await db.insert(schema.artifacts).values(row)
     return row
@@ -244,7 +267,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     conversationId: string
     type: string
     title: string
-    content: any
+    content: ArtifactContent
     version: number
     parentArtifactId: string | null
     createdByAgentId: string
@@ -255,7 +278,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
       conversationId: row.conversationId,
       type: row.type as ArtifactRecord['type'],
       title: row.title,
-      content: row.content as any,
+      content: row.content,
       version: row.version,
       parentArtifactId: row.parentArtifactId ?? undefined,
       createdByAgentId: row.createdByAgentId,

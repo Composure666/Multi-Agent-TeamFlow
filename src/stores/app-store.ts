@@ -1106,6 +1106,11 @@ export const useAppStore = create<AppState>()(
             s.artifacts[a.id] = {
               ...a,
               parentArtifactId: a.parentArtifactId ?? null,
+              // 图集聚合靠 mergedInto 区分「图集根」与「已并入图集的成员行」，
+              // 产物库列表据此隐藏成员行。缺省成 undefined 会让 isNull 过滤失效，
+              // 一次任务出的多张图又会散成碎片卡片。
+              mergedInto: a.mergedInto ?? null,
+              updatedAt: a.updatedAt ?? a.createdAt,
             }
             return
           }
