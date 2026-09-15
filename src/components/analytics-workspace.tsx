@@ -97,13 +97,28 @@ type DatePreset = (typeof DATE_PRESETS)[number]
 /** 「全部」时传 0，后端会用库内最早一条 run 把起点钳住 */
 const ALL_TIME_START = '2000-01-01'
 
+/** 本地时区的 YYYY-MM-DD —— 用 toISOString 会拿到 UTC 日期，东八区的「今天」会少 8 小时。 */
+function toLocalDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/** 'YYYY-MM-DD' → 当天 00:00:00.000 的本地时间戳（不带 Z 的 ISO 串按本地时区解析）。 */
+function localDayStart(date: string): number {
+  return new Date(`${date}T00:00:00`).getTime()
+}
+
+/** 'YYYY-MM-DD' → 当天 23:59:59.999 的本地时间戳。 */
+function localDayEnd(date: string): number {
+  return new Date(`${date}T23:59:59.999`).getTime()
+}
+
 function getDateRangeForPreset(preset: string): { start: string; end: string; days: number } {
   const now = new Date()
-  const end = now.toISOString().slice(0, 10)
+  const end = toLocalDateString(now)
   if (preset === '全部') return { start: ALL_TIME_START, end, days: 3650 }
-  if (preset === '最近30天') return { start: new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10), end, days: 30 }
-  if (preset === '最近90天') return { start: new Date(now.getTime() - 89 * 86400000).toISOString().slice(0, 10), end, days: 90 }
-  return { start: new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10), end, days: 7 }
+  if (preset === '最近30天') return { start: toLocalDateString(new Date(now.getTime() - 29 * 86400000)), end, days: 30 }
+  if (preset === '最近90天') return { start: toLocalDateString(new Date(now.getTime() - 89 * 86400000)), end, days: 90 }
+  return { start: toLocalDateString(new Date(now.getTime() - 6 * 86400000)), end, days: 7 }
 }
 
 export function AnalyticsWorkspace() {
@@ -131,8 +146,8 @@ export function AnalyticsWorkspace() {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const startTs = isAllTime ? 0 : new Date(dateStart).getTime()
-      const endTs = new Date(dateEnd).getTime() + 86400000 - 1
+      const startTs = isAllTime ? 0 : localDayStart(dateStart)
+      const endTs = localDayEnd(dateEnd)
       const days = Math.max(1, Math.round((endTs - startTs) / 86400000))
       const [nextAnalytics, nextUsage, nextDashboard] = await Promise.all([
         fetchRunAnalytics({ start: startTs, end: endTs, days }),

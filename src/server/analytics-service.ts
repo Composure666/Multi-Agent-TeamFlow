@@ -110,17 +110,47 @@ export interface RunAnalyticsRange {
   start?: number
   end?: number
   days?: number
+  /**
+   * 客户端时区偏移，语义同 `Date.getTimezoneOffset()`（UTC+8 → -480）。
+   * 服务端（尤其容器里 TZ=UTC）必须靠它才能把「今天」和按天分桶算在用户所在的时区上。
+   */
+  tzOffsetMinutes?: number
 }
 
-function startOfDay(value: number): number {
-  const date = new Date(value)
-  date.setHours(0, 0, 0, 0)
-  return date.getTime()
+/**
+ * 把客户端时区偏移换算成「UTC 毫秒 + shift = 本地墙钟毫秒」里的 shift。
+ *
+ * `Date.getTimezoneOffset()` 的语义是「本地时间减 UTC 的分钟数」——UTC+8 返回 -480，
+ * 所以 shift = -offsetMinutes * 60000。不传（或非法）时退化为服务端本地时区。
+ */
+function resolveTzShift(offsetMinutes?: number): number {
+  if (
+    typeof offsetMinutes === 'number' &&
+    Number.isFinite(offsetMinutes) &&
+    Math.abs(offsetMinutes) <= 24 * 60
+  ) {
+    return -offsetMinutes * 60_000
+  }
+  return -new Date().getTimezoneOffset() * 60_000
 }
 
-function dayKey(ts: number): string {
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+/** 某一天 00:00（客户端时区）对应的 UTC 毫秒时间戳。 */
+function startOfDay(value: number, shift: number): number {
+  const local = new Date(value + shift)
+  local.setUTCHours(0, 0, 0, 0)
+  return local.getTime() - shift
+}
+
+/** YYYY-MM-DD（客户端时区）——趋势按天分桶的 key。 */
+function dayKey(ts: number, shift: number): string {
+  const d = new Date(ts + shift)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+/** M/D（客户端时区）——趋势横轴标签。 */
+function dayLabel(ts: number, shift: number): string {
+  const d = new Date(ts + shift)
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
 }
 
 function mapStatus(status: string): RunAnalyticsStatus {
@@ -149,17 +179,28 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
   const now = Date.now()
   const end = range?.end && range.end > 0 ? range.end : now
   const days = range?.days && range.days > 0 ? Math.round(range.days) : 7
-  const requestedStart = range?.start !== undefined && Number.isFinite(range.start) ? startOfDay(range.start) : startOfDay(end - (days - 1) * DAY_MS)
+  const tzShift = resolveTzShift(range?.tzOffsetMinutes)
+  const requestedStart =
+    range?.start !== undefined && Number.isFinite(range.start)
+      ? startOfDay(range.start, tzShift)
+      : startOfDay(end - (days - 1) * DAY_MS, tzShift)
   const duration = Math.max(end - requestedStart, DAY_MS)
 
   // 「全部时间」时前端会传一个极早的 start；用库内最早一条 run 把起点钳住，
-  // 否则按天分桶会生成上万根柱子。
+  // 否则按天分桶会生成上万根柱子。正常预设（最近 7/30/90 天）不动 —— 哪怕前几天
+  // 是 0 也要把柱子画全，不然用户选了 7 天却只看到 1 根柱子。
   const [{ value: earliestRun }] = await db.select({ value: min(schema.agentRuns.startedAt) }).from(schema.agentRuns)
   const earliest = earliestRun ?? now
-  const rangeStart = Math.max(requestedStart > 0 ? requestedStart : 0, startOfDay(earliest))
-  const clampedStart = Math.min(rangeStart, end - DAY_MS)
+  const earliestDay = startOfDay(earliest, tzShift)
+  const spanTooWide = (end - requestedStart) / DAY_MS > 365
+  const rangeStart =
+    requestedStart <= 0 || spanTooWide ? Math.max(requestedStart, earliestDay) : requestedStart
+  // 起点必须落在当日 00:00：分桶是「按日期 key 查桶」，起点若停在某个非零点时刻
+  // （旧代码直接拿 end - 1 天），当天那一格就会查不到、数据被整条丢掉
+  // —— 线上「运行趋势全是 0」就是这么来的。
+  const clampedStart = Math.min(rangeStart, startOfDay(end - DAY_MS, tzShift))
   const prevStart = clampedStart - duration
-  const todayStart = startOfDay(now)
+  const todayStart = startOfDay(now, tzShift)
 
   const inRange = and(gte(schema.agentRuns.startedAt, clampedStart), lt(schema.agentRuns.startedAt, end))
 
@@ -205,19 +246,20 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
 
   // 天数上限保护：即便范围被拉到最大，也最多分 365 个桶
   const bucketCount = Math.min(365, Math.max(1, Math.ceil((end - clampedStart) / DAY_MS)))
+  // clampedStart 已对齐当日 00:00，逐日 +DAY_MS 即可（客户端时区若有夏令时可能偏 1 小时，
+  // 只会让某根柱子错一格，不会丢数据）。
   const buckets: RunAnalyticsTrendPoint[] = Array.from({ length: bucketCount }, (_, i) => {
     const dayStart = clampedStart + i * DAY_MS
-    const d = new Date(dayStart)
     return {
-      label: `${d.getMonth() + 1}/${d.getDate()}`,
-      date: dayKey(dayStart),
+      label: dayLabel(dayStart, tzShift),
+      date: dayKey(dayStart, tzShift),
       value: 0,
       completed: 0,
     }
   })
   const bucketIndex = new Map(buckets.map((b, i) => [b.date, i]))
   for (const row of trendRows) {
-    const idx = bucketIndex.get(dayKey(row.startedAt))
+    const idx = bucketIndex.get(dayKey(row.startedAt, tzShift))
     if (idx === undefined) continue
     buckets[idx].value += 1
     if (row.status === 'complete') buckets[idx].completed += 1

@@ -664,6 +664,8 @@ export async function fetchRunAnalytics(range?: { start?: number; end?: number; 
   if (range?.start) params.set('start', String(range.start))
   if (range?.end) params.set('end', String(range.end))
   if (range?.days) params.set('days', String(range.days))
+  // 服务端容器通常是 UTC，必须把浏览器时区一起发过去，否则「今天」和按天分桶会差 8 小时
+  params.set('tzOffsetMinutes', String(new Date().getTimezoneOffset()))
   const query = params.toString() ? `?${params.toString()}` : ''
   const { analytics } = await json<{ analytics: RunAnalytics }>(fetch(`/api/analytics${query}`))
   return analytics

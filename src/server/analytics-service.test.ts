@@ -109,6 +109,25 @@ describe('analytics-service · 数据概览数据完整性', () => {
     expect(a.stats.successRate).toBe(expected)
   })
 
+  it('趋势桶起点对齐当日 00:00 —— 否则按日期 key 查桶会把当天数据整条丢掉', async () => {
+    // 线上容器 TZ=UTC 时，旧实现拿 end - 1 天 当起点（非零点），
+    // 于是「最近 7 天」只画出 9/14 一根柱子且恒为 0，当天的数据全部查不到桶。
+    const end = Date.now()
+    const forShanghai = await getRunAnalytics({ start: end - 6 * 86400000, end, days: 7, tzOffsetMinutes: -480 })
+    const shift = 8 * 3600_000
+    const startAsLocal = new Date(forShanghai.range.start + shift)
+    expect(startAsLocal.getUTCHours()).toBe(0)
+    expect(startAsLocal.getUTCMinutes()).toBe(0)
+    expect(startAsLocal.getUTCSeconds()).toBe(0)
+    // 桶不能丢数据：所有落在范围内的 run 都必须能找到自己的那一格
+    expect(forShanghai.trend.reduce((sum, p) => sum + p.value, 0)).toBe(forShanghai.total)
+
+    // 不传时区时按服务端本地时区算，同样要对齐
+    const serverTz = await getRunAnalytics({ start: end - 6 * 86400000, end, days: 7 })
+    expect(new Date(serverTz.range.start).getHours()).toBe(0)
+    expect(serverTz.trend.reduce((sum, p) => sum + p.value, 0)).toBe(serverTz.total)
+  })
+
   it('modalityLabel 覆盖四种业务模态并保留未知值', () => {
     expect(modalityLabel('text')).toBe('文本')
     expect(modalityLabel('vision')).toBe('视觉')
