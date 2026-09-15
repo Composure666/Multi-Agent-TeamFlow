@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -62,7 +63,10 @@ export function PromptEnhanceModal({
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{enhancedLabel}</div>
             <div className="min-h-[260px] overflow-y-auto rounded-md border border-input bg-slate-50 px-3 py-2 text-sm dark:bg-neutral-900">
               {loading ? (
-                <div className="text-sm text-muted-foreground">{loadingText}</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  {loadingText}
+                </div>
               ) : enhancedText.trim() ? (
                 <Markdown className="text-sm leading-6">{enhancedText}</Markdown>
               ) : (

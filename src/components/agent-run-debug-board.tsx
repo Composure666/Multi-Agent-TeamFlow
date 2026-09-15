@@ -43,6 +43,7 @@ import {
 } from '@xyflow/react'
 
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import {
   abortRun,
   fetchAgentRunDebugDetail,
@@ -700,6 +701,8 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
 
   const visibleInspectorDetail = inspectorDetail ?? currentDetail
   const showInspector = !focusMode && inspectorOpen && Boolean(visibleInspectorDetail)
+  // 终端 / 日志要横向空间：这两个 tab 下把 Details 列放宽（纯视觉，不动结构与数据源）
+  const inspectorWide = inspectorTab === 'terminal' || inspectorTab === 'logs'
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
@@ -857,10 +860,14 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
           ? 'grid-cols-1'
           : leftRailCollapsed
             ? showInspector
-              ? 'md:grid-cols-[68px_minmax(0,1fr)_340px]'
+              ? inspectorWide
+                ? 'md:grid-cols-[68px_minmax(0,1fr)_340px] xl:grid-cols-[68px_minmax(0,1fr)_560px]'
+                : 'md:grid-cols-[68px_minmax(0,1fr)_340px] xl:grid-cols-[68px_minmax(0,1fr)_420px]'
               : 'md:grid-cols-[68px_minmax(0,1fr)]'
             : showInspector
-              ? 'md:grid-cols-[228px_minmax(0,1fr)_340px] xl:grid-cols-[240px_minmax(0,1fr)_340px]'
+              ? inspectorWide
+                ? 'md:grid-cols-[228px_minmax(0,1fr)_340px] xl:grid-cols-[240px_minmax(0,1fr)_560px]'
+                : 'md:grid-cols-[228px_minmax(0,1fr)_340px] xl:grid-cols-[240px_minmax(0,1fr)_420px]'
               : 'md:grid-cols-[228px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]',
       )}>
         {!focusMode && (
@@ -972,7 +979,9 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
         </main>
 
         {!focusMode && visibleInspectorDetail && showInspector && (
-          <aside className="hidden min-h-0 xl:block">
+          // 宽度由上面的 grid 轨道决定（终端/日志 tab 会放宽到 420/560），
+          // 不要再给 aside 写死 w-[…] —— 写死会溢出轨道，反而逼出页面横向滚动。
+          <aside className="hidden min-h-0 min-w-0 xl:block">
             <DetailsPanel
               detail={visibleInspectorDetail}
               selectedNode={selectedNode}
@@ -1448,7 +1457,7 @@ function DetailsPanel({
   ]
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-l border-[var(--agenthub-border)] bg-white dark:bg-neutral-900">
+    <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-[var(--agenthub-border)] bg-white dark:bg-neutral-900">
       <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -1493,7 +1502,13 @@ function DetailsPanel({
         ))}
       </div>
 
-      <div className={cn('min-h-0 flex-1', tab === 'terminal' ? 'flex flex-col p-3' : 'overflow-y-auto p-3')}>
+      {/* 终端 / 日志自带滚动区，外层不能再套一层页面滚动（避免 页面→面板→内容 三层滚动） */}
+      <div
+        className={cn(
+          'min-h-0 flex-1 p-3',
+          tab === 'terminal' || tab === 'logs' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
+        )}
+      >
         {tab === 'overview' ? (
           <DetailsOverview
             detail={detail}
@@ -1872,6 +1887,7 @@ function TerminalPanel({
   const [input, setInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [inputError, setInputError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const activeTerminal = realTerminal.status === 'empty' ? terminal : realTerminal
   const canInput = realTerminal.status === 'live' && Boolean(realTerminal.sessionId)
 
@@ -1890,6 +1906,29 @@ function TerminalPanel({
     }
   }
 
+  const terminalInputSlot = canInput ? (
+    <>
+      <form onSubmit={submit} className="flex items-center gap-2 px-3 py-2">
+        <span className="shrink-0 text-emerald-300">$</span>
+        <input
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          className="min-w-0 flex-1 bg-transparent text-slate-100 outline-none placeholder:text-slate-500"
+          placeholder="输入 stdin 后回车"
+          disabled={submitting}
+        />
+        <button
+          type="submit"
+          disabled={!input || submitting}
+          className="rounded bg-white/10 px-2 py-1 text-[10px] text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          发送
+        </button>
+      </form>
+      {inputError && <div className="px-3 pb-2 text-[10px] text-rose-300">{inputError}</div>}
+    </>
+  ) : undefined
+
   if (activeTerminal.status === 'empty') {
     return (
       <PanelEmpty
@@ -1900,53 +1939,109 @@ function TerminalPanel({
     )
   }
   return (
-    <TerminalDisplay
-      activeTerminal={activeTerminal}
-      heightClassName="min-h-[300px] max-h-[640px]"
-      inputSlot={
-        canInput ? (
-          <>
-            <form onSubmit={submit} className="flex items-center gap-2 px-3 py-2">
-              <span className="shrink-0 text-emerald-300">$</span>
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                className="min-w-0 flex-1 bg-transparent text-slate-100 outline-none placeholder:text-slate-500"
-                placeholder="输入 stdin 后回车"
-                disabled={submitting}
-              />
-              <button
-                type="submit"
-                disabled={!input || submitting}
-                className="rounded bg-white/10 px-2 py-1 text-[10px] text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                发送
-              </button>
-            </form>
-            {inputError && <div className="px-3 pb-2 text-[10px] text-rose-300">{inputError}</div>}
-          </>
-        ) : undefined
-      }
-    />
+    <>
+      <TerminalDisplay
+        activeTerminal={activeTerminal}
+        heightClassName="min-h-[360px] flex-1"
+        inputSlot={terminalInputSlot}
+        onExpand={() => setExpanded(true)}
+      />
+      {expanded && (
+        <TerminalWorkspaceDialog
+          activeTerminal={activeTerminal}
+          inputSlot={terminalInputSlot}
+          onClose={() => setExpanded(false)}
+        />
+      )}
+    </>
   )
 }
 
 /**
- * 只读终端展示 — Inspector 与底部 BottomPanel 复用。
- * 提供：
- *  - 等宽字体 + 12px 字号（Geist Mono via font-mono）
- *  - whitespace-pre 不换行 + 横向滚动（Windows 路径 / URL / 命令完整保留）
- *  - 自动滚动到底部，鼠标上滚后停跟，底部出现『↓ 回到底部』按钮
- *  - 头部：shell + cwd + 状态色 badge（运行中/已完成/等待输入/失败）+ 复制 + 清空
+ * 终端独立窗口 —— Details 侧栏再宽也塞不下长命令 / 长 Windows 路径，
+ * 所以给终端一个「工作台级」的窗口：铺满视口，横向滚动优先，完整展示 shell / cwd / 状态。
+ * 只复用 TerminalDisplay，不引入任何新的数据来源。
+ */
+function TerminalWorkspaceDialog({
+  activeTerminal,
+  inputSlot,
+  onClose,
+}: {
+  activeTerminal: TerminalDisplayTerminal
+  inputSlot?: React.ReactNode
+  onClose: () => void
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent
+        showCloseButton={false}
+        style={{ maxWidth: 'min(1560px, calc(100vw - 2rem))' }}
+        className="flex h-[min(92vh,940px)] w-full max-w-none flex-col gap-0 overflow-hidden p-0"
+      >
+        <DialogTitle className="sr-only">终端完整视图</DialogTitle>
+        <TerminalDisplay
+          activeTerminal={activeTerminal}
+          expanded
+          heightClassName="min-h-0 flex-1"
+          inputSlot={inputSlot}
+          onCollapse={onClose}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * 终端行的语义着色 —— 只给「有信息量」的行上色，其余保持浅灰，
+ * 避免每行都变成彩色标签（那正是廉价感的来源）。
+ */
+function terminalLineClass(line: string): string {
+  const trimmed = line.trim()
+  if (!trimmed) return 'text-slate-600'
+  // 命令行：比普通输出更亮一档
+  if (/^(?:\$|>|PS\s|➜)/.test(trimmed) || /^\s*\$\s/.test(line)) return 'text-slate-50'
+  if (/^(?:OK|ALL_OK|PASS|SUCCESS|DONE|✓)/i.test(trimmed)) return 'text-emerald-300'
+  if (/\b(?:error|failed|fatal|exception|denied|rejected)\b/i.test(trimmed)) return 'text-rose-300'
+  if (/\b(?:warn|warning|deprecated)\b/i.test(trimmed)) return 'text-amber-300'
+  // 路径 / URL：淡蓝，方便在长输出里扫到"文件在哪"
+  if (/^(?:[A-Za-z]:[\\/]|\.{0,2}\/|\/|https?:\/\/)/.test(trimmed)) return 'text-sky-300'
+  return 'text-slate-300'
+}
+
+/**
+ * 终端展示需要的终端视图数据（只读，本组件不持有状态）。
+ */
+interface TerminalDisplayTerminal {
+  status: 'live' | 'complete' | 'completed' | 'failed' | 'waiting' | 'empty'
+  shell: string
+  cwd: string | null
+  transcript: string
+}
+
+/**
+ * 只读终端展示 — Inspector、底部 BottomPanel、独立终端窗口三处复用。
+ * 目标：像真正的终端，而不是一张塞满文本的卡片。
+ *  - 连续内容：整段 transcript 一整块 pre，绝不按行切卡片
+ *  - 系统等宽字体 + 13px / 行高 1.65，看得懂优先于塞得多
+ *  - whitespace-pre + 横向滚动：长命令 / Windows 路径 / URL 保持完整
+ *  - 自动滚动到底部，手动上滚即暂停跟随，底部浮出『↓ 回到底部』
+ *  - 头部轻量：Terminal · shell · 状态，右侧自动滚动 / 复制 / 清空 / 展开
+ *  - expanded：独立窗口形态（cwd 完整展示、留白更舒展、动作区给「收起」）
  */
 function TerminalDisplay({
   activeTerminal,
   inputSlot,
   heightClassName,
+  expanded = false,
+  onExpand,
+  onCollapse,
 }: {
-  activeTerminal: { status: 'live' | 'complete' | 'completed' | 'failed' | 'waiting' | 'empty'; shell: string; cwd: string | null; transcript: string }
+  activeTerminal: TerminalDisplayTerminal
   inputSlot?: React.ReactNode
   heightClassName?: string
+  expanded?: boolean
+  onExpand?: () => void
+  onCollapse?: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
@@ -2021,66 +2116,119 @@ function TerminalDisplay({
   })()
 
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-800 bg-slate-950 font-mono text-[12px] leading-6 text-slate-100 shadow-inner', heightClassName)}>
-      <div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 py-1.5 text-[11px] text-slate-400">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <TerminalSquare className="size-3.5 shrink-0 text-slate-500" />
-            <span className="font-semibold text-slate-200">终端</span>
-            <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px]', statusBadge.cls)}>{statusBadge.label}</span>
-          </div>
-          <div className="mt-0.5 truncate text-slate-500">{activeTerminal.shell}{activeTerminal.cwd ? ` · ${activeTerminal.cwd}` : ''}</div>
+    <div
+      className={cn(
+        'agenthub-terminal-font flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-800 bg-[#0b1020] text-[13px] leading-[1.65] text-slate-300',
+        heightClassName,
+      )}
+    >
+      {/* 头部：一行放下标题 / shell / 状态 / 动作，不做成两行的信息卡 */}
+      <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 text-[11px] text-slate-400">
+        <div className="flex min-w-0 items-center gap-2">
+          <TerminalSquare className="size-3.5 shrink-0 text-slate-500" />
+          <span className="shrink-0 font-semibold text-slate-200">Terminal</span>
+          <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+            {activeTerminal.shell}
+          </span>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px]', statusBadge.cls)}>
+            {statusBadge.label}
+          </span>
+          {activeTerminal.cwd && (
+            <span
+              className={cn(
+                'min-w-0 truncate font-mono text-[10px] text-slate-500',
+                expanded ? 'block flex-1' : 'hidden xl:block',
+              )}
+              title={activeTerminal.cwd}
+            >
+              {activeTerminal.cwd}
+            </span>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={() => setAutoScroll((current) => !current)}
             className={cn(
-              'inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] transition',
+              'inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] transition',
               autoScroll
-                ? 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-400/30 hover:bg-blue-500/20'
-                : 'hover:bg-white/10 hover:text-slate-200 text-slate-400',
+                ? 'bg-blue-500/15 text-blue-300 hover:bg-blue-500/20'
+                : 'text-slate-400 hover:bg-white/10 hover:text-slate-200',
             )}
             aria-label={autoScroll ? '关闭自动滚到底部' : '开启自动滚到底部'}
             title={autoScroll ? '自动滚动开启（点击关闭）' : '自动滚动关闭（点击开启）'}
           >
             <ArrowDown className="size-3" />
-            {autoScroll ? '自动滚动' : '已暂停'}
+            <span className="hidden sm:inline">{autoScroll ? '自动滚动' : '已暂停'}</span>
           </button>
           <button
             type="button"
             onClick={() => void handleCopy()}
             disabled={!activeTerminal.transcript}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="复制终端输出"
+            title="复制全部输出"
           >
             <Copy className="size-3" />
-            {copyState === 'copied' ? '已复制' : '复制'}
+            <span className="hidden sm:inline">{copyState === 'copied' ? '已复制' : '复制'}</span>
           </button>
           <button
             type="button"
             onClick={() => setCleared(true)}
             disabled={cleared || !activeTerminal.transcript}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="清空终端显示（不影响实际日志）"
+            title="清空显示（不影响实际日志）"
           >
             <Eraser className="size-3" />
-            清空
+            <span className="hidden sm:inline">清空</span>
           </button>
+          {/* 展开为独立终端窗口 —— 侧栏宽度永远不够放长命令 / 长路径 */}
+          {onExpand && (
+            <button
+              type="button"
+              onClick={onExpand}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+              aria-label="展开为独立的完整终端窗口"
+              title="展开为完整终端窗口"
+            >
+              <Maximize2 className="size-3" />
+              <span className="hidden sm:inline">展开</span>
+            </button>
+          )}
+          {/* 独立窗口里的收起入口（与 Dialog 自带关闭按钮并存，交互更顺手） */}
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+              aria-label="收起终端窗口"
+              title="收起（Esc）"
+            >
+              <Minimize2 className="size-3" />
+              <span className="hidden sm:inline">收起</span>
+            </button>
+          )}
         </div>
       </div>
+
       <div className="relative min-h-0 flex-1">
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="absolute inset-0 overflow-auto"
-        >
-          {/* 长行（路径 / URL / 报错堆栈）走 inline-block + min-w-full，让外层容器横向滚动，
-              而不会撑开导致竖向出现滚动条 —— 符合"不强制换行 + 横向滚动优先"。 */}
-          <div className="min-w-max px-4 py-3 whitespace-pre">
-            {displayTranscript}
-            {!displayTranscript && (
-              <div className="whitespace-normal text-slate-500 italic">（暂无输出，等待终端产生内容…）</div>
+        <div ref={scrollRef} onScroll={handleScroll} className="absolute inset-0 overflow-auto">
+          {/* 整段内容是一块连续的 pre：横向不够就滚，不强制折行 —— 命令 / 路径 / URL 保持完整 */}
+          <div className={cn('min-w-max', expanded ? 'px-5 py-4' : 'px-4 py-3')}>
+            {displayTranscript ? (
+              displayTranscript.split('\n').map((line, index) => (
+                <div key={index} className={cn('whitespace-pre', terminalLineClass(line))}>
+                  {line || ' '}
+                </div>
+              ))
+            ) : (
+              <div className="whitespace-normal italic text-slate-500">
+                （暂无输出，等待终端产生内容…）
+              </div>
+            )}
+            {normalizedStatus === 'live' && (
+              <span className="agenthub-terminal-caret ml-0.5 inline-block h-[1.1em] w-[7px] translate-y-[2px] bg-emerald-400/80" />
             )}
           </div>
         </div>
@@ -2417,50 +2565,62 @@ function ToolTracePanel({
   const debugMetaByCallId = useMemo(() => getToolDebugMetaByCallId(debugEvents), [debugEvents])
   if (items.length === 0) return <PanelEmpty icon={<TerminalSquare className="size-4" />} title="暂无工具调用" hint="Agent 调用工具后，时序与参数会在这里展开。" />
   return (
-    <div className="relative max-w-4xl pl-6">
-      <div className="absolute bottom-3 left-2.5 top-3 w-px bg-slate-200 dark:bg-white/10" />
-      <div className="space-y-2">
+    // 与日志同一套"连续列表"语言：一行一次调用，点开才看参数与结果，不做一卡一调用
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 text-[11px] text-slate-400">
+        <span>共 {items.length} 次调用</span>
+        <span className="text-slate-400/80">点击任意一行展开参数与结果</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
         {items.map((item, index) => {
           const meta = debugMetaByCallId.get(item.callId)
           const status = meta?.status ?? (item.isError ? 'failed' : item.completed ? 'complete' : 'running')
+          const failed = item.isError || status === 'failed' || status === 'aborted'
           return (
-            <details key={item.callId} className="group relative rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40">
-              <span className={cn(
-                'absolute -left-[1.72rem] top-3 z-10 size-2.5 rounded-full border-2 border-white dark:border-neutral-900',
-                item.isError || status === 'failed' || status === 'aborted' ? 'bg-rose-500' : item.completed ? 'bg-emerald-500' : 'bg-amber-400',
-              )} />
+            <details key={item.callId} className="group border-b border-slate-100 last:border-b-0 dark:border-white/5">
               <summary
-                className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs transition hover:bg-blue-50/70 dark:hover:bg-blue-500/10"
+                className="grid cursor-pointer list-none grid-cols-[28px_minmax(0,1fr)_64px_74px_16px] items-center gap-3 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-white/5"
                 onMouseDown={(event) => {
                   if (event.button === 0) onSelectToolCall?.(item.callId)
                 }}
                 onClick={() => onSelectToolCall?.(item.callId)}
               >
-                <span className="w-6 shrink-0 font-mono text-[10px] text-slate-400">{String(index + 1).padStart(2, '0')}</span>
-                <span className="min-w-0 flex-1 break-words font-medium text-slate-700 dark:text-slate-200">{item.toolName}</span>
-                {meta?.durationMs !== null && meta?.durationMs !== undefined && (
-                  <span className="shrink-0 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:ring-white/10">
-                    {formatDurationMs(meta.durationMs)}
-                  </span>
-                )}
-                <span className="text-[10px] text-slate-400">{toolTraceStatusLabel(status)}</span>
+                <span className="font-mono text-[10px] text-slate-400">{String(index + 1).padStart(2, '0')}</span>
+                <span className="truncate font-mono text-[12px] text-slate-700 dark:text-slate-200" title={item.toolName}>
+                  {item.toolName}
+                </span>
+                <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                  {meta?.durationMs === null || meta?.durationMs === undefined ? '-' : formatDurationMs(meta.durationMs)}
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 text-[11px]',
+                    failed
+                      ? 'text-rose-500 dark:text-rose-400'
+                      : status === 'complete'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-500 dark:text-amber-400',
+                  )}
+                >
+                  {failed ? '✕ 失败' : status === 'complete' ? '✓ 完成' : '● 运行中'}
+                </span>
+                <ChevronRight className="size-3.5 shrink-0 text-slate-300 transition-transform group-open:rotate-90 dark:text-slate-600" />
               </summary>
-              {onSelectToolCall && (
-                <div className="border-t border-slate-200 px-3 py-2 dark:border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => onSelectToolCall(item.callId)}
-                    className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2 text-[10px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:hover:bg-white/5 dark:hover:text-slate-200"
-                  >
-                    查看 Agent
-                  </button>
-                </div>
-              )}
-              <div className="space-y-2 border-t border-slate-200 px-3 py-2 dark:border-white/10">
-                <div className="grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-3">
-                  <PanelMetric label="状态" value={toolTraceStatusLabel(status)} tone={status === 'failed' || status === 'aborted' ? 'danger' : status === 'complete' ? 'success' : 'warning'} />
-                  <PanelMetric label="耗时" value={meta?.durationMs === null || meta?.durationMs === undefined ? '-' : formatDurationMs(meta.durationMs)} />
-                  <PanelMetric label="Call ID" value={shortId(item.callId)} />
+              <div className="space-y-2 px-3 pb-3 pt-1">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+                  <span className="font-mono">Call ID: {shortId(item.callId)}</span>
+                  {meta?.durationMs !== null && meta?.durationMs !== undefined && (
+                    <span className="font-mono">耗时: {formatDurationMs(meta.durationMs)}</span>
+                  )}
+                  {onSelectToolCall && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectToolCall(item.callId)}
+                      className="text-[11px] text-[var(--agenthub-accent)] hover:underline"
+                    >
+                      定位到 Agent →
+                    </button>
+                  )}
                 </div>
                 <CodeSnippet label="Input" value={summarizeAgentRunToolTraceArgs(item)} />
                 {item.completed && <CodeSnippet label="Output" value={summarizeAgentRunToolTraceResult(item)} />}
@@ -2498,6 +2658,93 @@ function VariablesPanel({ detail }: { detail: AgentRunDebugDetail }) {
   )
 }
 
+type LogEventKind =
+  | 'LIST'
+  | 'READ'
+  | 'WRITE'
+  | 'COMMAND'
+  | 'STDOUT'
+  | 'STDERR'
+  | 'TOOL'
+  | 'AGENT'
+  | 'NETWORK'
+  | 'ERROR'
+
+type LogRow = {
+  id: string
+  time: number
+  kind: LogEventKind
+  title: string
+  subtitle: string
+  status: 'ok' | 'error' | 'running'
+  detail: {
+    toolName: string
+    callId: string
+    sessionId: string | null
+    command: string | null
+    path: string | null
+    input: string
+    output: string
+    exitCode: number | null
+  }
+}
+
+/** 事件类型的极轻量标识：只给文字上色，不做彩色大卡片 */
+const LOG_KIND_CLASS: Record<LogEventKind, string> = {
+  LIST: 'text-slate-500 dark:text-slate-400',
+  READ: 'text-sky-600 dark:text-sky-300',
+  WRITE: 'text-indigo-600 dark:text-indigo-300',
+  COMMAND: 'text-violet-600 dark:text-violet-300',
+  STDOUT: 'text-emerald-600 dark:text-emerald-300',
+  STDERR: 'text-rose-600 dark:text-rose-300',
+  TOOL: 'text-slate-600 dark:text-slate-300',
+  AGENT: 'text-amber-600 dark:text-amber-300',
+  NETWORK: 'text-teal-600 dark:text-teal-300',
+  ERROR: 'text-rose-600 dark:text-rose-300',
+}
+
+function logKindForTool(toolName: string, isError: boolean): LogEventKind {
+  const name = toolName.toLowerCase()
+  if (name.includes('list') || name.includes('glob') || name.includes('search_tree')) return 'LIST'
+  if (name.includes('read') || name.includes('cat') || name.includes('view')) return 'READ'
+  if (name.includes('write') || name.includes('edit') || name.includes('patch') || name.includes('mkdir')) {
+    return 'WRITE'
+  }
+  if (name.includes('bash') || name.includes('command') || name.includes('terminal') || name.includes('exec')) {
+    return isError ? 'STDERR' : 'COMMAND'
+  }
+  if (name.includes('web') || name.includes('fetch') || name.includes('http')) return 'NETWORK'
+  if (name.includes('agent') || name.includes('dispatch') || name.includes('report')) return 'AGENT'
+  return 'TOOL'
+}
+
+/** 一行摘要：优先给「对象」（路径 / 命令 / URL），而不是工具名 */
+function logTitleForTool(item: AgentRunToolTraceItem): { title: string; subtitle: string } {
+  const args = item.args as Record<string, unknown> | null
+  const path = typeof args?.path === 'string' ? args.path : null
+  const command = typeof args?.command === 'string' ? args.command : null
+  const url = typeof args?.url === 'string' ? args.url : typeof args?.query === 'string' ? args.query : null
+  if (path) return { title: path, subtitle: item.toolName }
+  if (command) return { title: command, subtitle: item.toolName }
+  if (url) return { title: url, subtitle: item.toolName }
+  return { title: item.toolName, subtitle: '' }
+}
+
+function stringifyLogValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+/**
+ * 日志 = 单列事件流，不是卡片墙。
+ * 一行一条：[时间] [类型] [摘要] [状态]，点开才展开 Command / Output / Input / Session / Call ID。
+ * 与 Terminal 分工：Terminal 是"现场"（命令 + 原始 stdout/stderr），日志是"发生了什么"。
+ */
 function LogsPanel({
   detail,
   debugEvents,
@@ -2505,53 +2752,187 @@ function LogsPanel({
   detail: AgentRunDebugDetail
   debugEvents: readonly AgentRunDebugEventRecord[]
 }) {
-  const operations = projectAgentRunOperations(projectAgentRunToolTrace(detail))
-  const rows = [
-    ...operations.files.map((item) => ({ kind: item.kind, value: item.path, error: item.isError })),
-    ...operations.commands.map((item) => ({ kind: item.exitCode === 0 ? 'command' : item.status ?? 'command', value: item.command, error: item.isError })),
-    ...operations.network.map((item) => ({ kind: item.kind, value: item.target, error: item.isError })),
-  ]
-  const failedEvents = debugEvents.filter(isFailedDebugEvent)
-  if (rows.length === 0 && failedEvents.length === 0) {
-    return <PanelEmpty icon={<FileCode2 className="size-4" />} title="暂无运行日志" hint="文件读写、命令执行、网络请求和失败事件会按时间顺序汇总在这里。" />
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const rows = useMemo<LogRow[]>(() => {
+    const trace = projectAgentRunToolTrace(detail)
+    // 工具调用本身不带时间戳，从它所在消息的 createdAt 取
+    const timeByCallId = new Map<string, number>()
+    for (const message of detail.outputMessages) {
+      for (const part of message.parts) {
+        if (part.type === 'tool_use' && part.callId && !timeByCallId.has(part.callId)) {
+          timeByCallId.set(part.callId, message.createdAt)
+        }
+      }
+    }
+
+    const built: LogRow[] = trace.map((item, index) => {
+      const { title, subtitle } = logTitleForTool(item)
+      const result = item.result as Record<string, unknown> | null
+      const exitCode = typeof result?.exitCode === 'number' ? result.exitCode : null
+      const sessionId = typeof result?.sessionId === 'string' ? result.sessionId : null
+      const path = typeof (item.args as Record<string, unknown> | null)?.path === 'string'
+        ? String((item.args as Record<string, unknown>).path)
+        : null
+      const command = typeof (item.args as Record<string, unknown> | null)?.command === 'string'
+        ? String((item.args as Record<string, unknown>).command)
+        : null
+      return {
+        id: item.callId || `trace-${index}`,
+        time: timeByCallId.get(item.callId) ?? detail.outputMessages[index]?.createdAt ?? 0,
+        kind: logKindForTool(item.toolName, item.isError || exitCode !== 0),
+        title: title.replace(/\s+/g, ' ').trim(),
+        subtitle,
+        status: item.isError || (exitCode !== null && exitCode !== 0) ? 'error' : item.completed ? 'ok' : 'running',
+        detail: {
+          toolName: item.toolName,
+          callId: item.callId,
+          sessionId,
+          command,
+          path,
+          input: stringifyLogValue(item.args),
+          output: item.completed ? stringifyLogValue(item.result) : '',
+          exitCode,
+        },
+      }
+    })
+
+    // 失败事件：只补工具调用之外的（避免和上面重复）
+    const seenCallIds = new Set(trace.map((item) => item.callId))
+    for (const event of debugEvents) {
+      if (!isFailedDebugEvent(event)) continue
+      const payload = (event.payload ?? {}) as Record<string, unknown>
+      const callId = typeof payload.callId === 'string' ? payload.callId : ''
+      if (callId && seenCallIds.has(callId)) continue
+      const desc = describeAgentRunDebugEvent(event)
+      built.push({
+        id: `event-${event.id}`,
+        time: event.createdAt,
+        kind: 'ERROR',
+        title: desc.label,
+        subtitle: desc.detail ?? '',
+        status: 'error',
+        detail: {
+          toolName: typeof payload.toolName === 'string' ? payload.toolName : event.type,
+          callId,
+          sessionId: typeof payload.sessionId === 'string' ? payload.sessionId : null,
+          command: typeof payload.command === 'string' ? payload.command : null,
+          path: typeof payload.path === 'string' ? payload.path : null,
+          input: stringifyLogValue(payload),
+          output: '',
+          exitCode: null,
+        },
+      })
+    }
+
+    return built.sort((a, b) => a.time - b.time)
+  }, [detail, debugEvents])
+
+  if (rows.length === 0) {
+    return (
+      <PanelEmpty
+        icon={<FileCode2 className="size-4" />}
+        title="暂无运行日志"
+        hint="文件读写、命令执行、网络请求和失败事件会按时间顺序汇总在这里。"
+      />
+    )
   }
+
+  const errorCount = rows.filter((row) => row.status === 'error').length
+
   return (
-    <div className="space-y-3">
-      {failedEvents.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">失败 / 错误事件</div>
-          {failedEvents.map((event) => {
-            const desc = describeAgentRunDebugEvent(event)
-            return (
-              <div key={event.id} className="rounded-md border border-rose-200/70 bg-rose-50/70 px-3 py-2 text-xs dark:border-rose-500/20 dark:bg-rose-500/10">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-rose-400">{formatClockTime(event.createdAt)}</span>
-                  <span className="min-w-0 flex-1 break-words font-medium text-rose-700 dark:text-rose-300">{desc.label}</span>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 text-[11px] text-slate-400">
+        <span>
+          共 {rows.length} 条事件
+          {errorCount > 0 && <span className="ml-2 text-rose-500 dark:text-rose-400">{errorCount} 条失败</span>}
+        </span>
+        <span className="text-slate-400/80">点击任意一行展开明细</span>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
+        {rows.map((row) => {
+          const expanded = expandedId === row.id
+          return (
+            <div
+              key={row.id}
+              className={cn(
+                'border-b border-slate-100 last:border-b-0 dark:border-white/5',
+                expanded && 'border-l-2 border-l-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)]',
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setExpandedId(expanded ? null : row.id)}
+                className="grid w-full grid-cols-[62px_68px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
+              >
+                <span className="font-mono text-[11px] text-slate-400">
+                  {row.time ? formatClockTime(row.time) : '--:--:--'}
+                </span>
+                <span className={cn('font-mono text-[10px] font-semibold uppercase tracking-wide', LOG_KIND_CLASS[row.kind])}>
+                  {row.kind}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-[12px] text-slate-700 dark:text-slate-200" title={row.title}>
+                    {row.title}
+                  </span>
+                  {row.subtitle && (
+                    <span className="mt-0.5 block truncate text-[11px] text-slate-400" title={row.subtitle}>
+                      {row.subtitle}
+                    </span>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span
+                    className={cn(
+                      'text-[11px]',
+                      row.status === 'error'
+                        ? 'text-rose-500 dark:text-rose-400'
+                        : row.status === 'running'
+                          ? 'text-amber-500 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400',
+                    )}
+                  >
+                    {row.status === 'error' ? '✕ 失败' : row.status === 'running' ? '● 运行中' : '✓ 完成'}
+                  </span>
+                  <ChevronRight
+                    className={cn('size-3.5 shrink-0 text-slate-300 transition-transform dark:text-slate-600', expanded && 'rotate-90')}
+                  />
+                </span>
+              </button>
+
+              {expanded && (
+                <div className="space-y-2 px-3 pb-3 pt-1">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] sm:grid-cols-3">
+                    <LogMeta label="Tool" value={row.detail.toolName} />
+                    <LogMeta label="Call ID" value={shortId(row.detail.callId)} mono />
+                    {row.detail.sessionId && <LogMeta label="Session" value={shortId(row.detail.sessionId)} mono />}
+                    {row.detail.exitCode !== null && <LogMeta label="Exit" value={String(row.detail.exitCode)} mono />}
+                  </div>
+                  {row.detail.command && <CodeSnippet label="Command" value={row.detail.command} />}
+                  {row.detail.output && <CodeSnippet label="Output" value={row.detail.output} />}
+                  <CodeSnippet label="Input" value={row.detail.input || '（无）'} />
                 </div>
-                {desc.detail && <p className="mt-1 break-words text-[11px] leading-5 text-rose-600/90 dark:text-rose-300/80">{desc.detail}</p>}
-                {debugEventPayloadEntries(event).map(([key, value]) => (
-                  <p key={key} className="mt-1 break-all font-mono text-[10px] text-rose-600/80 dark:text-rose-300/70">
-                    {key}: {value.length > 320 ? `${value.slice(0, 320)}…` : value}
-                  </p>
-                ))}
-              </div>
-            )
-          })}
-        </div>
-      )}
-      {rows.length > 0 && (
-        <div className="grid gap-1.5 md:grid-cols-2">
-          {rows.map((row, index) => (
-            <div key={`${row.kind}-${row.value}-${index}`} className={cn('flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs dark:bg-neutral-950/40', row.error && 'bg-rose-50 text-rose-700')}>
-              <span className="w-16 shrink-0 text-[10px] uppercase text-slate-400">{row.kind}</span>
-              <span className="min-w-0 break-words font-mono text-[11px]">{row.value}</span>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }
+
+function LogMeta({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wide text-slate-400">{label}</div>
+      <div className={cn('truncate text-slate-600 dark:text-slate-300', mono && 'font-mono text-[11px]')} title={value}>
+        {value || '-'}
+      </div>
+    </div>
+  )
+}
+
 
 function ArtifactsPanel({ detail }: { detail: AgentRunDebugDetail }) {
   const artifacts = projectAgentRunArtifacts(detail)
@@ -2819,7 +3200,10 @@ function CodeSnippet({ label, value }: { label: string; value: string }) {
           复制
         </button>
       </div>
-      <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-slate-900 px-2 py-1.5 font-mono text-[10px] leading-4 text-slate-100">{value}</pre>
+      {/* 代码块只横向滚动，不强制折行 —— 命令 / JSON / 路径折碎后基本没法读 */}
+      <pre className="agenthub-terminal-font max-h-56 overflow-auto rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] leading-[1.6] text-slate-700 dark:border-white/10 dark:bg-neutral-950/60 dark:text-slate-300">
+        {value}
+      </pre>
     </div>
   )
 }
@@ -2948,15 +3332,6 @@ function getToolDebugMetaByCallId(events: AgentRunDebugEventRecord[]): Map<strin
     })
   }
   return result
-}
-
-function toolTraceStatusLabel(status: AgentRunDebugEventRecord['status'] | 'running' | 'complete' | 'failed' | 'aborted'): string {
-  if (status === 'complete') return '完成'
-  if (status === 'running') return '进行中'
-  if (status === 'failed') return '失败'
-  if (status === 'aborted') return '已取消'
-  if (status === 'queued' || status === 'blocked' || status === 'skipped') return '等待'
-  return '等待'
 }
 
 function numberPayload(event: AgentRunDebugEventRecord, key: string): number | null {

@@ -516,6 +516,82 @@
   100% { opacity: 0; transform: scale(1.06); }
 }
 
+/**
+ * 不确定性进度条：滑块从左滑到右。
+ *
+ * 用它替换「宽度固定在 50% + animate-pulse」的假进度条 —— 后者只做透明度呼吸，
+ * 视觉上像卡死在半截。这里全程只用 transform，走合成层，不会被主线程阻塞。
+ */
+@keyframes agenthub-indeterminate {
+  0% { transform: translateX(-110%) scaleX(1); }
+  50% { transform: translateX(90%) scaleX(1.35); }
+  100% { transform: translateX(320%) scaleX(1); }
+}
+
+/**
+ * 加载弧线的自转 + 呼吸，比单纯 rotate 更"活"。
+ * 旋转用 transform，呼吸用 opacity —— 两者都不触发重排。
+ */
+@keyframes agenthub-orbit {
+  0% { transform: rotate(0deg); opacity: 1; }
+  50% { opacity: 0.55; }
+  100% { transform: rotate(360deg); opacity: 1; }
+}
+
+/* 不确定性进度条的滑块与你加载弧线。定义成 utility class，避免在各处重复写 arbitrary animation。 */
+.agenthub-indeterminate-bar {
+  inset-inline-start: 0;
+  width: 34%;
+  animation: agenthub-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+.agenthub-orbit {
+  animation: agenthub-orbit 0.9s linear infinite;
+}
+
+/**
+ * 调试面板终端字体 —— 用真正的系统等宽栈，保证命令 / 路径 / 表格对齐稳定。
+ * Tailwind 的 font-mono 走的是 Geist Mono（可变字体），在终端这种
+ * 「靠列对齐读内容」的场景反而容易抖，这里单独指定。
+ */
+.agenthub-terminal-font {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+}
+
+@keyframes agenthub-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.agenthub-terminal-caret {
+  animation: agenthub-caret 1.05s steps(1) infinite;
+}
+
+/* 无障碍：系统级「减少动态效果」时，进度条改为缓慢的明暗呼吸，弧线停转但仍可见 */
+@media (prefers-reduced-motion: reduce) {
+  .agenthub-indeterminate-bar {
+    animation: agenthub-pulse-ring 2.4s ease-in-out infinite alternate !important;
+    transform: none !important;
+    inset-inline-start: 33% !important;
+  }
+  .agenthub-orbit {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .agenthub-terminal-caret {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
 .motion-safe\:animate-ah-fade-in {
   animation: agenthub-fade-in var(--agenthub-motion-normal) var(--agenthub-ease-standard) both;
 }
