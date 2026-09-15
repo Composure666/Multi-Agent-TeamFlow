@@ -625,4 +625,107 @@ describe('evaluateTaskResultReport', () => {
       expect(result.error).toContain('diagram')
     }
   })
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 回归（2026-09-15 线上生图任务 4 次重试全灭）：环境探测类命令的失败不是任务
+  // 失败的证据。服务器上没有 jq / PIL，agent 的 which / import / pip install
+  // 探测全部非零退出，被门禁判「failed command evidence」反复重试直到熔断。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('excuses failed environment probes so image tasks are not doomed by missing tools', () => {
+    const probeCommands = [
+      'pwd && ls -la && echo "---tools---" && which curl jq python3 base64 2>/dev/null',
+      'pwd && ls -la && echo "---outputs---" && ls -la outputs 2>/dev/null && echo "---tools---" && which curl jq python3 base64 2>/dev/null',
+      'echo "=== generation_record.json ==="; cat outputs/generation_record.json; echo "=== prompts ==="; ls -la prompts; cat prompts/positive.txt 2>/dev/null',
+      'python3 -c "import PIL; print(\'PIL\', PIL.version)" 2>&1',
+      'pip install --quiet Pillow 2>&1 | tail -3',
+      'python3 -c "import PIL; print(\'PIL ok\', PIL.version)"',
+    ]
+    expect(
+      evaluateTaskResultReport(
+        task({ task: '生成 16:9 写实照片', taskKind: 'design' }),
+        { status: 'complete', summary: '图片已通过 write_artifact 交付。' },
+        {
+          fileWrites: [],
+          commands: probeCommands.map((command) => ({
+            command,
+            cwd: '/opt/agenthub/workspaces/conv_1',
+            exitCode: 1,
+            timedOut: false,
+            isError: true,
+          })),
+          artifacts: [
+            { artifactId: 'art_img', title: '16:9写实成图', type: 'image', version: 1 },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
+  it('does not excuse failures of commands that do real work', () => {
+    expect(
+      evaluateTaskResultReport(
+        task(),
+        { status: 'complete', summary: 'Done.' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'curl -fsS https://api.example.com/generate -o out.png',
+              cwd: '/w',
+              exitCode: 1,
+              timedOut: false,
+              isError: true,
+            },
+          ],
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error:
+        'Task "t1" has failed command evidence: curl -fsS https://api.example.com/generate -o out.png (exit 1)',
+    })
+
+    // 混合链路：探测段 + 实际工作段，整体失败照常定罪
+    expect(
+      evaluateTaskResultReport(
+        task(),
+        { status: 'complete', summary: 'Done.' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'which convert 2>/dev/null && convert input.png -resize 1024x output.png',
+              cwd: '/w',
+              exitCode: 1,
+              timedOut: false,
+              isError: true,
+            },
+          ],
+        },
+      ),
+    ).toMatchObject({ ok: false })
+  })
+
+  it('shows the real exit code instead of a bare "tool error" when error detail is missing', () => {
+    const result = evaluateTaskResultReport(
+      task(),
+      { status: 'complete', summary: 'Done.' },
+      {
+        fileWrites: [],
+        commands: [
+          {
+            command: 'npm run build',
+            cwd: '/w',
+            exitCode: 2,
+            timedOut: false,
+            isError: true,
+          },
+        ],
+      },
+    )
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('npm run build (exit 2)')
+    expect(result.error).not.toContain('tool error')
+  })
 })

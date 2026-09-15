@@ -142,15 +142,14 @@ export function evaluateTaskResultReport(
     (command, index) =>
       !command.prepare &&
       isFailedCommand(command) &&
+      !isBenignFailure(command.command) &&
       !hasLaterSuccessfulCommand(command, index, evidence.commands),
   )
   if (failedCommands.length > 0) {
     return {
       ok: false,
       error: `Task "${task.id}" has failed command evidence: ${failedCommands
-        .map((command) =>
-          `${command.command} (${command.isError ? command.error ?? 'tool error' : command.timedOut ? 'timed out' : `exit ${command.exitCode}`})`,
-        )
+        .map((command) => `${command.command} (${formatCommandFailure(command)})`)
         .join('; ')}`,
     }
   }
@@ -410,6 +409,100 @@ function evidenceMentions(
 
 function isFailedCommand(command: RunToolEvidence['commands'][number]): boolean {
   return command.isError || command.timedOut || command.exitCode !== 0
+}
+
+/** 门禁失败信息必须能定位根因：isError 且没记 error 时要露出真实退出码，不能再笼统写 "tool error"。 */
+function formatCommandFailure(command: RunToolEvidence['commands'][number]): string {
+  if (command.isError) {
+    return (
+      command.error ??
+      (command.exitCode !== null && command.exitCode !== undefined
+        ? `exit ${command.exitCode}`
+        : command.timedOut
+          ? 'timed out'
+          : 'tool error')
+    )
+  }
+  return command.timedOut ? 'timed out' : `exit ${command.exitCode}`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 探测类命令的失败不算任务失败的证据。
+//
+// 线上生图任务曾因子 agent 跑了一串环境探测（which curl jq python3 base64 /
+// python3 -c "import PIL" / pip install Pillow / ls outputs 2>/dev/null）全部
+// 非零退出，被门禁判「failed command evidence」连续 4 次重试全灭 —— 而这些命令
+// 的失败只说明「环境里没这个工具 / 目录还没建」，与交付物好坏毫无关系。
+// 规则：命令的每一段都是「只读探测 / 依赖安装 / 模块存在性检查」时，其失败被豁免；
+// 交付物本身仍由 targetPaths / acceptanceCriteria / artifacts 门禁把守，不会放水。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 只读探测段的首 token（ls/cat/grep/which/find… 不改文件、不联网、不执行用户代码）。 */
+const BENIGN_PROBE_SEGMENT_RE =
+  /^(?:pwd|echo|printf|ls|cat|head|tail|wc|which|command|type|whereis|hash|file|stat|du|df|env|printenv|date|uname|whoami|hostname|basename|dirname|realpath|readlink|true|false|find|tree|jq|sleep)\b/
+/** 依赖安装：失败属于准备性质（pnpm/npm/yarn/bun 已由 prepare 标记覆盖，这里补 pip）。 */
+const BENIGN_DEP_INSTALL_RE = /^(?:pip3?|python3?\s+-m\s+pip)\s+install\b/
+/** 模块存在性检查：python -c "import X" / node -e "require('X')"。 */
+const BENIGN_MODULE_PROBE_RE =
+  /^(?:python3?\s+-c\s+["']?\s*import|node\s+(?:-e|--eval)\s+["']?\s*(?:require|import))/
+/** 显式吞掉 stderr = 作者已声明「这条可能失败」；注意 2>&1 不是吞 stderr。 */
+const STDERR_SUPPRESSED_RE = /2>\s*\/dev\/null/
+
+/**
+ * 命令的每一段（按 && / || / ; / | 切开，引号内的分隔符不算）都是探测/安装/模块检查时，
+ * 失败豁免。只要任何一段会做实际工作（build、curl 落盘、跑脚本……），整条命令的失败
+ * 照常定罪。
+ */
+function isBenignFailure(command: string): boolean {
+  const segments = splitCommandSegments(normalizeCommand(command).toLowerCase())
+  if (segments.length === 0) return false
+  return segments.every(
+    (segment) =>
+      BENIGN_PROBE_SEGMENT_RE.test(segment) ||
+      BENIGN_DEP_INSTALL_RE.test(segment) ||
+      BENIGN_MODULE_PROBE_RE.test(segment) ||
+      STDERR_SUPPRESSED_RE.test(segment),
+  )
+}
+
+/** 引号感知的链路切段：python -c "import x; print()" 里的 ; 不能当命令分隔符。 */
+function splitCommandSegments(command: string): string[] {
+  const segments: string[] = []
+  let current = ''
+  let quote: string | null = null
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]
+    if (quote) {
+      current += ch
+      if (ch === quote) quote = null
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      current += ch
+      continue
+    }
+    if (ch === ';') {
+      segments.push(current)
+      current = ''
+      continue
+    }
+    if (ch === '&' && command[i + 1] === '&') {
+      segments.push(current)
+      current = ''
+      i++
+      continue
+    }
+    if (ch === '|') {
+      segments.push(current)
+      current = ''
+      if (command[i + 1] === '|') i++
+      continue
+    }
+    current += ch
+  }
+  segments.push(current)
+  return segments.map((segment) => segment.trim()).filter(Boolean)
 }
 
 function hasLaterSuccessfulCommand(

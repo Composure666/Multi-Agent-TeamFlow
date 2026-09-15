@@ -3675,6 +3675,8 @@ async function buildSubAgentPrompt(
     'For required_commands, you may run the command yourself, and AgentHub will also run it as a completion gate after your attempt. Use bash cwd instead of cd when running commands in subdirectories.',
     'If dependencies are missing, install them inside the workspace and continue; dependency installation is preparation, not completion evidence.',
     'If a required command fails, fix the issue and continue; do not report complete until the command can pass.',
+    'Environment probes (which / command -v, python -c "import ...", pip install, ls/cat on not-yet-created dirs) may legitimately fail and do NOT mean the task failed. Never spend attempts probing the environment; if a tool is missing, work around it or deliver without it.',
+    'Deliverables are verified by write_artifact (and its returned artifactId) or real files, not by cat-ing files back or re-checking tool availability.',
     'For target_paths, list every changed or verified path in report_task_result.filesChanged.',
     'At the end, call report_task_result exactly once. A normal text response alone does not complete this dispatched task.',
     'Use report_task_result.status="complete" only when you have FULLY accomplished the assigned task.',
