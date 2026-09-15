@@ -8,6 +8,13 @@ import type { RunUsage } from '@/db/schema'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** 当日 00:00 —— 「今日」口径必须与数据概览页的「今日 X 次」一致，不能用滚动 24 小时。 */
+function startOfDay(value: number): number {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date.getTime()
+}
+
 export interface UsageBucket {
   inputTokens: number
   outputTokens: number
@@ -66,7 +73,7 @@ export async function GET(req: NextRequest) {
   })
 
   const now = Date.now()
-  const todayStart = now - DAY_MS
+  const todayStart = startOfDay(now)
   const weekStart = now - 7 * DAY_MS
 
   const today = empty()
