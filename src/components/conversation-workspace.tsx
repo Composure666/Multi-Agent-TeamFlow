@@ -27,7 +27,11 @@ export function ConversationWorkspace() {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--agenthub-titlebar-height,0px))] min-w-0 gap-3 p-3 xl:p-4">
+    // 高度用 h-full 而不是 calc(100vh - var(--agenthub-titlebar-height))：
+    // page.tsx 里 ElectronTitleBar 在浏览器端返回 null，标题栏并不占位，
+    // 减掉 36px 会让整块对话区比视口矮一截，底部露出背景色（输入框下方留白过大）。
+    // h-full 在 Electron 与浏览器两端都等于「标题栏以下的全部可用高度」。
+    <div className="flex h-full min-w-0 gap-3 p-3 xl:p-4">
       <section className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-[var(--agenthub-shadow-card)] sm:min-w-[360px] dark:bg-neutral-900">
         <ChatPanel />
         {workspaceOpen && <ResizableRightPanel width={effectiveWidth} />}

@@ -420,7 +420,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
       className={cn(
         'agenthub-hide-scrollbar flex min-w-0 gap-4 bg-[var(--agenthub-surface-muted)] p-4 xl:p-5',
         previewOnly
-          ? 'h-[calc(100vh-var(--agenthub-titlebar-height,0px))] items-stretch overflow-hidden'
+          ? 'h-full items-stretch overflow-hidden'
           : 'h-full min-h-0 items-start overflow-y-auto',
       )}
     >

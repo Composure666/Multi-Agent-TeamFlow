@@ -866,7 +866,9 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <div className="relative shrink-0 border-t border-slate-100 bg-white p-4">
+    // 输入区不再是「四周 16px」的松散盒子：上 12px / 下 8px，让底边贴住会话面板底部
+    // （用户两次反馈输入框下方留白过多）。
+    <div className="relative shrink-0 border-t border-slate-100 bg-white px-4 pb-2 pt-3">
       {/* 引用预览 */}
       {replyMessage && (
         <div className="mb-2">
