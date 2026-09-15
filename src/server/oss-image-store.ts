@@ -54,8 +54,6 @@ export async function getOssImageConfig(): Promise<OssImageConfig | null> {
 
 export type UploadImageResult = { ok: true; url: string } | { ok: false; error: string }
 
-const OSS_MAX_BYTES = 25 * 1024 * 1024
-
 /**
  * OSS 写入统一带的响应头。
  *
@@ -81,54 +79,11 @@ function ossClient(cfg: OssImageConfig): OSS {
   })
 }
 
-/** OSS 公开 URL → object key；不是本 bucket 的地址 / 解析不出 key 时返回 null。 */
-export function ossKeyFromUrl(url: string, cfg: OssImageConfig): string | null {
-  const prefix = `https://${cfg.bucket}.${cfg.endpoint}/`
-  if (!url.startsWith(prefix)) return null
-  const key = url.slice(prefix.length).split('?')[0].split('#')[0]
-  return key.length > 0 ? key : null
-}
-
-function toBuffer(raw: unknown): Buffer {
-  if (Buffer.isBuffer(raw)) return raw
-  if (raw instanceof ArrayBuffer) return Buffer.from(new Uint8Array(raw))
-  if (ArrayBuffer.isView(raw)) return Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
-  return Buffer.alloc(0)
-}
-
 export async function uploadImageToOss(buf: Buffer, cfg: OssImageConfig): Promise<UploadImageResult> {
   const key = `artifacts/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${randomBytes(6).toString('hex')}.${sniffImageExt(buf)}`
   try {
     await ossClient(cfg).put(key, buf, { headers: ossObjectHeaders(buf, cfg.publicRead) })
     return { ok: true, url: `https://${cfg.bucket}.${cfg.endpoint}/${key}` }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
-  }
-}
-
-export type OssRepairResult = { ok: true } | { ok: false; error: string }
-
-/**
- * 原地补元数据：把 OSS 上已有的对象读回来、用正确的 Content-Type / Content-Disposition 覆盖回去。
- *
- * 为什么不能只做「重新上传拿新地址」：同一个 `.bin` 地址还被写进了产物文档的 markdown
- * 内联图（`![](https://…xxx.bin)`）—— 换地址等于文档里那条引用依旧裂着。
- * 原地覆盖 URL 不变，产物封面 + 图集 + 文档内联图会一起被救活。
- */
-export async function repairOssObjectInPlace(
-  url: string,
-  cfg: OssImageConfig,
-): Promise<OssRepairResult> {
-  const key = ossKeyFromUrl(url, cfg)
-  if (!key) return { ok: false, error: 'url is not an object of the configured bucket' }
-  try {
-    const client = ossClient(cfg)
-    const got = (await client.get(key)) as { content?: unknown }
-    const buf = toBuffer(got.content)
-    if (buf.length === 0) return { ok: false, error: 'object body is empty' }
-    if (buf.length > OSS_MAX_BYTES) return { ok: false, error: `object too large: ${buf.length} bytes` }
-    await client.put(key, buf, { headers: ossObjectHeaders(buf, cfg.publicRead) })
-    return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -205,15 +160,12 @@ export async function ensureImageStored(
   if (isOssImageUrl(url)) {
     // 后缀正常的 OSS 地址直接幂等返回
     if (!isOssUrlWithBadExtension(url)) return { ok: true, url, storage: 'oss' }
-    // 后缀异常（历史 .bin）→ 优先原地补元数据，URL 不变、文档里的同地址也跟着好
+    // 后缀异常（历史 .bin）→ 必须换地址，不能原地补元数据：
+    // 原地覆盖字节不变 → ETag 不变 → 已缓存旧响应的浏览器带 If-None-Match 重校验拿到 304，
+    // 会继续沿用缓存的 octet-stream MIME，SVG 永远裂着（2026-09-15 线上实测）。
+    // 落到下面的「下载 + 重新上传」拿后缀正确的新 URL；旧地址的所有引用由
+    // artifact-image-repair 的 propagateReplacedUrl 全局替换（产物 / 消息 / 经验）。
     if (!cfg) return { ok: true, url, storage: 'oss' }
-    const inPlace = await repairOssObjectInPlace(url, cfg)
-    if (inPlace.ok) return { ok: true, url, storage: 'oss' }
-    console.warn(
-      `[oss-image-store] in-place metadata repair failed (${url.slice(0, 96)}): ${inPlace.error}; ` +
-        `falling back to re-upload`,
-    )
-    // 落到下面的「下载 + 重新上传」，换一个后缀正确的新地址
   } else if (!cfg) {
     // 未配置 OSS → 本地化兜底
     const loc = await localizeImageUrl(url, undefined, workspaceDir)

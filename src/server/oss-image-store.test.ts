@@ -26,7 +26,6 @@ import {
   ensureImageStored,
   getOssImageConfig,
   isOssImageUrl,
-  repairOssObjectInPlace,
   uploadImageToOss,
 } from './oss-image-store'
 
@@ -121,28 +120,6 @@ describe('uploadImageToOss', () => {
   })
 })
 
-describe('repairOssObjectInPlace', () => {
-  it('re-puts the same key with a sniffed Content-Type so the url keeps working', async () => {
-    const svg = Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>", 'utf8')
-    const client = clientMock()
-    client.get.mockResolvedValue({ content: svg })
-
-    const r = await repairOssObjectInPlace(BAD_EXT_URL, CFG)
-    expect(r.ok).toBe(true)
-    expect(client.get).toHaveBeenCalledWith('artifacts/2026-09-15/1789483314465-fed57599d394.bin')
-    const [key, buf, opts] = client.put.mock.calls[0]
-    expect(key).toBe('artifacts/2026-09-15/1789483314465-fed57599d394.bin')
-    expect(Buffer.isBuffer(buf)).toBe(true)
-    expect(opts?.headers?.['Content-Type']).toBe('image/svg+xml')
-    expect(opts?.headers?.['Content-Disposition']).toBe('inline')
-  })
-
-  it('refuses urls that are not objects of the configured bucket', async () => {
-    const r = await repairOssObjectInPlace('https://other-bucket.oss-cn-beijing.aliyuncs.com/a.bin', CFG)
-    expect(r.ok).toBe(false)
-  })
-})
-
 describe('ensureImageStored', () => {
   it('passes through OSS urls unchanged', async () => {
     const url = 'https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x.png'
@@ -165,14 +142,30 @@ describe('ensureImageStored', () => {
     expect((r as { storage: string }).storage).toBe('oss')
   })
 
-  it('repairs an OSS url with a bad suffix in place and keeps the same url', async () => {
+  it('re-uploads an OSS url with a bad suffix to a fresh key (cache-bust)', async () => {
     useEnvCfg()
-    const client = clientMock()
-    client.get.mockResolvedValue({ content: Buffer.from('<svg/>') })
-
-    const r = await ensureImageStored(BAD_EXT_URL)
-    // URL 不变 —— 产物文档里内联引用的就是同一个地址，换地址等于文档里那条永远裂着
-    expect(r).toEqual({ ok: true, url: BAD_EXT_URL, storage: 'oss' })
-    expect(client.put).toHaveBeenCalledTimes(1)
+    // 原地修字节不变 → ETag 不变 → 浏览器 304 沿用旧 octet-stream 缓存，SVG 永远裂着。
+    // 必须换新地址，让所有浏览器强制重新拉取。
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', 'utf8')
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => svg.buffer.slice(svg.byteOffset, svg.byteOffset + svg.byteLength),
+    })))
+    try {
+      const client = clientMock()
+      const r = await ensureImageStored(BAD_EXT_URL)
+      expect(r.ok).toBe(true)
+      if (r.ok) {
+        expect(r.url).not.toBe(BAD_EXT_URL)
+        expect(r.url.endsWith('.svg')).toBe(true)
+        expect(r.storage).toBe('oss')
+      }
+      expect(client.put).toHaveBeenCalledTimes(1)
+      const [, , opts] = client.put.mock.calls[0]
+      expect(opts?.headers?.['Content-Type']).toBe('image/svg+xml')
+      expect(opts?.headers?.['Content-Disposition']).toBe('inline')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type { ArtifactRow } from '@/db/schema'
@@ -46,6 +46,25 @@ function extractAllImageUrls(row: ArtifactRow): string[] {
 }
 
 /**
+ * URL 变更后的全局替换：产物文档的 markdown 内联图、聊天消息 parts、经验复盘正文
+ * 都可能内嵌同一个旧地址（它们不在 type='image' 的行里）。字符串级替换一次到位，
+ * 让所有展示面（预览弹窗 / 文档渲染 / 消息气泡 / 复盘）都指向新地址。
+ */
+async function propagateReplacedUrl(oldUrl: string, newUrl: string): Promise<void> {
+  if (!oldUrl || oldUrl === newUrl) return
+  try {
+    await db.run(sql`UPDATE artifacts SET content = replace(content, ${oldUrl}, ${newUrl}) WHERE instr(content, ${oldUrl}) > 0`)
+    await db.run(sql`UPDATE messages SET parts = replace(parts, ${oldUrl}, ${newUrl}) WHERE instr(parts, ${oldUrl}) > 0`)
+    await db.run(sql`UPDATE experiences SET content = replace(content, ${oldUrl}, ${newUrl}) WHERE instr(content, ${oldUrl}) > 0`)
+  } catch (err) {
+    console.warn(
+      `[artifact-image-repair] propagate url replacement failed (${oldUrl.slice(0, 64)}):`,
+      err,
+    )
+  }
+}
+
+/**
  * 入参是本次要展示的 artifact 行；返回 `artifactId -> 修复后的封面 url`。
  * 只处理 type='image' 且存在不可直接访问 url 的条目，且每条最多尝试一次。
  */
@@ -71,12 +90,14 @@ export async function repairBrokenImageArtifacts(rows: ArtifactRow[]): Promise<M
     const workspaceDir = dirByConv.get(row.conversationId)
     const content = (row.content ?? {}) as Record<string, unknown>
     let changed = false
+    const replaced: Array<[string, string]> = []
 
     // 逐条重存（封面 + 图集），坏一条修一条，好的原样保留
     const cover = extractImageUrl(row)
     if (cover && !isServableImageUrl(cover)) {
       const stored = await ensureImageStored(cover, workspaceDir)
       if (stored.ok) {
+        if (stored.url !== cover) replaced.push([cover, stored.url])
         content.url = stored.url
         changed = true
       } else {
@@ -93,6 +114,7 @@ export async function repairBrokenImageArtifacts(rows: ArtifactRow[]): Promise<M
           if (isServableImageUrl(img.url)) return img
           const stored = await ensureImageStored(img.url, workspaceDir)
           if (stored.ok) {
+            if (stored.url !== img.url) replaced.push([img.url, stored.url])
             changed = true
             return { ...img, url: stored.url }
           }
@@ -113,6 +135,7 @@ export async function repairBrokenImageArtifacts(rows: ArtifactRow[]): Promise<M
       .where(eq(schema.artifacts.id, row.id))
     const fixedUrl = typeof content.url === 'string' ? content.url : undefined
     if (fixedUrl) fixed.set(row.id, fixedUrl)
+    for (const [o, n] of replaced) await propagateReplacedUrl(o, n)
   }
 
   if (fixed.size > 0) {
