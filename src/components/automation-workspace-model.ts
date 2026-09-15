@@ -75,7 +75,12 @@ export function automationFormFromTask(task?: AutomationTaskView | null): Automa
     intervalMinutes: scheduleConfigField(task?.scheduleConfig, 'intervalMinutes') || '60',
     timeOfDay: scheduleConfigField(task?.scheduleConfig, 'timeOfDay') || '09:00',
     dayOfWeek: scheduleConfigField(task?.scheduleConfig, 'dayOfWeek') || '1',
-    status: task?.rawStatus === 'enabled' || task?.rawStatus === 'paused' || task?.rawStatus === 'draft' ? task.rawStatus : 'draft',
+    // 新建任务默认「已暂停」—— 保存后不会立刻触发，等用户确认配置无误再手动启用。
+    // 早期默认值是 draft，语义含糊且容易被当成「还没配好」，这里统一收成显式暂停态。
+    status:
+      task?.rawStatus === 'enabled' || task?.rawStatus === 'paused' || task?.rawStatus === 'draft'
+        ? task.rawStatus
+        : 'paused',
   }
 }
 

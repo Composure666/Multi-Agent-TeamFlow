@@ -245,7 +245,9 @@ export async function createAutomation(input: UpsertAutomationInput): Promise<Au
     description: input.description?.trim() || '暂无描述',
     category: input.category?.trim() || '自定义任务',
     cadence: cadenceFromSchedule(input.scheduleType, scheduleConfig),
-    status: input.status ?? 'draft',
+    // 未显式指定时默认 paused：新建任务不会自动排下一次触发，
+    // 用户review过配置后手动「启用」才开跑（paused 的 nextRunAt 恒为 null）。
+    status: input.status ?? 'paused',
     iconKey: input.iconKey ?? 'calendar_clock',
     prompt: input.prompt.trim(),
     agentId: input.agentId ?? null,
