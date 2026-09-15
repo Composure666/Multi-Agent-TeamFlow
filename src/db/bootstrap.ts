@@ -790,9 +790,16 @@ function ensureDemoAutomations(sqlite: Database.Database): void {
   todayStart.setHours(0, 0, 0, 0)
   const startOfToday = todayStart.getTime()
 
+  // demo 的「今日」运行按当天固定钟点生成（08:30 / 07:45 / 09:00）。凌晨首次初始化库时这些
+  // 钟点还没到，会写出「未来时间的运行记录」—— dashboard 的「最近运行」按 started_at 倒排，
+  // 未来那条会把真实运行顶到后面。统一钳到过去（相隔 1 分钟，保留原有先后）。
+  const LATEST_PAST = now - 60_000
+  const clampPast = (ts: number, slot = 0): number =>
+    ts > LATEST_PAST ? LATEST_PAST - slot * 60_000 : ts
+
   const latestRuns: Record<string, number | null> = {
-    auto_daily_ai_news: startOfToday + 8 * 60 * 60 * 1000 + 30 * 60 * 1000,
-    auto_daily_english_words: startOfToday + 7 * 60 * 60 * 1000 + 45 * 60 * 1000,
+    auto_daily_ai_news: clampPast(startOfToday + 8 * 60 * 60 * 1000 + 30 * 60 * 1000),
+    auto_daily_english_words: clampPast(startOfToday + 7 * 60 * 60 * 1000 + 45 * 60 * 1000, 1),
     auto_weekly_work_report: startOfToday - 3 * DAY_MS + 18 * 60 * 60 * 1000,
     auto_classic_movie: startOfToday - DAY_MS + 20 * 60 * 60 * 1000,
     auto_today_history: null,
@@ -844,7 +851,7 @@ function ensureDemoAutomations(sqlite: Database.Database): void {
       ['arun_english_today', 'auto_daily_english_words', 'running', 12_000, latestRuns.auto_daily_english_words],
       ['arun_report_recent', 'auto_weekly_work_report', 'success', 138_000, latestRuns.auto_weekly_work_report],
       ['arun_movie_yesterday', 'auto_classic_movie', 'failed', 8_000, latestRuns.auto_classic_movie],
-      ['arun_history_today', 'auto_today_history', 'success', 24_000, startOfToday + 9 * 60 * 60 * 1000],
+      ['arun_history_today', 'auto_today_history', 'success', 24_000, clampPast(startOfToday + 9 * 60 * 60 * 1000, 2)],
       ['arun_ai_news_d1', 'auto_daily_ai_news', 'success', 32_000, startOfToday - DAY_MS + 8 * 60 * 60 * 1000],
       ['arun_english_d1', 'auto_daily_english_words', 'success', 18_000, startOfToday - DAY_MS + 7 * 60 * 60 * 1000],
       ['arun_ai_news_d2', 'auto_daily_ai_news', 'success', 35_000, startOfToday - 2 * DAY_MS + 8 * 60 * 60 * 1000],

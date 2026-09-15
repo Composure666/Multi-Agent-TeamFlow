@@ -11,6 +11,7 @@ import {
   Grid2X2,
   History,
   Image as ImageIcon,
+  Layers,
   MoreHorizontal,
   Network,
   Presentation,
@@ -23,11 +24,19 @@ import {
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import type { ArtifactVersionGroup } from '@/lib/artifact-groups'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
 import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
-import { ARTIFACT_TABS, filterArtifactGroups, getVisibleArtifactGroups, type ArtifactTabId } from '@/components/artifact-workspace-view'
+import {
+  ARTIFACT_TABS,
+  filterArtifactGroups,
+  getVisibleArtifactGroups,
+  groupArtifactsByConversation,
+  type ArtifactTabId,
+} from '@/components/artifact-workspace-view'
 import { DetailSection, HistoryRow, Meta, SavedState } from '@/components/workbench-detail-primitives'
 import { Button } from '@/components/ui/button'
 import {
@@ -186,6 +195,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   const [artifactDetailOpen, setArtifactDetailOpen] = useState(false)
   const [visibleArtifactCount, setVisibleArtifactCount] = useState(ARTIFACT_GROUP_PAGE_SIZE)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [groupByConversation, setGroupByConversation] = useState(false)
   const [copiedArtifactId, setCopiedArtifactId] = useState<string | null>(null)
   const [exportingId, setExportingId] = useState<string | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -228,6 +238,35 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   const groups = useMemo(() => groupArtifactVersions(items), [items])
   const filteredGroups = useMemo(() => filterArtifactGroups(groups, query, tab), [groups, query, tab])
   const visibleGroups = getVisibleArtifactGroups(filteredGroups, visibleArtifactCount)
+
+  const conversationGroups = useMemo(
+    () => (groupByConversation ? groupArtifactsByConversation(visibleGroups) : []),
+    [groupByConversation, visibleGroups],
+  )
+
+  const renderArtifactCard = (group: ArtifactVersionGroup<ArtifactListItem>) => (
+    <ArtifactCard
+      key={group.rootId}
+      item={group.latest}
+      versions={group.versions.length}
+      selected={artifactDetailOpen && selected?.id === group.latest.id}
+      compact={viewMode === 'list'}
+      selectable={selectionMode}
+      checked={selectedIds.has(group.latest.id)}
+      isFavorite={favorites.has(group.latest.id)}
+      deleting={deletingIds.has(group.latest.id)}
+      agentName={resolveAgentName(agents, group.latest.createdByAgentId)}
+      agentObj={resolveAgentObj(agents, group.latest.createdByAgentId)}
+      onToggleSelected={() => toggleSelected(group.latest.id)}
+      onSelect={() => { setSelectedId(group.latest.id); setArtifactDetailOpen(true) }}
+      onPreview={() => void openPreview(group.latest.id)}
+      onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }}
+      onCopyReference={() => void copyArtifactReference(group.latest)}
+      onExport={() => exportArtifactSource(group.latest.id)}
+      onDelete={() => setDeleteTargetIds([group.latest.id])}
+      onToggleFavorite={() => toggleFavorite(group.latest.id)}
+    />
+  )
   const hasMoreArtifacts = visibleArtifactCount < filteredGroups.length
 
   // Per-tab counts (unfiltered, for the segmented tabs)
@@ -418,6 +457,16 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                 )}
                 <Button
                   variant="outline"
+                  size="sm"
+                  onClick={() => setGroupByConversation((value) => !value)}
+                  className={cn('gap-1.5', groupByConversation && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
+                  title={groupByConversation ? '取消按会话分组' : '按会话分组'}
+                >
+                  <Layers className="size-3.5" />
+                  按会话
+                </Button>
+                <Button
+                  variant="outline"
                   size="icon-sm"
                   onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
                   className={cn(viewMode === 'grid' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
@@ -480,6 +529,41 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                 <div>产物加载失败</div>
                 <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => void loadArtifacts()}>重试</Button>
               </div>
+            ) : groupByConversation ? (
+              <div className="space-y-6">
+                {conversationGroups.map((conversation) => (
+                  <div key={conversation.conversationId} className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Layers className="size-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                          {conversation.conversationTitle}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] tabular-nums text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                          {conversation.groups.length}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 shrink-0 text-xs"
+                        onClick={() => { setActiveConversation(conversation.conversationId); onOpenConversations() }}
+                      >
+                        打开会话
+                      </Button>
+                    </div>
+                    <div
+                      className={cn(
+                        viewMode === 'grid'
+                          ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3'
+                          : 'space-y-2',
+                      )}
+                    >
+                      {conversation.groups.map((group) => renderArtifactCard(group))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div
                 className={cn(
@@ -488,29 +572,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                     : 'space-y-2',
                 )}
               >
-                {visibleGroups.map((group) => (
-                  <ArtifactCard
-                    key={group.rootId}
-                    item={group.latest}
-                    versions={group.versions.length}
-                    selected={artifactDetailOpen && selected?.id === group.latest.id}
-                    compact={viewMode === 'list'}
-                    selectable={selectionMode}
-                    checked={selectedIds.has(group.latest.id)}
-                    isFavorite={favorites.has(group.latest.id)}
-                    deleting={deletingIds.has(group.latest.id)}
-                    agentName={resolveAgentName(agents, group.latest.createdByAgentId)}
-                    agentObj={resolveAgentObj(agents, group.latest.createdByAgentId)}
-                    onToggleSelected={() => toggleSelected(group.latest.id)}
-                    onSelect={() => { setSelectedId(group.latest.id); setArtifactDetailOpen(true) }}
-                    onPreview={() => void openPreview(group.latest.id)}
-                    onOpenConversation={() => { setActiveConversation(group.latest.conversationId); onOpenConversations() }}
-                    onCopyReference={() => void copyArtifactReference(group.latest)}
-                    onExport={() => exportArtifactSource(group.latest.id)}
-                    onDelete={() => setDeleteTargetIds([group.latest.id])}
-                    onToggleFavorite={() => toggleFavorite(group.latest.id)}
-                  />
-                ))}
+                {visibleGroups.map((group) => renderArtifactCard(group))}
               </div>
             )}
 
@@ -977,7 +1039,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
           <span className="size-1 rounded-full bg-emerald-400/80" />
           <span className="ml-1.5 text-[8px] text-slate-500">{shortTitle || 'main.ts'}</span>
         </div>
-        <div><span className="mr-1.5 text-slate-600">1</span><span className="text-violet-400">import</span><span className="text-slate-300"> {'{ useState }'} </span><span className="text-violet-400">from</span><span className="text-emerald-400"> 'react'</span></div>
+        <div><span className="mr-1.5 text-slate-600">1</span><span className="text-violet-400">import</span><span className="text-slate-300"> {'{ useState }'} </span><span className="text-violet-400">from</span><span className="text-emerald-400"> &apos;react&apos;</span></div>
         <div><span className="mr-1.5 text-slate-600">2</span><span className="text-violet-400">const</span><span className="text-sky-300"> App</span><span className="text-slate-300"> = () ={'>'} </span><span className="text-violet-400">{'{'}</span></div>
         <div><span className="mr-1.5 text-slate-600">3</span><span className="text-slate-400">  </span><span className="text-violet-400">const</span><span className="text-slate-300"> [data, setData] = </span><span className="text-sky-300">useState</span><span className="text-slate-300">(</span><span className="text-amber-300">null</span><span className="text-slate-300">)</span></div>
         <div><span className="mr-1.5 text-slate-600">4</span><span className="text-slate-400">  </span><span className="text-violet-400">return</span><span className="text-slate-300"> </span><span className="text-emerald-400">{'<div/>'}</span></div>
@@ -992,9 +1054,9 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
       <div className="space-y-0.5 px-2 pt-2.5 font-mono text-[9px] leading-[17px]">
         <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ {shortTitle || 'export function App()'}</div>
         <div className="rounded-r bg-rose-500/10 px-1.5 text-rose-600 dark:text-rose-400">- export default Old</div>
-        <div className="px-1.5 text-slate-400 dark:text-slate-500">  import {'{ x }'} from 'y'</div>
+        <div className="px-1.5 text-slate-400 dark:text-slate-500">  import {'{ x }'} from &apos;y&apos;</div>
         <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ return {'<App />'}</div>
-        {!compact && <div className="px-1.5 text-slate-400 dark:text-slate-500">  console.log('ready')</div>}
+        {!compact && <div className="px-1.5 text-slate-400 dark:text-slate-500">  console.log(&apos;ready&apos;)</div>}
       </div>,
     )
   }
