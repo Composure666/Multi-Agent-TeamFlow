@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 
 import type { AgentRunRow, AgentRow, ArtifactRow, AttachmentRow, ConversationWithMeta, MessageRow, WorkspaceMemoryRow } from '@/db/schema'
+import { getToolDisplayName } from '@/lib/tool-display'
 import type {
   AgentRunDebugDetail,
   AgentRunDebugEventRecord,
@@ -1676,6 +1677,103 @@ export const useTopLevelRunningRuns = (conversationId: string) =>
       return Object.values(runs).filter((r) => r.status === 'running' && !r.parentRunId)
     }),
   )
+
+/** 任务标题在进度条里只占一行的宽度，取第一行并截断。 */
+export function shortTaskLabel(task: string, limit = 22): string {
+  const firstLine = task.split('\n').map((line) => line.trim()).find(Boolean) ?? ''
+  const cleaned = firstLine.replace(/^[\s\-*\d.、)]+/, '')
+  return cleaned.length > limit ? `${cleaned.slice(0, limit)}…` : cleaned
+}
+
+/**
+ * 此刻 Agent 在做什么 —— 给「正在运行」条用的一句中文，如「正在执行命令」。
+ *
+ * 数据全在 store 里：运行中 run 的最近一条 agent 消息中，最后一个还没拿到结果的
+ * tool_use 就是当前动作。工具调用往往一跑几分钟，这段时间聊天页除了这条文案没有任何
+ * 变化，用户会以为卡死 —— 这就是它存在的意义。
+ *
+ * 返回字符串（不是对象）：字符串引用稳定，selector 不会因为「每次返回新对象」而
+ * 触发无意义重渲染。
+ */
+export function describeRunningActivity(
+  state: Pick<AppState, 'runsByConv' | 'messages' | 'messageIdsByConv'>,
+  conversationId: string,
+): string | null {
+  const runningIds = collectRunningRunIds(state, conversationId)
+  if (runningIds.size === 0) return null
+
+  const ids = state.messageIdsByConv[conversationId] ?? []
+  for (let i = ids.length - 1; i >= 0; i--) {
+    const message = state.messages[ids[i]]
+    if (!message || message.role !== 'agent' || !message.runId) continue
+    if (!runningIds.has(message.runId)) continue
+
+    const finished = new Set<string>()
+    for (const part of message.parts) {
+      if (part.type === 'tool_result') finished.add(part.callId)
+    }
+    for (let j = message.parts.length - 1; j >= 0; j--) {
+      const part = message.parts[j]
+      if (part.type === 'tool_use' && !finished.has(part.callId)) {
+        return `正在${getToolDisplayName(part.toolName)}`
+      }
+    }
+    return '正在生成回复'
+  }
+  return '正在准备'
+}
+
+export const useRunningActivity = (conversationId: string): string | null =>
+  useAppStore((s) => describeRunningActivity(s, conversationId))
+
+/**
+ * 子任务进度：「子任务 3/7 · 核查录取分数线」。没走多任务编排时返回 null。
+ * 编排型任务的墙钟时间几乎全花在等子任务上，只显示「正在运行」用户无从判断还剩多少。
+ */
+export function describeRunningTaskProgress(
+  state: Pick<AppState, 'runsByConv' | 'dispatchesByRunId'>,
+  conversationId: string,
+): string | null {
+  const runningIds = collectRunningRunIds(state, conversationId)
+  if (runningIds.size === 0) return null
+
+  for (const runId of runningIds) {
+    const dispatch = state.dispatchesByRunId[runId]
+    if (!dispatch || dispatch.plan.length === 0) continue
+    const done = dispatch.plan.filter((task) => {
+      const status = dispatch.taskStatus[task.id]
+      return (
+        status === 'complete' ||
+        status === 'failed' ||
+        status === 'aborted' ||
+        status === 'skipped'
+      )
+    }).length
+    const active = dispatch.plan.find((task) => dispatch.taskStatus[task.id] === 'running')
+    const pos = active ? Math.min(done + 1, dispatch.plan.length) : done
+    const label = active ? shortTaskLabel(active.task) : ''
+    return label
+      ? `子任务 ${pos}/${dispatch.plan.length} · ${label}`
+      : `子任务 ${done}/${dispatch.plan.length}`
+  }
+  return null
+}
+
+export const useRunningTaskProgress = (conversationId: string): string | null =>
+  useAppStore((s) => describeRunningTaskProgress(s, conversationId))
+
+function collectRunningRunIds(
+  state: Pick<AppState, 'runsByConv'>,
+  conversationId: string,
+): Set<string> {
+  const running = new Set<string>()
+  const runs = state.runsByConv[conversationId]
+  if (!runs) return running
+  for (const id in runs) {
+    if (runs[id].status === 'running') running.add(id)
+  }
+  return running
+}
 
 /** 该会话是否有待审批的 Orchestrator 计划。返回 { planId, runId } 供对话式修改路由。 */
 export const usePendingPlanReviewForConversation = (conversationId: string) =>
