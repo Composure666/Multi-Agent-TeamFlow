@@ -10,6 +10,7 @@ import {
   decodeDataUri,
   isLocalImageUrl,
   localizeImageUrl,
+  resolveWorkspaceImagePath,
   sniffImageExt,
 } from '@/server/artifact-image-store'
 
@@ -73,28 +74,54 @@ export async function uploadImageToOss(buf: Buffer, cfg: OssImageConfig): Promis
   }
 }
 
-/** 把图片 URL 解析为 Buffer（本地文件 / data URI / 远程下载），失败返回 null。 */
-async function resolveImageBuffer(url: string): Promise<Buffer | null> {
+/**
+ * 把图片 URL 解析为 Buffer（本地已存 / data URI / 远程下载 / 工作区文件），失败返回 null。
+ *
+ * 工作区分支是必须的：agent 常用脚本把图写到工作区，然后把这个相对路径当 url 传进
+ * write_artifact（例如 scene_assets/xx.png，或模仿本地化前缀的 /api/artifact-images/xx.jpg）。
+ * 不认这类路径 → 改不了可访问 URL → 产物库全是裂图。
+ */
+async function resolveImageBuffer(url: string, workspaceDir?: string): Promise<Buffer | null> {
+  if (url.startsWith('data:')) {
+    const buf = decodeDataUri(url)
+    if (buf) return buf
+  }
+
   if (isLocalImageUrl(url)) {
     const name = url.slice(LOCAL_IMAGE_PREFIX.length)
-    if (!/^[a-zA-Z0-9._-]+$/.test(name)) return null
+    if (/^[a-zA-Z0-9._-]+$/.test(name)) {
+      try {
+        const buf = await fs.readFile(path.join(IMAGE_DIR, name))
+        if (buf.length > 0) return buf
+      } catch {
+        // 本地目录里没有 —— 可能只是借用了这个前缀、文件其实在工作区，继续往下试
+      }
+    }
+  } else if (/^https?:\/\//i.test(url)) {
     try {
-      return await fs.readFile(path.join(IMAGE_DIR, name))
+      const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'follow' })
+      if (!res.ok) return null
+      const buf = Buffer.from(await res.arrayBuffer())
+      if (buf.length === 0 || buf.length > 25 * 1024 * 1024) return null
+      return buf
     } catch {
       return null
     }
   }
-  if (url.startsWith('data:')) return decodeDataUri(url)
-  if (!/^https?:\/\//i.test(url)) return null
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'follow' })
-    if (!res.ok) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length === 0 || buf.length > 25 * 1024 * 1024) return null
-    return buf
-  } catch {
-    return null
+
+  if (workspaceDir) {
+    const abs = resolveWorkspaceImagePath(workspaceDir, url)
+    if (abs) {
+      try {
+        const buf = await fs.readFile(abs)
+        if (buf.length > 0 && buf.length <= 25 * 1024 * 1024) return buf
+      } catch {
+        return null
+      }
+    }
   }
+
+  return null
 }
 
 export type EnsureImageStoredResult =
@@ -105,15 +132,20 @@ export type EnsureImageStoredResult =
  * 图片产物的统一存储入口（写库前调用）：
  * - 已是 OSS URL → 原样（幂等）
  * - 已配置 OSS → 解析图片 → 上传 OSS；本地来源上传成功后删除本地副本
- * - 未配置 OSS → 回退本地化（原 localizeImageUrl 逻辑）
+ * - 未配置 OSS → 回退本地化
+ *
+ * workspaceDir 用于兜住「agent 把工作区文件路径当 url」的情况，不传则退化为旧行为。
  */
-export async function ensureImageStored(url: string): Promise<EnsureImageStoredResult> {
+export async function ensureImageStored(
+  url: string,
+  workspaceDir?: string,
+): Promise<EnsureImageStoredResult> {
   if (isOssImageUrl(url)) return { ok: true, url, storage: 'oss' }
 
   const cfg = await getOssImageConfig()
 
   if (cfg) {
-    const buf = await resolveImageBuffer(url)
+    const buf = await resolveImageBuffer(url, workspaceDir)
     if (!buf) return { ok: false, error: 'image unreachable and not stored locally' }
     const up = await uploadImageToOss(buf, cfg)
     if (up.ok) {
@@ -127,7 +159,7 @@ export async function ensureImageStored(url: string): Promise<EnsureImageStoredR
     return { ok: false, error: `oss upload failed: ${up.error}` }
   }
 
-  const loc = await localizeImageUrl(url)
+  const loc = await localizeImageUrl(url, undefined, workspaceDir)
   if (loc.ok) return { ok: true, url: loc.url, storage: 'local' }
   return { ok: false, error: loc.error }
 }

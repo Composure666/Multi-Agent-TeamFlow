@@ -3,6 +3,7 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/db/client'
 import type { ArtifactRow } from '@/db/schema'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
+import { repairBrokenImageArtifacts } from '@/server/artifact-image-repair'
 import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
 
@@ -121,10 +122,19 @@ export async function listArtifacts(): Promise<ArtifactWithMeta[]> {
   })
   const titleById = new Map(convs.map((c) => [c.id, c.title]))
 
+  // 存量坏图（工作区相对路径 / /deployments/… 等）在读取时顺手本地化并回写，
+  // 拿到的 repaired 覆盖下面的 imageUrl，本次请求即可预览。
+  let repaired = new Map<string, string>()
+  try {
+    repaired = await repairBrokenImageArtifacts(rows)
+  } catch (err) {
+    console.warn('[artifact-service] image repair skipped:', err)
+  }
+
   return rows.map((r) => {
     let imageUrl: string | undefined
     if (r.type === 'image') {
-      imageUrl = (r.content as unknown as { url?: string })?.url
+      imageUrl = repaired.get(r.id) ?? (r.content as unknown as { url?: string })?.url
     }
     return {
       id: r.id,

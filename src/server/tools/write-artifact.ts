@@ -46,13 +46,13 @@ export const writeArtifactTool: ToolDef = {
         type: 'string',
         enum: ['web_app', 'document', 'image', 'ppt', 'diagram'],
         description:
-          'web_app for HTML/CSS/JS bundles, document for markdown text, image for URL or data URI, ppt for slide decks (structured JSON, exportable to a real .pptx), diagram for Mermaid diagrams',
+          'web_app for HTML/CSS/JS bundles, document for markdown text, image for URL / data URI / workspace-relative file path, ppt for slide decks (structured JSON, exportable to a real .pptx), diagram for Mermaid diagrams',
       },
       title: { type: 'string', description: 'Short human-readable title' },
       content: {
         type: 'object',
         description:
-          'Artifact body — pass as a JSON OBJECT, do NOT JSON-stringify it into a quoted string. For web_app: { files: { "index.html": "...", "style.css"?, "script.js"? }, entry: "index.html" }. For document: { format: "markdown", content: "...markdown text..." }. For image: { url: "...", alt: "..." }. For diagram: { syntax: "mermaid", source: "flowchart TD\\nA[\\"中文 / formula O(N^2)\\"] --> B[\\"结果\\"]", theme?: "default"|"base"|"dark"|"forest"|"neutral" }. Diagram source is preflighted: quote labels with Chinese/math/symbols as A["..."], use one edge per line, omit ```mermaid fences, and if the tool returns Invalid Mermaid diagram, fix source and call again. For ppt: { title?, theme?: { primary?: "1A3C6E", background?: "F8F9FA", surface?: "FFFFFF", textBody?: "2C3E50", textMuted?: "95A5A6", accentPositive?: "2B7A4B", accentNegative?: "C0392B", divider?: "E0E4E8", fontHeading?: "Inter", fontBody?: "Inter" }, slides: [{ title?, subtitle?, layout?: "title"|"title-bullets"|"section"|"blank"|"content"|"two-column"|"metrics"|"timeline"|"quote", blocks?: [{ type: "heading", text, level? }, { type: "paragraph", text }, { type: "bullets", items, ordered? }, { type: "metric", label, value, change?, tone? }, { type: "quote", text, attribution? }, { type: "timeline", items: [{ label, title?, text? }] }, { type: "columns", columns: [{ title?, blocks: [{ type: "paragraph"|"bullets"|"metric"|"callout", ... }] }] }, { type: "callout", title?, text, tone? }, { type: "divider" }, { type: "spacer", size? }], notes? }] }. Legacy slides with bullets are still accepted, but prefer blocks for polished decks. Hex colors have no "#"; ppt JSON must not embed raw base64/data URI assets. Common mistake to avoid: sending content as a string like "{\\"format\\":\\"markdown\\",...}" — send the raw object, not its JSON text.',
+          'Artifact body — pass as a JSON OBJECT, do NOT JSON-stringify it into a quoted string. For web_app: { files: { "index.html": "...", "style.css"?, "script.js"? }, entry: "index.html" }. For document: { format: "markdown", content: "...markdown text..." }. For image: { url: "...", alt: "..." } — url may be an http(s) URL, a data URI, or a path relative to the workspace root for a file you already generated (e.g. "scene_assets/hero.png"); workspace paths get copied into artifact storage so the preview keeps working. For diagram: { syntax: "mermaid", source: "flowchart TD\\nA[\\"中文 / formula O(N^2)\\"] --> B[\\"结果\\"]", theme?: "default"|"base"|"dark"|"forest"|"neutral" }. Diagram source is preflighted: quote labels with Chinese/math/symbols as A["..."], use one edge per line, omit ```mermaid fences, and if the tool returns Invalid Mermaid diagram, fix source and call again. For ppt: { title?, theme?: { primary?: "1A3C6E", background?: "F8F9FA", surface?: "FFFFFF", textBody?: "2C3E50", textMuted?: "95A5A6", accentPositive?: "2B7A4B", accentNegative?: "C0392B", divider?: "E0E4E8", fontHeading?: "Inter", fontBody?: "Inter" }, slides: [{ title?, subtitle?, layout?: "title"|"title-bullets"|"section"|"blank"|"content"|"two-column"|"metrics"|"timeline"|"quote", blocks?: [{ type: "heading", text, level? }, { type: "paragraph", text }, { type: "bullets", items, ordered? }, { type: "metric", label, value, change?, tone? }, { type: "quote", text, attribution? }, { type: "timeline", items: [{ label, title?, text? }] }, { type: "columns", columns: [{ title?, blocks: [{ type: "paragraph"|"bullets"|"metric"|"callout", ... }] }] }, { type: "callout", title?, text, tone? }, { type: "divider" }, { type: "spacer", size? }], notes? }] }. Legacy slides with bullets are still accepted, but prefer blocks for polished decks. Hex colors have no "#"; ppt JSON must not embed raw base64/data URI assets. Common mistake to avoid: sending content as a string like "{\\"format\\":\\"markdown\\",...}" — send the raw object, not its JSON text.',
       },
       parentArtifactId: {
         type: 'string',
@@ -108,11 +108,22 @@ export const writeArtifactTool: ToolDef = {
     const artifactId = newArtifactId()
     const createdAt = Date.now()
 
-    // 图片产物统一存储：已配置 OSS → 上传 OSS（稳定远程，不落本地）；否则本地化兜底
+    // 图片产物统一存储：已配置 OSS → 上传 OSS（稳定远程，不落本地）；否则本地化兜底。
+    // 传 ctx.workspacePath 是为了收编「agent 拿工作区文件路径当 url」的常见写法
+    // （scene_assets/x.png、或模仿前缀的 /api/artifact-images/x.jpg）—— 不收编就是裂图。
     if (fullContent.type === 'image') {
-      const stored = await ensureImageStored(fullContent.url)
+      const stored = await ensureImageStored(fullContent.url, ctx.workspacePath)
       if (stored.ok) {
         fullContent.url = stored.url
+      } else if (isNonUrlImageSource(fullContent.url)) {
+        // 既不是 URL、工作区里也找不到 → 别静默落库成裂图，直接把问题交回给 agent
+        return {
+          ok: false,
+          error:
+            `image url "${String(fullContent.url).slice(0, 120)}" is neither a fetchable URL nor an existing file in the workspace. ` +
+            `Pass one of: an http(s) image URL, a data URI, or a path relative to the workspace root that actually exists. ` +
+            `Workspace root: ${ctx.workspacePath}. Detail: ${stored.error}`,
+        }
       } else {
         console.warn(`[write-artifact] image store failed (${stored.error}); keep original url`)
       }
@@ -150,4 +161,16 @@ export const writeArtifactTool: ToolDef = {
 
 function isEmptyObject(value: unknown): value is Record<string, never> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0
+}
+
+/**
+ * 判断图片 url 是不是「本来就该能直接访问」的来源之外的东西 —— 即看起来像文件路径的。
+ * 这类值若存不下来，说明路径写错了，应该报错而不是当作可用的 URL 落库。
+ */
+function isNonUrlImageSource(url: string): boolean {
+  const value = url.trim()
+  if (!value) return true
+  if (/^https?:\/\//i.test(value)) return false
+  if (value.startsWith('data:')) return false
+  return true
 }
