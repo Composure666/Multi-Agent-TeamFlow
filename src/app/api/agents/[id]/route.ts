@@ -22,6 +22,7 @@ const PatchBody = z
     mcpServerIds: z.array(z.string()).optional(),
     skillIds: z.array(z.string()).optional(),
     supportsVision: z.boolean().optional(),
+    modality: z.string().min(1).max(32).optional(),
     // null 表示清除，空字符串当 null 处理
     apiKey: z.union([z.string(), z.null()]).optional(),
     apiBaseUrl: z.union([z.string(), z.null()]).optional(),

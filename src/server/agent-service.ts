@@ -1,6 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
+import { normalizeModality } from '@/lib/llm-shared'
 import { newAgentId } from '@/server/ids'
 import {
   validateOpenAICompatibleApiKey,
@@ -117,6 +118,8 @@ export interface UpdateAgentPatch {
   mcpServerIds?: string[]
   skillIds?: string[]
   supportsVision?: boolean
+  /** 模态分类；归一化到 code / text / vision / image 四类后落库 */
+  modality?: string
   /** 传 null 显式清除自定义 key（fallback 回 env）；undefined 表示不动 */
   apiKey?: string | null
   /** 传 null 显式清除自定义 base URL；undefined 表示不动 */
@@ -160,6 +163,7 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   if (patch.adapterName !== undefined) updates.adapterName = patch.adapterName
   if (patch.modelId !== undefined) updates.modelId = patch.modelId?.trim() || null
   if (patch.supportsVision !== undefined) updates.supportsVision = patch.supportsVision
+  if (patch.modality !== undefined) updates.modality = normalizeModality(patch.modality)
   if (patch.mcpServerIds !== undefined) updates.mcpServerIds = patch.mcpServerIds
   if (patch.skillIds !== undefined) updates.skillIds = patch.skillIds
   if (patch.apiKey !== undefined) updates.apiKey = patch.apiKey?.trim() || null

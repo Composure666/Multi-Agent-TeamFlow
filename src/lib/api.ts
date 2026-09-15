@@ -182,6 +182,8 @@ export interface CreateAgentBody {
   mcpServerIds?: string[]
   skillIds?: string[]
   supportsVision?: boolean
+  /** 模态分类，参与创建时的模型自动匹配；缺省由服务端兜底为 text */
+  modality?: AgentModality
   apiKey?: string
   /** 自定义 API base URL。Claude/Codex 对 endpoint 协议兼容性要求不同；空走默认 */
   apiBaseUrl?: string

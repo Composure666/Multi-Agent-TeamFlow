@@ -59,20 +59,52 @@ export const AGENT_CAPABILITIES = [
   { key: 'agent:writer', label: '写作 Agent', description: '文案 / 报告 / 摘要' },
 ] as const
 
-/** Agent 模态分类 —— 用于创建时自动匹配模型。 */
-export type AgentModality = 'text' | 'vision' | 'image' | 'audio' | 'code' | 'multimodal'
+/**
+ * Agent 模态分类 —— 用于创建时自动匹配模型。
+ *
+ * 只保留常用开发会碰到的四类：写代码、写文本、识图、生图。音频与「多模态」两类早期有、
+ * 但实际没有对应能力也没有对应模型，留着只会在策略面板里占位置，已归并到最接近的类型。
+ */
+export type AgentModality = 'text' | 'vision' | 'image' | 'code'
 
-export const MODALITY_CAPABILITIES: Array<{ key: string; label: string; description: string }> = [
-  { key: 'agent:text', label: '文本 Agent', description: '文案、写作、对话、分析' },
-  { key: 'agent:vision', label: '视觉 Agent', description: '识图、截图理解、设计稿分析' },
-  { key: 'agent:image', label: '生图 Agent', description: '生成图片、海报、插画' },
-  { key: 'agent:audio', label: '音频 Agent', description: '语音、视频音轨处理' },
-  { key: 'agent:code', label: '代码 Agent', description: '编程、调试、重构' },
-  { key: 'agent:multimodal', label: '多模态 Agent', description: '图文混合、视频理解' },
+/**
+ * 四类模态的展示元数据 —— UI 选择与 `MODALITY_CAPABILITIES` 的唯一真相源。
+ *
+ * 顺序即智能体模型分配面板里的排列顺序（`MODALITY_CAPABILITIES` 由它派生）。
+ */
+export const MODALITY_OPTIONS: ReadonlyArray<{
+  value: AgentModality
+  label: string
+  description: string
+}> = [
+  { value: 'code', label: '代码', description: '编程 / 调试 / 重构' },
+  { value: 'text', label: '文本', description: '文案 / 写作 / 对话 / 分析' },
+  { value: 'vision', label: '视觉', description: '识图 / 截图理解 / 设计稿分析' },
+  { value: 'image', label: '生图', description: '生成图片 / 海报 / 插画' },
 ]
 
 export function modalityToCapabilityKey(modality: AgentModality): string {
   return `agent:${modality}`
+}
+
+export const MODALITY_CAPABILITIES: Array<{ key: string; label: string; description: string }> =
+  MODALITY_OPTIONS.map((m) => ({
+    key: modalityToCapabilityKey(m.value),
+    label: `${m.label} Agent`,
+    description: m.description,
+  }))
+
+/** 历史模态 → 现行四类的归并映射，保证旧 agent / 旧数值不悬空。 */
+const MODALITY_ALIASES: Record<string, AgentModality> = {
+  audio: 'text',
+  multimodal: 'vision',
+}
+
+export function normalizeModality(value: string | null | undefined): AgentModality {
+  const raw = value?.trim()
+  if (!raw) return 'text'
+  if (raw === 'text' || raw === 'vision' || raw === 'image' || raw === 'code') return raw
+  return MODALITY_ALIASES[raw] ?? 'text'
 }
 
 /** 全局策略的 capabilityKey。 */

@@ -8,14 +8,14 @@ import {
   type AgentToolPresetId,
 } from '@/shared/agent-builder-config'
 import { resolveModelForCapability } from '@/server/model-assignment-service'
-import type { AgentModality } from '@/lib/llm-shared'
+import { normalizeModality, type AgentModality } from '@/lib/llm-shared'
 
 import { AgentConfigDraftSchema } from './agent-draft-schema'
 
 export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<AgentConfigDraft> {
   const draft = buildHeuristicAgentConfigDraft(input)
   // 按模态自动匹配模型（替代硬编码 deepseek）
-  const modality = (draft.modality as AgentModality) || 'text'
+  const modality = normalizeModality(draft.modality)
   const resolved = await resolveModelForCapability(`agent:${modality}`)
   if (resolved?.providerId && resolved.modelName) {
     draft.modelProvider = providerIdToModelProvider(resolved.providerId)
@@ -188,9 +188,11 @@ function inferModality(text: string, presetId: AgentToolPresetId): AgentModality
   const lower = text.toLowerCase()
   if (/画图|生图|海报|插画|logo|icon|image.?gen|text.?to.?image|stable.?diffusion|dall|midjourney/.test(lower)) return 'image'
   if (/识图|截图|设计稿|视觉理解|vision|ocr|看图|图片理解/.test(lower)) return 'vision'
-  if (/语音|音频|视频|配音|transcribe|speech|whisper|音轨/.test(lower)) return 'audio'
+  // 语音/音频没有独立能力位，归入文本 Agent
+  if (/语音|音频|视频|配音|transcribe|speech|whisper|音轨/.test(lower)) return 'text'
   if (/代码|编程|debug|重构|python|java|typescript|前端|后端|算法/.test(lower)) return 'code'
-  if (/多模态|图文|视频理解|multimodal/.test(lower)) return 'multimodal'
+  // 多模态按「视觉理解 + 文本」处理，归入视觉 Agent
+  if (/多模态|图文|视频理解|multimodal/.test(lower)) return 'vision'
   if (presetId === 'local-code') return 'code'
   return 'text'
 }

@@ -176,6 +176,7 @@ export function AgentWorkspace({
   const agentWorkspaceScrollRef = useRef<HTMLDivElement>(null)
   const upsertConversation = useAppStore((s) => s.upsertConversation)
   const upsertAgent = useAppStore((s) => s.upsertAgent)
+  const setAgents = useAppStore((s) => s.setAgents)
   const removeAgent = useAppStore((s) => s.removeAgent)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
 
@@ -187,6 +188,13 @@ export function AgentWorkspace({
   useEffect(() => {
     setFeaturedMyAgentIds(readFeaturedMyAgentIds())
   }, [])
+
+  // 反馈提示 3 秒后自动关闭
+  useEffect(() => {
+    if (!agentFeedback) return
+    const t = setTimeout(() => setAgentFeedback(null), 3000)
+    return () => clearTimeout(t)
+  }, [agentFeedback])
 
   useEffect(() => {
     fetch('/api/teams')
@@ -304,20 +312,28 @@ export function AgentWorkspace({
   const startTeamConversation = async (team: TeamWithMembers) => {
     if (team.members.length === 0) return
     try {
-      const agentIds = team.members.map((m) => m.agentId)
-      const res = await fetch('/api/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: team.name, mode: 'group', agentIds }),
+      const conv = await createConversation({
+        title: team.name,
+        mode: 'group',
+        agentIds: team.members.map((m) => m.agentId),
       })
-      const conv = await res.json()
-      if (conv.id) {
-        upsertConversation(conv)
-        setActiveConversation(conv.id)
-        onOpenConversations()
-      }
+      upsertConversation(conv)
+      setActiveConversation(conv.id)
+      onOpenConversations()
     } catch (err) {
       console.error('[AgentWorkspace] start team conversation failed', err)
+    }
+  }
+
+  /** 只知道 teamId 时的入口（创建团队成功后直接开聊）。 */
+  const startTeamConversationById = async (teamId: string) => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}`)
+      const data = (await res.json()) as { team?: TeamWithMembers }
+      if (!data.team) return
+      await startTeamConversation(data.team)
+    } catch (err) {
+      console.error('[AgentWorkspace] start team conversation by id failed', err)
     }
   }
 
@@ -611,42 +627,54 @@ export function AgentWorkspace({
                     <button onClick={() => setAgentFeedback(null)} className="ml-2 opacity-60 hover:opacity-100">✕</button>
                   </div>
                 )}
-                {(mineFilter === 'all' || mineFilter === 'agent') && (
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-                    {filteredAgents.map((agent) => (
-                      <AgentCard
-                        key={agent.id}
-                        agent={agent}
-                        selected={agentDetailOpen && selectedAgent?.id === agent.id}
-                        selectable={agentView === 'mine'}
-                        checked={selectedDeleteAgentIds.has(agent.id)}
-                        onToggleSelected={() => toggleDeleteSelection(agent.id)}
-                        onSelect={() => {
-                          setSelectedAgentId(agent.id)
-                          setAgentDetailOpen(true)
-                        }}
-                        onStart={() => void startConversation(agent)}
-                      />
-                    ))}
+                {(mineFilter === 'all' || mineFilter === 'team') && teams.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">我的团队</h3>
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{teams.length}</span>
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+                      {teams.map((team) => (
+                        <TeamCard
+                          key={team.id}
+                          team={team}
+                          selected={detailTeamOpen && detailTeamId === team.id}
+                          selectable={agentView === 'mine'}
+                          checked={selectedDeleteTeamIds.has(team.id)}
+                          onToggleSelected={() => toggleTeamDeleteSelection(team.id)}
+                          onSelect={() => {
+                            setDetailTeamId(team.id)
+                            setDetailTeamOpen(true)
+                          }}
+                          onStartChat={() => void startTeamConversation(team)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
-                {(mineFilter === 'all' || mineFilter === 'team') && teams.length > 0 && (
-                  <div className={cn('grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3', mineFilter === 'all' && filteredAgents.length > 0 && 'mt-4')}>
-                    {teams.map((team) => (
-                      <TeamCard
-                        key={team.id}
-                        team={team}
-                        selected={detailTeamOpen && detailTeamId === team.id}
-                        selectable={agentView === 'mine'}
-                        checked={selectedDeleteTeamIds.has(team.id)}
-                        onToggleSelected={() => toggleTeamDeleteSelection(team.id)}
-                        onSelect={() => {
-                          setDetailTeamId(team.id)
-                          setDetailTeamOpen(true)
-                        }}
-                        onStartChat={() => void startTeamConversation(team)}
-                      />
-                    ))}
+                {(mineFilter === 'all' || mineFilter === 'agent') && (
+                  <div className={cn('flex flex-col gap-2', mineFilter === 'all' && teams.length > 0 && 'mt-5')}>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">我的 Agent</h3>
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{filteredAgents.length}</span>
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+                      {filteredAgents.map((agent) => (
+                        <AgentCard
+                          key={agent.id}
+                          agent={agent}
+                          selected={agentDetailOpen && selectedAgent?.id === agent.id}
+                          selectable={agentView === 'mine'}
+                          checked={selectedDeleteAgentIds.has(agent.id)}
+                          onToggleSelected={() => toggleDeleteSelection(agent.id)}
+                          onSelect={() => {
+                            setSelectedAgentId(agent.id)
+                            setAgentDetailOpen(true)
+                          }}
+                          onStart={() => void startConversation(agent)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
                 {filteredAgents.length === 0 && teams.length === 0 && (
@@ -697,24 +725,19 @@ export function AgentWorkspace({
       <CreateTeamDialog
         open={teamFormOpen}
         onOpenChange={setTeamFormOpen}
-        onStartChat={(teamId) => {
-          fetch('/api/teams/' + teamId).then(r => r.json()).then(d => {
-            if (d.team && d.team.members.length > 0) {
-              const agentIds = d.team.members.map((m: any) => m.agentId)
-              fetch('/api/conversations', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: d.team.name, mode: 'group', agentIds })
-              }).then(r => r.json()).then(conv => {
-                if (conv.id) {
-                  upsertConversation(conv)
-                  setActiveConversation(conv.id)
-                  onOpenConversations()
-                }
-              })
-            }
-          })
+        onCreated={() => {
+          // 团队创建会连带新建多个 Agent：补全 store 与团队列表，避免会话头部
+          // 因为查不到成员而显示成「0 位 Agent」。
+          fetch('/api/agents')
+            .then((r) => r.json())
+            .then((d) => { if (d.agents) setAgents(d.agents) })
+            .catch(() => {})
+          fetch('/api/teams')
+            .then((r) => r.json())
+            .then((d) => setTeams(d.teams ?? []))
+            .catch(() => {})
         }}
+        onStartChat={(teamId) => void startTeamConversationById(teamId)}
       />
       <TeamDetailDialog
         teamId={detailTeamId}
@@ -726,7 +749,7 @@ export function AgentWorkspace({
         onDeleted={() => {
           fetch('/api/teams').then((r) => r.json()).then((d) => setTeams(d.teams ?? [])).catch(() => {})
         }}
-        onStartChat={(conv) => { upsertConversation(conv as any); setActiveConversation(conv.id); onOpenConversations() }}
+        onStartChat={(conv) => { upsertConversation(conv); setActiveConversation(conv.id); onOpenConversations() }}
       />
       <CreateAgentDialog open={formOpen} onOpenChange={(open) => {
         setFormOpen(open)

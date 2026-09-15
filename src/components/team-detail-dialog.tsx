@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, MessageSquare, Pencil, Trash2, Users } from 'lucide-react'
+import { MessageSquare, Pencil, Trash2, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
@@ -15,8 +15,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { LoadingIndicator } from '@/components/ui/loading-indicator'
 import { Textarea } from '@/components/ui/textarea'
-import type { AgentRow } from '@/db/schema'
+import type { AgentRow, ConversationWithMeta } from '@/db/schema'
 import type { TeamWithMembers } from '@/server/team-service'
 
 interface TeamDetailDialogProps {
@@ -25,7 +26,7 @@ interface TeamDetailDialogProps {
   onOpenChange: (open: boolean) => void
   onDeleted?: () => void
   onUpdated?: () => void
-  onStartChat?: (conversation: { id: string; [key: string]: unknown }) => void | Promise<void>
+  onStartChat?: (conversation: ConversationWithMeta) => void | Promise<void>
 }
 
 /**
@@ -132,7 +133,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: team.name, mode: 'group', agentIds }),
       })
-      const data = await res.json()
+      const data = (await res.json()) as { conversation?: ConversationWithMeta; error?: string }
       if (data.conversation) {
         await onStartChat?.(data.conversation)
         onOpenChange(false)
@@ -198,7 +199,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-3xl overflow-hidden">
+      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="size-4" />
@@ -216,42 +217,40 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
+          <LoadingIndicator variant="spinner" size="md" className="py-14" />
         ) : team ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-1">
+          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-0.5 py-1">
             {/* 基本信息 */}
             {editing ? (
-              <div className="flex flex-col gap-2">
-                <div className="grid gap-1">
-                  <label className="text-[11px] font-medium">团队名称</label>
+              <div className="flex flex-col gap-3.5">
+                <div className="grid gap-1.5">
+                  <label className="text-xs font-medium">团队名称</label>
                   <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </div>
-                <div className="grid gap-1">
-                  <label className="text-[11px] font-medium">团队描述</label>
+                <div className="grid gap-1.5">
+                  <label className="text-xs font-medium">团队描述</label>
                   <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
                 </div>
-                <div className="grid gap-1">
-                  <label className="text-[11px] font-medium">团队目标</label>
+                <div className="grid gap-1.5">
+                  <label className="text-xs font-medium">团队目标</label>
                   <Textarea value={editGoal} onChange={(e) => setEditGoal(e.target.value)} rows={2} className="resize-none" />
                 </div>
-                <div className="grid gap-1">
-                  <label className="text-[11px] font-medium">系统提示词（Orchestrator 用）</label>
+                <div className="grid gap-1.5">
+                  <label className="text-xs font-medium">系统提示词（Orchestrator 用）</label>
                   <Textarea value={editSystemPrompt} onChange={(e) => setEditSystemPrompt(e.target.value)} rows={3} className="resize-none" placeholder="团队负责人作为 Orchestrator 的系统提示词" />
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="rounded-lg border bg-muted/30 p-4">
                 <div className="text-sm font-medium">{team.name}</div>
-                {team.description && <div className="mt-0.5 text-[11px] text-muted-foreground">{team.description}</div>}
+                {team.description && <div className="mt-1 text-xs text-muted-foreground">{team.description}</div>}
                 {team.goal && (
-                  <div className="mt-1.5 border-t pt-1.5 text-[11px] text-muted-foreground">
+                  <div className="mt-2 border-t pt-2 text-xs text-muted-foreground">
                     <span className="font-medium">目标：</span>{team.goal}
                   </div>
                 )}
                 {team.systemPrompt && (
-                  <div className="mt-1.5 border-t pt-1.5 text-[11px] text-muted-foreground">
+                  <div className="mt-2 border-t pt-2 text-xs text-muted-foreground">
                     <span className="font-medium">系统提示词：</span>{team.systemPrompt.slice(0, 100)}{team.systemPrompt.length > 100 ? '…' : ''}
                   </div>
                 )}
@@ -260,7 +259,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
 
             {/* 成员列表 */}
             <div className="flex items-center justify-between">
-              <div className="text-xs font-medium">成员（{team.members.length}）</div>
+              <div className="text-sm font-medium">成员（{team.members.length}）</div>
               {!editing && (
                 <Button size="sm" variant="ghost" onClick={() => setShowAddMember(!showAddMember)}>
                   + 添加成员
@@ -269,39 +268,39 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
             </div>
 
             {showAddMember && (
-              <div className="max-h-32 overflow-y-auto rounded-md border">
+              <div className="max-h-40 overflow-y-auto rounded-md border">
                 {availableAgents.length === 0 ? (
-                  <div className="px-3 py-2 text-center text-[11px] text-muted-foreground">所有 Agent 已在团队中</div>
+                  <div className="px-3 py-3 text-center text-xs text-muted-foreground">所有 Agent 已在团队中</div>
                 ) : (
                   availableAgents.map((a) => (
                     <button
                       key={a.id}
-                      className="flex w-full items-center gap-2 border-b px-2 py-1.5 text-left transition last:border-b-0 hover:bg-muted/50"
+                      className="flex w-full items-center gap-3 border-b px-3 py-2.5 text-left transition last:border-b-0 hover:bg-muted/50"
                       onClick={() => handleAddMember(a.id)}
                     >
                       <AgentAvatar agent={a} size="sm" />
                       <span className="truncate text-xs">{a.name}</span>
-                      <span className="ml-auto text-[10px] text-muted-foreground">{a.modality}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{a.modality}</span>
                     </button>
                   ))
                 )}
               </div>
             )}
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               {team.members.map((m) => (
-                <div key={m.id} className="group flex items-center gap-2 rounded-md border bg-card px-2 py-1.5">
+                <div key={m.id} className="group flex items-center gap-3 rounded-md border bg-card px-3 py-2.5">
                   <AgentAvatar agent={{ id: m.agentId, name: m.agentName, avatar: m.agentAvatar } as AgentRow} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-xs font-medium">{m.agentName}</span>
+                      <span className="truncate text-sm font-medium">{m.agentName}</span>
                       {m.isLead && (
                         <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[9px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
                           负责人
                         </span>
                       )}
                     </div>
-                    {m.role && <div className="truncate text-[10px] text-muted-foreground">{m.role}</div>}
+                    {m.role && <div className="truncate text-xs text-muted-foreground">{m.role}</div>}
                   </div>
                   {!editing && (
                     <>
@@ -327,13 +326,22 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
                 </div>
               ))}
               {team.members.length === 0 && (
-                <div className="px-3 py-4 text-center text-xs text-muted-foreground">团队暂无成员</div>
+                <div className="px-3 py-6 text-center text-xs text-muted-foreground">团队暂无成员</div>
               )}
             </div>
           </div>
         ) : null}
 
         <DialogFooter>
+          <Button
+            variant="outline"
+            className="text-red-600 hover:text-red-700 sm:mr-auto"
+            onClick={() => void handleDelete()}
+            disabled={saving || deleting || loading || !team}
+          >
+            {deleting ? <LoadingIndicator variant="spinner" size="sm" inheritColor /> : <Trash2 className="size-3.5" />}
+            删除团队
+          </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>
             关闭
           </Button>
@@ -343,14 +351,14 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
                 取消
               </Button>
               <Button onClick={() => void handleSave()} disabled={saving || !editName.trim()}>
-                {saving ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {saving ? <LoadingIndicator variant="spinner" size="sm" inheritColor /> : null}
                 保存
               </Button>
             </>
           ) : (
             <>
               <Button onClick={() => void handleStartChat()} disabled={startingChat || loading || !team || team.members.length === 0}>
-                {startingChat ? <Loader2 className="size-3.5 animate-spin" /> : <MessageSquare className="size-3.5" />}
+                {startingChat ? <LoadingIndicator variant="spinner" size="sm" inheritColor /> : <MessageSquare className="size-3.5" />}
                 开始对话
               </Button>
               <Button variant="outline" onClick={() => setEditing(true)} disabled={loading || !team}>

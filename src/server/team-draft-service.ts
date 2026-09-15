@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
-import type { AgentModality } from '@/lib/llm-shared'
+import { normalizeModality, type AgentModality } from '@/lib/llm-shared'
 
 /**
  * Agent 团队草稿服务。
@@ -14,6 +14,8 @@ import type { AgentModality } from '@/lib/llm-shared'
 export interface TeamMemberDraft {
   /** 成员显示名（创建 Agent 时用） */
   name: string
+  /** 成员头像 emoji；团队里每个成员各不相同，便于在群聊与列表中辨认 */
+  avatar: string
   /** 成员在团队中的角色描述 */
   role: string
   /** 推断的模态，用于自动匹配模型 */
@@ -36,8 +38,6 @@ export interface TeamDraftRequest {
   goal: string
 }
 
-const VALID_MODALITIES: AgentModality[] = ['text', 'vision', 'image', 'audio', 'code', 'multimodal']
-
 // ─── LLM 驱动的团队生成 ────────────────────────────────────────
 
 const TEAM_DRAFT_SYSTEM_PROMPT = `你是一个专业的团队组建顾问。根据用户描述的目标，设计一个高效的 Agent 协作团队。
@@ -45,10 +45,11 @@ const TEAM_DRAFT_SYSTEM_PROMPT = `你是一个专业的团队组建顾问。根�
 要求：
 1. 团队成员 3-6 人，每个成员有明确的角色和职责
 2. 第一个成员是团队负责人（isLead: true），负责整体协调和成果汇总
-3. 每个成员的 modality 必须是以下之一：text（文本/写作/分析）、vision（识图/视觉理解）、image（生图/设计）、audio（音频/语音/视频）、code（代码/编程）、multimodal（多模态综合）
-4. systemPrompt 要具体描述该成员的职责、工作方式和输出要求，50-150 字
-5. 团队名称简洁有力，描述一句话说明团队定位
-6. 只输出 JSON，不要任何解释、markdown 标记或前后文本
+3. 每个成员的 modality 必须是以下之一：code（代码/编程/调试）、text（文本/写作/分析）、vision（识图/视觉理解）、image（生图/设计）
+4. 每个成员的 avatar 是一个能体现其角色的 emoji，同一团队内不得重复（负责人建议用 🧭）
+5. systemPrompt 要具体描述该成员的职责、工作方式和输出要求，50-150 字
+6. 团队名称简洁有力，描述一句话说明团队定位
+7. 只输出 JSON，不要任何解释、markdown 标记或前后文本
 
 输出 JSON 格式：
 {
@@ -57,8 +58,9 @@ const TEAM_DRAFT_SYSTEM_PROMPT = `你是一个专业的团队组建顾问。根�
   "members": [
     {
       "name": "成员名称",
+      "avatar": "🧭",
       "role": "角色职责",
-      "modality": "text|vision|image|audio|code|multimodal",
+      "modality": "code|text|vision|image",
       "systemPrompt": "该成员的系统提示词",
       "isLead": true
     }
@@ -141,7 +143,7 @@ export async function createTeamDraftWithLLM(input: TeamDraftRequest): Promise<T
 }
 
 /** 从容错文本中提取并解析 JSON */
-function parseTeamDraftJSON(content: string): { name?: string; description?: string; members?: any[] } | null {
+function parseTeamDraftJSON(content: string): { name?: string; description?: string; members?: Record<string, unknown>[] } | null {
   // 尝试直接解析
   try {
     return JSON.parse(content)
@@ -169,18 +171,24 @@ function parseTeamDraftJSON(content: string): { name?: string; description?: str
   }
 }
 
+/** 头像兜底池：按成员顺序取用，保证同一团队内互不重复。 */
+const ROLE_AVATARS = ['🧭', '📋', '🔍', '🧪', '🎨', '🚀', '🧩', '📊'] as const
+
 /** 验证和修正成员结构 */
-function normalizeMembers(raw: any[]): TeamMemberDraft[] {
+function normalizeMembers(raw: Record<string, unknown>[]): TeamMemberDraft[] {
   if (!Array.isArray(raw) || raw.length === 0) return []
 
   const members: TeamMemberDraft[] = []
+  const usedAvatars = new Set<string>()
   for (let i = 0; i < Math.min(raw.length, 6); i++) {
     const m = raw[i]
     if (!m || typeof m !== 'object') continue
 
-    const modality = VALID_MODALITIES.includes(m.modality) ? m.modality : 'text'
+    // LLM 仍可能吐出旧的 audio / multimodal，统一归并到现行四类
+    const modality = normalizeModality(typeof m.modality === 'string' ? m.modality : undefined)
     members.push({
       name: String(m.name || `成员${i + 1}`).slice(0, 30),
+      avatar: pickAvatar(m.avatar, i, usedAvatars),
       role: String(m.role || '').slice(0, 50),
       modality,
       systemPrompt: String(m.systemPrompt || '').slice(0, 300),
@@ -196,13 +204,31 @@ function normalizeMembers(raw: any[]): TeamMemberDraft[] {
   return members
 }
 
+/**
+ * 选定成员头像：LLM 给的 emoji 优先，缺失/非法/与队友撞了则从兜底池里取一个没用过的。
+ * 目标是一条团队里每个成员的头像都不相同。
+ */
+function pickAvatar(raw: unknown, index: number, used: Set<string>): string {
+  const fromLlm = typeof raw === 'string' ? raw.trim().match(/\p{Extended_Pictographic}/u)?.[0] : undefined
+  if (fromLlm && !used.has(fromLlm)) {
+    used.add(fromLlm)
+    return fromLlm
+  }
+  for (const candidate of ROLE_AVATARS) {
+    if (used.has(candidate)) continue
+    used.add(candidate)
+    return candidate
+  }
+  return ROLE_AVATARS[index % ROLE_AVATARS.length]
+}
+
 // ─── 启发式模板（LLM 失败时的回退） ────────────────────────────
 
 interface TeamTemplate {
   match: RegExp
   name: string
   description: string
-  members: Omit<TeamMemberDraft, 'isLead'>[]
+  members: Omit<TeamMemberDraft, 'isLead' | 'avatar'>[]
 }
 
 const TEMPLATES: TeamTemplate[] = [
@@ -305,14 +331,16 @@ const TEMPLATES: TeamTemplate[] = [
       {
         name: '音频工程师',
         role: '配音与音效',
-        modality: 'audio',
+        // 没有独立音频能力位，配音稿/音频方案按文本 Agent 匹配模型
+        modality: 'text',
         systemPrompt:
           '你是音频工程师。负责配音、背景音乐、音效设计、音频后期。输出音频方案和配音稿。',
       },
       {
         name: '剪辑师',
         role: '剪辑与后期合成',
-        modality: 'multimodal',
+        // 视频画面处理归入视觉 Agent
+        modality: 'vision',
         systemPrompt:
           '你是剪辑师。负责视频剪辑、特效合成、字幕制作、调色输出。输出剪辑方案和成片规格。',
       },
@@ -376,7 +404,7 @@ const DEFAULT_TEAM: Omit<TeamTemplate, 'match'> = {
     {
       name: '执行者',
       role: '核心产出与交付',
-      modality: 'multimodal',
+      modality: 'text',
       systemPrompt:
         '你是执行者。负责根据任务要求完成核心产出，确保交付质量。输出最终交付物。',
     },
@@ -401,9 +429,10 @@ export function createTeamDraftHeuristic(input: TeamDraftRequest): TeamDraft {
 
   const template = TEMPLATES.find((t) => t.match.test(lower)) ?? DEFAULT_TEAM
 
-  // 第一个成员设为负责人
+  // 模板未指定头像，按角色补一个专属 emoji（同模板内不重复）
   const members: TeamMemberDraft[] = template.members.map((m, i) => ({
     ...m,
+    avatar: ROLE_AVATARS[i % ROLE_AVATARS.length],
     isLead: i === 0,
   }))
 

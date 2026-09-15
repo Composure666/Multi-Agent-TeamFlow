@@ -105,6 +105,9 @@ export function ChatPanel() {
     )
   }
 
+  // 成员数量以会话自身的 agentIds 为准 —— store 里的 Agent 可能还没加载完
+  // （刚创建的团队、其他端新建的会话），不能让计数跟着查表结果变少。
+  const participantCount = conv.agentIds.length
   const participantAgents = conv.agentIds.map((id) => agents[id]).filter(Boolean)
 
   return (
@@ -121,7 +124,7 @@ export function ChatPanel() {
           >
             <Menu className="size-4" />
           </Button>
-          <ParticipantStack agents={participantAgents} />
+          <ParticipantStack agents={participantAgents} total={participantCount} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="min-w-0 truncate text-[15px] font-semibold text-slate-900">{conv.title}</span>
@@ -136,7 +139,7 @@ export function ChatPanel() {
               )}
             </div>
             <div className="mt-0.5 truncate text-xs text-slate-500">
-              {conv.mode === 'single' ? '单聊' : '群聊'} · {participantAgents.length} 位 Agent
+              {conv.mode === 'single' ? '单聊' : '群聊'} · {participantCount} 位 Agent
             </div>
           </div>
         </div>
@@ -242,9 +245,9 @@ export function ChatPanel() {
   )
 }
 
-function ParticipantStack({ agents }: { agents: AgentRow[] }) {
+function ParticipantStack({ agents, total }: { agents: AgentRow[]; total?: number }) {
   const visibleAgents = agents.slice(0, 3)
-  const hiddenAgents = agents.slice(3)
+  const hiddenCount = Math.max((total ?? agents.length) - visibleAgents.length, 0)
   const title = agents.map((agent) => agent.name).join(' / ')
 
   return (
@@ -257,12 +260,12 @@ function ParticipantStack({ agents }: { agents: AgentRow[] }) {
           avatarClassName="border-2 border-background"
         />
       ))}
-      {hiddenAgents.length > 0 && (
+      {hiddenCount > 0 && (
         <div
           className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-background bg-muted text-[11px] font-semibold text-muted-foreground"
-          title={hiddenAgents.map((agent) => agent.name).join(' / ')}
+          title={agents.slice(3).map((agent) => agent.name).join(' / ')}
         >
-          +{hiddenAgents.length}
+          +{hiddenCount}
         </div>
       )}
     </div>
