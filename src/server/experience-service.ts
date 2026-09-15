@@ -59,6 +59,15 @@ const MAX_REVIEW_REASON_CHARS = 200
 /** 标题关键词 Jaccard 相似度达到该阈值即视为同一条教训的复述，不再重复落库。 */
 const NEAR_DUPLICATE_KEYWORD_OVERLAP = 0.62
 const EXTRACTION_MAX_TOKENS = 1200
+/**
+ * 同一会话内两次自动复盘的最小间隔。
+ *
+ * 复盘（经验提炼）要回放整棵 run 树，实测单次输入可达十万 token 级，还要跟用户下一条
+ * 消息抢同一个 provider 的吞吐 —— 连续几句简单对话就触发同样多次全量提炼，用户看到的
+ * 就是「一个简单任务都在不断复盘、越跑越久」。几分钟内的连续 run 只复盘最后一次即可，
+ * 经验本身也不会因为省掉中间几次而变差。
+ */
+const EXTRACTION_COOLDOWN_MS = 3 * 60 * 1000
 const TOKEN_TO_CHAR_RATIO = 4
 const COLD_ASSET_DAYS = 30
 const EXPERIENCE_FILE_MAX_SIZE = 20 * 1024 * 1024 // 单文件上限 20MB
@@ -658,6 +667,14 @@ export async function extractFromRun(
 
     if (run.parentRunId && !opts.force) return []
 
+    // 冷却：手动触发（force）不受限，自动复盘按会话节流
+    if (
+      !opts.force &&
+      Date.now() - (lastExtractionAtByConversation.get(run.conversationId) ?? 0) < EXTRACTION_COOLDOWN_MS
+    ) {
+      return []
+    }
+
     const agent = await db.query.agents.findFirst({ where: eq(schema.agents.id, run.agentId) })
     if (!agent || agent.adapterName === 'mock') return []
 
@@ -673,11 +690,16 @@ export async function extractFromRun(
     const choices = await chooseExtractionModels(agent)
     if (choices.length === 0) return []
 
+    // 时间戳记在「真要花 token 了」这一刻，而不是入口：否则一次因 gate 不通过而提前
+    // 返回的 run 也会把下一次复盘一起挡掉。
+    if (!opts.force) lastExtractionAtByConversation.set(run.conversationId, Date.now())
+
     // 本次注入过的经验要一并喂回去：让 LLM 给出「用上了 / 要修订 / 过时了」的结论，
     // 形成 注入 → 执行 → 复盘 → 改写 → 下次更好注入 的闭环。
     const injected = await loadInjectedExperiences(runTreeIds)
     const prompt = buildExtractionPrompt(rendered, injected)
-    const raw = await extractWithFallback(choices, prompt)
+    // 同一时刻只允许一次提炼在跑：多个会话同时收尾时，并发提炼只会互相拖慢
+    const raw = await runExtractionExclusive(() => extractWithFallback(choices, prompt))
     if (!raw.trim()) return []
 
     const reviews = parseExtractionReviews(raw)
@@ -723,6 +745,18 @@ export async function extractFromRun(
     console.warn('[experience-service] extractFromRun failed', err)
     return []
   }
+}
+
+/** 会话 → 上次自动复盘的起始时刻（内存态即可：进程重启后重跑一次无副作用）。 */
+const lastExtractionAtByConversation = new Map<string, number>()
+
+/** 提炼串行队列：保证同一时刻只有一个提炼在跟执行期抢 provider。 */
+let extractionQueue: Promise<unknown> = Promise.resolve()
+
+function runExtractionExclusive<T>(task: () => Promise<T>): Promise<T> {
+  const next = extractionQueue.then(task, task)
+  extractionQueue = next.catch(() => {})
+  return next
 }
 
 interface ExtractionGate {
