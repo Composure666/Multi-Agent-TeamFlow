@@ -20,6 +20,7 @@ export const newContextSummaryId = () => `ctx_${nano()}`
 export const newWorkspaceMemoryId = () => `mem_${nano()}`
 export const newExperienceId = () => `exp_${nano()}`
 export const newExperienceFileId = () => `expf_${nano()}`
+export const newExperienceRevisionId = () => `expr_${nano()}`
 export const newAgentRunDebugSnapshotId = () => `rdbg_${nano()}`
 export const newAgentRunDebugEventId = () => `rde_${nano()}`
 export const newTerminalSessionId = () => `term_${nano()}`

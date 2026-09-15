@@ -625,6 +625,41 @@ export const experienceAttachments = sqliteTable(
 export type ExperienceAttachmentRow = typeof experienceAttachments.$inferSelect
 export type ExperienceAttachmentInsert = typeof experienceAttachments.$inferInsert
 
+/**
+ * 经验修订历史（Spec 20 迭代闭环）：每次经验被改写前，先把旧值整条存这里。
+ *
+ * kind 语义：
+ * - refine：内容被修订（LLM 自动复盘或人工编辑）
+ * - confirm：run 结束后被判定「仍然有效」，内容不变，只留一次验证痕
+ * - retire：过时/错误，被自动停用
+ * - restore：从某个快照回滚（此时 prev_* 是被回滚掉的那个版本）
+ */
+export const experienceRevisions = sqliteTable(
+  'experience_revisions',
+  {
+    id: text('id').primaryKey(),
+    experienceId: text('experience_id').notNull().references(() => experiences.id, { onDelete: 'cascade' }),
+    /** 触发本次修订的 run；人工编辑为 null */
+    runId: text('run_id'),
+    source: text('source', { enum: ['auto', 'manual'] }).notNull(),
+    kind: text('kind', { enum: ['refine', 'confirm', 'retire', 'restore'] }).notNull(),
+    title: text('title').notNull(),
+    trigger: text('trigger').notNull(),
+    content: text('content').notNull(),
+    tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    /** 修订理由（LLM 给的 reason 或用户备注），短文本 */
+    note: text('note'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('idx_exp_revisions_experience').on(t.experienceId, t.createdAt),
+    index('idx_exp_revisions_run').on(t.runId),
+  ],
+)
+
+export type ExperienceRevisionRow = typeof experienceRevisions.$inferSelect
+export type ExperienceRevisionInsert = typeof experienceRevisions.$inferInsert
+
 export type McpCheckStatus = 'ok' | 'failed'
 
 // ─── External MCP Servers ───────────────────────────────────

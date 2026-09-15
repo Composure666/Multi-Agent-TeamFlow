@@ -1,6 +1,6 @@
 'use client'
 
-import { MoreHorizontal, Flame, FileText, Bot } from 'lucide-react'
+import { MoreHorizontal, Flame, FileText, Bot, Repeat2 } from 'lucide-react'
 import type { ExperienceKind, ExperienceRow } from '@/db/schema'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,8 @@ const KIND_META: Record<ExperienceKind, { label: string; icon: typeof FileText; 
 interface ExperienceCardProps {
   item: ExperienceRow
   agentName?: string
+  /** 累计被迭代修订的次数（Agent 自动复盘 + 人工编辑），0 表示从未被改过 */
+  revisionCount?: number
   onOpen: (id: string) => void
   onEdit: (item: ExperienceRow) => void
   onToggleActive: (item: ExperienceRow) => void
@@ -51,6 +53,7 @@ function formatDate(ts: number): string {
 export function ExperienceCard({
   item,
   agentName,
+  revisionCount = 0,
   onOpen,
   onEdit,
   onToggleActive,
@@ -61,7 +64,7 @@ export function ExperienceCard({
 
   return (
     <div
-      className="group flex cursor-pointer items-start gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition-all hover:border-blue-400/40 hover:shadow-md"
+      className="group flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition-all hover:border-blue-400/40 hover:shadow-md"
       onClick={() => onOpen(item.id)}
     >
       <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', meta.iconBg)}>
@@ -69,27 +72,39 @@ export function ExperienceCard({
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="truncate text-sm font-medium">{item.title}</h3>
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="min-w-0 truncate text-sm font-medium">{item.title}</h3>
           <Badge className={cn('shrink-0 border text-[10px] font-normal', meta.badge)}>
             {meta.label}
           </Badge>
         </div>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.content.replace(/<[^>]*>/g, '')}</p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        {/* 描述与触发条件都必须「收口」：超长内容省略，绝不允许把卡片撑宽（页面横向溢出） */}
+        <p className="mt-0.5 line-clamp-2 min-w-0 text-xs break-words text-muted-foreground">
+          {item.content.replace(/<[^>]*>/g, '')}
+        </p>
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           {agentName && (
-            <span className="inline-flex items-center gap-1">
-              <Bot className="size-3" />
-              {agentName}
+            <span className="inline-flex max-w-full min-w-0 items-center gap-1">
+              <Bot className="size-3 shrink-0" />
+              <span className="min-w-0 truncate">{agentName}</span>
             </span>
           )}
-          <span>触发条件：{item.trigger}</span>
+          <span className="min-w-0 max-w-full truncate">触发条件：{item.trigger}</span>
         </div>
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">使用 {item.usageCount} 次</span>
+          <span className="whitespace-nowrap text-[11px] text-muted-foreground">使用 {item.usageCount} 次</span>
+          {revisionCount > 0 && (
+            <Badge
+              className="hidden shrink-0 whitespace-nowrap border-amber-500/20 bg-amber-500/10 text-[10px] font-normal text-amber-600 sm:inline-flex"
+              title={`已被迭代修订 ${revisionCount} 次（Agent 运行后自动复盘或人工编辑）`}
+            >
+              <Repeat2 className="size-3" />
+              迭代 {revisionCount}
+            </Badge>
+          )}
           <Badge className={cn(
             'border text-[10px] font-normal',
             item.active

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   clipByBudget,
+  filterReviewTargets,
   parseExtractionOutput,
+  parseExtractionReviews,
   tokenizeKeywords,
 } from '@/server/experience-service'
 
@@ -122,5 +124,135 @@ describe('parseExtractionOutput', () => {
       { kind: 'experience', title: 'x'.repeat(81), trigger: 't', content: 'c' },
     ])
     expect(parseExtractionOutput(raw)).toEqual([])
+  })
+})
+
+describe('parseExtractionOutput / 新旧两种输出形态', () => {
+  const candidate = {
+    kind: 'experience',
+    title: '先校验输入素材再生成产物',
+    trigger: '当任务需要先读取外部素材时',
+    content: '先确认素材存在且可读，再进入生成步骤。',
+    tags: ['检查清单'],
+  }
+
+  it('reads candidates from the object payload', () => {
+    const raw = JSON.stringify({ candidates: [candidate], reviews: [] })
+    const out = parseExtractionOutput(raw)
+    expect(out).toHaveLength(1)
+    expect(out[0].title).toBe(candidate.title)
+  })
+
+  it('still accepts a bare array emitted by older models', () => {
+    expect(parseExtractionOutput(JSON.stringify([candidate]))).toHaveLength(1)
+  })
+
+  it('returns [] when there is no usable candidates field', () => {
+    expect(parseExtractionOutput('{"reviews":[]}')).toEqual([])
+    expect(parseExtractionOutput('null')).toEqual([])
+    expect(parseExtractionOutput('not json')).toEqual([])
+  })
+})
+
+describe('parseExtractionReviews', () => {
+  it('parses verdict, reason and patch', () => {
+    const raw = JSON.stringify({
+      candidates: [],
+      reviews: [
+        {
+          id: 'exp_abc123',
+          verdict: 'refine',
+          reason: '本次发现还要先检查编码',
+          patch: { content: '先确认素材存在、可读且编码正确，再进入生成步骤。' },
+        },
+      ],
+    })
+    const reviews = parseExtractionReviews(raw)
+    expect(reviews).toHaveLength(1)
+    expect(reviews[0]).toMatchObject({
+      id: 'exp_abc123',
+      verdict: 'refine',
+      reason: '本次发现还要先检查编码',
+    })
+    expect(reviews[0].patch?.content).toContain('编码正确')
+  })
+
+  it('defaults a missing reason to an empty string', () => {
+    const raw = JSON.stringify({ reviews: [{ id: 'exp_x', verdict: 'confirmed' }] })
+    const [review] = parseExtractionReviews(raw)
+    expect(review.verdict).toBe('confirmed')
+    expect(review.reason).toBe('')
+    expect(review.patch).toBeUndefined()
+  })
+
+  it('drops reviews with an unknown verdict or without an id', () => {
+    const raw = JSON.stringify({
+      reviews: [
+        { id: 'exp_ok', verdict: 'retire' },
+        { id: 'exp_bad', verdict: 'maybe' },
+        { verdict: 'confirmed' },
+        { id: 'exp_ok2', verdict: 'confirmed', unexpected: 1 },
+      ],
+    })
+    const reviews = parseExtractionReviews(raw)
+    expect(reviews.map((r) => r.id)).toEqual(['exp_ok'])
+  })
+
+  it('caps at 3 reviews even if the model returns more', () => {
+    const reviews = Array.from({ length: 6 }, (_, i) => ({
+      id: `exp_${i}`,
+      verdict: 'confirmed',
+    }))
+    expect(parseExtractionReviews(JSON.stringify({ reviews }))).toHaveLength(3)
+  })
+
+  it('returns [] for array payloads and invalid json', () => {
+    expect(parseExtractionReviews('[]')).toEqual([])
+    expect(parseExtractionReviews('{"candidates":[]}')).toEqual([])
+    expect(parseExtractionReviews('oops')).toEqual([])
+  })
+})
+
+describe('filterReviewTargets', () => {
+  const injected = [
+    {
+      id: 'exp_injected',
+      kind: 'experience',
+      source: 'auto',
+      title: '标题',
+      trigger: '触发',
+      content: '内容',
+      tags: [],
+    },
+  ]
+
+  it('accepts ids that were really injected in this run', () => {
+    const result = filterReviewTargets(
+      [{ id: 'exp_injected', verdict: 'refine', reason: '' }],
+      injected,
+    )
+    expect(result.accepted.map((r) => r.id)).toEqual(['exp_injected'])
+    expect(result.rejected).toEqual([])
+  })
+
+  it('rejects ids the model could have hallucinated', () => {
+    const result = filterReviewTargets(
+      [
+        { id: 'exp_injected', verdict: 'confirmed', reason: '' },
+        { id: 'exp_not_injected', verdict: 'retire', reason: '过时了' },
+      ],
+      injected,
+    )
+    expect(result.accepted.map((r) => r.id)).toEqual(['exp_injected'])
+    expect(result.rejected.map((r) => r.id)).toEqual(['exp_not_injected'])
+  })
+
+  it('rejects everything when nothing was injected', () => {
+    const result = filterReviewTargets(
+      [{ id: 'exp_whatever', verdict: 'confirmed', reason: '' }],
+      [],
+    )
+    expect(result.accepted).toEqual([])
+    expect(result.rejected).toHaveLength(1)
   })
 })

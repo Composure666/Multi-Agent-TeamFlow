@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { createExperience, listExperiences } from '@/server/experience-service'
+import { createExperience, getRevisionCounts, listExperiences } from '@/server/experience-service'
 import type { ExperienceKind } from '@/db/schema'
 
 const CreateBody = z
@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
     sourceParam === 'auto' || sourceParam === 'manual' ? sourceParam : undefined
 
   const experiences = await listExperiences({ agentId, kind, active, source, q })
-  return NextResponse.json({ experiences })
+  // 迭代次数（自动复盘 + 人工修订）列表页要显示成徽标，一次 group-by 带出来，避免逐条请求
+  const revisionCounts = await getRevisionCounts(experiences.map((row) => row.id))
+  return NextResponse.json({ experiences, revisionCounts })
 }
 
 export async function POST(req: NextRequest) {

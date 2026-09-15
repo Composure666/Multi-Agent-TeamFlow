@@ -28,7 +28,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   }
 
   try {
-    const experience = await updateExperience(id, parsed.data)
+    // 人工编辑也留快照 —— 迭代历史要能一路回滚，不能因为改的是人手就断链
+    const experience = await updateExperience(id, parsed.data, {
+      source: 'manual',
+      kind: 'refine',
+      note: '人工编辑',
+    })
     return NextResponse.json({ experience })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

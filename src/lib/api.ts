@@ -1375,7 +1375,15 @@ export interface FetchExperiencesParams {
   q?: string | null
 }
 
-export async function fetchExperiences(params: FetchExperiencesParams = {}): Promise<ExperienceRow[]> {
+export interface FetchExperiencesResult {
+  experiences: ExperienceRow[]
+  /** experienceId → 累计修订次数（Agent 自动复盘 + 人工编辑） */
+  revisionCounts: Record<string, number>
+}
+
+export async function fetchExperiences(
+  params: FetchExperiencesParams = {},
+): Promise<FetchExperiencesResult> {
   const search = new URLSearchParams()
   if (params.agentId) search.set('agentId', params.agentId)
   if (params.kind) search.set('kind', params.kind)
@@ -1383,10 +1391,10 @@ export async function fetchExperiences(params: FetchExperiencesParams = {}): Pro
   if (params.source) search.set('source', params.source)
   if (params.q) search.set('q', params.q)
   const qs = search.toString()
-  const { experiences } = await json<{ experiences: ExperienceRow[] }>(
+  const data = await json<{ experiences: ExperienceRow[]; revisionCounts?: Record<string, number> }>(
     fetch(`/api/experiences${qs ? `?${qs}` : ''}`),
   )
-  return experiences
+  return { experiences: data.experiences, revisionCounts: data.revisionCounts ?? {} }
 }
 
 export interface ExperienceStats {
@@ -1411,6 +1419,39 @@ export interface ExperienceUsageItem {
 export async function fetchExperienceStats(): Promise<ExperienceStats> {
   const { stats } = await json<{ stats: ExperienceStats }>(fetch('/api/experiences/stats'))
   return stats
+}
+
+export interface ExperienceRevisionItem {
+  id: string
+  experienceId: string
+  runId: string | null
+  source: 'auto' | 'manual'
+  kind: 'refine' | 'confirm' | 'retire' | 'restore'
+  title: string
+  trigger: string
+  content: string
+  tags: string[]
+  note: string | null
+  createdAt: number
+}
+
+export async function fetchExperienceRevisions(
+  experienceId: string,
+): Promise<ExperienceRevisionItem[]> {
+  const { items } = await json<{ items: ExperienceRevisionItem[] }>(
+    fetch(`/api/experiences/${experienceId}/revisions`),
+  )
+  return items
+}
+
+export async function rollbackExperienceRevision(
+  experienceId: string,
+  revisionId: string,
+): Promise<ExperienceRow> {
+  const { experience } = await json<{ experience: ExperienceRow }>(
+    fetch(`/api/experiences/${experienceId}/revisions/${revisionId}`, { method: 'POST' }),
+  )
+  return experience
 }
 
 export async function fetchExperienceUsage(experienceId: string): Promise<ExperienceUsageItem[]> {

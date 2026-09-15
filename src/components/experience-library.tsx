@@ -59,6 +59,8 @@ function calcTrend(data: number[] | undefined): number | undefined {
 
 export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
   const [items, setItems] = useState<ExperienceRow[]>([])
+  // experienceId → 累计被迭代的次数（Agent 自动复盘修订 + 人工编辑）
+  const [revisionCounts, setRevisionCounts] = useState<Record<string, number>>({})
   const [stats, setStats] = useState<ExperienceStats>(EMPTY_STATS)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -88,7 +90,8 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
         }),
         fetchExperienceStats(),
       ])
-      setItems(list)
+      setItems(list.experiences)
+      setRevisionCounts(list.revisionCounts)
       setStats(stat)
     } catch (err) {
       console.error('[ExperienceLibrary] load failed', err)
@@ -181,27 +184,27 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
 
   // ─── 列表视图 ───
   return (
-    <div className="flex h-full min-h-0">
-      <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* 标题区 */}
         <div className="flex shrink-0 items-center justify-between border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/15 to-purple-500/15">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/15 to-purple-500/15">
               <BookOpen className="size-5 text-blue-500" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold">经验资产</h1>
-              <p className="text-xs text-muted-foreground">沉淀 Agent 运行经验，形成可复用的知识，让 AI 越用越聪明。</p>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold">经验资产</h1>
+              <p className="truncate text-xs text-muted-foreground">沉淀 Agent 运行经验，形成可复用的知识，让 AI 越用越聪明。</p>
             </div>
           </div>
-          <div className="hidden items-center gap-1 text-[11px] text-muted-foreground lg:flex">
+          <div className="hidden shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-muted-foreground xl:flex">
             <span>每一次运行，</span>
             <span className="italic text-blue-500">都是下一次更好的开始</span>
           </div>
         </div>
 
         {/* 统计卡片 */}
-        <div className="grid shrink-0 grid-cols-5 gap-3 border-b px-6 py-4">
+        <div className="grid shrink-0 grid-cols-2 gap-3 border-b px-6 py-4 sm:grid-cols-3 xl:grid-cols-5">
           <StatCard icon={Layers} label="全部" value={stats.total} trend={calcTrend(stats.weeklyNew)} iconBg="bg-blue-500/10" iconColor="text-blue-500" />
           <StatCard icon={CheckCircle2} label="已启用" value={stats.active} trend={calcTrend(stats.weeklyNew)} iconBg="bg-emerald-500/10" iconColor="text-emerald-500" />
           <StatCard icon={FileText} label="草稿" value={stats.drafts} iconBg="bg-slate-500/10" iconColor="text-slate-500" />
@@ -210,8 +213,8 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
         </div>
 
         {/* 搜索 + 筛选 + 操作 */}
-        <div className="flex shrink-0 items-center gap-3 border-b px-6 py-3">
-          <div className="relative flex-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b px-6 py-3">
+          <div className="relative min-w-[220px] flex-1">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-8 text-sm"
@@ -318,7 +321,7 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
         </div>
 
         {/* 列表 */}
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 min-w-0 flex-1">
           <div className="space-y-2 p-6">
             {loading ? (
               <div className="flex justify-center py-12 text-muted-foreground">
@@ -340,6 +343,7 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
                       key={item.id}
                       item={item}
                       agentName={agentName(item.agentId)}
+                      revisionCount={revisionCounts[item.id] ?? 0}
                       onOpen={handleOpen}
                       onEdit={handleEdit}
                       onToggleActive={handleToggleActive}
@@ -354,6 +358,7 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
                   key={item.id}
                   item={item}
                   agentName={agentName(item.agentId)}
+                  revisionCount={revisionCounts[item.id] ?? 0}
                   onOpen={handleOpen}
                   onEdit={handleEdit}
                   onToggleActive={handleToggleActive}
@@ -385,6 +390,10 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
               agentName={agentName(selectedItem.agentId)}
               onBack={() => setDetailOpen(false)}
               onEdit={handleEdit}
+              onUpdated={(updated) => {
+                setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
+                void refresh()
+              }}
             />
           )}
         </DialogContent>

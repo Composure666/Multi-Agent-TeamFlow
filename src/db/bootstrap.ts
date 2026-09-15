@@ -453,6 +453,23 @@ const DDL: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_exp_attachments_experience ON experience_attachments(experience_id, created_at)`,
 
+  // ─── experience_revisions（经验迭代闭环：改前快照 + 回滚依据）────
+  `CREATE TABLE IF NOT EXISTS experience_revisions (
+    id TEXT PRIMARY KEY,
+    experience_id TEXT NOT NULL REFERENCES experiences(id) ON DELETE CASCADE,
+    run_id TEXT,
+    source TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    trigger TEXT NOT NULL,
+    content TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    note TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_exp_revisions_experience ON experience_revisions(experience_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_exp_revisions_run ON experience_revisions(run_id)`,
+
   // ─── mcp_servers ───────────────────────────────
   `CREATE TABLE IF NOT EXISTS mcp_servers (
     id TEXT PRIMARY KEY,
