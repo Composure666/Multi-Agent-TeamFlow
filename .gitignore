@@ -80,6 +80,7 @@ next-env.d.ts
 
 # Root-level Electron runtime spillover
 /debug.log
+/agenthub-dev.log
 
 # Local git backup created during ref-corruption recovery
 /.git.bak/
