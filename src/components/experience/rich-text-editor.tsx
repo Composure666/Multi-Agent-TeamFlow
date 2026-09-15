@@ -38,12 +38,15 @@ export function RichTextEditor({
   const editorRef = useRef<HTMLDivElement>(null)
   const lastValueRef = useRef(value)
 
-  // 外部 value 变化时同步（避免光标跳动，仅在确实不同时更新）
+  // contentEditable 的内容不受 React 管控，初始值必须由这里显式写进 DOM。
+  // 不能再用「value 变了才同步」那道门槛：lastValueRef 的初值就是 value，
+  // 挂载时判断恒为假 → 编辑已有经验时编辑框永远是空的（线上 bug）。
+  // 仍然只在 innerHTML 与目标值确实不同时写，避免每次敲键重置光标。
   useEffect(() => {
-    if (editorRef.current && value !== lastValueRef.current && value !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value || ''
-      lastValueRef.current = value
-    }
+    const el = editorRef.current
+    if (!el) return
+    if (value !== el.innerHTML) el.innerHTML = value || ''
+    lastValueRef.current = value
   }, [value])
 
   const exec = useCallback((cmd: string, arg?: string) => {
