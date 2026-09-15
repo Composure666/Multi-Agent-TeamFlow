@@ -604,6 +604,71 @@ export async function fetchAutomationDashboard(range?: { days?: number; start?: 
   return dashboard
 }
 
+// ─── Analytics（数据概览：真实运行分析，数据源 agent_runs） ─────────
+export type RunAnalyticsStatus = 'success' | 'running' | 'failed' | 'aborted'
+
+export interface RunAnalyticsItem {
+  id: string
+  conversationId: string
+  agentId: string
+  agentName: string
+  title: string
+  category: string
+  status: RunAnalyticsStatus
+  durationMs: number | null
+  startedAt: number
+  finishedAt: number | null
+  totalTokens: number
+  isSubRun: boolean
+}
+
+export interface RunAnalyticsTrendPoint {
+  label: string
+  date: string
+  value: number
+  completed: number
+}
+
+export interface AnalyticsDistributionItem {
+  label: string
+  value: number
+  count: number
+}
+
+export interface RunAnalyticsStats {
+  total: number
+  success: number
+  running: number
+  failed: number
+  aborted: number
+  successRate: number
+  avgDurationMs: number
+  todayCount: number
+  allTimeTotal: number
+  prevTotal: number
+}
+
+export interface RunAnalytics {
+  range: { start: number; end: number; days: number }
+  items: RunAnalyticsItem[]
+  total: number
+  truncated: boolean
+  stats: RunAnalyticsStats
+  trend: RunAnalyticsTrendPoint[]
+  agentDistribution: AnalyticsDistributionItem[]
+  statusDistribution: AnalyticsDistributionItem[]
+}
+
+export async function fetchRunAnalytics(range?: { start?: number; end?: number; days?: number }): Promise<RunAnalytics> {
+  const params = new URLSearchParams()
+  if (range?.start) params.set('start', String(range.start))
+  if (range?.end) params.set('end', String(range.end))
+  if (range?.days) params.set('days', String(range.days))
+  const query = params.toString() ? `?${params.toString()}` : ''
+  const { analytics } = await json<{ analytics: RunAnalytics }>(fetch(`/api/analytics${query}`))
+  return analytics
+}
+
 export interface SaveAutomationBody {
   title: string
   description?: string
