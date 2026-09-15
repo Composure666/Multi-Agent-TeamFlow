@@ -556,7 +556,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                     <div
                       className={cn(
                         viewMode === 'grid'
-                          ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3'
+                          ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
                           : 'space-y-2',
                       )}
                     >
@@ -569,7 +569,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
               <div
                 className={cn(
                   viewMode === 'grid'
-                    ? 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3'
+                    ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
                     : 'space-y-2',
                 )}
               >
