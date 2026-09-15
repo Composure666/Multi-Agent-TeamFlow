@@ -37,7 +37,7 @@ const AUTOMATION_SEED = [
     description: '关注当天 AI 领域的重要动态，自动整理并推送摘要。',
     category: '内容推送',
     cadence: '每天 08:30',
-    status: 'enabled',
+    status: 'paused',
     iconKey: 'newspaper',
     prompt: '请整理今天 AI 领域的重要动态，输出 5 条以内摘要，包含来源、影响和后续关注点。',
     scheduleType: 'daily',
@@ -49,7 +49,7 @@ const AUTOMATION_SEED = [
     description: '每天推荐 5 个高频实用英语单词，包含释义与例句。',
     category: '学习提醒',
     cadence: '每天 07:45',
-    status: 'running',
+    status: 'paused',
     iconKey: 'languages',
     prompt: '请推荐 5 个高频实用英语单词，为每个单词提供中文释义、英文例句和记忆提示。',
     scheduleType: 'daily',
@@ -61,7 +61,7 @@ const AUTOMATION_SEED = [
     description: '每周五汇总仓库 PR、Issue 与任务进展，生成工作周报。',
     category: '项目报告',
     cadence: '周五 18:00',
-    status: 'enabled',
+    status: 'paused',
     iconKey: 'calendar_clock',
     prompt: '请汇总本周项目进展，整理已完成工作、风险问题和下周计划，输出一份简洁周报。',
     scheduleType: 'weekly',
@@ -73,7 +73,7 @@ const AUTOMATION_SEED = [
     description: '推荐一部高分经典电影，并附带简短推荐理由。',
     category: '兴趣推荐',
     cadence: '每天 20:00',
-    status: 'enabled',
+    status: 'paused',
     iconKey: 'video',
     prompt: '请推荐一部高分经典电影，说明推荐理由、适合人群和一句话看点。',
     scheduleType: 'daily',
@@ -85,7 +85,7 @@ const AUTOMATION_SEED = [
     description: '从科技、电影、文化等领域挑选一件历史事件进行介绍。',
     category: '内容推送',
     cadence: '每天 09:00',
-    status: 'draft',
+    status: 'paused',
     iconKey: 'history',
     prompt: '请介绍历史上的今天发生的一件科技、电影或文化事件，包含背景、过程和影响。',
     scheduleType: 'manual',
@@ -533,6 +533,15 @@ const DDL: string[] = [
   )`,
 
   // ─── llm_providers ─────────────────────────────────
+  // ─── bootstrap_migrations ──────────────────────────
+  // 一次性数据修复的账本：key = 迁移名，跑过就不再跑。
+  // 为什么需要它：像「内置自动化默认暂停」这种修复必须只应用一次 —— 否则用户后来
+  // 手动启用的内置任务会在每次重启时被重新暂停。
+  `CREATE TABLE IF NOT EXISTS bootstrap_migrations (
+    key TEXT PRIMARY KEY,
+    applied_at INTEGER NOT NULL
+  )`,
+
   `CREATE TABLE IF NOT EXISTS llm_providers (
     id TEXT PRIMARY KEY,
     provider_type TEXT NOT NULL,
@@ -600,6 +609,43 @@ const DDL: string[] = [
 ]
 
 /** 建表 / 建索引（幂等）。 */
+/**
+ * 存量安装的一次性修复：内置自动化任务改回「默认暂停」。
+ *
+ * 老版本种子里有 enabled / running 的内置任务，且 next_run_at 是按「上次演示运行 + 1 天」
+ * 排的（演示时间在过去）→ 调度器首个 tick 就当它们「已到期」，开箱即真跑一轮
+ * （线上部署当晚 12:08 就触发了两次真实 run）。新版本种子一律 paused / next_run_at = null，
+ * 这里把存量库里仍是种子态的内置任务也停掉。
+ *
+ * 只做一次（bootstrap_migrations 记标记）：之后用户手动启用的内置任务不会被反复暂停。
+ */
+const PAUSE_BUILTIN_AUTOMATIONS_MIGRATION = 'pause_builtin_automations_v1'
+
+function pauseBuiltinAutomationsOnce(sqlite: Database.Database): void {
+  const applied = sqlite
+    .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+    .get(PAUSE_BUILTIN_AUTOMATIONS_MIGRATION)
+  if (applied) return
+
+  const update = sqlite.prepare(
+    `UPDATE automations
+     SET status = 'paused', next_run_at = NULL, updated_at = @now
+     WHERE id = @id AND status IN ('enabled', 'running')`,
+  )
+  const mark = sqlite.prepare(
+    'INSERT OR REPLACE INTO bootstrap_migrations (key, applied_at) VALUES (?, ?)',
+  )
+
+  const now = Date.now()
+  const tx = sqlite.transaction(() => {
+    for (const item of AUTOMATION_SEED) {
+      update.run({ id: item.id, now })
+    }
+    mark.run(PAUSE_BUILTIN_AUTOMATIONS_MIGRATION, now)
+  })
+  tx()
+}
+
 function ensureSchema(sqlite: Database.Database): void {
   for (const stmt of DDL) {
     sqlite.exec(stmt)
@@ -656,6 +702,7 @@ function ensureSchema(sqlite: Database.Database): void {
   sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_artifacts_merged ON artifacts(merged_into)`)
   sqlite.exec(`UPDATE artifacts SET updated_at = created_at WHERE updated_at IS NULL`)
   mergeImageArtifactBatches(sqlite)
+  pauseBuiltinAutomationsOnce(sqlite)
 }
 
 /**
@@ -924,7 +971,10 @@ function ensureDemoAutomations(sqlite: Database.Database): void {
         prompt: item.prompt,
         schedule_type: item.scheduleType,
         schedule_config: item.scheduleConfig ? JSON.stringify(item.scheduleConfig) : null,
-        next_run_at: item.status === 'enabled' ? latestRuns[item.id] ? latestRuns[item.id]! + DAY_MS : startOfToday + DAY_MS : null,
+        // 内置任务一律「默认暂停」：不预排下一次运行，用户手动启用后才由调度器接管。
+        // 曾经的写法是按 status==='enabled' 排 nextRunAt，而演示用的 latestRuns 在过去
+        // → 首次启动就被调度器当成「已到期」真跑一轮（线上首启即触发）。
+        next_run_at: null,
         latest_run_at: latestRuns[item.id],
         created_at: now - 14 * DAY_MS,
         updated_at: latestRuns[item.id] ?? now - 2 * DAY_MS,
