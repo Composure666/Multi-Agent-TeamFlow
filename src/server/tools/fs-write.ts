@@ -1,7 +1,6 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
-import { db, schema } from '@/db/client'
+import { getWriteApprovalMode } from '@/server/approval-mode'
 import { recordRunFileWrite } from '@/server/dispatch-run-evidence'
 import { recordFileWrite } from '@/server/dispatch-file-writes'
 import {
@@ -56,10 +55,8 @@ export const fsWriteTool: ToolDef = {
     const workspace = await getWorkspaceForConversation(ctx.conversationId)
     if (!workspace) return { ok: false, error: 'Workspace not found' }
 
-    const conv = await db.query.conversations.findFirst({
-      where: eq(schema.conversations.id, ctx.conversationId),
-    })
-    const mode = conv?.fsWriteApprovalMode ?? 'review'
+    // 统一口径：与 write_artifact / bash 共用同一个 getter，避免各写一份默认值
+    const mode = await getWriteApprovalMode(ctx.conversationId)
 
     // Auto 模式：直接写
     if (mode === 'auto') {

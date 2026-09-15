@@ -2,11 +2,13 @@ import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
+import { getWriteApprovalMode } from '@/server/approval-mode'
 import { buildArtifactContent, describeArtifactContentError } from '@/server/artifact-content'
 import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
 import { recordRunArtifact } from '@/server/dispatch-run-evidence'
 import { ensureImageStored } from '@/server/oss-image-store'
 import { newArtifactId } from '@/server/ids'
+import { pendingWrites } from '@/server/pending-writes'
 
 import type { ArtifactType } from '@/shared/types'
 import type { ToolDef } from './types'
@@ -129,6 +131,36 @@ export const writeArtifactTool: ToolDef = {
       }
     }
 
+    // Review 模式：创建产物也要先过审批（和 fs_write / bash 同一个开关口径）。
+    // 历史上只有 fs_write 读这个开关，而内置 Agent 里只有「前端工程师」带 fs_write，
+    // 其余都走 write_artifact —— 于是 auto / review 在绝大多数场景是空转的。
+    if ((await getWriteApprovalMode(ctx.conversationId)) === 'review') {
+      const label = `产物 · ${title}${resolvedParent ? `（v${version}）` : ''}`
+      const pending = pendingWrites.register({
+        conversationId: ctx.conversationId,
+        agentId: ctx.agentId,
+        runId: ctx.runId,
+        path: label,
+        absolutePath: label,
+        oldContent: null,
+        newContent: previewArtifactContent(fullContent),
+        // 产物写的是 DB 不是磁盘，放行后由本函数自己落库
+        skipWrite: true,
+      })
+      const decision = await new Promise<{ applied: boolean }>((resolve) => {
+        pendingWrites.attachResolver(pending.id, resolve)
+        const onAbort = () => {
+          pendingWrites.cancel(pending.id)
+          resolve({ applied: false })
+        }
+        if (ctx.abortSignal.aborted) onAbort()
+        else ctx.abortSignal.addEventListener('abort', onAbort, { once: true })
+      })
+      if (!decision.applied) {
+        return { ok: false, error: 'User rejected the artifact creation' }
+      }
+    }
+
     const artifactId = newArtifactId()
     const createdAt = Date.now()
     let mergedIntoGallery = false
@@ -228,6 +260,20 @@ export const writeArtifactTool: ToolDef = {
       },
     }
   },
+}
+
+/** 审批面板里展示的产物内容预览：超长截断，避免把整份 HTML/PPT 塞进 diff。 */
+const MAX_PREVIEW_CHARS = 20_000
+
+function previewArtifactContent(content: unknown): string {
+  let text: string
+  try {
+    text = JSON.stringify(content, null, 2) ?? String(content)
+  } catch {
+    text = String(content)
+  }
+  if (text.length <= MAX_PREVIEW_CHARS) return text
+  return `${text.slice(0, MAX_PREVIEW_CHARS)}\n…（内容过长，预览已截断）`
 }
 
 function isEmptyObject(value: unknown): value is Record<string, never> {

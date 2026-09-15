@@ -16,7 +16,8 @@ import { newPendingWriteId } from './ids'
 
 interface PendingEntry {
   write: PendingWrite
-  workspace: WorkspaceRow
+  /** skipWrite=true（如产物审批）时不需要工作区：approve 只是放行，不落盘。 */
+  workspace: WorkspaceRow | null
   resolver: ((decision: { applied: boolean }) => void) | null
   /** true = approve 时不调 writeFileInWorkspace（写盘由调用方负责，如 Claude Code SDK 内置 Edit/Write）。 */
   skipWrite: boolean
@@ -33,7 +34,8 @@ class PendingWritesStore {
     absolutePath: string
     oldContent: string | null
     newContent: string
-    workspace: WorkspaceRow
+    /** skipWrite=false 时必填（要落盘）；skipWrite=true 时可省略（如 write_artifact 审批）。 */
+    workspace?: WorkspaceRow
     /** 默认 false：approve 时调 writeFileInWorkspace 自己写盘（适用 AgentHub 自带 fs_write 工具）。
      *  true：approve 后不写盘，仅 resolver 通知调用方放行（适用 ClaudeCodeAdapter，SDK 自己写）。 */
     skipWrite?: boolean
@@ -52,7 +54,7 @@ class PendingWritesStore {
     }
     this.map.set(id, {
       write,
-      workspace: args.workspace,
+      workspace: args.workspace ?? null,
       resolver: null,
       skipWrite: args.skipWrite ?? false,
     })
@@ -88,6 +90,11 @@ class PendingWritesStore {
     const entry = this.map.get(id)
     if (!entry) return false
     if (!entry.skipWrite) {
+      if (!entry.workspace) {
+        console.error('[pendingWrites] approve needs a workspace but none was registered')
+        this.finalize(id, false)
+        return false
+      }
       try {
         writeFileInWorkspace(entry.workspace, entry.write.path, entry.write.newContent)
       } catch (err) {

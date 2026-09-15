@@ -1,3 +1,4 @@
+import type { WriteApprovalMode } from '@/server/approval-mode'
 import { pendingBashCommands } from '@/server/pending-bash-commands'
 import type { Platform } from '@/server/platform'
 
@@ -6,7 +7,28 @@ export interface BashApproval {
   reason: string
 }
 
-export function classifyBashApproval(command: string, platform: Platform): BashApproval {
+/**
+ * review 模式下额外拦截的一档：命令本身不算「高危」，但会改动工作区文件。
+ * auto 模式完全不管这些（auto = 写入直接生效）。
+ *
+ * 刻意不拦 npm run build / next build / 测试命令 —— 这类几乎每个前端任务都要跑，
+ * 逐个点确认会把 review 模式变成「点确认模式」。
+ */
+const MUTATING_CHECKS: Array<[RegExp, string]> = [
+  [/\b(?:cp|mv|rm|mkdir|rmdir|touch|ln)\b/i, 'command creates, moves or deletes files'],
+  [/\b(?:sed|perl)\s+-i\b/i, 'in-place edit rewrites files'],
+  [/\btee\b/i, 'tee writes to files'],
+  [/\b(?:cat|echo|printf)\b[\s\S]*>/, 'shell redirection writes to a file'],
+  [/\bgit\s+(?:add|commit|push|pull|merge|rebase|cherry-pick|stash|apply|am|switch|checkout|restore|reset|clean|tag)\b/i, 'git command changes the repository state'],
+  [/\b(?:curl|wget)\b[\s\S]*(?:-o|--output|\|\s*(?:sh|bash|zsh|powershell))\b/i, 'download writes a file or pipes into a shell'],
+  [/\bNew-Item\b|\bSet-Content\b|\bAdd-Content\b|\bOut-File\b|\bCopy-Item\b|\bMove-Item\b|\bRemove-Item\b|\bRename-Item\b/i, 'PowerShell cmdlet writes or removes files'],
+]
+
+export function classifyBashApproval(
+  command: string,
+  platform: Platform,
+  mode: WriteApprovalMode = 'auto',
+): BashApproval {
   const normalized = command.trim()
   const checks: Array<[RegExp, string]> = [
     [
@@ -45,6 +67,14 @@ export function classifyBashApproval(command: string, platform: Platform): BashA
   for (const [pattern, reason] of checks) {
     if (pattern.test(normalized)) return { required: true, reason }
   }
+
+  // review 模式才拦的第二档：会改动工作区文件，但本身不算高危
+  if (mode === 'review') {
+    for (const [pattern, reason] of MUTATING_CHECKS) {
+      if (pattern.test(normalized)) return { required: true, reason }
+    }
+  }
+
   return { required: false, reason: '' }
 }
 

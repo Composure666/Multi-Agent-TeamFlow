@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
+import { getWriteApprovalMode } from '@/server/approval-mode'
 import { classifyBashApproval, waitForBashApproval } from '@/server/bash-command-approval'
 import { recordRunCommand } from '@/server/dispatch-run-evidence'
 import { currentPlatform, type Platform } from '@/server/platform'
@@ -183,7 +184,10 @@ export async function executeBashCommand(
     }
   }
 
-  const approval = classifyBashApproval(executedCommand, PLATFORM)
+  // 与 fs_write / write_artifact 同一个开关：review 模式下「会改文件」的命令也要确认。
+  // 传 auto 时只拦 tier-1 高危命令，行为与改动前完全一致。
+  const approvalMode = await getWriteApprovalMode(ctx.conversationId)
+  const approval = classifyBashApproval(executedCommand, PLATFORM, approvalMode)
   if (approval.required) {
     const approved = await waitForBashApproval({
       conversationId: ctx.conversationId,
