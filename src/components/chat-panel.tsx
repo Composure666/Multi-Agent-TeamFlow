@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, FilePenLine, Layers, Menu, MessagesSquare, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, FilePenLine, Layers, Menu, MessagesSquare, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { AddAgentDialog } from '@/components/add-agent-dialog'
@@ -8,6 +8,7 @@ import { AgentInfoPopover } from '@/components/agent-info-popover'
 import { AskUserQuestionDialog } from '@/components/ask-user-question-dialog'
 import { ArtifactLibrary } from '@/components/artifact-library'
 import { ChatToolbar } from '@/components/chat-toolbar'
+import { ConversationMembersPopover } from '@/components/conversation-members-popover'
 import { FileLibraryDialog } from '@/components/file-library-dialog'
 import { FileTab } from '@/components/file-tab'
 import { PendingWriteDiffTab } from '@/components/pending-write-diff-tab'
@@ -127,7 +128,16 @@ export function ChatPanel() {
           <ParticipantStack agents={participantAgents} total={participantCount} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="min-w-0 truncate text-[15px] font-semibold text-slate-900">{conv.title}</span>
+              <ConversationMembersPopover
+                title={conv.title}
+                agents={participantAgents}
+                total={participantCount}
+              >
+                <span className="min-w-0 truncate text-[15px] font-semibold text-slate-900">
+                  {conv.title}
+                </span>
+                <ChevronDown className="size-3.5 shrink-0 text-slate-400 transition group-hover:text-slate-600" />
+              </ConversationMembersPopover>
               {conv.workspaceMode === 'local' && conv.workspaceBoundPath && (
                 <span
                   title={`本地工作目录：${conv.workspaceBoundPath}`}
@@ -138,7 +148,7 @@ export function ChatPanel() {
                 </span>
               )}
             </div>
-            <div className="mt-0.5 truncate text-xs text-slate-500">
+            <div className="mt-0.5 min-w-0 truncate text-xs text-slate-500">
               {conv.mode === 'single' ? '单聊' : '群聊'} · {participantCount} 位 Agent
             </div>
           </div>
