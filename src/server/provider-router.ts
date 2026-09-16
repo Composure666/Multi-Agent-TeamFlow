@@ -29,7 +29,23 @@ const GLOBAL_CAPABILITY_KEY = 'global:default'
 
 /** 可触发故障转移的错误码/状态。 */
 export const FAILOVER_TRIGGER_CODES = {
-  balance: ['402', 'insufficient_balance', 'quota_exceeded', 'billing'],
+  // ⚠️ 余额类必须认全「欠费」的各家叫法：百炼欠费返回的是 **HTTP 400 + `Arrearage`**，
+  // 消息里带 `#overdue-payment`，而不是 402 —— 只认 402 的话，账号一欠费就会
+  // 当场硬失败（400 不触发切换），链尾那条健康的兜底模型完全用不上。
+  // 线上实测（2026-09-16）：`{"type":"Arrearage","code":"Arrearage",
+  //   "message":"Access denied, please make sure your account is in good standing.
+  //              For details, see: .../error-code#overdue-payment"}`。
+  balance: [
+    '402',
+    'insufficient_balance',
+    'insufficient balance',
+    'quota_exceeded',
+    'billing',
+    'arrearage',
+    'overdue-payment',
+    'overdue_payment',
+    '欠费',
+  ],
   auth: ['401', '403', 'invalid_api_key', 'authentication_failed'],
   rateLimit: ['429', 'rate_limit', 'too_many_requests'],
   serverError: ['500', '502', '503', '504', 'server_error', 'service_unavailable'],

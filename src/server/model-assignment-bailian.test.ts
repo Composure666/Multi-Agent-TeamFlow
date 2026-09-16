@@ -283,6 +283,33 @@ describe('降级兜底转发', () => {
     expect(await router.getFailoverEvents(10)).toHaveLength(0)
   })
 
+  it('回归：百炼「欠费」虽然返回 400，也必须触发切换', async () => {
+    // 线上实测（2026-09-16）：百炼账号欠费时返回的是 **HTTP 400 + Arrearage**，
+    // 不是 402 —— 消息形如
+    //   Access denied, please make sure your account is in good standing.
+    //   For details, see: https://help.aliyun.com/zh/model-studio/error-code#overdue-payment
+    // 老的关键字表只有 402 / insufficient_balance / quota_exceeded / billing，
+    // 全都命中不了 → 归到「400 参数错误，不切换」→ **整条链当场硬失败**，
+    // 链尾那条健康的兜底模型（deepseek 独立 key）完全用不上。
+    for (const message of [
+      '400 Access denied, please make sure your account is in good standing. For details, see: '
+        + 'https://help.aliyun.com/zh/model-studio/error-code#overdue-payment',
+      '400 {"type":"Arrearage","code":"Arrearage","message":"Access denied"}',
+      '400 账户已欠费，请充值后重试',
+    ]) {
+      await client.db.delete(client.schema.llmFailoverEvents)
+      const result = await failover.runWithFailover(
+        chain(),
+        async (c) => {
+          if (c.providerId === 'bailian') throw new Error(message)
+          return c.modelId
+        },
+        { capabilityKey: 'agent:code', canSwitch: () => true },
+      )
+      expect(result.candidate.modelId).toBe('deepseek-v4-flash')
+    }
+  })
+
   it('已经产出内容后不再切换（防止一条消息里出现两段输出）', async () => {
     await expect(
       failover.runWithFailover(
