@@ -13,11 +13,15 @@ import {
   extractImagePromptText,
   extractRequestedImageSize,
   IMAGE_PROMPT_MAX_CHARS,
+  isGridRoundedSize,
+  normalizeImageSize,
   parseImageSize,
   pickImageTargetPath,
   readImagePixelSize,
+  snapToImageSizeGrid,
   writeImageIntoWorkspace,
 } from './image-delivery'
+import { decodePng, encodePng } from './png-crop'
 import { evaluateTaskResultReport } from './task-result-report'
 
 /**
@@ -307,5 +311,120 @@ describe('门禁对非工具型成员（image-gen）的放宽边界', () => {
     )
     expect(noEvidence.ok).toBe(false)
     expect(noEvidence.error).toContain('target path evidence')
+  })
+})
+
+/**
+ * 回归：线上 t4「主图重做」在第二层修复后的**残留失败**。
+ *
+ * 子任务已经能出图、落盘、绑产物、合成回报了，但判据「图片为 1920×1080」仍然判不过 ——
+ * 因为百炼生图模型的输出尺寸网格是 **64 的倍数**：请求 `1920*1080` 实得 `1920×1088`
+ * （1088 = 64×17），1080 物理上不可能产出，这道门禁**永远不可能通过**，
+ * 于是子任务重试 4 次、每次再出一张图，整组验收失败。
+ *
+ * 两层修法：交付前把这几像素修边掉（png-crop），判据层面再留一条**窄**容差兜住
+ * 无法修边的形态（JPEG / 16bit / 隔行）。
+ */
+describe('生图尺寸网格：请求 1920×1080 实得 1920×1088 不再判死', () => {
+  /** 造一张 1920×1088 的真 PNG（生产事故的真实尺寸）。 */
+  function gridSizePng(width: number, height: number): Buffer {
+    const channels = 3
+    const pixels = Buffer.alloc(width * height * channels)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * channels
+        pixels[index] = (x * 3) & 0xff
+        pixels[index + 1] = (y * 3) & 0xff
+        pixels[index + 2] = (x ^ y) & 0xff
+      }
+    }
+    return encodePng({ width, height, channels, pixels })
+  }
+
+  it('网格取整只认「请求值被吸到 64 网格」这一种偏差', () => {
+    // 1080 不在网格上 → 1088 是它的网格取整，算达标
+    expect(isGridRoundedSize({ width: 1920, height: 1080 }, { width: 1920, height: 1088 })).toBe(true)
+    expect(snapToImageSizeGrid(1080)).toBe(1088)
+    // 请求值本来就在网格上 → 必须严格相等
+    expect(isGridRoundedSize({ width: 1024, height: 1024 }, { width: 1024, height: 1088 })).toBe(false)
+    // 差得离谱 / 换了尺寸 / 方向不对 一律不认
+    expect(isGridRoundedSize({ width: 1920, height: 1080 }, { width: 1024, height: 1024 })).toBe(false)
+    expect(isGridRoundedSize({ width: 1920, height: 1080 }, { width: 1920, height: 1024 })).toBe(false)
+    expect(isGridRoundedSize({ width: 1920, height: 1080 }, { width: 1920, height: 1024 })).toBe(false)
+  })
+
+  it('normalizeImageSize：1920×1088 修边成 1920×1080，裁出来的就是真实字节', () => {
+    const source = gridSizePng(1920, 1088)
+    const normalized = normalizeImageSize(source, '1920*1080')
+
+    expect(normalized.cropped).toBe(true)
+    expect(normalized.width).toBe(1920)
+    expect(normalized.height).toBe(1080)
+    expect(normalized.note).toContain('1920×1088')
+    // 落盘/产物用的是修边后的字节流，真实像素必须就是 1080
+    expect(readImagePixelSize(normalized.buffer)).toEqual({ width: 1920, height: 1080 })
+
+    // 内容 = 原图第 4..1084 行（居中裁掉上下各 4 行），不是简单截断
+    const decoded = decodePng(normalized.buffer)
+    const sourceImage = decodePng(source)
+    const expected = sourceImage?.pixels.subarray(4 * 1920 * 3, 1084 * 1920 * 3)
+    expect(decoded?.pixels.equals(expected as Buffer)).toBe(true)
+  })
+
+  it('尺寸已经一致 / 没给请求尺寸 → 原样返回，不做任何改动', () => {
+    const source = gridSizePng(64, 64)
+    const same = normalizeImageSize(source, '64*64')
+    expect(same.cropped).toBe(false)
+    expect(same.buffer).toBe(source)
+
+    const unknown = normalizeImageSize(source, null)
+    expect(unknown.cropped).toBe(false)
+    expect(unknown.buffer).toBe(source)
+    expect(unknown.width).toBe(64)
+  })
+
+  it('不做重新构图：差异过大或模型给得更小一律不裁（那是真的交付不合格）', () => {
+    const source = gridSizePng(256, 256)
+    // 请求 64×64 要裁掉一大半构图 → 拒绝
+    expect(normalizeImageSize(source, '64*64').cropped).toBe(false)
+    // 模型给的比请求的小 → 拒绝（绝不放大）
+    expect(normalizeImageSize(source, '1920*1080').cropped).toBe(false)
+  })
+
+  it('形态不支持修边时（JPEG）原样返回，不抛异常', () => {
+    const jpeg = jpegBuffer(1920, 1088)
+    const normalized = normalizeImageSize(jpeg, '1920*1080')
+    expect(normalized.cropped).toBe(false)
+    expect(normalized.width).toBe(1920)
+    expect(normalized.height).toBe(1088)
+  })
+
+  it('判据层面：网格取整不判失败，但证据里写明真实尺寸与原因', () => {
+    const result = evaluateNonToolCriterion('图片为 1920×1080 横版（16:9）PNG', {
+      taskId: 't1',
+      agentName: '主图设计师',
+      adapterName: 'image-gen',
+      artifact: { id: 'art_1', title: '生成的图片', width: 1920, height: 1088 },
+      targetPath: 'hero/hero-1920x1080.png',
+      onDisk: { bytes: 2024957, width: 1920, height: 1088 },
+      requestedSize: '1920*1080',
+    })
+    expect(result.passed).toBe(true)
+    expect(result.evidence).toContain('1920×1088')
+    expect(result.evidence).toContain('网格')
+  })
+
+  it('判据层面：不是网格取整的偏差照旧判失败（不放水）', () => {
+    const result = evaluateNonToolCriterion('图片为 1920×1080 横版（16:9）PNG', {
+      taskId: 't1',
+      agentName: '主图设计师',
+      adapterName: 'image-gen',
+      artifact: { id: 'art_1', title: '生成的图片', width: 512, height: 512 },
+      targetPath: null,
+      onDisk: null,
+      requestedSize: '1920*1080',
+    })
+    expect(result.passed).toBe(false)
+    expect(result.evidence).toContain('判据要求 1920×1080，实际交付 512×512')
   })
 })

@@ -1379,6 +1379,8 @@ async function runChildTask(
     const aggregate: RunExecutionResult = emptyRunExecutionResult()
     const aggregateEvidence: RunToolEvidence = { fileWrites: [], commands: [], artifacts: [] }
     const attemptRunIds: string[] = []
+    // 生图成员没有工具循环：门禁放宽（不要求自证命令/文件证据）与重试提示词都要按这个口径走。
+    const childToolCapable = await isToolCapableTaskAgent(task.agentId)
 
     for (let attempt = 1; attempt <= MAX_CHILD_TASK_ATTEMPTS; attempt++) {
       if (ctx.signal.aborted) {
@@ -1390,7 +1392,7 @@ async function runChildTask(
       const prompt = continuationContext
         ? buildContinuationPrompt(basePrompt, task, attempt, continuationContext)
         : basePrompt
-      const attemptEvaluation = await runChildTaskAttempt(task, prompt, ctx)
+      const attemptEvaluation = await runChildTaskAttempt(task, prompt, ctx, childToolCapable)
       if (attemptEvaluation.rawResult.runId) attemptRunIds.push(attemptEvaluation.rawResult.runId)
       mergeRunExecutionResult(aggregate, attemptEvaluation.rawResult)
       mergeRunToolEvidence(aggregateEvidence, attemptEvaluation.evidence)
@@ -1398,6 +1400,9 @@ async function runChildTask(
         task,
         attemptEvaluation.rawResult,
         aggregateEvidence,
+        // 与 runChildTaskAttempt 内部的判定保持同一口径：这里漏传 toolCapable 的话，
+        // 上一处对非工具型成员的放宽会被这次「按工具型成员」的重判整个覆盖掉。
+        { toolCapable: childToolCapable },
       )
       let currentEvaluation: ChildAttemptEvaluation = {
         ...attemptEvaluation,
@@ -1462,12 +1467,9 @@ async function runChildTask(
       if (attempt < MAX_CHILD_TASK_ATTEMPTS) {
         await publishDispatchProgressMessage(ctx, task, currentEvaluation.result, attempt, 'retry')
       }
-      continuationContext = await buildTaskContinuationContext(
-        task,
-        currentEvaluation,
-        attempt,
-        MAX_CHILD_TASK_ATTEMPTS,
-      )
+      continuationContext = childToolCapable
+        ? await buildTaskContinuationContext(task, currentEvaluation, attempt, MAX_CHILD_TASK_ATTEMPTS)
+        : null
     }
 
     const result =
@@ -1584,6 +1586,7 @@ async function runChildTaskAttempt(
   task: DispatchPlanItem,
   prompt: string,
   ctx: DagContext,
+  toolCapable: boolean,
 ): Promise<ChildAttemptEvaluation> {
   const { runId: childRunId, promise } = AgentRunner.run({
     agentId: task.agentId,
@@ -1630,9 +1633,7 @@ async function runChildTaskAttempt(
       ? []
       : await runRequiredCommands(task, childRunId, ctx)
   const evidence = getRunToolEvidence(childRunId)
-  const result = evaluateChildTaskResult(task, raw, evidence, {
-    toolCapable: await isToolCapableTaskAgent(task.agentId),
-  })
+  const result = evaluateChildTaskResult(task, raw, evidence, { toolCapable })
   return { rawResult: raw, result, evidence, verificationResults }
 }
 

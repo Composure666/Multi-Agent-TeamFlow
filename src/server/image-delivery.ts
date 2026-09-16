@@ -3,6 +3,8 @@ import { basename, dirname, resolve, sep } from 'node:path'
 
 import type { DispatchPlanItem, TaskResultReport } from '@/shared/types'
 
+import { cropPng } from './png-crop'
+
 /**
  * 生图成员（image-gen 适配器）子任务的交付契约与回报合成。
  *
@@ -136,6 +138,101 @@ export function writeImageIntoWorkspace(
   }
 }
 
+/**
+ * 生图模型的输出尺寸网格（实测百炼 z-image-turbo 请求 `1920*1080` 实得 `1920×1088`，
+ * 1088 = 64×17）。请求值不落在网格上时，模型只会给最近的网格点。
+ */
+export const IMAGE_SIZE_GRID_STEP = 64
+
+/** 把任意尺寸吸到模型网格上（`1080` → `1088`）。 */
+export function snapToImageSizeGrid(value: number): number {
+  return Math.max(IMAGE_SIZE_GRID_STEP, Math.round(value / IMAGE_SIZE_GRID_STEP) * IMAGE_SIZE_GRID_STEP)
+}
+
+/**
+ * 实际尺寸是否就是「请求尺寸被吸到模型网格上」的结果。
+ *
+ * 这是**窄容差**，不是「差不多就行」：每一轴要么严格相等，要么该轴请求值压根不在
+ * 64 的网格上、且实际值正好等于它的网格取整。例如请求 1920×1080 → 实得 1920×1088 成立
+ * （1080 不在网格上）；而请求 1920×1080 → 实得 1024×1024 或 1920×1024 一律不成立。
+ */
+export function isGridRoundedSize(
+  requested: { width: number; height: number },
+  actual: { width: number; height: number },
+): boolean {
+  return (
+    axisIsGridRounding(requested.width, actual.width) &&
+    axisIsGridRounding(requested.height, actual.height)
+  )
+}
+
+function axisIsGridRounding(requested: number, actual: number): boolean {
+  if (requested === actual) return true
+  if (requested % IMAGE_SIZE_GRID_STEP === 0) return false
+  return actual === snapToImageSizeGrid(requested)
+}
+
+export interface NormalizedImage {
+  buffer: Buffer
+  width?: number
+  height?: number
+  /** 是否真的做了裁切 */
+  cropped: boolean
+  /** 给用户看的一句实话（裁切了就说裁了什么，没裁就不说） */
+  note?: string
+}
+
+/** 裁切只修「网格取整的几像素」，绝不做重新构图：单轴最多修 max(64px, 目标 5%)。 */
+const MAX_TRIM_RATIO = 0.05
+
+/**
+ * 把模型产出修边到请求尺寸。
+ *
+ * 请求 1920×1080 而模型给 1920×1088 时，居中裁掉上下各 4px 即可交付**真正**的
+ * 1920×1080 —— 既不放大也不补像素，交付物与判据字面一致。
+ *
+ * 只做「修边」：差值超过 max(64px, 目标 5%)、或模型给的比请求的小、或 PNG 形态
+ * 本模块解不了（例如 JPEG、16bit、隔行）时，一律原样返回，交给判据照常判失败 ——
+ * 那本来就说明模型没按尺寸交付，不该由这里掩盖。
+ */
+export function normalizeImageSize(
+  buffer: Buffer,
+  requestedSize?: string | null,
+): NormalizedImage {
+  const actual = readImagePixelSize(buffer)
+  if (!actual) return { buffer, cropped: false }
+
+  const requested = requestedSize ? parseImageSize(requestedSize) : null
+  if (!requested) return { buffer, width: actual.width, height: actual.height, cropped: false }
+  if (requested.width === actual.width && requested.height === actual.height) {
+    return { buffer, width: actual.width, height: actual.height, cropped: false }
+  }
+
+  const trimW = actual.width - requested.width
+  const trimH = actual.height - requested.height
+  if (trimW < 0 || trimH < 0) {
+    return { buffer, width: actual.width, height: actual.height, cropped: false }
+  }
+  if (!withinTrimBudget(trimW, requested.width) || !withinTrimBudget(trimH, requested.height)) {
+    return { buffer, width: actual.width, height: actual.height, cropped: false }
+  }
+
+  const cropped = cropPng(buffer, requested.width, requested.height)
+  if (!cropped) return { buffer, width: actual.width, height: actual.height, cropped: false }
+
+  return {
+    buffer: cropped,
+    width: requested.width,
+    height: requested.height,
+    cropped: true,
+    note: `模型输出为 ${actual.width}×${actual.height}（尺寸网格 ${IMAGE_SIZE_GRID_STEP} 的倍数），已居中裁切到 ${requested.width}×${requested.height} 交付。`,
+  }
+}
+
+function withinTrimBudget(trim: number, target: number): boolean {
+  return trim <= Math.max(IMAGE_SIZE_GRID_STEP, Math.floor(target * MAX_TRIM_RATIO))
+}
+
 /** 送给生图模型的提示词上限（百炼生图端点实测接受数百字的中文长描述）。 */
 export const IMAGE_PROMPT_MAX_CHARS = 800
 
@@ -234,6 +331,7 @@ export function evaluateNonToolCriterion(
   facts: NonToolDeliveryFacts,
 ): { criterion: string; passed: boolean; evidence: string } {
   const problems: string[] = []
+  const sizeNotes: string[] = []
 
   const claimedSize = extractRequestedImageSize(criterion)
   const claimedPixels = claimedSize ? parseImageSize(claimedSize) : null
@@ -246,9 +344,17 @@ export function evaluateNonToolCriterion(
       claimedPixels.width !== actualPixels.width ||
       claimedPixels.height !== actualPixels.height
     ) {
-      problems.push(
-        `判据要求 ${claimedPixels.width}×${claimedPixels.height}，实际交付 ${actualPixels.width}×${actualPixels.height}`,
-      )
+      // 窄容差：模型网格取整（1080 → 1088）不算交付不合格，但必须在证据里写明真实尺寸。
+      if (!isGridRoundedSize(claimedPixels, actualPixels)) {
+        problems.push(
+          `判据要求 ${claimedPixels.width}×${claimedPixels.height}，实际交付 ${actualPixels.width}×${actualPixels.height}`,
+        )
+      } else {
+        sizeNotes.push(
+          `判据要求 ${claimedPixels.width}×${claimedPixels.height}，实际交付 ${actualPixels.width}×${actualPixels.height}` +
+            ` —— 差值来自生图模型 ${IMAGE_SIZE_GRID_STEP} 像素尺寸网格的取整，交付尺寸已按判据核对`,
+        )
+      }
     }
   }
 
@@ -267,10 +373,11 @@ export function evaluateNonToolCriterion(
   const diskNote = facts.onDisk
     ? `，且 ${facts.targetPath} 在磁盘上真实存在（${facts.onDisk.bytes} 字节）`
     : ''
+  const sizeNote = sizeNotes.length > 0 ? `；${sizeNotes.join('；')}` : ''
   return {
     criterion,
     passed: true,
-    evidence: `已交付真实图片产物 ${facts.artifact.id}${dims}${diskNote}；本项的主观部分不可由生图成员自动化核验，交由复查阶段确认。`,
+    evidence: `已交付真实图片产物 ${facts.artifact.id}${dims}${diskNote}${sizeNote}；本项的主观部分不可由生图成员自动化核验，交由复查阶段确认。`,
   }
 }
 

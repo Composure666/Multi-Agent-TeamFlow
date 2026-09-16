@@ -11,6 +11,7 @@ import {
 import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
 import {
   extractImagePromptText,
+  normalizeImageSize,
   readImagePixelSize,
   writeImageIntoWorkspace,
 } from '@/server/image-delivery'
@@ -137,21 +138,24 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
       )
       const imageResult = generated.value
       const usedModel = generated.candidate.modelId
+      // 模型输出网格是 64 的倍数（请求 1920×1080 实得 1920×1088），交付前居中修边到请求尺寸，
+      // 让落盘文件 / 产物记录 / 验收判据三者说的是同一个尺寸。
+      const normalized = normalizeImageSize(imageResult.buffer, requestedSize)
+      const deliveredBuffer = normalized.buffer
       // 真实像素以交付的字节流为准：模型不保证按请求尺寸出图，拿请求值当结果回报就是假证据。
-      const pixels =
-        readImagePixelSize(imageResult.buffer) ?? parseSizeToPixels(requestedSize)
+      const pixels = readImagePixelSize(deliveredBuffer) ?? parseSizeToPixels(requestedSize)
 
       // 按交付契约落盘：生图成员没有工具循环，下游成员要按计划路径拿真实文件。
       const deliveredPath = input.deliveryContract?.imageTargetPath
         ? writeImageIntoWorkspace(
             input.workspacePath,
             input.deliveryContract.imageTargetPath,
-            imageResult.buffer,
+            deliveredBuffer,
           )
         : null
 
       // 上传到 OSS（如果配置了），否则存本地
-      const imageUrl = await this.storeImage(imageResult, input.conversationId)
+      const imageUrl = await this.storeImage({ buffer: deliveredBuffer }, input.conversationId)
 
       // 创建 artifact
       const artifact = await this.createImageArtifact(
@@ -173,7 +177,9 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
           type: 'text.append',
           text: `\n\n图片已生成并保存为产物（模型：${usedModel}${
             pixels ? `，${pixels.width}×${pixels.height}` : ''
-          }）。${deliveredPath ? `\n已按任务要求落盘：${deliveredPath}。` : ''}`,
+          }）。${normalized.note ? `\n${normalized.note}` : ''}${
+            deliveredPath ? `\n已按任务要求落盘：${deliveredPath}。` : ''
+          }`,
         },
       }
       yield { ...base, type: 'part.end', messageId, partIndex: textPartIndex }
