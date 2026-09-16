@@ -137,9 +137,6 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   const chain: FailoverCandidate[] = []
   const seen = new Set<string>()
 
-  const capabilityKey = capabilityKeyForModality(agent.modality)
-  const capabilityChain = await resolveFailoverChain(capabilityKey)
-
   // 候选链必须与「自有模型代表的那套协议」对齐：生图模型与 chat 模型是**两套互不兼容的
   // 协议**，链里混入另一种协议的模型，只会在轮到它时撞一次不触发降级的 400，把 run 带走：
   //   - chat 成员拿到生图模型 → 网关按模型名路由到生图处理器 → `input.messages.0.role`；
@@ -152,6 +149,7 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   // 认不出模型名时一律按 chat 处理（保守方向）：未知模型不会被当作生图模型。
   const ownModelId = agent.modelId?.trim()
   const usesImageProtocol = shouldUseImageGenAdapter(ownModelId)
+  const capabilityChain = await resolveAlignedCapabilityChain(agent.modality, usesImageProtocol)
 
   if (ownModelId) {
     const row = await resolveProviderRowForAgent(agent)
@@ -174,8 +172,7 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   }
 
   for (const c of capabilityChain) {
-    // 协议对齐：只收与自有模型同一套协议的候选（见上方注释）。
-    if (isImageGenerationModel(c.modelId) !== usesImageProtocol) continue
+    // 协议对齐已在 resolveAlignedCapabilityChain 里做完（见其注释），这里只去重。
     if (seen.has(candidateKey(c))) continue
     seen.add(candidateKey(c))
     chain.push(c)
@@ -193,6 +190,46 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   }
 
   return chain
+}
+
+/**
+ * 取「与该成员协议对齐的」能力链。
+ *
+ * 生图协议（自有模型就是生图模型）：只认 `agent:image`，链上全是生图模型。
+ *
+ * chat 协议：按 `成员模态 → agent:text` 的顺序取**第一条能给出实质候选**的链。
+ * 为什么要回退（2026-09-16 事故的遗留缺口）：**模态是 image、自有模型是 chat 模型**的成员
+ * （生图师 / 视觉设计师 / 图表设计师这类靠工具循环产图的成员）能力 key 是 `agent:image`，
+ * 而那条链上配的全是生图模型 —— 协议不一致会被过滤干净，只剩链尾那条 chat 基线；基线又与
+ * 自有模型撞 key 去重，最终链里**只剩自有模型一个候选**。后果是「自有模型不可用」等于
+ * 「该成员彻底不可用」，没有任何跨供应商兜底。
+ *
+ * `agent:text` 是「普通 chat + 工具循环」的标准链，正好匹配这类成员的真实需求 ——
+ * 它们要的是能写脚本、能调工具的 chat 模型，不是生图模型。
+ *
+ * 只剩基线（deepseek-v4-flash）不算「实质候选」：基线在链尾单独补，这里继续往下找，
+ * 否则 image 模态的成员会停在「自有模型 + 基线」这条没有跨供应商余量的链上。
+ */
+async function resolveAlignedCapabilityChain(
+  modality: string | null | undefined,
+  usesImageProtocol: boolean,
+): Promise<FailoverCandidate[]> {
+  const primaryKey = capabilityKeyForModality(modality)
+  if (usesImageProtocol) {
+    return (await resolveFailoverChain(primaryKey)).filter((c) => isImageGenerationModel(c.modelId))
+  }
+
+  const keys = primaryKey === 'agent:text' ? [primaryKey] : [primaryKey, 'agent:text']
+  for (const key of keys) {
+    const aligned = (await resolveFailoverChain(key)).filter((c) => !isImageGenerationModel(c.modelId))
+    if (aligned.some((c) => !isBaselineCandidateRow(c))) return aligned
+  }
+  return []
+}
+
+/** 该候选是否就是项目基线（deepseek + deepseek-v4-flash）。 */
+function isBaselineCandidateRow(candidate: FailoverCandidate): boolean {
+  return candidate.providerId === FALLBACK_PROVIDER_ID && candidate.modelId === FALLBACK_MODEL_NAME
 }
 
 /**

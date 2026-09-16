@@ -85,7 +85,7 @@ describe('seed：供应商与分配表', () => {
   })
 
   it('每个能力都有「主模型 + deepseek-v4-flash 兜底」的分配链', async () => {
-    const { db, schema } = client
+    const { db } = client
     const assignments = await db.query.llmModelAssignments.findMany()
     const byKey = new Map<string, typeof assignments>()
     for (const a of assignments) {
@@ -529,5 +529,32 @@ describe('适配器 / 降级链的协议一致性（判据是模型，不是模�
     expect(row.adapter_name).toBe('custom')
     // 工具集必须留着 —— 这是它出图的手段
     expect(JSON.parse(row.tool_names)).toContain('bash')
+  })
+
+  it('回归：生图模态 + chat 成员必须拿到跨供应商兜底（agent:image 链对它全不可用）', async () => {
+    // 修复前：agent:image 链上的生图模型被协议过滤干净，只剩链尾那条 chat 基线；
+    // 基线又与自有模型撞 key 去重 → 链里只剩自有模型一个候选，「自有模型不可用」等于
+    // 「该成员彻底不可用」，没有任何跨供应商余量。
+    const chain = await failover.buildAgentFailoverChain(chatModelOnImageModalityCase())
+
+    expect(chain.length).toBeGreaterThan(1)
+    // 回退到 agent:text（chat 协议的标准链），拿到百炼的通用模型作为第二供应商
+    expect(chain.map((c) => c.modelId)).toContain('qwen3.8-flash')
+    expect(new Set(chain.map((c) => c.providerId)).size).toBeGreaterThan(1)
+  })
+
+  it('回归：生图模态 + 百炼 chat 成员时，链尾补回真正的项目基线', async () => {
+    const chain = await failover.buildAgentFailoverChain({
+      modelProvider: 'openai-compatible',
+      modelId: 'qwen3.8-flash',
+      apiKey: BAILIAN_KEY,
+      apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+      modality: 'image',
+    })
+
+    // 自有模型已占 agent:text 链首，去重后链尾必须是 deepseek 基线（跨供应商的最后一道）
+    expect(chain[0]).toMatchObject({ providerId: 'bailian', modelId: 'qwen3.8-flash' })
+    expect(failover.hasBaselineFallback(chain)).toBe(true)
+    expect(chain[chain.length - 1]).toMatchObject({ providerId: 'deepseek', modelId: 'deepseek-v4-flash' })
   })
 })
