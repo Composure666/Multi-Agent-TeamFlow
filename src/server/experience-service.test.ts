@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildRetrievalKeywords,
   clipByBudget,
   filterReviewTargets,
+  mergeExperienceHits,
   parseExtractionOutput,
   parseExtractionReviews,
   tokenizeKeywords,
+  type ExperienceHitRow,
 } from '@/server/experience-service'
 
 describe('tokenizeKeywords', () => {
@@ -254,5 +257,53 @@ describe('filterReviewTargets', () => {
     )
     expect(result.accepted).toEqual([])
     expect(result.rejected).toHaveLength(1)
+  })
+})
+describe('buildRetrievalKeywords', () => {
+  it('shreds a punctuation-less Chinese sentence into 3-grams so FTS can hit fragments', () => {
+    const sentence = '请你把这个图表变成一个形象生动的流程图'
+    const keywords = buildRetrievalKeywords(sentence)
+    // 整句保留（字面命中）
+    expect(keywords).toContain(sentence)
+    // 关键：句子片段也能作为查询词，否则整句永远召回不到经验
+    expect(keywords).toContain('流程图')
+    expect(keywords).toContain('这个图')
+    expect(keywords.length).toBeGreaterThan(1)
+    expect(keywords.length).toBeLessThanOrEqual(24)
+    expect(new Set(keywords).size).toBe(keywords.length)
+  })
+
+  it('keeps latin tokens intact and does not shred short Chinese words', () => {
+    const keywords = buildRetrievalKeywords('用 React 生图')
+    expect(keywords).toContain('react')
+    expect(keywords).toContain('生图')
+    expect(keywords).not.toContain('生')
+  })
+
+  it('returns an empty list for empty input', () => {
+    expect(buildRetrievalKeywords('')).toEqual([])
+  })
+})
+
+describe('mergeExperienceHits', () => {
+  const hit = (id: string): ExperienceHitRow => ({
+    id,
+    kind: 'experience',
+    scope: 'global',
+    title: id,
+    trigger: '',
+    content: id,
+    tags: '[]',
+    agentId: null,
+  })
+
+  it('keeps always-on experiences first and dedupes by id', () => {
+    const merged = mergeExperienceHits([hit('exp_always_on'), hit('exp_both')], [hit('exp_both'), hit('exp_hit')])
+    expect(merged.map((row) => row.id)).toEqual(['exp_always_on', 'exp_both', 'exp_hit'])
+  })
+
+  it('returns keyword hits untouched when there is no always-on entry', () => {
+    const merged = mergeExperienceHits([], [hit('exp_a'), hit('exp_b')])
+    expect(merged.map((row) => row.id)).toEqual(['exp_a', 'exp_b'])
   })
 })

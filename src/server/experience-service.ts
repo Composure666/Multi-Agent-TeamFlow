@@ -42,6 +42,21 @@ import type { MessagePart, ModelProvider } from '@/shared/types'
 
 export const EXPERIENCE_PROMPT_MAX_ENTRIES = 6
 export const EXPERIENCE_PROMPT_TOKEN_BUDGET = 1500
+/**
+ * 手工创建、scope=global 的活跃经验常驻注入的条数上限。
+ *
+ * 关键词检索只认「任务文本字面命中经验文本」：「把这张图变成形象生动的流程图」永远
+ * 命不中标题叫「生图api」的经验，用户看到的就是「我手写的全局经验没生效」。
+ * 手写全局规则是用户显式声明的平台级约束，条数少、意图明确，因此无条件注入
+ * （仍受 token 预算、条数上限与预算裁剪约束）。
+ */
+const EXPERIENCE_ALWAYS_ON_GLOBAL_ENTRIES = 3
+/**
+ * 检索关键词上限。中文长句要滑窗成 3-gram，展开后关键词数量会明显变多，这里封顶避免 SQL 过长。
+ */
+const EXPERIENCE_QUERY_MAX_KEYWORDS = 24
+/** 中日韩统一表意文字（含扩展 A / 兼容表意文字）—— 判断一个词是否需要 3-gram 展开。 */
+const CJK_CHAR_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/
 
 const MAX_EXPERIENCE_TITLE_CHARS = 80
 const MAX_EXPERIENCE_TRIGGER_CHARS = 200
@@ -211,7 +226,7 @@ const ExperienceReviewSchema = z
   })
   .strict()
 
-interface ExperienceHitRow {
+export interface ExperienceHitRow {
   id: string
   kind: string
   scope: string
@@ -530,26 +545,32 @@ export async function buildExperienceBlock(
     return { block: null, injectedIds: [] }
   }
 
-  const keywords = tokenizeKeywords(taskText)
-  if (keywords.length === 0) return { block: null, injectedIds: [] }
+  const keywords = buildRetrievalKeywords(taskText)
+  // 常驻的手工全局经验：先滤掉单条就吃满预算的超长条目，否则 clipByBudget 的
+  // 「放不下整条就停止」会把后面的关键词命中全部挡掉。
+  const alwaysOn = loadAlwaysOnGlobalExperiences().filter((row) => row.content.trim().length <= charBudget)
+  if (keywords.length === 0 && alwaysOn.length === 0) return { block: null, injectedIds: [] }
 
   let rows: ExperienceHitRow[] = []
-  try {
-    rows = runFtsQuery(keywords, agentId, maxEntries * 4)
-  } catch (err) {
-    if (err instanceof Error && /(?:fts5|SQLITE_ERROR|no such table)/.test(err.message)) {
-      // FTS 未迁移 / 查询语法错 → 退化为 LIKE，再失败则静默无块
+  if (keywords.length > 0) {
+    try {
+      rows = runFtsQuery(keywords, agentId, maxEntries * 4)
+    } catch (err) {
+      if (err instanceof Error && /(?:fts5|SQLITE_ERROR|no such table)/.test(err.message)) {
+        // FTS 未迁移 / 查询语法错 → 退化为 LIKE，再失败则静默无块
+        rows = runLikeQuery(keywords, agentId, maxEntries * 4)
+      } else {
+        throw err
+      }
+    }
+    if (rows.length === 0) {
+      // trigram 分词器不索引 <3 字符的词（「生图」这类两字中文词查不到），FTS 空结果时用 LIKE 兜底
       rows = runLikeQuery(keywords, agentId, maxEntries * 4)
-    } else {
-      throw err
     }
   }
-  if (rows.length === 0 && keywords.some((k) => k.length < 3)) {
-    // trigram 分词器对 <3 字符的中文关键词不索引，短词时用 LIKE 兜底提升召回
-    rows = runLikeQuery(keywords, agentId, maxEntries * 4)
-  }
 
-  const picked = clipByBudget(rows, charBudget, maxEntries)
+  // 常驻经验排在最前：优先占用预算，不会因为关键词命中了一堆自动沉淀的经验而被挤掉。
+  const picked = clipByBudget(mergeExperienceHits(alwaysOn, rows), charBudget, maxEntries)
   if (picked.length === 0) return { block: null, injectedIds: [] }
 
   const entries = picked.map((r) =>
@@ -564,6 +585,49 @@ export async function buildExperienceBlock(
   void bumpExperienceUsage(picked.map((r) => r.id), options.runId, agentId)
 
   return { block, injectedIds: picked.map((r) => r.id) }
+}
+
+/**
+ * 用户手工创建、scope=global 的活跃经验 —— 用户在经验库里显式写下的跨 Agent 规则。
+ * 这类经验每次运行都注入，不再依赖关键词字面命中（见 EXPERIENCE_ALWAYS_ON_GLOBAL_ENTRIES）。
+ */
+function loadAlwaysOnGlobalExperiences(): ExperienceHitRow[] {
+  try {
+    return defaultSqlite
+      .prepare(
+        `
+        SELECT e.id, e.kind, e.scope, e.title, e.trigger, e.content, e.tags, e.agent_id AS agentId
+        FROM experiences e
+        WHERE e.active = 1
+          AND e.source = 'manual'
+          AND e.scope = 'global'
+        ORDER BY e.updated_at DESC
+        LIMIT ?
+        `,
+      )
+      .all(EXPERIENCE_ALWAYS_ON_GLOBAL_ENTRIES) as ExperienceHitRow[]
+  } catch (err) {
+    console.warn('[experience-service] loadAlwaysOnGlobalExperiences failed', err)
+    return []
+  }
+}
+
+/**
+ * 常驻经验排在前、按 id 去重（同一条经验可能既常驻又被关键词命中）。
+ * 导出供单测覆盖排序与去重语义。
+ */
+export function mergeExperienceHits(
+  alwaysOn: ExperienceHitRow[],
+  keywordHits: ExperienceHitRow[],
+): ExperienceHitRow[] {
+  const seen = new Set<string>()
+  const out: ExperienceHitRow[] = []
+  for (const row of [...alwaysOn, ...keywordHits]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    out.push(row)
+  }
+  return out
 }
 
 function runFtsQuery(keywords: string[], agentId: string, limit: number): ExperienceHitRow[] {
@@ -1450,6 +1514,29 @@ export function tokenizeKeywords(text: string): string[] {
     .map((t) => t.trim())
     .filter((t) => t.length > 0 && !STOP_WORDS.has(t))
   return [...new Set(tokens)].slice(0, 12)
+}
+
+/**
+ * 检索关键词：在 tokenizeKeywords 之上补 CJK 3-gram。
+ *
+ * tokenizeKeywords 只按标点 / 空白切词，中文长句（「请你把这个图表变成一个形象生动的
+ * 流程图」）整句就是一个词 —— 而 FTS(trigram) 与 LIKE 都要求整句字面出现，等于永远
+ * 召回不到任何经验。这里把中文词滑窗成 3-gram（正是 FTS5 trigram 的索引单位），
+ * 让「流程图」「这个图」这类片段能够命中经验文本。
+ */
+export function buildRetrievalKeywords(text: string): string[] {
+  const out: string[] = []
+  const push = (token: string) => {
+    if (!token || out.includes(token)) return
+    out.push(token)
+  }
+  for (const token of tokenizeKeywords(text)) {
+    push(token)
+    // 3 字及以下：本身就是合法的 trigram 查询词，不需要再切
+    if (token.length <= 3 || !CJK_CHAR_RE.test(token)) continue
+    for (let i = 0; i + 3 <= token.length; i += 1) push(token.slice(i, i + 3))
+  }
+  return out.slice(0, EXPERIENCE_QUERY_MAX_KEYWORDS)
 }
 
 function normalizeKey(value: string): string {
