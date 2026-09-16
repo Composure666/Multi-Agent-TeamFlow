@@ -95,7 +95,7 @@ describe('built-in automation seed', () => {
  *      主图设计师 原本是「chat 模型 + 工具循环」，靠 bash / fs_write / write_artifact
  *      自己产 SVG 图或调外部生图服务，被一刀切清空工具后只剩「调一个端点出一张图」。）
  */
-describe('适配器与模型协议不匹配的存量修复', () => {
+describe('存量 Agent 的适配器修复与能力补齐', () => {
   const insertAgent = (
     sqlite: Database.Database,
     id: string,
@@ -168,7 +168,64 @@ describe('适配器与模型协议不匹配的存量修复', () => {
         .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
         .get('ag_visual_configured') as { adapter_name: string; tool_names: string }
       expect(row.adapter_name).toBe('custom')
+      const tools = JSON.parse(row.tool_names) as string[]
+      // 用户配过的那一个原样保留（不被视觉工具集整体替换）……
+      expect(tools).toContain('fs_read')
+      expect(tools).not.toContain('write_artifact')
+      expect(tools).not.toContain('bash')
+      // ……只追加了按需生图工具（③ 的职责，只增不删）
+      expect(tools).toEqual(['fs_read', 'image_generate'])
+    })
+  })
+
+  it('③ 生图模态成员缺 image_generate → 补上（只增不删，且幂等）', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertAgent(sqlite, 'ag_visual_tools', 'custom', 'deepseek-v4-flash', '["write_artifact","bash"]')
+
+      bootstrapDatabase(sqlite)
+
+      const read = () =>
+        (
+          sqlite
+            .prepare('SELECT tool_names FROM agents WHERE id = ?')
+            .get('ag_visual_tools') as { tool_names: string }
+        ).tool_names
+      expect(JSON.parse(read())).toEqual(['write_artifact', 'bash', 'image_generate'])
+
+      bootstrapDatabase(sqlite)
+      expect(JSON.parse(read())).toEqual(['write_artifact', 'bash', 'image_generate'])
+    })
+  })
+
+  it('③ 不动非生图模态的成员', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertAgent(sqlite, 'ag_text_tools', 'custom', 'deepseek-v4-flash', '["fs_read"]', 'text')
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare('SELECT tool_names FROM agents WHERE id = ?')
+        .get('ag_text_tools') as { tool_names: string }
       expect(row.tool_names).toBe('["fs_read"]')
+    })
+  })
+
+  it('③ 与 ① 不打架：已被改成 image-gen 的成员不会被补回工具', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      // 生图模型 + custom → ① 会改成 image-gen 并清空工具集；③ 只针对 custom 适配器，
+      // 不能在清空之后又把 image_generate 塞回去（那会让配置页再次出现「能用工具」的假象）。
+      insertAgent(sqlite, 'ag_img_only', 'custom', 'z-image-turbo', '["fs_read"]')
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
+        .get('ag_img_only') as { adapter_name: string; tool_names: string }
+      expect(row.adapter_name).toBe('image-gen')
+      expect(row.tool_names).toBe('[]')
     })
   })
 

@@ -37,7 +37,7 @@
 | `modelId` | string | — | provider 默认 | 切换 provider 时自动重置 |
 | `apiKey` | string | — | `''` | 命名 provider 留空走 env var；`openai-compatible` 必填 per-agent key |
 | `apiBaseUrl` | string | — | `''` | Claude Code 可填 Anthropic 兼容 endpoint；Codex 仅可填 Codex/Responses 兼容 endpoint；Custom `openai-compatible` 必填 Chat Completions 兼容 endpoint |
-| `toolNames` | string[] | — | 全栈通用预设 | 当前可勾选：`write_artifact` / `deploy_artifact` / `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` / `fs_read` / `fs_write` / `bash` / `web_fetch` |
+| `toolNames` | string[] | — | 全栈通用预设 | 当前可勾选：`write_artifact` / `image_generate` / `deploy_artifact` / `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` / `fs_list` / `fs_read` / `fs_write` / `bash` / `web_fetch` / `web_search` |
 | `mcpServerIds` | string[] | — | `[]` | SDK adapter 可选外部 MCP server；Claude Code 支持 `ask`/`always`，Codex 仅 `always`，Custom/Mock 不支持外部 MCP |
 | `skillIds` | string[] | — | `[]` | Agent 显式启用的本地 Skills；运行时作为独立 prompt section 注入，不作为可执行代码 |
 | `supportsVision` | boolean | — | `true` | 决定是否把图片 base64 注入 messages |
@@ -107,10 +107,10 @@ Custom provider 实现在 `custom-provider-client.ts` 的 `resolveCustomProvider
 源：`src/shared/agent-builder-config.ts`
 
 ```typescript
-const AVAILABLE_AGENT_TOOLS = ['write_artifact', 'deploy_artifact', 'deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'fs_read', 'fs_write', 'bash', 'web_fetch'] as const
+const AVAILABLE_AGENT_TOOLS = ['write_artifact', 'image_generate', 'deploy_artifact', 'deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'fs_write', 'bash', 'web_fetch', 'web_search'] as const
 ```
 
-UI 当前允许勾选产物、附件、workspace 和安全公开网页读取相关常用工具。`web_fetch` 只读取公开 HTTPS 文本页面，阻断 localhost、私网、metadata endpoint 和二进制响应。`plan_tasks` 不在列表里 —— 因为它是 Orchestrator 专用，自建 agent 不应装备。
+UI 当前允许勾选产物、生图、附件、workspace 和联网相关常用工具。`web_fetch` 只读取公开 HTTPS 文本页面，阻断 localhost、私网、metadata endpoint 和二进制响应；`web_search` 是唯一支持的检索入口（抓搜索引擎结果页会被反爬挡下）。`plan_tasks` 不在列表里 —— 因为它是 Orchestrator 专用，自建 agent 不应装备。
 
 每个勾选项展示面向用户的中文 label + 一句权限说明 + 原始工具名（来自同文件的 `AGENT_TOOL_META`），而不是只露裸工具名。
 
@@ -118,10 +118,10 @@ UI 当前允许勾选产物、附件、workspace 和安全公开网页读取相�
 
 | 预设 | 工具 | 用途 |
 |---|---|---|
-| 全栈通用 | 全部 `AVAILABLE_AGENT_TOOLS` | 默认；既能创建 artifact，也能直接读写本地 workspace、运行命令，并可读取公开 HTTPS 网页文本 |
-| 本地代码 | `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` / `fs_read` / `fs_write` / `bash` | 读取上游产物，直接在当前 workspace 初始化、修改、验证项目源码，并部署已构建静态目录 |
-| 产物交付 | `write_artifact` / `deploy_artifact` / `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` | PRD、设计稿、网页原型、文档等聊天内交付；也可发布已有 workspace 静态目录 |
-| 审查验证 | `read_artifact` / `read_attachment` / `ask_user` / `fs_read` / `bash` | 读取产物或本地代码并运行检查，不默认写文件 |
+| 全栈通用 | 全部 `AVAILABLE_AGENT_TOOLS` | 默认；既能创建 artifact 与按需出图，也能直接读写本地 workspace、运行命令，并可联网检索与读取公开 HTTPS 网页文本 |
+| 本地代码 | `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` / `fs_list` / `fs_read` / `fs_write` / `bash` / `web_fetch` / `web_search` | 读取上游产物，直接在当前 workspace 初始化、修改、验证项目源码，并部署已构建静态目录 |
+| 产物交付 | `write_artifact` / `deploy_artifact` / `deploy_workspace` / `read_artifact` / `read_attachment` / `ask_user` / `web_fetch` / `web_search` | PRD、设计稿、网页原型、文档等聊天内交付；也可发布已有 workspace 静态目录 |
+| 审查验证 | `read_artifact` / `read_attachment` / `ask_user` / `fs_list` / `fs_read` / `bash` / `web_fetch` / `web_search` | 读取产物或本地代码并运行检查，不默认写文件 |
 
 **新增工具时**：除了在 `src/server/tools/registry.ts` 注册，还要在 `src/shared/agent-builder-config.ts` 的 `AVAILABLE_AGENT_TOOLS` 加上、并在 `AGENT_TOOL_META` 补一条文案，才能在 UI 正常勾选（详见 Spec 07 「新增工具步骤」）。
 

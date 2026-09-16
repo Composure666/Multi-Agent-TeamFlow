@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type { ArtifactRow } from '@/db/schema'
+import { newArtifactId } from '@/server/ids'
 import { readArtifactImages } from '@/shared/artifact-images'
 import type { ArtifactContent, ArtifactImageItem } from '@/shared/types'
 
@@ -92,6 +93,79 @@ export async function appendImageToArtifact(
     .where(eq(schema.artifacts.id, target.id))
 
   return { images }
+}
+
+export interface UpsertImageArtifactInput {
+  conversationId: string
+  agentId: string
+  /** 已经存储好的可访问 URL（调用方负责 OSS / 本地化）。 */
+  imageUrl: string
+  /** 图集标题与图片 alt 的文案来源（通常是生图 prompt）。 */
+  alt: string
+  width?: number
+  height?: number
+  /** 新图集的标题前缀，缺省「生成的图片」。 */
+  titlePrefix?: string
+  now: number
+}
+
+/**
+ * 把一张已存储的图片写进产物库 —— 图集聚合的**唯一写入口**。
+ *
+ * 三条分支（追加 / 新版本 / 新建）与判定窗口都在这里，`ImageGenAdapter` 与
+ * `image_generate` 工具共用：两处各写一套的结果是「适配器出的图进图集、工具出的图
+ * 是碎片卡片」这类漂移。返回最终落地的产物行（append 分支返回的是**更新后**的内容）。
+ */
+export async function upsertImageArtifact(input: UpsertImageArtifactInput): Promise<ArtifactRow> {
+  const image: ArtifactImageItem = {
+    url: input.imageUrl,
+    alt: input.alt.slice(0, 200),
+    ...(input.width ? { width: input.width } : {}),
+    ...(input.height ? { height: input.height } : {}),
+  }
+  const decision = await resolveImageArtifactTarget({
+    conversationId: input.conversationId,
+    now: input.now,
+  })
+
+  if (decision.mode === 'append') {
+    // 必须用追加后的 images 回执：decision.target.content 是 append 之前的快照，
+    // 直接拿它发 artifact.create 会让前端的图集里缺刚生成的这张图。
+    const { images } = await appendImageToArtifact(decision.target, image, input.now)
+    const content = {
+      ...(decision.target.content as unknown as Record<string, unknown>),
+      images,
+    } as ArtifactContent
+    return { ...decision.target, content, updatedAt: input.now }
+  }
+
+  const titlePrefix = input.titlePrefix ?? '生成的图片'
+  const base = {
+    id: newArtifactId(),
+    conversationId: input.conversationId,
+    type: 'image' as const,
+    title: `${titlePrefix} · ${input.alt.slice(0, 30)}`,
+    content: {
+      type: 'image' as const,
+      url: input.imageUrl,
+      alt: input.alt.slice(0, 200),
+      images: [image],
+      ...(input.width ? { width: input.width } : {}),
+      ...(input.height ? { height: input.height } : {}),
+    },
+    createdByAgentId: input.agentId,
+    createdAt: input.now,
+    updatedAt: input.now,
+    // 图集根行永远是「未被合并进别的产物」的那个（append 判定靠它找最新图集）
+    mergedInto: null,
+  }
+  const row =
+    decision.mode === 'version'
+      ? { ...base, version: decision.version, parentArtifactId: decision.parent.id }
+      : { ...base, version: 1, parentArtifactId: null }
+
+  await db.insert(schema.artifacts).values(row)
+  return row
 }
 
 /** 图集里已有的图片条目（供写入侧构造新版本内容时继承上一版）。 */

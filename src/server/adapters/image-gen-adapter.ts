@@ -1,23 +1,15 @@
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
-
-import { db, schema } from '@/db/client'
-import {
-  DASHSCOPE_IMAGE_GENERATION_PATH,
-  DASHSCOPE_NATIVE_ORIGIN,
-  resolveImageApiProtocol,
-  toDashScopeSize,
-} from '@/lib/llm-shared'
-import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
+import { DEFAULT_IMAGE_SIZE } from '@/lib/llm-shared'
+import { upsertImageArtifact } from '@/server/artifact-image-group'
+import { storeGeneratedImage } from '@/server/generated-image-store'
 import {
   extractImagePromptText,
   normalizeImageSize,
   readImagePixelSize,
   writeImageIntoWorkspace,
 } from '@/server/image-delivery'
-import { newArtifactId, newMessageId } from '@/server/ids'
+import { generateImageBuffer } from '@/server/image-generation'
+import { newMessageId } from '@/server/ids'
 import { runWithFailover } from '@/server/llm-failover'
-import { getOssImageConfig, uploadImageToOss } from '@/server/oss-image-store'
 import type { ArtifactContent, ArtifactRecord, StreamEvent } from '@/shared/types'
 
 import type { AdapterFailoverCandidate, AdapterInput, AgentPlatformAdapter } from './types'
@@ -41,9 +33,6 @@ import type { AdapterFailoverCandidate, AdapterInput, AgentPlatformAdapter } fro
  *
  * 降级兜底：`input.failoverChain` 给出候选链（主 → 兜底），逐个尝试直到出图成功。
  */
-/** 交付契约没给尺寸时的默认请求尺寸（OpenAI 风格写法，按协议转换后发出）。 */
-const DEFAULT_IMAGE_SIZE = '1024x1024'
-
 export class ImageGenAdapter implements AgentPlatformAdapter {
   readonly name = 'image-gen' as const
 
@@ -122,25 +111,25 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
       const generated = await runWithFailover(
         candidates,
         (candidate) =>
-          this.generateImage(
-            candidate.apiBaseUrl as string,
-            candidate.apiKey,
-            candidate.modelId,
+          generateImageBuffer({
+            apiBaseUrl: candidate.apiBaseUrl as string,
+            apiKey: candidate.apiKey,
+            modelId: candidate.modelId,
             prompt,
+            size: requestedSize,
             signal,
-            requestedSize,
-          ),
+          }),
         {
           capabilityKey: input.failoverCapabilityKey ?? 'agent:image',
           signal,
           canSwitch: () => true,
         },
       )
-      const imageResult = generated.value
+      const generatedBuffer = generated.value
       const usedModel = generated.candidate.modelId
       // 模型输出网格是 64 的倍数（请求 1920×1080 实得 1920×1088），交付前居中修边到请求尺寸，
       // 让落盘文件 / 产物记录 / 验收判据三者说的是同一个尺寸。
-      const normalized = normalizeImageSize(imageResult.buffer, requestedSize)
+      const normalized = normalizeImageSize(generatedBuffer, requestedSize)
       const deliveredBuffer = normalized.buffer
       // 真实像素以交付的字节流为准：模型不保证按请求尺寸出图，拿请求值当结果回报就是假证据。
       const pixels = readImagePixelSize(deliveredBuffer) ?? parseSizeToPixels(requestedSize)
@@ -154,18 +143,26 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
           )
         : null
 
-      // 上传到 OSS（如果配置了），否则存本地
-      const imageUrl = await this.storeImage({ buffer: deliveredBuffer }, input.conversationId)
+      // 存储：配了 OSS 就上传（稳定远程地址），否则本地化到 artifact-images 目录。
+      // 与 write_artifact / image_generate 工具走同一条链路，避免本地回退指向不存在的路由。
+      const stored = await storeGeneratedImage(deliveredBuffer, input.workspacePath)
+      if (!stored.ok) {
+        throw new Error(
+          `图片已生成但存储失败（${stored.error}）—— 产物无法交付。` +
+            '请检查「设置-供应商」里的 OSS 配置，或确认数据目录可写。',
+        )
+      }
+      const imageUrl = stored.url
 
-      // 创建 artifact
-      const artifact = await this.createImageArtifact(
-        input.conversationId,
-        input.agentId,
+      // 创建 artifact（与 image_generate 工具共用同一个图集写入口）
+      const artifact = await upsertImageArtifact({
+        conversationId: input.conversationId,
+        agentId: input.agentId,
         imageUrl,
-        prompt,
-        pixels?.width,
-        pixels?.height,
-      )
+        alt: prompt,
+        ...(pixels ? { width: pixels.width, height: pixels.height } : {}),
+        now: Date.now(),
+      })
 
       // 更新 text part 为完成描述
       yield {
@@ -207,209 +204,6 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
       yield { ...base, type: 'message.end', messageId }
       yield { ...base, type: 'run.end', runId: input.runId, status: 'failed', error: errorMsg }
     }
-  }
-
-  /** 调用生图端点：按 Base URL 决定走 OpenAI 兼容协议还是百炼原生协议。 */
-  private async generateImage(
-    baseUrl: string,
-    apiKey: string,
-    modelId: string,
-    prompt: string,
-    signal: AbortSignal,
-    size: string,
-  ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
-    if (resolveImageApiProtocol(baseUrl) === 'dashscope') {
-      return this.generateImageWithDashScope(baseUrl, apiKey, modelId, prompt, signal, size)
-    }
-    return this.generateImageWithOpenAiCompatible(baseUrl, apiKey, modelId, prompt, signal, size)
-  }
-
-  /** 调用 OpenAI 兼容的 /images/generations */
-  private async generateImageWithOpenAiCompatible(
-    baseUrl: string,
-    apiKey: string,
-    modelId: string,
-    prompt: string,
-    signal: AbortSignal,
-    size: string,
-  ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
-    const url = `${baseUrl.replace(/\/$/, '')}/images/generations`
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelId,
-        prompt,
-        n: 1,
-        size: size.replace(/\*/g, 'x'),
-        response_format: 'url',
-      }),
-      signal,
-    })
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      throw new Error(`生图 API 返回 ${res.status}: ${errText.slice(0, 200)}`)
-    }
-
-    const data = await res.json()
-    const first = data?.data?.[0]
-    if (!first) throw new Error('生图 API 返回为空')
-
-    // 处理 b64_json
-    if (first.b64_json) {
-      const buffer = Buffer.from(first.b64_json, 'base64')
-      return { buffer }
-    }
-
-    // 处理 url：下载图片
-    if (first.url) {
-      return this.downloadImage(first.url, signal)
-    }
-
-    throw new Error('生图 API 返回格式不支持（需要 url 或 b64_json）')
-  }
-
-  /**
-   * 调用阿里云百炼原生生图端点。
-   *
-   * 请求：`{ model, input: { messages: [{ role: 'user', content: [{ text }] }] }, parameters: { size, n } }`
-   * 响应：`output.choices[0].message.content[0].image`（URL），部分模型走 `output.results[0].url`。
-   */
-  private async generateImageWithDashScope(
-    baseUrl: string,
-    apiKey: string,
-    modelId: string,
-    prompt: string,
-    signal: AbortSignal,
-    size: string,
-  ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
-    const origin = safeOrigin(baseUrl) ?? DASHSCOPE_NATIVE_ORIGIN
-    const url = `${origin}${DASHSCOPE_IMAGE_GENERATION_PATH}`
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelId,
-        input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
-        parameters: { size: toDashScopeSize(size), n: 1, watermark: false },
-      }),
-      signal,
-    })
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      throw new Error(`百炼生图返回 ${res.status}: ${errText.slice(0, 200)}`)
-    }
-
-    const data = await res.json()
-    const imageUrl = extractDashScopeImageUrl(data)
-    if (!imageUrl) {
-      throw new Error(`百炼生图返回里找不到图片地址：${JSON.stringify(data).slice(0, 200)}`)
-    }
-    return this.downloadImage(imageUrl, signal)
-  }
-
-  /** 下载远端图片为 buffer。 */
-  private async downloadImage(url: string, signal: AbortSignal): Promise<{ buffer: Buffer }> {
-    const imgRes = await fetch(url, { signal })
-    if (!imgRes.ok) throw new Error(`下载图片失败: ${imgRes.status}`)
-    const arrayBuffer = await imgRes.arrayBuffer()
-    return { buffer: Buffer.from(arrayBuffer) }
-  }
-
-  /** 存储图片：优先 OSS，回退本地 */
-  private async storeImage(
-    imageResult: { buffer: Buffer },
-    conversationId: string,
-  ): Promise<string> {
-    // 尝试 OSS
-    const ossCfg = await getOssImageConfig()
-    if (ossCfg) {
-      try {
-        const result = await uploadImageToOss(imageResult.buffer, ossCfg)
-        if (result.ok) return result.url
-        throw new Error(result.error)
-      } catch (err) {
-        console.error('[image-gen] OSS upload failed, falling back to local:', err)
-      }
-    }
-
-    // 回退本地存储
-    const filename = `generated-${Date.now()}.png`
-    const dir = join(process.cwd(), '.agenthub-data', 'generated-images', conversationId)
-    mkdirSync(dir, { recursive: true })
-    const filepath = join(dir, filename)
-    writeFileSync(filepath, imageResult.buffer)
-    return `/api/files/generated-images/${conversationId}/${filename}`
-  }
-
-  /**
-   * 创建 image 类型 artifact。
-   *
-   * 与 write_artifact 同一套聚合规则：一次任务连续生多张图时合并进同一个「图集」产物
-   * （content.images），之后的改稿挂成新版本，产物库里始终是一个交付物。
-   */
-  private async createImageArtifact(
-    conversationId: string,
-    agentId: string,
-    imageUrl: string,
-    alt: string,
-    width?: number,
-    height?: number,
-  ) {
-    const now = Date.now()
-    const image = {
-      url: imageUrl,
-      alt: alt.slice(0, 200),
-      ...(width ? { width } : {}),
-      ...(height ? { height } : {}),
-    }
-    const decision = await resolveImageArtifactTarget({ conversationId, now })
-
-    if (decision.mode === 'append') {
-      // 必须用追加后的 images 回执：decision.target.content 是 append 之前的快照，
-      // 直接拿它发 artifact.create 会让前端的图集里缺刚生成的这张图。
-      const { images } = await appendImageToArtifact(decision.target, image, now)
-      const content = {
-        ...(decision.target.content as unknown as Record<string, unknown>),
-        images,
-      } as ArtifactContent
-      return { ...decision.target, content, updatedAt: now }
-    }
-
-    const base = {
-      id: newArtifactId(),
-      conversationId,
-      type: 'image' as const,
-      title: `生成的图片 · ${alt.slice(0, 30)}`,
-      content: {
-        type: 'image' as const,
-        url: imageUrl,
-        alt: alt.slice(0, 200),
-        images: [image],
-        ...(width ? { width } : {}),
-        ...(height ? { height } : {}),
-      },
-      createdByAgentId: agentId,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const row =
-      decision.mode === 'version'
-        ? { ...base, version: decision.version, parentArtifactId: decision.parent.id }
-        : { ...base, version: 1, parentArtifactId: null }
-
-    await db.insert(schema.artifacts).values(row)
-    return row
   }
 
   private toArtifactRecord(row: {
@@ -458,33 +252,9 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
   }
 }
 
-/** 从 baseUrl 里取 origin（`https://host/compatible-mode/v1` → `https://host`）。 */
-function safeOrigin(baseUrl: string): string | null {
-  try {
-    return new URL(baseUrl.trim()).origin
-  } catch {
-    return null
-  }
-}
-
 /** `1920*1080` → `{ width: 1920, height: 1080 }`；解析不出返回 null。 */
 function parseSizeToPixels(size: string): { width: number; height: number } | null {
   const match = /^(\d+)\s*[*x×]\s*(\d+)$/i.exec(size.trim())
   if (!match) return null
   return { width: Number(match[1]), height: Number(match[2]) }
-}
-
-/** 百炼生图响应的图片地址提取（兼容 choices / results 两种形态）。 */
-function extractDashScopeImageUrl(data: unknown): string | null {
-  const output = (data as { output?: unknown } | null)?.output as
-    | {
-        choices?: Array<{ message?: { content?: Array<{ image?: string }> } }>
-        results?: Array<{ url?: string }>
-      }
-    | undefined
-  if (!output) return null
-  const fromChoices = output.choices?.[0]?.message?.content?.find((c) => !!c?.image)?.image
-  if (fromChoices) return fromChoices
-  const fromResults = output.results?.find((r) => !!r?.url)?.url
-  return fromResults ?? null
 }

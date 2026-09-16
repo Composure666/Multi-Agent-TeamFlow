@@ -17,8 +17,17 @@ export const AGENT_BUILDER_PROVIDER_DEFAULTS: Record<
 export const CLAUDE_CODE_DEFAULT_MODEL = 'claude-opus-4-7'
 export const CODEX_DEFAULT_MODEL = 'gpt-5-codex'
 
+/**
+ * 按需生图工具名。
+ *
+ * 抽成常量是因为它有三处引用：可选工具清单（创建/编辑页勾选）、视觉生产成员的推荐工具集、
+ * 以及 bootstrap 对存量视觉成员的「只增不删」能力补齐。三处各写字面量迟早会漂移。
+ */
+export const IMAGE_GENERATE_TOOL_NAME = 'image_generate' as const
+
 export const AVAILABLE_AGENT_TOOLS = [
   'write_artifact',
+  IMAGE_GENERATE_TOOL_NAME,
   'deploy_artifact',
   'deploy_workspace',
   'read_artifact',
@@ -51,12 +60,17 @@ export const ALWAYS_ON_AGENT_TOOLS = ['web_search', 'web_fetch'] as const
  *   2. 写 python 脚本调外部 OpenAI 兼容的 `/images/generations`（自己重试、校验、选优）；
  *   3. 探测 rsvg-convert / chromium / playwright 把矢量图渲成位图。
  *
+ * `image_generate`（2026-09-16 新增）是第 4 条、也是首选的一条：官方生图通路，自带
+ * 供应商降级、尺寸修边、OSS/本地统一存储、产物图集聚合与 run 验收证据 —— 不必再让模型
+ * 自己写脚本找 Key、自己校验尺寸。前三条仍然有效（矢量图 / 精细排版场景更合适）。
+ *
  * 2026-09-16 的事故正是把这条抹掉了：旧不变式「生图模态 ⇒ image-gen 适配器 + 清空 tools」
  * 让这批成员从「97~2397s 的 agentic 生产、交付成图 + 提示词文档 + 复现记录」缩成
  * 「12s 出一张栅格图」。bootstrap 的存量修复用它回填被清空的工具集。
  */
 export const VISUAL_AGENT_TOOLS = [
   'write_artifact',
+  IMAGE_GENERATE_TOOL_NAME,
   'read_artifact',
   'read_attachment',
   'ask_user',
@@ -116,6 +130,7 @@ export const DEFAULT_CUSTOM_AGENT_TOOLS = AGENT_TOOL_PRESETS[0].tools
 
 export const AGENT_TOOL_META: Record<AgentToolName, { label: string; desc: string }> = {
   write_artifact: { label: '创建产物', desc: '生成可预览的代码 / 网页 / 文档 / PPT，支持多版本迭代' },
+  image_generate: { label: '生成图片', desc: '用生图模型按提示词出图并交付为图片产物（可选同时落盘到工作区）；供应商取自「设置-模型分配 → 生图 Agent」' },
   deploy_artifact: { label: '部署网页', desc: '把网页产物发布为本地静态站点，生成预览链接与下载包' },
   deploy_workspace: { label: '部署目录', desc: '把工作区内 dist/build/out 等静态目录生成预览链接与下载包' },
   read_artifact: { label: '读取产物', desc: '查看会话中已有产物的完整内容，便于在其基础上继续改' },

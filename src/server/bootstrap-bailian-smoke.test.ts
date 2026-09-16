@@ -91,6 +91,24 @@ describe('真机库 bootstrap 冒烟', () => {
     }
   })
 
+  it('生图模态成员的出图能力齐备：custom 适配器 + image_generate 工具', async () => {
+    const { db } = client
+    const agents = await db.query.agents.findMany()
+    const visual = agents.filter((a) => a.modality === 'image')
+    expect(visual.length).toBeGreaterThan(0)
+
+    for (const a of visual) {
+      // 判据是模型不是模态：历史视觉成员用的都是 chat 模型 ⇒ 一律 custom（有工具循环）
+      expect({ id: a.id, adapterName: a.adapterName }).toEqual({ id: a.id, adapterName: 'custom' })
+      // 本轮新增：出图不再只靠「自己写脚本调外部服务」，官方生图工具默认可用
+      // （bootstrap 的「只增不删」补齐负责存量成员）
+      expect({ id: a.id, hasImageGenerate: a.toolNames.includes('image_generate') }).toEqual({
+        id: a.id,
+        hasImageGenerate: true,
+      })
+    }
+  })
+
   it('重复 bootstrap 幂等：供应商与分配行数不再变化', async () => {
     const { sqlite } = client
     const { bootstrapDatabase } = await import('@/db/bootstrap')

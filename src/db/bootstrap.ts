@@ -29,7 +29,11 @@ import {
   isImageGenerationModel,
   scopeForCapability,
 } from '@/lib/llm-shared'
-import { VISUAL_AGENT_TOOLS, withAlwaysOnAgentTools } from '@/shared/agent-builder-config'
+import {
+  IMAGE_GENERATE_TOOL_NAME,
+  VISUAL_AGENT_TOOLS,
+  withAlwaysOnAgentTools,
+} from '@/shared/agent-builder-config'
 
 const FRONTEND_DEPLOYMENT_PROMPT_HINT =
   'deploy_artifact / deploy_workspace 返回的 previewPath 是当前 AgentHub 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。'
@@ -1068,6 +1072,7 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   ensureDefaultModelAssignments(sqlite)
   ensureFailoverDefaults(sqlite)
   repairImageModalityAdapters(sqlite)
+  addImageGenerateToVisualAgents(sqlite)
 }
 
 /**
@@ -1142,6 +1147,64 @@ function repairImageModalityAdapters(sqlite: Database.Database): void {
         `（并回填视觉生产工具集，让它们恢复工具循环）：` +
         toChatAdapter.map((row) => `${row.name}(${row.id})`).join('、'),
     )
+  }
+}
+
+/**
+ * 给「生图模态的自定义成员」补上 `image_generate` 工具（只增不删，幂等）。
+ *
+ * 为什么需要：2026-09-16 起「能不能出图」的判据从**成员分类**改成**能力** —— 生图不再是
+ * 「生图模态 ⇒ image-gen 适配器」那条窄路，而是任何带工具循环的成员都能按需调用的工具。
+ * 视觉生产成员（生图师 / 视觉设计师 / 图表设计师 / 主图设计师）本职就是出图，理应默认
+ * 拿到它；否则它们只能沿用「自己写 python 脚本调外部 `/images/generations`」的老路 ——
+ * 要自己找 Key、自己校验尺寸、交付也进不了产物图集。
+ *
+ * 与 `repairImageModalityAdapters` 的分工：那个修的是「回填被清空的工具集」（只在工具集
+ * 为空时动手）；本函数修的是「工具集已有内容、但缺这一个工具」的存量成员。两者各自只动
+ * 自己该管的字段，互不覆盖。
+ *
+ * 只增不删：其余工具原样保留，用户显式配过的工具集不会被替换掉。
+ */
+function addImageGenerateToVisualAgents(sqlite: Database.Database): void {
+  const rows = sqlite
+    .prepare(
+      "SELECT id, name, tool_names FROM agents WHERE modality = 'image' AND adapter_name = 'custom'",
+    )
+    .all() as Array<{ id: string; name: string; tool_names: string | null }>
+
+  const targets: Array<{ id: string; name: string; toolNames: string[] }> = []
+  for (const row of rows) {
+    const toolNames = parseToolNames(row.tool_names)
+    if (toolNames.includes(IMAGE_GENERATE_TOOL_NAME)) continue
+    targets.push({
+      id: row.id,
+      name: row.name,
+      toolNames: [...toolNames, IMAGE_GENERATE_TOOL_NAME],
+    })
+  }
+  if (targets.length === 0) return
+
+  const update = sqlite.prepare('UPDATE agents SET tool_names = ? WHERE id = ?')
+  const tx = sqlite.transaction(() => {
+    for (const target of targets) update.run(JSON.stringify(target.toolNames), target.id)
+  })
+  tx()
+
+  console.warn(
+    `[bootstrap] 已给 ${targets.length} 个生图模态成员补上 ${IMAGE_GENERATE_TOOL_NAME} 工具（只增不删）：` +
+      targets.map((t) => `${t.name}(${t.id})`).join('、'),
+  )
+}
+
+/** 解析 agents.tool_names 的 JSON 数组；脏数据（非 JSON / 非数组 / 非字符串项）一律容错。 */
+function parseToolNames(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is string => typeof item === 'string')
+  } catch {
+    return []
   }
 }
 

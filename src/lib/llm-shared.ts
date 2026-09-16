@@ -69,6 +69,18 @@ export const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/
 /** 生图 Agent 的默认模型（快、便宜，适合迭代试稿）。 */
 export const DEFAULT_IMAGE_MODEL = 'z-image-turbo'
 
+/**
+ * 生图请求的默认尺寸，写法为 **DashScope 风格 `W*H`**。
+ *
+ * 项目里「归一后的尺寸字符串」一律是这个形态（见 `image-delivery` 的 `RATIO_SIZES` 与
+ * `extractRequestedImageSize`）。发出前由 `image-generation` 按协议转换：百炼原生要 `*`，
+ * OpenAI 兼容要 `x` —— 所以调用方不必关心自己拿到的是哪种写法。
+ *
+ * 三处共用同一份常量，避免「适配器默认 1024、工具默认 512」这类口径漂移：
+ * image-gen 适配器（交付契约没给尺寸时）、image_generate 工具、以及依赖它们的测试。
+ */
+export const DEFAULT_IMAGE_SIZE = '1024*1024'
+
 /** 生图（DashScope 原生协议）：OpenAI 兼容的 /images/generations 在此接入点下不存在。 */
 export const DASHSCOPE_NATIVE_ORIGIN = 'https://dashscope.aliyuncs.com'
 
