@@ -113,6 +113,35 @@ export function toDashScopeSize(size: string): string {
   return size.trim().replace(/x/gi, '*')
 }
 
+/**
+ * 百炼「生图」分组模型（与 BAILIAN_MODELS 里的注释分组同源）。
+ *
+ * 生图与 chat 是**两套互不兼容的协议**，两端都会拒：
+ * - chat 模型发到原生 `multimodal-generation` 端点 → HTTP 400「url error」；
+ * - 生图模型发到 chat completions → 网关按模型路由到生图处理器，回
+ *   `Input should be 'user': input.messages.0.role`。
+ * 且两种错都属于「不该触发降级」的参数/业务错，一旦把错的模型放在链首，
+ * 每一次调用都会先撞一次、整个 run 当场结束 —— 所以需要一个可复用的判据。
+ */
+export const BAILIAN_IMAGE_MODELS = ['z-image-turbo', 'qwen-image-3.0', 'qwen-image-3.0-pro'] as const
+
+/** 生图模型的命名特征（覆盖第三方网关：flux / sd / dall-e / t2i / wanx 等）。 */
+const IMAGE_MODEL_PATTERN =
+  /(^|[/_-])(z-image|qwen-image|flux|stable-diffusion|sdxl|dall-e|dall·e|gpt-image|image-gen|ideogram|recraft|kolors|t2i|wanx|wan2)([/_.-]|$)/i
+
+/**
+ * 该模型名是否「可识别为生图模型」。
+ *
+ * 只认得出明确特征的名字；**认不出时返回 false，调用方必须按「不确定」处理**
+ * （不要据此断言它是 chat 模型）。生图相关的选路逻辑都遵循这个保守方向。
+ */
+export function isImageGenerationModel(modelId: string | null | undefined): boolean {
+  const id = modelId?.trim()
+  if (!id) return false
+  if ((BAILIAN_IMAGE_MODELS as readonly string[]).includes(id)) return true
+  return IMAGE_MODEL_PATTERN.test(id)
+}
+
 
 /**
  * 联网搜索（web_search 工具）使用的检索模型。

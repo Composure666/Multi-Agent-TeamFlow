@@ -45,7 +45,15 @@ export interface CreateAgentArgs {
 export async function createCustomAgent(args: CreateAgentArgs) {
   const id = newAgentId()
   const createdAt = Date.now()
-  const adapterName: AdapterName = args.adapterName ?? 'custom'
+  const modality = normalizeModality(args.modality)
+  // 生图模态必须走 ImageGenAdapter —— 只有它会调生图端点并落地图片产物。
+  //
+  // 「生图模态 + custom（chat）适配器」是一个**必然失败**的组合：modality 是 image 时，
+  // AgentRunner 会按 `agent:image` 解析降级链，链上配的是一串**生图模型**；而 chat 适配器
+  // 发的是 chat completions（system + user messages），网关按模型名把它路由到生图处理器后
+  // 直接 400 `Input should be 'user': input.messages.0.role`。400 属业务错、不触发降级，
+  // 于是整个 run 在 0.3s 内猝死，且每次重试报错逐字相同。
+  const adapterName: AdapterName = modality === 'image' ? 'image-gen' : (args.adapterName ?? 'custom')
 
   // 「设置-模型分配」里只存 (供应商, 模型名)，凭证在供应商中心。这里把凭证补进 Agent，
   // 否则「按模态自动匹配模型」创建出来的 Agent 会带着空 key 去跑，直到第一次对话才报缺 Key。
@@ -103,7 +111,7 @@ export async function createCustomAgent(args: CreateAgentArgs) {
     isBuiltin: false,
     isOrchestrator: false,
     supportsVision: args.supportsVision ?? false,
-    modality: args.modality ?? 'text',
+    modality,
     createdAt,
   }
 
@@ -161,7 +169,10 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   // 内建 agent 允许修改配置（API key / system prompt / model 等），但删除仍受保护
 
   const updates: Record<string, unknown> = {}
-  const nextAdapterName: AdapterName = patch.adapterName ?? agent.adapterName
+  // 与创建路径同一条不变式：生图模态强制 image-gen（理由见 createCustomAgent）。
+  const nextModality = normalizeModality(patch.modality ?? agent.modality)
+  const nextAdapterName: AdapterName =
+    nextModality === 'image' ? 'image-gen' : (patch.adapterName ?? agent.adapterName)
   const nextModelProvider = patch.modelProvider ?? agent.modelProvider
   const nextModelId = patch.modelId ?? agent.modelId
   let nextApiBaseUrl =
@@ -203,7 +214,9 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   if (patch.description !== undefined) updates.description = patch.description.trim()
   if (patch.capabilities !== undefined) updates.capabilities = patch.capabilities
   if (patch.systemPrompt !== undefined) updates.systemPrompt = patch.systemPrompt
-  if (patch.adapterName !== undefined) updates.adapterName = patch.adapterName
+  if (patch.adapterName !== undefined || nextAdapterName !== agent.adapterName) {
+    updates.adapterName = nextAdapterName
+  }
   if (patch.modelId !== undefined) updates.modelId = patch.modelId?.trim() || null
   if (patch.supportsVision !== undefined) updates.supportsVision = patch.supportsVision
   if (patch.modality !== undefined) updates.modality = normalizeModality(patch.modality)

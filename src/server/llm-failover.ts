@@ -23,6 +23,7 @@ import {
   FALLBACK_MODEL_NAME,
   FALLBACK_PROVIDER_ID,
   GLOBAL_PRIORITY_KEY,
+  isImageGenerationModel,
   normalizeModality,
   providerIdToModelProvider,
 } from '@/lib/llm-shared'
@@ -133,8 +134,33 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   const chain: FailoverCandidate[] = []
   const seen = new Set<string>()
 
+  const capabilityKey = capabilityKeyForModality(agent.modality)
+  const capabilityChain = await resolveFailoverChain(capabilityKey)
+
+  // 生图模态的链首必须是生图模型。
+  //
+  // 生图走原生 multimodal-generation，chat 模型打上去直接 HTTP 400「url error」；
+  // 而 400 在 classifyError 里**刻意不触发降级**（避免白烧额度）。于是「chat 模型占据
+  // 生图链的首位」会让每一次调用都先撞一次不可降级的错、run 当场结束 —— 现场事故
+  // （「落地发布组」主图重做 4/4 失败）里 agent 自己配的 deepseek-v4-flash 正是这个角色。
+  //
+  // 判据刻意保守：只有「能力链里确实存在可识别的生图模型」且「自己的模型不像生图模型」
+  // 时才跳过自己的模型；其余情况完全保持旧行为（用户显式配过的东西不被隐性改写）。
   const ownModelId = agent.modelId?.trim()
-  if (ownModelId) {
+  const skipOwnModel =
+    normalizeModality(agent.modality) === 'image' &&
+    !!ownModelId &&
+    !isImageGenerationModel(ownModelId) &&
+    capabilityChain.some((c) => isImageGenerationModel(c.modelId))
+
+  if (ownModelId && skipOwnModel) {
+    console.warn(
+      `[llm-failover] Agent 模态为生图，但自己配的模型 "${ownModelId}" 不是生图模型；` +
+        '已跳过它并直接使用「agent:image」的分配链，避免每次调用都先撞一次不触发降级的 400。',
+    )
+  }
+
+  if (ownModelId && !skipOwnModel) {
     const row = await resolveProviderRowForAgent(agent)
     const provider = providerIdToModelProvider(row?.id ?? agent.modelProvider ?? null)
     const apiKey = agent.apiKey?.trim() || row?.apiKey?.trim() || ''
@@ -154,7 +180,7 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
     }
   }
 
-  for (const c of await resolveFailoverChain(capabilityKeyForModality(agent.modality))) {
+  for (const c of capabilityChain) {
     if (seen.has(candidateKey(c))) continue
     seen.add(candidateKey(c))
     chain.push(c)

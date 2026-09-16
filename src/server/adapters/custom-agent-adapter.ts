@@ -174,7 +174,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
         activeModelId = opened.candidate.modelId
       } catch (err) {
         yield baseEvent(input, { type: 'message.end', messageId })
-        throw err
+        throw explainChatEndpointError(err)
       }
 
       let finishReason: string | null = null
@@ -463,6 +463,49 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
  * 注意：重试只对「初始连接」生效；stream 一旦开始 emit chunks 就不会再重试。
  */
 const MAX_API_RETRIES = 2
+
+/**
+ * 从任意形态的错误里尽力取出可读文本。
+ *
+ * 外部 SDK / 网关边界上不一定是 `Error`：实测见过直接抛普通对象、也见过抛字符串。
+ * 统一在这里 normalize，避免因为形态不同而漏掉识别（仓库「外部 SDK 边界防御性
+ * normalize」铁律）。
+ */
+function readErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  if (err && typeof err === 'object' && 'message' in err) {
+    const message = (err as { message?: unknown }).message
+    if (typeof message === 'string') return message
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return String(err)
+    }
+  }
+  return String(err)
+}
+
+/**
+ * 把「chat 请求被路由到了生图 / 多模态模型上」这类**协议级**报错翻译成可操作的说明。
+ *
+ * 网关按模型名路由：往生图模型上发 chat completions 时，生图处理器会按原生结构校验参数，
+ * 于是报出 `Input should be 'user': input.messages.0.role` /
+ * `Input should be a valid list: input.messages.0.content` 这种与 chat 语义完全对不上的错。
+ * 原始文本保留（便于排查），但补上根因与修法，避免下次再花几小时定位。
+ */
+export function explainChatEndpointError(err: unknown): unknown {
+  const text = readErrorMessage(err)
+  if (!/input\.messages/.test(text)) return err
+  return new Error(
+    '模型拒绝了这个请求：网关把 chat 请求路由到了「生图 / 多模态」模型上。\n' +
+      '根因：该 Agent 的模态是生图，降级链（agent:image）里配的是生图模型，' +
+      '而本次调用走的是 chat 协议 —— 两者不兼容。\n' +
+      '怎么修：把该 Agent 的「模态」保存一次（服务端会强制切到 image-gen 适配器），' +
+      '或把「设置 - 模型分配」里 agent:image 的模型改成 chat 模型。\n' +
+      `原始报错：${text.slice(0, 300)}`,
+  )
+}
 
 function buildClient(
   provider: ModelProvider,

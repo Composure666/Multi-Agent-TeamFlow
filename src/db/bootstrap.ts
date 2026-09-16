@@ -26,6 +26,7 @@ import {
   BAILIAN_PROVIDER_ID,
   BUILTIN_PROVIDERS,
   DEFAULT_MODEL_ASSIGNMENT_PLAN,
+  normalizeModality,
   scopeForCapability,
 } from '@/lib/llm-shared'
 
@@ -1065,6 +1066,53 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   ensureBailianProvider(sqlite)
   ensureDefaultModelAssignments(sqlite)
   ensureFailoverDefaults(sqlite)
+  repairImageModalityAdapters(sqlite)
+}
+
+/**
+ * 修正「生图模态却挂了非 image-gen 适配器」的存量 Agent。
+ *
+ * 这类 Agent 的 run 会在 0.3s 内猝死：chat 请求被网关按模型路由到生图模型上 → 400
+ * 不触发降级 → 每次都报逐字相同的 `input.messages` 校验错。运行时已由 registry 兜底纠偏，
+ * 这里再把存储值改对，让 Agent 配置面板的显示与实际行为一致。
+ *
+ * 判据刻意与运行时的 `resolveEffectiveAdapterName` 共用 `normalizeModality` —— 不能用
+ * SQL 的 `lower(trim(...))` 近似，否则「被修存储值的」与「被运行时纠偏的」会不是同一批
+ * （例如 `modality='IMAGE'` 在归一化里会落成 text，不该被改成生图适配器）。
+ *
+ * 幂等：条件包含 `adapter_name != 'image-gen'`，修完再跑就没有匹配行了。
+ * tool_names 一并清空，与创建路径对 image-gen 的处理（不消费工具集）保持一致。
+ */
+function repairImageModalityAdapters(sqlite: Database.Database): void {
+  const rows = sqlite
+    .prepare('SELECT id, name, modality, adapter_name, tool_names FROM agents')
+    .all() as Array<{
+    id: string
+    name: string
+    modality: string | null
+    adapter_name: string
+    tool_names: string | null
+  }>
+
+  const needsRepair = rows.filter(
+    (row) =>
+      normalizeModality(row.modality) === 'image' &&
+      (row.adapter_name !== 'image-gen' || row.tool_names !== '[]'),
+  )
+  if (needsRepair.length === 0) return
+
+  const update = sqlite.prepare(
+    "UPDATE agents SET adapter_name = 'image-gen', tool_names = '[]' WHERE id = ?",
+  )
+  const tx = sqlite.transaction(() => {
+    for (const row of needsRepair) update.run(row.id)
+  })
+  tx()
+
+  console.warn(
+    `[bootstrap] 已把 ${needsRepair.length} 个「生图模态 + 非 image-gen 适配器」的 Agent 修正为 image-gen：` +
+      needsRepair.map((row) => `${row.name}(${row.id})`).join('、'),
+  )
 }
 
 // ─── LLM 供应商 / 模型分配 seed ───────────────────────────────────
