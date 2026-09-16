@@ -54,6 +54,49 @@ describe('resolveCustomProviderClientConfig', () => {
 
     expect(resolveCustomProviderClientConfig('openai')).toEqual({ apiKey: 'env-openai-key' })
   })
+
+  /**
+   * 回归：显式端点必须优先于厂商默认地址。
+   *
+   * 老逻辑对 deepseek / volcano-ark / openai **无条件**用官方默认地址、忽略 `apiBaseUrl`，
+   * 于是 `model_provider=deepseek` + `api_base_url=百炼` 的成员（线上 5 个视觉类成员就这么配的）
+   * 拿着百炼 key 去打 `api.deepseek.com` → 401，且被记到 deepseek 名下把兜底打进冷却。
+   */
+  it('deepseek：显式端点优先，没给才用官方默认地址', () => {
+    expect(
+      resolveCustomProviderClientConfig('deepseek', ' bailian-key ', '  https://dashscope.aliyuncs.com/compatible-mode/v1  '),
+    ).toEqual({
+      apiKey: 'bailian-key',
+      baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    })
+
+    process.env.DEEPSEEK_API_KEY = 'env-deepseek-key'
+    expect(resolveCustomProviderClientConfig('deepseek')).toEqual({
+      apiKey: 'env-deepseek-key',
+      baseURL: 'https://api.deepseek.com/v1',
+    })
+  })
+
+  it('volcano-ark：显式端点优先，没给才用官方默认地址', () => {
+    process.env.ARK_API_KEY = 'env-ark-key'
+    expect(resolveCustomProviderClientConfig('volcano-ark', null, 'https://gateway.example.com/v1')).toEqual({
+      apiKey: 'env-ark-key',
+      baseURL: 'https://gateway.example.com/v1',
+    })
+    expect(resolveCustomProviderClientConfig('volcano-ark')).toEqual({
+      apiKey: 'env-ark-key',
+      baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
+    })
+  })
+
+  it('openai：给了端点就带上，没给就交给 SDK 默认', () => {
+    process.env.OPENAI_API_KEY = 'env-openai-key'
+    expect(resolveCustomProviderClientConfig('openai', null, ' https://proxy.example.com/v1 ')).toEqual({
+      apiKey: 'env-openai-key',
+      baseURL: 'https://proxy.example.com/v1',
+    })
+    expect(resolveCustomProviderClientConfig('openai')).toEqual({ apiKey: 'env-openai-key' })
+  })
 })
 
 function restoreEnv(key: keyof typeof ORIGINAL_ENV, value: string | undefined): void {

@@ -28,7 +28,7 @@ import {
   providerIdToModelProvider,
   shouldUseImageGenAdapter,
 } from '@/lib/llm-shared'
-import { resolveProviderRowForAgent } from '@/server/provider-service'
+import { findProviderIdForEndpoint, resolveProviderRowForAgent } from '@/server/provider-service'
 import type { ModelProvider } from '@/shared/types'
 import {
   classifyError,
@@ -153,14 +153,24 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
 
   if (ownModelId) {
     const row = await resolveProviderRowForAgent(agent)
-    const provider = providerIdToModelProvider(row?.id ?? agent.modelProvider ?? null)
     const apiKey = agent.apiKey?.trim() || row?.apiKey?.trim() || ''
     const apiBaseUrl =
       agent.apiBaseUrl?.trim() || row?.baseUrl?.trim() || (row ? builtinBaseUrl(row.id) : null)
+    // 供应商归因按**实际端点**定，不按 `model_provider` 标签定。
+    // 用户可以把标签写成 deepseek 而把 base URL 指向别的网关（线上就有这种成员），
+    // 按标签走的话请求打到了 A、失败却记在 B 头上 → B 被冷却，而 B 往往是链尾兜底。
+    //
+    // 端点**认得出来**才归因；端点明明是自定义的却匹配不上任何供应商行时返回 null
+    // （宁可不冷却，也不要把账算到没被调用的供应商头上）。
+    // 只有「算不出端点」时才退回按标签归因 —— 那是唯一还能判断的情形。
+    const endpointProviderId = apiBaseUrl
+      ? await findProviderIdForEndpoint({ apiBaseUrl, apiKey, modelId: ownModelId })
+      : row?.id ?? agent.modelProvider ?? null
+    const provider = providerIdToModelProvider(endpointProviderId)
     // openai-compatible 协议必须自带 key（没有 env 兜底）；内置 provider 允许空 key，adapter 会去读 env。
     if (apiKey || provider !== 'openai-compatible') {
       const own: FailoverCandidate = {
-        providerId: row?.id ?? null,
+        providerId: endpointProviderId,
         provider,
         apiKey,
         apiBaseUrl: apiBaseUrl || null,

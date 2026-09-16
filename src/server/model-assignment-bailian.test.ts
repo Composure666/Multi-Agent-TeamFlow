@@ -558,3 +558,82 @@ describe('适配器 / 降级链的协议一致性（判据是模型，不是模�
     expect(chain[chain.length - 1]).toMatchObject({ providerId: 'deepseek', modelId: 'deepseek-v4-flash' })
   })
 })
+
+/**
+ * 回归：「供应商」按**实际端点**定，不按 `model_provider` 标签定。
+ *
+ * 线上现象（2026-09-16，每秒一次）：5 个视觉类成员（主图设计师 / 文案策划 / 视觉质检 /
+ * 总策划 / 前端发布工程师）被配成 `model_provider=deepseek` + `api_base_url=百炼` + 百炼 key。
+ * 老逻辑两处都按标签走：
+ *   (a) chat 客户端对 `provider='deepseek'` **硬编码** `api.deepseek.com`、忽略 `apiBaseUrl`
+ *       → 拿一把百炼 key 去打 DeepSeek 官方，秒回 `401 Your api key: ****pT2g is invalid`；
+ *   (b) 这个 401 被记在 **deepseek** 名下 → `consecutive_failures` 冲到 500、`status=unavailable`。
+ * 而 deepseek 正是链尾兜底 —— 等于「一个配错的标签把健康的兜底打死」。
+ *
+ * 实测「百炼端点 + `deepseek-v4-flash`」HTTP 200：这些成员的配置是有效的，纯粹被硬编码端点拦住。
+ * 修法即两条不变式：**端点优先于标签**（`resolveCustomProviderClientConfig`）、
+ * **归因跟着端点走**（`findProviderIdForEndpoint`）。
+ */
+describe('供应商归因按端点定，不按 model_provider 标签定', () => {
+  const mislabeledCase = () => ({
+    modelProvider: 'deepseek' as const,
+    modelId: 'deepseek-v4-flash',
+    apiKey: BAILIAN_KEY,
+    apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+    modality: 'text' as const,
+  })
+
+  it('标签写 deepseek、端点写百炼 → 链首归因到 bailian，且端点原样保留', async () => {
+    const chain = await failover.buildAgentFailoverChain(mislabeledCase())
+
+    expect(chain[0]).toMatchObject({
+      providerId: 'bailian',
+      provider: 'openai-compatible',
+      apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+      modelId: 'deepseek-v4-flash',
+    })
+  })
+
+  it('端点匹配不上任何供应商行 → 不归因（providerId 为 null，不污染别人的状态）', async () => {
+    const chain = await failover.buildAgentFailoverChain({
+      modelProvider: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      apiKey: 'sk-self-hosted-gateway',
+      apiBaseUrl: 'https://llm.internal.example.com/v1',
+      modality: 'text',
+    })
+
+    expect(chain[0].providerId).toBeNull()
+    expect(chain[0].provider).toBe('openai-compatible')
+  })
+
+  it('自有模型没配端点时仍按内置供应商归因（原有行为不变）', async () => {
+    const chain = await failover.buildAgentFailoverChain({
+      modelProvider: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      modality: 'text',
+    })
+
+    expect(chain[0].providerId).toBe('deepseek')
+    expect(chain[0].provider).toBe('deepseek')
+  })
+
+  it('findProviderIdForEndpoint：按 key 认供应商，端点不认识就返回 null', async () => {
+    expect(
+      await providerService.findProviderIdForEndpoint({
+        apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+        apiKey: BAILIAN_KEY,
+        modelId: 'deepseek-v4-flash',
+      }),
+    ).toBe('bailian')
+
+    expect(
+      await providerService.findProviderIdForEndpoint({
+        apiBaseUrl: 'https://nowhere.example.com/v1',
+        apiKey: BAILIAN_KEY,
+      }),
+    ).toBeNull()
+
+    expect(await providerService.findProviderIdForEndpoint({ apiBaseUrl: null })).toBeNull()
+  })
+})

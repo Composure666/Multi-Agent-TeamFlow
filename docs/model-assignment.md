@@ -179,6 +179,23 @@ llm_failover_events    切换审计日志（「设置-故障转移」面板读�
 - `buildAgentFailoverChain(agent)` 拼链：**Agent 自己的模型 → 该模态链 → 链尾 `deepseek/deepseek-v4-flash`**；
 - `runWithFailover(chain, attempt, …)` 逐个候选尝试，失败按分类决定是否切换。
 
+### 5.1.1 ❗ 铁律：路由与归因都由**端点**决定，不由 `model_provider` 标签决定
+
+`model_provider` 只是一个标签。用户可以把它写成 `deepseek`，而把 `api_base_url` 指向百炼
+（线上就有 5 个这样的成员：主图设计师 / 文案策划 / 视觉质检 / 总策划 / 前端发布工程师 ——
+`model_provider=deepseek` + `api_base_url=百炼兼容端点` + 百炼 key）。因此：
+
+| 位置 | 规则 |
+| --- | --- |
+| `resolveCustomProviderClientConfig`（实际发请求） | 显式 `apiBaseUrl` **优先于**该厂商官方默认地址（2026-09-16 前是反的：已知厂商无条件用官方地址、忽略 `apiBaseUrl`） |
+| `buildAgentFailoverChain`（归因） | `providerId` 由 `findProviderIdForEndpoint({apiBaseUrl, apiKey, modelId})` 反查，而不是取 `row?.id`；匹配不上任何供应商行时返回 `null`（**宁可不冷却，也不把账算到没被调用的供应商头上**） |
+| `experience-service` 的复盘提炼 | 必须与执行期用同一个 `resolveCustomProviderClientConfig`，否则会出现「任务跑得通、复盘提炼必失败」 |
+
+**违反这条铁律的后果（线上真实发生过）**：请求拿百炼 key 打到了 `api.deepseek.com` → 401
+`Your api key: ****xxxx is invalid`（每秒重试一次），而失败被记到 `deepseek` 名下 →
+把**健康的链尾兜底**打进冷却（`llm_provider_status` 实测 `status=unavailable`、
+`consecutive_failures=500`），兜底链形同虚设。
+
 ### 5.2 触发条件（`shouldFailover`）
 
 | 错误 | 是否切换 | 原因 |

@@ -155,6 +155,43 @@ export function normalizeProviderBaseUrl(baseUrl: string | null | undefined): st
   return (baseUrl ?? '').trim().replace(/\/+$/, '').toLowerCase()
 }
 
+/**
+ * 按「请求实际会打到的端点」反查供应商行 id —— 归因（健康状态 / 冷却 / 切换事件）的依据。
+ *
+ * 为什么不直接用 `model_provider` 标签：那只是个标签，用户完全可能把它写成 `deepseek`
+ * 而把 base URL 指向别的网关（线上就有 5 个这样的成员）。按标签归因的后果是
+ * 「请求其实打到了 A，失败却被记在 B 头上」—— B 被冷却，而 B 恰好是链尾兜底，
+ * 等于把兜底打死（线上实测：deepseek 被记了 500 次连续失败、状态 unavailable，
+ * 而 401 里那个 key 根本不是 deepseek 的）。
+ *
+ * 匹配规则：先按规范化 baseUrl 找出候选行；再优先选 apiKey 完全一致的那行（最可靠），
+ * 其次选 models 里含该模型的那行，最后退到第一行。
+ * **端点匹配不上任何供应商行 → 返回 null（不归因给任何供应商）** —— 宁可不冷却，
+ * 也不要把账算到没被调用的供应商头上。
+ */
+export async function findProviderIdForEndpoint(binding: {
+  apiBaseUrl?: string | null
+  apiKey?: string | null
+  modelId?: string | null
+}): Promise<string | null> {
+  const target = normalizeProviderBaseUrl(binding.apiBaseUrl)
+  if (!target) return null
+  const rows = await db.query.llmProviders.findMany()
+  const matched = rows.filter((r) => normalizeProviderBaseUrl(r.baseUrl) === target)
+  if (matched.length === 0) return null
+  const key = binding.apiKey?.trim()
+  if (key) {
+    const sameKey = matched.find((r) => (r.apiKey ?? '').trim() === key)
+    if (sameKey) return sameKey.id
+  }
+  const modelId = binding.modelId?.trim()
+  if (modelId) {
+    const withModel = matched.find((r) => (r.models ?? []).includes(modelId))
+    if (withModel) return withModel.id
+  }
+  return matched[0].id
+}
+
 export interface AgentModelBinding {
   modelProvider?: string | null
   modelId?: string | null

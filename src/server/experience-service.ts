@@ -1360,8 +1360,10 @@ function buildOpenAICompatibleExtractionChoice(
   apiBaseUrl: string | null,
 ): ExtractionModelChoice {
   // endpoint 必须与执行期（resolveCustomProviderClientConfig）用同一套规则解析：
-  // 已知厂商（deepseek / volcano-ark / openai）走官方默认地址，忽略 agent.apiBaseUrl。
-  // 否则会出现「任务跑得通、复盘提炼必失败」——执行期忽略了那个地址，提炼期却拿它当 OpenAI 根。
+  // 优先用 agent 显式配的 apiBaseUrl，没配才退到该厂商的官方默认地址。
+  // 两边规则不一致会出现「任务跑得通、复盘提炼必失败」——一边用了那个地址、另一边没用。
+  // 2026-09-16 修正：原来这里是「已知厂商一律忽略 apiBaseUrl」，与线上成员的配置互相矛盾
+  // （见 resolveCustomProviderClientConfig 的注释）。
   let resolved: { apiKey: string; baseURL?: string }
   try {
     resolved = resolveCustomProviderClientConfig(provider, apiKey, apiBaseUrl)
