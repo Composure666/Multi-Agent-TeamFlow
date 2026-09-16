@@ -9,6 +9,11 @@ import {
   toDashScopeSize,
 } from '@/lib/llm-shared'
 import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
+import {
+  extractImagePromptText,
+  readImagePixelSize,
+  writeImageIntoWorkspace,
+} from '@/server/image-delivery'
 import { newArtifactId, newMessageId } from '@/server/ids'
 import { runWithFailover } from '@/server/llm-failover'
 import { getOssImageConfig, uploadImageToOss } from '@/server/oss-image-store'
@@ -35,6 +40,9 @@ import type { AdapterFailoverCandidate, AdapterInput, AgentPlatformAdapter } fro
  *
  * 降级兜底：`input.failoverChain` 给出候选链（主 → 兜底），逐个尝试直到出图成功。
  */
+/** 交付契约没给尺寸时的默认请求尺寸（OpenAI 风格写法，按协议转换后发出）。 */
+const DEFAULT_IMAGE_SIZE = '1024x1024'
+
 export class ImageGenAdapter implements AgentPlatformAdapter {
   readonly name = 'image-gen' as const
 
@@ -91,8 +99,9 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     yield { ...base, type: 'run.start', runId: input.runId, agentId: input.agentId, triggerMessageId: '' }
     yield { ...base, type: 'message.start', messageId, agentId: input.agentId, runId: input.runId }
 
-    // 提取生图 prompt（直接用外层拼好的 prompt，生图模型能处理长描述）
-    const prompt = this.extractImagePrompt(input.prompt)
+    // 提取生图 prompt（直接用外层拼好的 prompt，生图模型能处理数百字长描述）。
+    // 派发任务时 prompt 就是任务说明，视觉要求在开头 —— 交给提取函数判方向。
+    const prompt = extractImagePromptText(input.prompt, Boolean(input.deliveryContract))
 
     // text part：描述正在做什么
     const textPartIndex = 0
@@ -106,6 +115,9 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
 
     try {
       // 调用生图 API（主模型失败时按候选链降级；状态文案不算模型输出，可以安全切换）
+      // 交付契约给了尺寸（派发任务里写了 1920×1080 / 16:9 之类）就按它生成；
+      // 少了这一步，任务验收里「尺寸严格 1920×1080」这类判据必然判不过。
+      const requestedSize = input.deliveryContract?.imageSize ?? DEFAULT_IMAGE_SIZE
       const generated = await runWithFailover(
         candidates,
         (candidate) =>
@@ -115,6 +127,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
             candidate.modelId,
             prompt,
             signal,
+            requestedSize,
           ),
         {
           capabilityKey: input.failoverCapabilityKey ?? 'agent:image',
@@ -124,6 +137,18 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
       )
       const imageResult = generated.value
       const usedModel = generated.candidate.modelId
+      // 真实像素以交付的字节流为准：模型不保证按请求尺寸出图，拿请求值当结果回报就是假证据。
+      const pixels =
+        readImagePixelSize(imageResult.buffer) ?? parseSizeToPixels(requestedSize)
+
+      // 按交付契约落盘：生图成员没有工具循环，下游成员要按计划路径拿真实文件。
+      const deliveredPath = input.deliveryContract?.imageTargetPath
+        ? writeImageIntoWorkspace(
+            input.workspacePath,
+            input.deliveryContract.imageTargetPath,
+            imageResult.buffer,
+          )
+        : null
 
       // 上传到 OSS（如果配置了），否则存本地
       const imageUrl = await this.storeImage(imageResult, input.conversationId)
@@ -134,8 +159,8 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
         input.agentId,
         imageUrl,
         prompt,
-        imageResult.width,
-        imageResult.height,
+        pixels?.width,
+        pixels?.height,
       )
 
       // 更新 text part 为完成描述
@@ -144,7 +169,12 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
         type: 'part.delta',
         messageId,
         partIndex: textPartIndex,
-        delta: { type: 'text.append', text: `\n\n图片已生成并保存为产物（模型：${usedModel}）。` },
+        delta: {
+          type: 'text.append',
+          text: `\n\n图片已生成并保存为产物（模型：${usedModel}${
+            pixels ? `，${pixels.width}×${pixels.height}` : ''
+          }）。${deliveredPath ? `\n已按任务要求落盘：${deliveredPath}。` : ''}`,
+        },
       }
       yield { ...base, type: 'part.end', messageId, partIndex: textPartIndex }
 
@@ -173,14 +203,6 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     }
   }
 
-  /** 从完整 prompt 中提取生图描述（去掉系统提示部分） */
-  private extractImagePrompt(fullPrompt: string): string {
-    // 简单策略：取 prompt 的最后 500 字符作为生图描述
-    // （外层 prompt 通常包含系统提示 + 用户消息，用户消息在末尾）
-    const cleaned = fullPrompt.replace(/<[^>]+>/g, '').trim()
-    return cleaned.slice(-500) || fullPrompt.slice(-500)
-  }
-
   /** 调用生图端点：按 Base URL 决定走 OpenAI 兼容协议还是百炼原生协议。 */
   private async generateImage(
     baseUrl: string,
@@ -188,11 +210,12 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     modelId: string,
     prompt: string,
     signal: AbortSignal,
+    size: string,
   ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
     if (resolveImageApiProtocol(baseUrl) === 'dashscope') {
-      return this.generateImageWithDashScope(baseUrl, apiKey, modelId, prompt, signal)
+      return this.generateImageWithDashScope(baseUrl, apiKey, modelId, prompt, signal, size)
     }
-    return this.generateImageWithOpenAiCompatible(baseUrl, apiKey, modelId, prompt, signal)
+    return this.generateImageWithOpenAiCompatible(baseUrl, apiKey, modelId, prompt, signal, size)
   }
 
   /** 调用 OpenAI 兼容的 /images/generations */
@@ -202,6 +225,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     modelId: string,
     prompt: string,
     signal: AbortSignal,
+    size: string,
   ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
     const url = `${baseUrl.replace(/\/$/, '')}/images/generations`
 
@@ -215,7 +239,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
         model: modelId,
         prompt,
         n: 1,
-        size: '1024x1024',
+        size: size.replace(/\*/g, 'x'),
         response_format: 'url',
       }),
       signal,
@@ -256,6 +280,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     modelId: string,
     prompt: string,
     signal: AbortSignal,
+    size: string,
   ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
     const origin = safeOrigin(baseUrl) ?? DASHSCOPE_NATIVE_ORIGIN
     const url = `${origin}${DASHSCOPE_IMAGE_GENERATION_PATH}`
@@ -269,7 +294,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
       body: JSON.stringify({
         model: modelId,
         input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
-        parameters: { size: toDashScopeSize('1024x1024'), n: 1, watermark: false },
+        parameters: { size: toDashScopeSize(size), n: 1, watermark: false },
       }),
       signal,
     })
@@ -434,6 +459,13 @@ function safeOrigin(baseUrl: string): string | null {
   } catch {
     return null
   }
+}
+
+/** `1920*1080` → `{ width: 1920, height: 1080 }`；解析不出返回 null。 */
+function parseSizeToPixels(size: string): { width: number; height: number } | null {
+  const match = /^(\d+)\s*[*x×]\s*(\d+)$/i.exec(size.trim())
+  if (!match) return null
+  return { width: Number(match[1]), height: Number(match[2]) }
 }
 
 /** 百炼生图响应的图片地址提取（兼容 choices / results 两种形态）。 */

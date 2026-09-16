@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
@@ -25,8 +25,13 @@ import type {
 import { estimateTokens, getModelLimits } from '@/shared/model-registry'
 import { withAlwaysOnAgentTools } from '@/shared/agent-builder-config'
 
-import { agentRegistry } from './adapters/registry'
-import type { AdapterAttachment, AdapterInput, ExternalMcpServerConfig } from './adapters/types'
+import { agentRegistry, resolveEffectiveAdapterName } from './adapters/registry'
+import type {
+  AdapterAttachment,
+  AdapterDeliveryContract,
+  AdapterInput,
+  ExternalMcpServerConfig,
+} from './adapters/types'
 import { recordAgentRunDebugEvent, recordAgentRunDebugSnapshot } from './agent-run-debug-service'
 import { getAttachmentAbsolutePath } from './attachment-service'
 import {
@@ -45,6 +50,7 @@ import { renderExistingArtifactsContext } from './dispatch-artifact-context'
 import {
   clearRunToolEvidence,
   getRunToolEvidence,
+  recordRunArtifact,
   recordRunCommand,
   type RunToolEvidence,
 } from './dispatch-run-evidence'
@@ -69,6 +75,12 @@ import {
   type ReplanTaskView,
 } from './dispatch-plan'
 import { eventBus } from './event-bus'
+import {
+  buildNonToolTaskReport,
+  extractRequestedImageSize,
+  pickImageTargetPath,
+  readImagePixelSize,
+} from './image-delivery'
 import { newArtifactId, newMessageId, newRunId } from './ids'
 import { pendingDispatchPlans, type PlanReviewOutcome } from './pending-dispatch-plans'
 import { buildProjectFiles, buildProjectFilesFromTargetPaths, filterExistingProjectFiles } from './project-artifact'
@@ -107,6 +119,8 @@ export interface RunArgs {
   overrideToolNames?: string[]
   /** 子任务运行必须通过 report_task_result 显式上报语义结果 */
   requireTaskReport?: boolean
+  /** 当前 run 是某个派发任务的子任务时带上是哪一个（生图等非工具型成员据此落盘与回报） */
+  dispatchTask?: DispatchPlanItem
   /** 父 run 的 AbortSignal — 用于级联中止：parent abort → child abort */
   parentSignal?: AbortSignal
 }
@@ -593,6 +607,159 @@ async function executeRun(runId: string, signal: AbortSignal, args: RunArgs): Pr
   }
 }
 
+/**
+ * 生图成员（image-gen）子任务的交付契约：把 runner 解析出来的「要落在哪、按什么尺寸」
+ * 交给适配器。适配器没有工具循环，只能由它自己在生成后落盘。
+ */
+function buildAdapterDeliveryContract(
+  args: RunArgs,
+  agent: AgentRow,
+): AdapterDeliveryContract | undefined {
+  const task = args.dispatchTask
+  if (!task) return undefined
+  if (resolveEffectiveAdapterName(agent) !== 'image-gen') return undefined
+  const imageTargetPath = pickImageTargetPath(task.targetPaths)
+  const imageSize = extractRequestedImageSize(
+    task.task,
+    ...(task.acceptanceCriteria ?? []),
+    imageTargetPath ?? undefined,
+  )
+  return {
+    taskId: task.id,
+    ...(imageTargetPath ? { imageTargetPath } : {}),
+    ...(imageSize ? { imageSize } : {}),
+  }
+}
+
+/**
+ * 生图成员子任务的收尾：登记产物证据 → 绑定 expectedOutputs(image) → 合成交付回报。
+ *
+ * 三件事缺一不可，否则「给生图成员派任务」这条路必然失败：
+ * - 证据：`targetPaths` 门禁靠 `write_artifact` 登记的 artifact 证据命中图片路径，适配器产出的
+ *   产物此前完全不进证据表；
+ * - 绑定：下游用 `t3.hero_image` 这类 outputId 取上游产物，不绑定就被判 missing、整条依赖 skip；
+ * - 回报：门禁要求 `report_task_result`，而生图成员没有工具循环 —— 每次 run 都判 failed，
+ *   重试到上限、每次都再出一张图（2026-09-16 线上 t4 连续 4 次就是这个）。
+ *
+ * 只在真的有图片产物时收尾：没交付就返回原结果，门禁照常失败，不放水。
+ */
+async function finalizeImageSubtaskDelivery(
+  args: RunArgs,
+  agent: AgentRow,
+  workspace: WorkspaceRow,
+  runId: string,
+  result: RunExecutionResult,
+): Promise<RunExecutionResult> {
+  const task = args.dispatchTask
+  if (!task || !args.requireTaskReport) return result
+  if (resolveEffectiveAdapterName(agent) !== 'image-gen') return result
+  if (result.artifactIds.length === 0) return result
+
+  const rows = await loadArtifactRowsForDelivery(result.artifactIds)
+  for (const row of rows) {
+    recordRunArtifact(runId, {
+      artifactId: row.id,
+      title: row.title,
+      type: row.type,
+      ...(row.version ? { version: row.version } : {}),
+    })
+  }
+
+  const imageArtifact = rows.find((row) => row.type === 'image')
+  if (!imageArtifact) return result
+
+  const outputArtifacts = { ...result.outputArtifacts }
+  for (const output of getRequiredExpectedOutputs(task)) {
+    if (output.type === 'image') outputArtifacts[output.id] ??= imageArtifact.id
+  }
+
+  const targetPath = pickImageTargetPath(task.targetPaths)
+  const taskReport = buildNonToolTaskReport(task, {
+    taskId: task.id,
+    agentName: agent.name,
+    adapterName: resolveEffectiveAdapterName(agent),
+    artifact: {
+      id: imageArtifact.id,
+      title: imageArtifact.title,
+      ...(imageArtifact.width ? { width: imageArtifact.width } : {}),
+      ...(imageArtifact.height ? { height: imageArtifact.height } : {}),
+    },
+    targetPath,
+    onDisk: targetPath ? describeWorkspaceFile(workspace, targetPath) : null,
+    requestedSize: extractRequestedImageSize(task.task, ...(task.acceptanceCriteria ?? [])),
+  })
+
+  return { ...result, outputArtifacts, taskReport }
+}
+
+interface DeliveryArtifactRow {
+  id: string
+  title: string
+  type: string
+  version?: number
+  width?: number
+  height?: number
+}
+
+/** 读产物行（含 content 里记录的像素尺寸）；读不到的行直接跳过，不影响收尾。 */
+async function loadArtifactRowsForDelivery(
+  artifactIds: readonly string[],
+): Promise<DeliveryArtifactRow[]> {
+  if (artifactIds.length === 0) return []
+  const rows = await db.query.artifacts.findMany({
+    where: inArray(schema.artifacts.id, [...artifactIds]),
+  })
+  return rows.map((row) => {
+    const content = normalizeArtifactContent(row.content)
+    return {
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      ...(typeof row.version === 'number' ? { version: row.version } : {}),
+      ...(typeof content?.width === 'number' ? { width: content.width } : {}),
+      ...(typeof content?.height === 'number' ? { height: content.height } : {}),
+    }
+  })
+}
+
+function normalizeArtifactContent(value: unknown): { width?: number; height?: number } | null {
+  if (!value) return null
+  if (typeof value === 'string') {
+    try {
+      return normalizeArtifactContent(JSON.parse(value))
+    } catch {
+      return null
+    }
+  }
+  if (typeof value !== 'object') return null
+  return value as { width?: number; height?: number }
+}
+
+/** 工作区里那个文件到底存不存在、多大、真实像素多少 —— 回报只写这些事实。 */
+function describeWorkspaceFile(
+  workspace: WorkspaceRow,
+  relativePath: string,
+): { bytes: number; width?: number; height?: number } | null {
+  try {
+    const absolute = path.resolve(getEffectiveCwd(workspace), relativePath)
+    if (!existsSync(absolute)) return null
+    const stat = statSync(absolute)
+    if (!stat.isFile()) return null
+    const pixels = readImagePixelSize(readFileSync(absolute))
+    return { bytes: stat.size, ...(pixels ?? {}) }
+  } catch (err) {
+    console.warn(`[agent-runner] 读取交付文件失败：${relativePath}`, err)
+    return null
+  }
+}
+
+/** 该派发任务的执行成员是否具备工具循环（生图成员没有 → 门禁不能要求它自证命令/文件证据）。 */
+async function isToolCapableTaskAgent(agentId: string): Promise<boolean> {
+  const agent = await db.query.agents.findFirst({ where: eq(schema.agents.id, agentId) })
+  if (!agent) return true
+  return resolveEffectiveAdapterName(agent) !== 'image-gen'
+}
+
 // ─── 普通 Agent ────────────────────────────────────────────
 async function executeSimpleRun(
   runId: string,
@@ -628,7 +795,13 @@ async function executeSimpleRun(
     signal,
   )
 
-  const result = await consumeStream(stream, args.agentId, runId)
+  const result = await finalizeImageSubtaskDelivery(
+    args,
+    agent,
+    workspace,
+    runId,
+    await consumeStream(stream, args.agentId, runId),
+  )
   if (args.parentRunId) return result
 
   try {
@@ -1419,6 +1592,7 @@ async function runChildTaskAttempt(
     parentRunId: ctx.parentRunId,
     overridePrompt: prompt,
     requireTaskReport: true,
+    dispatchTask: task,
     parentSignal: ctx.signal,
   })
 
@@ -1456,7 +1630,9 @@ async function runChildTaskAttempt(
       ? []
       : await runRequiredCommands(task, childRunId, ctx)
   const evidence = getRunToolEvidence(childRunId)
-  const result = evaluateChildTaskResult(task, raw, evidence)
+  const result = evaluateChildTaskResult(task, raw, evidence, {
+    toolCapable: await isToolCapableTaskAgent(task.agentId),
+  })
   return { rawResult: raw, result, evidence, verificationResults }
 }
 
@@ -1464,6 +1640,7 @@ function evaluateChildTaskResult(
   task: DispatchPlanItem,
   result: DispatchTaskResult,
   evidence: RunToolEvidence = { fileWrites: [], commands: [] },
+  options: { toolCapable?: boolean } = {},
 ): DispatchTaskResult {
   if (result.status !== 'complete') {
     return result
@@ -1474,6 +1651,7 @@ function evaluateChildTaskResult(
     task,
     result.taskReport,
     evidence,
+    options,
   )
   if (!reportEvaluation.ok) {
     return {
@@ -3014,6 +3192,7 @@ async function buildAdapterInput(
         : undefined,
     failoverChain,
     failoverCapabilityKey,
+    deliveryContract: buildAdapterDeliveryContract(args, agent),
   }
 
   await recordAgentRunDebugSnapshot({
@@ -3516,7 +3695,9 @@ function buildOrchestratorPlanPrompt(
       (a) =>
         `- { id: ${JSON.stringify(a.id)}, name: ${JSON.stringify(a.name)}, capabilities: ${JSON.stringify(
           a.capabilities,
-        )}, tools: ${JSON.stringify(a.toolNames)}, description: ${JSON.stringify(a.description)} }`,
+        )}, adapter: ${JSON.stringify(resolveEffectiveAdapterName(a))}, tools: ${JSON.stringify(
+          a.toolNames,
+        )}, description: ${JSON.stringify(a.description)} }`,
     )
     .join('\n')
   const localWorkspaceRules =
@@ -3545,6 +3726,7 @@ function buildOrchestratorPlanPrompt(
     '',
     '## 拆解原则',
     '- 充分利用每个 Agent 的 capabilities，不要把任务派给不合适的人。',
+    '- 【生图成员】adapter 为 "image-gen" 的成员没有工具循环：不执行命令、不写工作区文件、不调用 write_artifact，交付物就是一张图片产物。派给它的任务只用 acceptanceCriteria 描述图片本身（尺寸 / 文案 / 风格），targetPaths 只写图片路径（平台会把成品图落到该路径）；不要给它设 requiredCommands、requiredEvidence 这类需要跑命令才能自证的要求，也不要指望它产出 landing/ 之类的工程文件。',
     '- 每个子任务必须独立可执行（被分派的 Agent 看不到完整群聊上下文，必要上下文要写进 task）。',
     '- 计划阶段只能调用 ask_user、plan_tasks 和只读侦察工具（fs_list/fs_read/read_artifact/read_attachment）；不要写文件或执行命令。',
     '- 若用户需求已足够明确，不要为了形式感提问，直接 plan_tasks。',
