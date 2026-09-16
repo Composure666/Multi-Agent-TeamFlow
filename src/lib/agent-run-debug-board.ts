@@ -345,9 +345,9 @@ export function buildAgentRunBoardGraph(stages: readonly AgentRunBoardStage[]): 
   const nodes = stages.map((stage, index) => ({
     id: `stage-${stage.id}`,
     type: 'runBoardStage' as const,
-    position: { x: index * 180, y: 80 },
+    position: { x: index * 240, y: 80 },
     data: { stage },
-    draggable: false,
+    draggable: true,
     selectable: true,
   }))
 
@@ -393,18 +393,22 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       ...detail.childrenRuns.map((run) => run.agentId),
     ]),
   ]
-  const centerX = 360
+  const centerX = 640
   // 新自动布局：层级（Run → Orchestrator → Workers 网格 → Tools 网格 → Summary），
-  // workers 超过 5 个自动换行；tools 超过 6 个自动换行；所有横向布局基于列宽自适应。
-  const workerMaxCols = 5
-  const workerColWidth = 280
-  const workerRowHeight = 260
-  const workerGridTopY = 360
-  const toolGridTopGap = 200
-  const toolColWidth = 210
-  const toolRowHeight = 130
-  const toolMaxCols = 6
-  const summaryGap = 220
+  // workers 超过 4 个自动换行；tools 超过 4 个自动换行；所有横向布局基于列宽自适应。
+  // 列宽 / 行高必须 ≥ 卡片实宽 + 间距（agent 280 / tool 290 / run 310），
+  // 否则卡片会互相压住 —— 2026-09-16 用户反馈的「卡片堆叠」。
+  // 纵向同理：行距要 ≥ 上一行卡片的实际高度 + 余量，否则下一行会压上来。
+  // 卡片高度由内容决定（agent 展开后最高），这里统一按 estimateNodeHeight 的保守值留白。
+  const workerMaxCols = 4
+  const workerColWidth = 360
+  const workerRowHeight = 380
+  const workerGridTopY = 600
+  const toolGridTopGap = 260
+  const toolColWidth = 350
+  const toolRowHeight = 260
+  const toolMaxCols = 4
+  const summaryGap = 300
   const hasOutputEvidence = detail.outputMessages.length > 0
     || projectAgentRunArtifacts(detail).length > 0
     || projectAgentRunTaskResults(toolTrace).length > 0
@@ -413,7 +417,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
     id: runNodeId,
     type: 'runDebuggerNode',
     position: { x: centerX, y: 0 },
-    draggable: false,
+    draggable: true,
     selectable: true,
     data: {
       kind: 'run',
@@ -434,8 +438,8 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   nodes.push({
     id: orchestratorNodeId,
     type: 'runDebuggerNode',
-    position: { x: centerX, y: 170 },
-    draggable: false,
+    position: { x: centerX, y: 210 },
+    draggable: true,
     selectable: true,
     data: {
       kind: 'agent',
@@ -459,7 +463,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       },
     },
   })
-  agentNodePositions.set(currentAgentId, { x: centerX, y: 170 })
+  agentNodePositions.set(currentAgentId, { x: centerX, y: 210 })
   edges.push(buildDebuggerEdge(runNodeId, orchestratorNodeId, mapRunStatus(detail.agentRun.status)))
 
   if (workerAgentIds.length === 0) {
@@ -498,7 +502,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       id: agentNodeId,
       type: 'runDebuggerNode',
       position: { x: workerX, y: workerY },
-      draggable: false,
+      draggable: true,
       selectable: true,
       data: {
         kind: 'agent',
@@ -531,7 +535,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   const workerGridBottomY = workerAgentIds.length === 0
     ? workerGridTopY
     : workerGridTopY + (workerRows - 1) * workerRowHeight
-  const toolGridOriginY = workerGridBottomY + toolGridTopGap
+  const toolGridOriginY = workerGridBottomY + estimateNodeHeight('agent') + toolGridTopGap
 
   const toolLayout = buildAgentRunToolDebuggerGraph({
     detail,
@@ -551,8 +555,10 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   edges.push(...toolLayout.edges)
 
   const summaryPositionY = toolLayout.maxY === null
-    ? (workerAgentIds.length === 0 ? toolGridOriginY - toolGridTopGap : workerGridBottomY + summaryGap)
-    : Math.max(toolGridOriginY, toolLayout.maxY + summaryGap)
+    ? (workerAgentIds.length === 0
+        ? workerGridTopY
+        : workerGridBottomY + estimateNodeHeight('agent') + summaryGap)
+    : Math.max(toolGridOriginY, toolLayout.maxY + estimateNodeHeight('tool') + summaryGap)
   const outputStatus = getOutputNodeStatus(detail.agentRun, hasOutputEvidence || toolLayout.nodes.length > 0)
   nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: summaryPositionY }))
   edges.push(buildDebuggerEdge(orchestratorNodeId, summaryNodeId, outputStatus))
@@ -638,7 +644,7 @@ function buildAgentRunToolDebuggerGraph(args: {
       id: nodeId,
       type: 'runDebuggerNode',
       position: { x, y },
-      draggable: false,
+      draggable: true,
       selectable: true,
       data: {
         kind: 'tool',
@@ -668,6 +674,35 @@ function buildAgentRunToolDebuggerGraph(args: {
   return { nodes, edges, tailNodeIds, maxY }
 }
 
+/**
+ * 卡片高度估算。卡片实际高度由内容决定，这里给的是「保守上界」，
+ * 只用于自动布局留白 —— 宁可多留一点，也不要让下一行压上来（用户反馈的卡片堆叠）。
+ */
+function estimateNodeHeight(kind: AgentRunDebuggerNodeKind): number {
+  switch (kind) {
+    case 'agent':
+      return 320
+    case 'tool':
+      return 220
+    case 'task':
+      return 190
+    case 'message':
+      return 200
+    case 'run':
+      return 130
+    default:
+      return 170
+  }
+}
+
+/** 子图的最底边 y（含卡片自身高度），用于把下一行推到它下面。 */
+export function agentRunGraphExtent(graph: AgentRunDebuggerGraph): number {
+  return graph.nodes.reduce(
+    (bottom, node) => Math.max(bottom, node.position.y + estimateNodeHeight(node.data.kind)),
+    0,
+  )
+}
+
 export function buildAgentRunSessionDebuggerGraph({
   messages,
   runs,
@@ -688,9 +723,15 @@ export function buildAgentRunSessionDebuggerGraph({
   const expandedRunEdges = expandedRunGraph?.edges ?? []
   const nodes: AgentRunDebuggerNode[] = []
   const edges: Edge[] = []
-  const rowGap = 250
-  const centerX = 360
-  let row = 0
+  const rowGap = 340
+  // 同一行内多张 Run 卡片并排的列距（卡片宽 310 → 留 90 余量，避免卡片贴在一起）。
+  const runColGap = 400
+  // 190 会压住消息卡片（卡片本身约 200 高）—— 抬到 260，让连线也留出呼吸空间。
+  const runRowOffsetY = 260
+  const centerX = 640
+  // 行游标：每行放完后按「本行实际最低点 + rowGap」推进。
+  // 展开的当前 Run 子图很高，写死行高会让下一行直接压上来（用户反馈的卡片堆叠）。
+  let cursorY = 0
   let previousTerminalNodeId: string | null = null
 
   for (const message of orderedMessages) {
@@ -698,12 +739,13 @@ export function buildAgentRunSessionDebuggerGraph({
     if (linkedRuns.length === 0 && hasRunBackedGraph) continue
     if (message.role !== 'user' && linkedRuns.length === 0) continue
     const messageNodeId = `message-${message.id}`
-    const messageY = row * rowGap
+    const messageY = cursorY
+    let rowBottomY = messageY + estimateNodeHeight('message')
     nodes.push({
       id: messageNodeId,
       type: 'runDebuggerNode',
       position: { x: centerX, y: messageY },
-      draggable: false,
+      draggable: true,
       selectable: true,
       data: {
         kind: 'message',
@@ -726,11 +768,12 @@ export function buildAgentRunSessionDebuggerGraph({
 
     let groupTerminalNodeId = messageNodeId
     if (linkedRuns.length > 0) {
-      const runStartX = Math.round(centerX - ((linkedRuns.length - 1) * 330) / 2)
+      const runStartX = Math.round(centerX - ((linkedRuns.length - 1) * runColGap) / 2)
       linkedRuns.forEach((run, index) => {
         if (run.id === currentRunId && expandedRunGraph && expandedRunIdSet.has(run.id)) {
-          const offsetX = runStartX + index * 330 - centerX
-          const offsetY = messageY + 130
+          const offsetX = runStartX + index * runColGap - centerX
+          const offsetY = messageY + runRowOffsetY
+          rowBottomY = Math.max(rowBottomY, offsetY + agentRunGraphExtent(expandedRunGraph))
           for (const node of expandedRunGraph.nodes) {
             nodes.push({
               ...node,
@@ -747,11 +790,12 @@ export function buildAgentRunSessionDebuggerGraph({
         }
 
         const runNodeId = `run-${run.id}`
+        rowBottomY = Math.max(rowBottomY, messageY + runRowOffsetY + estimateNodeHeight('run'))
         nodes.push({
           id: runNodeId,
           type: 'runDebuggerNode',
-          position: { x: runStartX + index * 330, y: messageY + 130 },
-          draggable: false,
+          position: { x: runStartX + index * runColGap, y: messageY + runRowOffsetY },
+          draggable: true,
           selectable: true,
           data: {
             kind: 'run',
@@ -774,7 +818,7 @@ export function buildAgentRunSessionDebuggerGraph({
     }
 
     previousTerminalNodeId = groupTerminalNodeId
-    row += linkedRuns.some((run) => run.id === currentRunId && expandedRunIdSet.has(run.id)) && expandedRunGraph ? 4 : 1
+    cursorY = rowBottomY + rowGap
   }
 
   const orphanRuns = orderedTopLevelRuns.filter((run) => run.triggerMessageId === null || !messageById.has(run.triggerMessageId))
@@ -784,8 +828,8 @@ export function buildAgentRunSessionDebuggerGraph({
     nodes.push({
       id: runNodeId,
       type: 'runDebuggerNode',
-      position: { x: centerX, y: row * rowGap },
-      draggable: false,
+      position: { x: centerX, y: cursorY },
+      draggable: true,
       selectable: true,
       data: {
         kind: 'run',
@@ -804,7 +848,7 @@ export function buildAgentRunSessionDebuggerGraph({
     })
     if (previousTerminalNodeId) edges.push(buildDebuggerEdge(previousTerminalNodeId, runNodeId, mapRunStatus(run.status)))
     previousTerminalNodeId = runNodeId
-    row += 1
+    cursorY += estimateNodeHeight('run') + 120
   }
 
   return {
@@ -834,7 +878,7 @@ function buildSummaryNode(
     id,
     type: 'runDebuggerNode',
     position,
-    draggable: false,
+    draggable: true,
     selectable: true,
     data: {
       kind: 'summary',

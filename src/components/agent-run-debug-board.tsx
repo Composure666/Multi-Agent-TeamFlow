@@ -37,6 +37,9 @@ import {
   Handle,
   Position,
   ReactFlow,
+  useNodesState,
+  type Edge,
+  type NodeChange,
   type ReactFlowInstance,
   type NodeProps,
   type NodeTypes,
@@ -161,6 +164,13 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   const [timelineFilter, setTimelineFilter] = useState<AgentRunTimelineFilter>('all')
   const [focusMode, setFocusMode] = useState(false)
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<AgentRunDebuggerNode> | null>(null)
+  // 画布节点单独存一份 state：卡片可手动拖动，连线的端点跟着卡片位置走。
+  const [flowNodes, setFlowNodes, onFlowNodesChange] = useNodesState<AgentRunDebuggerNode>([])
+  const [flowEdges, setFlowEdges] = useState<Edge[]>([])
+  // 用户拖过的位置（按节点 id）。存 ref 而非 state：它只在重算图时被读一次，
+  // 不需要触发渲染，也避免和 useNodesState 打架。
+  const draggedPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  const canvasLayoutKeyRef = useRef<string>('')
 
   const selectedConversation = conversations.find((conversation) => conversation.id === conversationId) ?? null
   const conversationMessages = useMessagesForConversation(conversationId ?? '')
@@ -230,6 +240,45 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     () => focusAgentRunDebuggerGraph(activeGraph, timelineFilter),
     [activeGraph, timelineFilter],
   )
+  // 换范围 / 换 Run / 换筛选 = 换一套布局，此时丢弃旧的手动位置；其余刷新（SSE、详情重拉）
+  // 一律保留用户拖过的位置 —— 否则每来一条事件卡片就弹回原位。
+  const canvasLayoutKey = `${canvasGraphScope}:${selectedRunId ?? ''}:${timelineFilter}`
+  useEffect(() => {
+    const layoutChanged = canvasLayoutKeyRef.current !== canvasLayoutKey
+    canvasLayoutKeyRef.current = canvasLayoutKey
+    if (layoutChanged) draggedPositionsRef.current = new Map()
+    const dragged = draggedPositionsRef.current
+    setFlowNodes((previous) => {
+      const previousPositions = new Map(previous.map((node) => [node.id, node.position]))
+      return focusedGraph.nodes.map((node) => ({
+        ...node,
+        draggable: true,
+        position: dragged.get(node.id) ?? previousPositions.get(node.id) ?? node.position,
+      }))
+    })
+    setFlowEdges(focusedGraph.edges)
+  }, [canvasLayoutKey, focusedGraph, setFlowNodes])
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange<AgentRunDebuggerNode>[]) => {
+      onFlowNodesChange(changes)
+      for (const change of changes) {
+        if (change.type === 'position' && change.position) {
+          draggedPositionsRef.current.set(change.id, change.position)
+        }
+      }
+    },
+    [onFlowNodesChange],
+  )
+
+  /** 丢弃手动位置，回到自动布局并重新适配视野。 */
+  const resetCanvasLayout = useCallback(() => {
+    draggedPositionsRef.current = new Map()
+    setFlowNodes(focusedGraph.nodes.map((node) => ({ ...node, draggable: true })))
+    requestAnimationFrame(() => {
+      flowInstance?.fitView({ padding: 0.2, minZoom: 0.42, maxZoom: 1.1 })
+    })
+  }, [focusedGraph, flowInstance, setFlowNodes])
   const workerAgentCount = useMemo(
     () => activeGraph.nodes.filter((node) => node.data.kind === 'agent' && node.data.agent?.role === 'worker').length,
     [activeGraph.nodes],
@@ -917,6 +966,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                   onViewChange={selectCanvasView}
                   filter={timelineFilter}
                   onFilterChange={setTimelineFilter}
+                  onResetLayout={resetCanvasLayout}
                 />
               )}
               {(loadingRuns || loadingDetail) && !canRenderCanvas ? (
@@ -928,9 +978,11 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                 <div className="min-h-0 flex-1">
                   {canvasView === 'graph' ? (
                     <ReactFlow
-                      nodes={focusedGraph.nodes}
-                      edges={focusedGraph.edges}
+                      nodes={flowNodes}
+                      edges={flowEdges}
                       nodeTypes={nodeTypes}
+                      onNodesChange={handleNodesChange}
+                      nodesConnectable={false}
                       fitView
                       fitViewOptions={{ padding: 0.2, minZoom: 0.42, maxZoom: 1.1 }}
                       onInit={(instance) => {
@@ -1032,6 +1084,7 @@ function CanvasToolbar({
   onViewChange,
   filter,
   onFilterChange,
+  onResetLayout,
 }: {
   graphScope: CanvasGraphScope
   onGraphScopeChange: (scope: CanvasGraphScope) => void
@@ -1041,6 +1094,7 @@ function CanvasToolbar({
   onViewChange: (view: AgentRunDebuggerCanvasView) => void
   filter: AgentRunTimelineFilter
   onFilterChange: (filter: AgentRunTimelineFilter) => void
+  onResetLayout: () => void
 }) {
   const views: Array<{ id: AgentRunDebuggerCanvasView; label: string }> = [
     { id: 'graph', label: '任务图' },
@@ -1100,6 +1154,20 @@ function CanvasToolbar({
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        {view === 'graph' && (
+          <>
+            <span className="mr-1 hidden text-[11px] text-slate-400 lg:inline">拖动卡片可调整位置</span>
+            <button
+              type="button"
+              onClick={onResetLayout}
+              title="重置布局"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+            >
+              <Maximize2 className="size-3.5" />
+              重置布局
+            </button>
+          </>
+        )}
         {TIMELINE_FILTER_OPTIONS.map((option) => (
           <button
             key={option.id}

@@ -582,13 +582,14 @@ describe('agent run debug board projection', () => {
     const workerNodes = graph.nodes.filter((node) => node.data.kind === 'agent' && node.data.agent?.role === 'worker')
     const summaryNode = graph.nodes.find((node) => node.id === 'summary-output')
 
-    expect(runNode?.position.x).toBe(360)
+    // 中轴 / 行列间距是「卡片不压盖」的契约（卡片宽 280~290，行距按保守高度留白）
+    expect(runNode?.position.x).toBe(640)
     expect(runNode?.position.y).toBe(0)
-    expect(orchestratorNode?.position.x).toBe(360)
-    expect(orchestratorNode?.position.y).toBe(170)
-    expect(workerNodes.map((node) => node.position.x)).toEqual([220, 500])
-    expect(workerNodes.map((node) => node.position.y)).toEqual([360, 360])
-    expect(summaryNode?.position).toEqual({ x: 360, y: 780 })
+    expect(orchestratorNode?.position.x).toBe(640)
+    expect(orchestratorNode?.position.y).toBe(210)
+    expect(workerNodes.map((node) => node.position.x)).toEqual([460, 820])
+    expect(workerNodes.map((node) => node.position.y)).toEqual([600, 600])
+    expect(summaryNode?.position).toEqual({ x: 640, y: 1700 })
   })
 
   it('uses a clean task title for the run summary instead of leading agent mentions', () => {
@@ -639,7 +640,7 @@ describe('agent run debug board projection', () => {
       ],
     }))
 
-    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 360, y: 360 })
+    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 640, y: 600 })
   })
 
   it('dims non-matching graph nodes for agent, tool, and error filters without removing context', () => {
@@ -864,7 +865,7 @@ describe('agent run debug board projection', () => {
       'agent-agent_1',
       'summary-output',
     ])
-    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 360, y: 360 })
+    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 640, y: 600 })
     expect(graph.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'agent-agent_1', target: 'summary-output' }),
     ]))
@@ -1142,5 +1143,107 @@ describe('mergeLiveRuns', () => {
     expect(merged[0]!.error).toBe('cached-error')
     expect(merged[0]!.usage).toEqual({ x: 1 })
     expect(merged[0]!.finishedAt).toBe(100)
+  })
+})
+// ─── 画布布局：卡片可拖动 + 不堆叠（2026-09-16 用户反馈）───────────────
+/** 与 DebuggerNode 里的实际卡片尺寸一致。 */
+const CARD_WIDTH: Record<string, number> = { message: 310, run: 310, agent: 280, task: 270, tool: 290, summary: 270 }
+/** 保守上界高度：展开态最高，按它留白才不会压盖。 */
+const CARD_HEIGHT: Record<string, number> = { message: 200, run: 130, agent: 320, task: 190, tool: 220, summary: 170 }
+
+function cardOf(node: { id: string; position: { x: number; y: number }; data: { kind: string } }) {
+  return {
+    id: node.id,
+    kind: node.data.kind,
+    x: node.position.x,
+    y: node.position.y,
+    width: CARD_WIDTH[node.data.kind] ?? 300,
+    height: CARD_HEIGHT[node.data.kind] ?? 200,
+  }
+}
+
+function overlaps(a: ReturnType<typeof cardOf>, b: ReturnType<typeof cardOf>): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+}
+
+describe('agent run board canvas layout', () => {
+  it('阶段条卡片可拖动，且横向留出间距', () => {
+    const graph = buildAgentRunBoardGraph(projectAgentRunBoardStages(buildDetail()))
+
+    expect(graph.nodes.every((node) => node.draggable === true)).toBe(true)
+    const xs = graph.nodes.map((node) => node.position.x)
+    for (let index = 1; index < xs.length; index += 1) {
+      expect(xs[index]! - xs[index - 1]!).toBeGreaterThanOrEqual(200)
+    }
+  })
+
+  it('运行子图卡片全部可拖动，且任意两张卡片互不压盖', () => {
+    const graph = buildAgentRunDebuggerGraph(buildDetail())
+
+    expect(graph.nodes.length).toBeGreaterThan(4)
+    expect(graph.nodes.every((node) => node.draggable === true)).toBe(true)
+
+    const cards = graph.nodes.map(cardOf)
+    for (let i = 0; i < cards.length; i += 1) {
+      for (let j = i + 1; j < cards.length; j += 1) {
+        expect(overlaps(cards[i]!, cards[j]!), `${cards[i]!.id} 与 ${cards[j]!.id} 压盖`).toBe(false)
+      }
+    }
+  })
+
+  it('worker 网格与工具网格的列距大于卡片宽度', () => {
+    const graph = buildAgentRunDebuggerGraph(buildDetail())
+    const workers = graph.nodes.filter((node) => node.data.kind === 'agent' && node.data.agent?.role === 'worker')
+    const tools = graph.nodes.filter((node) => node.data.kind === 'tool')
+
+    expect(workers.length).toBeGreaterThanOrEqual(2)
+    expect(tools.length).toBeGreaterThanOrEqual(2)
+
+    for (let i = 1; i < workers.length; i += 1) {
+      expect(workers[i]!.position.x - workers[i - 1]!.position.x).toBeGreaterThanOrEqual(CARD_WIDTH.agent!)
+    }
+    for (let i = 1; i < tools.length; i += 1) {
+      expect(tools[i]!.position.x - tools[i - 1]!.position.x).toBeGreaterThanOrEqual(CARD_WIDTH.tool!)
+    }
+    // 工具行必须在 worker 行的卡片底边之下
+    const workersBottom = Math.max(...workers.map((node) => node.position.y + CARD_HEIGHT.agent!))
+    expect(Math.min(...tools.map((node) => node.position.y))).toBeGreaterThan(workersBottom)
+  })
+
+  it('会话图把展开的 Run 子图整段让开后才排下一条消息', () => {
+    const detail = buildDetail()
+    const messages: MessageRecord[] = [
+      { ...buildMessage('msg_trigger', [{ type: 'text', content: '执行任务' }]), role: 'user', createdAt: 1 },
+      { ...buildMessage('msg_followup', [{ type: 'text', content: '再来一次' }]), role: 'user', createdAt: 2 },
+    ]
+    // 第二条消息也要挂一个 Run —— 没有关联 Run 的消息会被会话图跳过（既定行为）
+    const runs = [
+      buildRun({ id: 'run_1', triggerMessageId: 'msg_trigger' }),
+      buildRun({ id: 'run_2', triggerMessageId: 'msg_followup', startedAt: 2, status: 'complete' }),
+    ]
+
+    const graph = buildAgentRunSessionDebuggerGraph({
+      messages,
+      runs,
+      currentDetail: detail,
+      expandedRunIds: ['run_1'],
+    })
+
+    const trigger = graph.nodes.find((node) => node.id === 'message-msg_trigger')
+    const followup = graph.nodes.find((node) => node.id === 'message-msg_followup')
+    expect(trigger).toBeDefined()
+    expect(followup).toBeDefined()
+
+    expect(graph.nodes.every((node) => node.draggable === true)).toBe(true)
+
+    // 展开子图（含 worker / tool / summary）整段的底边必须在下一行消息之上。
+    // 只算展开的那一段：排除两张消息卡片，以及第二行自己的 Run 卡片。
+    const expandedBottom = Math.max(
+      ...graph.nodes
+        .filter((node) => node.data.kind !== 'message' && node.id !== 'run-run_2')
+        .map((node) => node.position.y + (CARD_HEIGHT[node.data.kind] ?? 200)),
+    )
+    expect(followup!.position.y).toBeGreaterThan(expandedBottom)
+    expect(followup!.position.y - trigger!.position.y).toBeGreaterThanOrEqual(400)
   })
 })
