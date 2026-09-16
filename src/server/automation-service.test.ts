@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamEvent } from '@/shared/types'
@@ -66,6 +67,47 @@ describe('automation service bindings and notifications', () => {
     })
     expect(conversation?.title).toBe('每日摘要自动化测试')
     expect(conversation?.agentIds).toEqual([automation.agentId])
+  })
+
+  it('auto-unarchives a bound conversation so run output stays visible', async () => {
+    const automation = await service.createAutomation({
+      title: '归档会话自动化测试',
+      prompt: '往已归档会话写结果',
+      scheduleType: 'manual',
+    })
+
+    // 复刻线上报障：目标会话被归档（且标题与自动化标题不同）
+    await dbClient.db
+      .update(dbClient.schema.conversations)
+      .set({ title: '演示群聊', archived: true })
+      .where(eq(dbClient.schema.conversations.id, automation.conversationId!))
+
+    sendMessageMock.mockResolvedValueOnce({ messageId: 'msg_test', runIds: ['run_agent_unarchive'] })
+    await dbClient.db.insert(dbClient.schema.agentRuns).values({
+      id: 'run_agent_unarchive',
+      conversationId: automation.conversationId!,
+      agentId: automation.agentId!,
+      triggerMessageId: null,
+      status: 'queued',
+      error: null,
+      parentRunId: null,
+      usage: null,
+      startedAt: Date.now(),
+      finishedAt: null,
+    })
+
+    await service.runAutomation(automation.id, { trigger: 'manual' })
+
+    const conversation = await dbClient.db.query.conversations.findFirst({
+      where: (table, { eq: eqOp }) => eqOp(table.id, automation.conversationId!),
+    })
+    expect(conversation?.archived).toBe(false)
+
+    // 通知文案必须用真实会话标题，否则用户按自动化标题去找会找不到
+    const notification = events.find((event) => event.type === 'notification.created')
+    if (notification?.type !== 'notification.created') throw new Error('notification event missing')
+    expect(notification.notification.body).toContain('演示群聊')
+    expect(notification.notification.body).not.toContain('归档会话自动化测试」')
   })
 
   it('publishes a success notification after a manual automation run', async () => {

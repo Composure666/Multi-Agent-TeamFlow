@@ -494,6 +494,18 @@ async function ensureAutomationBinding(automation: AutomationRow): Promise<Bound
   if (conversationId) {
     const conversation = await db.query.conversations.findFirst({ where: eq(schema.conversations.id, conversationId) })
     if (!conversation) throw new AutomationServiceError(`Automation conversation not found: ${conversationId}`, 400)
+    // 目标会话被归档的话，自动化产出会写进一个「对话页完全看不到」的会话
+    // （线上 2026-09-16 报障：跑完在对话历史里找不到记录）。归档只是把会话收进抽屉，
+    // 不该让自动化继续往里写结果，所以这里直接把它恢复为可见。
+    if (conversation.archived) {
+      await db
+        .update(schema.conversations)
+        .set({ archived: false })
+        .where(eq(schema.conversations.id, conversationId))
+      console.warn(
+        `[automation] target conversation ${conversationId} was archived; auto-unarchived so run output stays visible (automation ${automation.id})`,
+      )
+    }
     if (!conversation.agentIds.includes(agentId)) {
       await addAgentsToConversation({ conversationId, agentIds: [agentId] })
     }
@@ -529,6 +541,14 @@ async function getDefaultAutomationAgentId(): Promise<string> {
   throw new AutomationServiceError('Automation needs at least one agent before it can be bound', 400)
 }
 
+async function resolveConversationTitle(conversationId: string): Promise<string> {
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(schema.conversations.id, conversationId),
+    columns: { title: true },
+  })
+  return conversation?.title ?? conversationId
+}
+
 async function publishAutomationRunNotification(args: {
   automation: BoundAutomationRow
   run: AutomationRunDetailItem
@@ -537,11 +557,14 @@ async function publishAutomationRunNotification(args: {
 }): Promise<void> {
   const failed = args.run.status === 'failed'
   const urgent = failed && args.trigger === 'schedule'
+  // 通知里要写「真实会话标题」而不是自动化标题：绑定到已有会话时两者常常不同，
+  // 按自动化标题去找会让用户找不到产出（线上 2026-09-16 同一报障）。
+  const conversationTitle = await resolveConversationTitle(args.automation.conversationId)
   await publishNotification({
     title: failed ? '自动化任务执行失败' : '自动化任务执行完成',
     body: failed
-      ? `${args.automation.title}：${args.run.error ?? '执行失败'}。结果位置：${args.automation.title} 会话。`
-      : `${args.automation.title} 已完成，结果已生成在「${args.automation.title}」对话会话中。`,
+      ? `${args.automation.title}：${args.run.error ?? '执行失败'}。结果位置：「${conversationTitle}」会话。`
+      : `${args.automation.title} 已完成，结果已生成在「${conversationTitle}」对话会话中。`,
     level: failed ? 'error' : 'success',
     source: 'automation',
     category: failed ? 'error' : 'task',

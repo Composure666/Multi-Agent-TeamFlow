@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  ArchiveRestore,
   BarChart3,
   Bell,
   CheckCircle2,
@@ -170,7 +171,14 @@ export function AppWorkbench() {
             'capability-center': () => <CapabilityCenterWorkspace />,
             artifacts: () => <ArtifactWorkspace onOpenConversations={() => setView('conversations')} />,
             experiences: () => <ExperienceLibrary agents={agents.map((a) => ({ id: a.id, name: a.name }))} />,
-            automation: () => <AutomationWorkspace />,
+            automation: () => (
+              <AutomationWorkspace
+                onOpenConversation={(conversationId) => {
+                  setActiveConversation(conversationId)
+                  setView('conversations')
+                }}
+              />
+            ),
             'information-center': () => <InformationCenterWorkspace />,
             'run-board': () => <AgentRunDebugBoard onFocusChange={setAnalyticsFocusMode} />,
             analytics: () => <AnalyticsWorkspace />,
@@ -1515,7 +1523,11 @@ function RobotMascot() {
 }
 
 function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalone' | 'embedded' }) {
-  const conversations = useConversationList().filter((c) => !c.archived)
+  const allConversations = useConversationList()
+  // 归档会话默认不显示，但必须留一个入口 —— 否则「归档」就是一次性删除
+  // （线上 2026-09-16 报障：自动化产出写进了已归档会话，对话页里找不到）。
+  const conversations = allConversations.filter((c) => !c.archived)
+  const archivedConversations = allConversations.filter((c) => c.archived)
   const activeId = useAppStore((s) => s.activeConversationId)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
   const agents = useAppStore((s) => s.agents)
@@ -1527,6 +1539,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   const handleTogglePin = async (convId: string) => {
     try {
@@ -1572,9 +1585,9 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
     }
   }
 
-  const deleteTarget = deleteTargetId ? conversations.find((c) => c.id === deleteTargetId) : null
+  const deleteTarget = deleteTargetId ? allConversations.find((c) => c.id === deleteTargetId) : null
   const contextConversation = contextMenu
-    ? conversations.find((c) => c.id === contextMenu.convId) ?? null
+    ? allConversations.find((c) => c.id === contextMenu.convId) ?? null
     : null
 
   const filtered = conversations.filter((conversation) => conversation.title.toLowerCase().includes(query.trim().toLowerCase()))
@@ -1650,6 +1663,50 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
             )
           })}
           {filtered.length === 0 && <div className="px-3 py-8 text-center text-xs text-slate-500">暂无匹配会话</div>}
+
+          {archivedConversations.length > 0 && (
+            <div className="mt-2 border-t border-slate-100 pt-2 dark:border-white/5">
+              <button
+                type="button"
+                onClick={() => setShowArchived((v) => !v)}
+                aria-expanded={showArchived}
+                className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"
+              >
+                <Archive className="size-3.5 shrink-0 opacity-70" />
+                已归档
+                <span className="ml-auto tabular-nums text-slate-400">{archivedConversations.length}</span>
+                <ChevronDown className={cn('size-3 shrink-0 transition-transform', !showArchived && '-rotate-90')} />
+              </button>
+              {showArchived &&
+                archivedConversations.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => setActiveConversation(conversation.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault()
+                      setContextMenu({ convId: conversation.id, x: event.clientX, y: event.clientY })
+                    }}
+                    title="已归档 · 右键可取消归档或删除"
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-lg px-2 text-left opacity-70 transition hover:bg-slate-50 hover:opacity-100 dark:hover:bg-white/5',
+                      'h-11',
+                      activeId === conversation.id && 'bg-[var(--agenthub-accent-soft)] opacity-100',
+                    )}
+                  >
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-white/5">
+                      <Archive className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12.5px] font-medium leading-5 text-slate-600 dark:text-slate-300">{conversation.title}</span>
+                      <span className="mt-0.5 block truncate text-[10px] leading-4 text-slate-400">
+                        已归档 · {formatConversationTime(conversation.updatedAt)}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
       </ScrollArea>
 
@@ -1676,8 +1733,10 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
             },
             {
               key: 'archive',
-              label: '归档',
-              icon: <Archive className="size-3.5 shrink-0 opacity-70" />,
+              label: contextConversation.archived ? '取消归档' : '归档',
+              icon: contextConversation.archived
+                ? <ArchiveRestore className="size-3.5 shrink-0 opacity-70" />
+                : <Archive className="size-3.5 shrink-0 opacity-70" />,
               onSelect: () => void handleToggleArchive(contextConversation.id),
             },
             {

@@ -10,6 +10,7 @@ import {
   CircleAlert,
   Clock4,
   Copy,
+  ExternalLink,
   History,
   Info,
   Keyboard,
@@ -903,6 +904,7 @@ function DetailPanel({
   onDelete,
   onCopy,
   onToggleFavorite,
+  onOpenConversation,
   favorite,
   runHistory,
   runHistoryLoading,
@@ -918,6 +920,7 @@ function DetailPanel({
   onDelete: () => void
   onCopy: () => void
   onToggleFavorite: () => void
+  onOpenConversation?: (conversationId: string) => void
   favorite: boolean
   runHistory: AutomationRunDetailItem[]
   runHistoryLoading: boolean
@@ -1056,6 +1059,15 @@ function DetailPanel({
             {/* 操作按钮组 (4 按钮 + 复制 + ⋯) */}
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex flex-wrap items-center gap-2">
+                {task.conversationId && onOpenConversation && (
+                  <Button
+                    variant="outline"
+                    onClick={() => onOpenConversation(task.conversationId as string)}
+                    className="h-9 rounded-full border-slate-200 px-4 text-[12.5px] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
+                  >
+                    <ExternalLink className="mr-1.5 size-3.5" />查看结果会话
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={onEdit}
@@ -1207,6 +1219,17 @@ function DetailPanel({
                           </div>
                         )}
                       </div>
+                      {run.conversationId && onOpenConversation && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenConversation(run.conversationId as string)}
+                          title="打开这次运行的产出会话"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/40 hover:text-[var(--agenthub-accent)] dark:border-white/10 dark:text-slate-300"
+                        >
+                          <ExternalLink className="size-3" />
+                          查看会话
+                        </button>
+                      )}
                       <div className="shrink-0 text-right text-[11.5px] tabular-nums text-slate-500 dark:text-slate-400">
                         {formatRelativeRunTime(run.startedAt, nowMs)}
                         <span aria-hidden> · </span>
@@ -1722,7 +1745,12 @@ function TaskFormDialog({
 
 type LoadDashboardOptions = { silent?: boolean }
 
-export function AutomationWorkspace() {
+export function AutomationWorkspace({
+  onOpenConversation,
+}: {
+  /** 跳到「这次运行的产出会话」。会话由 app-workbench 切换视图。 */
+  onOpenConversation?: (conversationId: string) => void
+} = {}) {
   const [dashboard, setDashboard] = useState<AutomationDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -2474,6 +2502,7 @@ export function AutomationWorkspace() {
           onDelete={() => void runAutomationAction('delete')}
           onCopy={() => void copyTaskPrompt(selectedTask)}
           onToggleFavorite={() => toggleFavorite(selectedTask.id)}
+          onOpenConversation={onOpenConversation}
           favorite={favorites.has(selectedTask.id)}
           runHistory={runHistory}
           runHistoryLoading={runHistoryLoading}
