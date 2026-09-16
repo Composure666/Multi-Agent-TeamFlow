@@ -8,7 +8,7 @@ import {
   type AgentToolPresetId,
 } from '@/shared/agent-builder-config'
 import { resolveModelForCapability } from '@/server/model-assignment-service'
-import { normalizeModality, providerIdToModelProvider, type AgentModality } from '@/lib/llm-shared'
+import { normalizeModality, providerIdToModelProvider, shouldUseImageGenAdapter, type AgentModality } from '@/lib/llm-shared'
 
 import { AgentConfigDraftSchema } from './agent-draft-schema'
 
@@ -29,9 +29,14 @@ export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<
     ]
   }
 
-  // 生图模态必须走 ImageGenAdapter：它是唯一会调生图端点、落地图片产物的适配器。
-  // 用 custom adapter 拿生图模型去打 chat/completions 只会报模型不存在。
-  if (modality === 'image') {
+  // 适配器由**模型**决定，不是由模态决定：只有模型本身是生图模型时才走 ImageGenAdapter。
+  // 判据与 registry 运行时纠偏、bootstrap 存量修复、agent-service 创建/编辑共用
+  // `shouldUseImageGenAdapter`，四处口径必须一致。
+  //
+  // 反之，若「生图」模态在「设置-模型分配」里被指到一个 chat 模型，草稿会保留 custom 适配器
+  // 与工具集 —— 那其实是更有能力的配置（成员用工具循环自己产 SVG 图 / 调生图服务），不该被
+  // 强行降成「调一个端点出一张栅格图」。
+  if (shouldUseImageGenAdapter(draft.modelId)) {
     draft.adapterName = 'image-gen'
     draft.supportsVision = false
     // 生图适配器不消费工具集（它只调图像端点），清空避免在配置页里显示一堆用不上的权限
@@ -40,7 +45,7 @@ export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<
       ...draft.assumptions.filter((a) => a.label !== '视觉'),
       {
         label: '适配器',
-        detail: '生图模态自动使用生图适配器，调用图像生成端点并把图片落成产物（不走对话工具链）。',
+        detail: '模型是生图模型，自动使用生图适配器，调用图像生成端点并把图片落成产物（不走对话工具链）。',
       },
     ]
   }

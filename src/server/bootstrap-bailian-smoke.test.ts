@@ -84,14 +84,10 @@ describe('真机库 bootstrap 冒烟', () => {
       expect(a.modelProvider).toBe('deepseek')
       expect(a.modelId).toBe('deepseek-v4-flash')
 
-      if (a.modality === 'image') {
-        // 唯一例外：生图模态必须走 image-gen 适配器。挂 chat 适配器时降级链会被解析成
-        // 生图模型，chat 请求被网关按模型路由拒掉（input.messages 校验失败），
-        // 且该错误不触发降级 → 每次 run 都在 0.3s 内猝死。
-        expect(a.adapterName).toBe('image-gen')
-      } else {
-        expect(a.adapterName).toBe('custom')
-      }
+      // 适配器由**模型**决定，与模态无关：deepseek-v4-flash 是 chat 模型 ⇒ 一律 custom。
+      // （2026-09-16 那版「modality==='image' ⇒ image-gen」的旧不变式已废弃 —— 它会把
+      // 视觉生产成员的工具集一并清空，把它们从「用工具自产图」降成「只会调一个出图端点」。）
+      expect(a.adapterName).toBe('custom')
     }
   })
 

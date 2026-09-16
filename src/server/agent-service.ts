@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
-import { BUILTIN_PROVIDER_IDS, normalizeModality } from '@/lib/llm-shared'
+import { BUILTIN_PROVIDER_IDS, normalizeModality, shouldUseImageGenAdapter } from '@/lib/llm-shared'
 import { newAgentId } from '@/server/ids'
 import { resolveProviderCredentialsForAgent } from '@/server/provider-service'
 import {
@@ -46,14 +46,30 @@ export async function createCustomAgent(args: CreateAgentArgs) {
   const id = newAgentId()
   const createdAt = Date.now()
   const modality = normalizeModality(args.modality)
-  // 生图模态必须走 ImageGenAdapter —— 只有它会调生图端点并落地图片产物。
+  // 适配器由**自有模型**决定，不由 modality 决定 —— 决定请求协议的是模型，不是成员分类。
   //
-  // 「生图模态 + custom（chat）适配器」是一个**必然失败**的组合：modality 是 image 时，
-  // AgentRunner 会按 `agent:image` 解析降级链，链上配的是一串**生图模型**；而 chat 适配器
-  // 发的是 chat completions（system + user messages），网关按模型名把它路由到生图处理器后
+  // 「生图模型 + custom（chat）适配器」是一个**必然失败**的组合：modality 是 image 时
+  // AgentRunner 会按 `agent:image` 解析降级链，链上是**生图模型**；chat 适配器发的却是
+  // chat completions（system + user messages），网关按模型名把它路由到生图处理器后
   // 直接 400 `Input should be 'user': input.messages.0.role`。400 属业务错、不触发降级，
   // 于是整个 run 在 0.3s 内猝死，且每次重试报错逐字相同。
-  const adapterName: AdapterName = modality === 'image' ? 'image-gen' : (args.adapterName ?? 'custom')
+  //
+  // 反过来「chat 模型 + image-gen 适配器」同样必然失败（chat 模型打到原生
+  // multimodal-generation 端点得 HTTP 400「url error」），所以这里明确拒绝而不是静默改写。
+  //
+  // ⚠️ 不要退回「modality === 'image' ⇒ image-gen」：那会把「chat 模型 + 工具循环」的视觉生产
+  // 成员（生图师 / 视觉设计师 / 图表设计师 / 主图设计师）连工具一起改掉 —— 它们原本靠
+  // bash / fs_write / write_artifact 自己产 SVG 图或调外部生图服务（详见 docs/model-assignment.md
+  // 与 2026-09-16 的事故记录）。
+  const requestedAdapter: AdapterName = args.adapterName ?? 'custom'
+  if (requestedAdapter === 'image-gen' && !shouldUseImageGenAdapter(args.modelId)) {
+    throw new Error(
+      `生图适配器需要生图模型，但当前模型是 "${args.modelId || '(空)'}"。` +
+        '修法二选一：① 改用 custom 适配器（chat 模型 + 工具循环，成员可以自己产 SVG 图或调用生图服务）；' +
+        '② 把模型换成生图模型（如 z-image-turbo / qwen-image-3.0-pro / flux-1-dev）。',
+    )
+  }
+  const adapterName: AdapterName = shouldUseImageGenAdapter(args.modelId) ? 'image-gen' : requestedAdapter
 
   // 「设置-模型分配」里只存 (供应商, 模型名)，凭证在供应商中心。这里把凭证补进 Agent，
   // 否则「按模态自动匹配模型」创建出来的 Agent 会带着空 key 去跑，直到第一次对话才报缺 Key。
@@ -169,12 +185,33 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   // 内建 agent 允许修改配置（API key / system prompt / model 等），但删除仍受保护
 
   const updates: Record<string, unknown> = {}
-  // 与创建路径同一条不变式：生图模态强制 image-gen（理由见 createCustomAgent）。
-  const nextModality = normalizeModality(patch.modality ?? agent.modality)
-  const nextAdapterName: AdapterName =
-    nextModality === 'image' ? 'image-gen' : (patch.adapterName ?? agent.adapterName)
+  // 与创建路径同一条不变式：适配器由**自有模型**决定，不由 modality 决定（理由见 createCustomAgent）。
+  //
+  // 三种情况：
+  //  - 模型是生图模型            → image-gen（无论此前/此处填的是什么适配器）
+  //  - 模型不是生图模型 + 显式请求 image-gen → 报错（这是必然失败的组合，不静默改写用户的选择）
+  //  - 其余                      → 沿用请求值；若原值是 image-gen（换模型换走了）则回落到 custom
+  //
+  // modality 字段本身**不参与**这个判断，也不跟着适配器一起改：它只是成员分类标签
+  // （bootstrap 的双向修复同样只动 adapter_name / tool_names）。改了适配器不等于要改标签。
   const nextModelProvider = patch.modelProvider ?? agent.modelProvider
   const nextModelId = patch.modelId ?? agent.modelId
+  const requestedAdapter: AdapterName = patch.adapterName ?? agent.adapterName
+  let nextAdapterName: AdapterName
+  if (shouldUseImageGenAdapter(nextModelId)) {
+    nextAdapterName = 'image-gen'
+  } else if (requestedAdapter === 'image-gen') {
+    if (patch.adapterName === 'image-gen') {
+      throw new Error(
+        `生图适配器需要生图模型，但当前模型是 "${nextModelId || '(空)'}"。` +
+          '修法二选一：① 改用 custom 适配器（chat 模型 + 工具循环）；' +
+          '② 把模型换成生图模型（如 z-image-turbo / qwen-image-3.0-pro / flux-1-dev）。',
+      )
+    }
+    nextAdapterName = 'custom'
+  } else {
+    nextAdapterName = requestedAdapter
+  }
   let nextApiBaseUrl =
     patch.apiBaseUrl !== undefined ? patch.apiBaseUrl?.trim() || null : agent.apiBaseUrl
   let nextApiKey = patch.apiKey !== undefined ? patch.apiKey?.trim() || null : agent.apiKey

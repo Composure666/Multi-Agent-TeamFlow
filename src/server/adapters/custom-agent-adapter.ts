@@ -493,16 +493,20 @@ function readErrorMessage(err: unknown): string {
  * 于是报出 `Input should be 'user': input.messages.0.role` /
  * `Input should be a valid list: input.messages.0.content` 这种与 chat 语义完全对不上的错。
  * 原始文本保留（便于排查），但补上根因与修法，避免下次再花几小时定位。
+ *
+ * 现在这条路径**本不该再被触发**：适配器跟着模型走（`shouldUseImageGenAdapter`），
+ * «生图模型 + chat 适配器» 已在 registry 运行时纠偏。若还看到它，说明有链路绕过了纠偏。
  */
 export function explainChatEndpointError(err: unknown): unknown {
   const text = readErrorMessage(err)
   if (!/input\.messages/.test(text)) return err
   return new Error(
     '模型拒绝了这个请求：网关把 chat 请求路由到了「生图 / 多模态」模型上。\n' +
-      '根因：该 Agent 的模态是生图，降级链（agent:image）里配的是生图模型，' +
-      '而本次调用走的是 chat 协议 —— 两者不兼容。\n' +
-      '怎么修：把该 Agent 的「模态」保存一次（服务端会强制切到 image-gen 适配器），' +
-      '或把「设置 - 模型分配」里 agent:image 的模型改成 chat 模型。\n' +
+      '根因：该 Agent 用的模型是生图模型（降级链 agent:image 里配的也是生图模型），' +
+      '而本次调用走的是 chat 协议 —— 两者不兼容。模态标成什么不影响这个判断：' +
+      '决定走哪套协议的是**模型**，不是模态。\n' +
+      '怎么修：把该 Agent 的模型换成 chat 模型（如 deepseek-v4-flash / qwen3.8-flash），' +
+      '或者把模型换成生图模型后由服务端自动切到 image-gen 适配器 —— 两者不能混搭。\n' +
       `原始报错：${text.slice(0, 300)}`,
   )
 }

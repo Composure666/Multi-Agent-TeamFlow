@@ -142,6 +142,24 @@ export function isImageGenerationModel(modelId: string | null | undefined): bool
   return IMAGE_MODEL_PATTERN.test(id)
 }
 
+/**
+ * 该 Agent 是否应该走 image-gen 适配器。
+ *
+ * 判据是「自有模型是不是生图模型」，**与 modality 无关** —— 决定请求协议的是模型，
+ * 不是成员分类。registry 的运行时纠偏、bootstrap 的存量修复、agent-service 的创建/编辑
+ * 不变式、llm-failover 的候选链过滤，四处共用这一个函数，避免口径漂移。
+ *
+ * 2026-09-16 的事故：曾用「modality === 'image' ⇒ 强制 image-gen 适配器 + 清空工具集」
+ * 作为不变式，结果把一批「chat 模型 + 工具循环」的视觉生产成员（生图师 / 视觉设计师 /
+ * 图表设计师 / 主图设计师）改成了只能出栅格图的成员 —— 它们原本靠 bash / fs_write /
+ * write_artifact 自己产 SVG 图、自己写脚本调外部生图服务，能力被砍窄而不是增强。
+ *
+ * 判据刻意保守：`isImageGenerationModel` 认不出模型名时返回 false，此时调用方应
+ * **保持用户显式选择的适配器**，不做任何改写（认不出 ≠ 是 chat 模型）。
+ */
+export function shouldUseImageGenAdapter(modelId: string | null | undefined): boolean {
+  return isImageGenerationModel(modelId)
+}
 
 /**
  * 联网搜索（web_search 工具）使用的检索模型。

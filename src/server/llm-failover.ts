@@ -26,6 +26,7 @@ import {
   isImageGenerationModel,
   normalizeModality,
   providerIdToModelProvider,
+  shouldUseImageGenAdapter,
 } from '@/lib/llm-shared'
 import { resolveProviderRowForAgent } from '@/server/provider-service'
 import type { ModelProvider } from '@/shared/types'
@@ -125,8 +126,10 @@ function candidateKey(c: FailoverCandidate): string {
  *
  * 顺序语义：
  *   1. `agents.model_provider` + `model_id` 永远是第一顺位 —— 用户显式配过的东西不被隐性改写；
- *   2. 之后接该 Agent 模态在「设置-模型分配」里配的优先级链（去掉与第 1 项重复的）；
- *   3. 最后保证链尾存在项目基线 `deepseek + deepseek-v4-flash`，作为跨供应商的最终兜底。
+ *   2. 之后接该 Agent 模态在「设置-模型分配」里配的优先级链（去掉与第 1 项重复的、
+ *      以及与自有模型协议不一致的）；
+ *   3. chat 协议下最后保证链尾存在项目基线 `deepseek + deepseek-v4-flash`，作为跨供应商的
+ *      最终兜底（生图协议下不补 —— 基线是 chat 模型，对生图只有反作用）。
  *
  * 返回空数组表示「没有可用的候选」，调用方保持旧行为（直接用 agent 字段跑，报错照抛）。
  */
@@ -137,30 +140,20 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   const capabilityKey = capabilityKeyForModality(agent.modality)
   const capabilityChain = await resolveFailoverChain(capabilityKey)
 
-  // 生图模态的链首必须是生图模型。
+  // 候选链必须与「自有模型代表的那套协议」对齐：生图模型与 chat 模型是**两套互不兼容的
+  // 协议**，链里混入另一种协议的模型，只会在轮到它时撞一次不触发降级的 400，把 run 带走：
+  //   - chat 成员拿到生图模型 → 网关按模型名路由到生图处理器 → `input.messages.0.role`；
+  //   - 生图成员拿到 chat 模型 → 原生 multimodal-generation 端点 → HTTP 400「url error」。
   //
-  // 生图走原生 multimodal-generation，chat 模型打上去直接 HTTP 400「url error」；
-  // 而 400 在 classifyError 里**刻意不触发降级**（避免白烧额度）。于是「chat 模型占据
-  // 生图链的首位」会让每一次调用都先撞一次不可降级的错、run 当场结束 —— 现场事故
-  // （「落地发布组」主图重做 4/4 失败）里 agent 自己配的 deepseek-v4-flash 正是这个角色。
+  // 这也正是 2026-09-16 事故的另一半：当时为了让「生图模态」的链首变成生图模型，写了一段
+  // skipOwnModel 逻辑，把自有模型是 chat 模型的生图模态成员**强行拉去生图链**。方向错了 ——
+  // 正确做法是让适配器跟着模型走（见 `shouldUseImageGenAdapter`），而不是让模型跟着模态走。
   //
-  // 判据刻意保守：只有「能力链里确实存在可识别的生图模型」且「自己的模型不像生图模型」
-  // 时才跳过自己的模型；其余情况完全保持旧行为（用户显式配过的东西不被隐性改写）。
+  // 认不出模型名时一律按 chat 处理（保守方向）：未知模型不会被当作生图模型。
   const ownModelId = agent.modelId?.trim()
-  const skipOwnModel =
-    normalizeModality(agent.modality) === 'image' &&
-    !!ownModelId &&
-    !isImageGenerationModel(ownModelId) &&
-    capabilityChain.some((c) => isImageGenerationModel(c.modelId))
+  const usesImageProtocol = shouldUseImageGenAdapter(ownModelId)
 
-  if (ownModelId && skipOwnModel) {
-    console.warn(
-      `[llm-failover] Agent 模态为生图，但自己配的模型 "${ownModelId}" 不是生图模型；` +
-        '已跳过它并直接使用「agent:image」的分配链，避免每次调用都先撞一次不触发降级的 400。',
-    )
-  }
-
-  if (ownModelId && !skipOwnModel) {
+  if (ownModelId) {
     const row = await resolveProviderRowForAgent(agent)
     const provider = providerIdToModelProvider(row?.id ?? agent.modelProvider ?? null)
     const apiKey = agent.apiKey?.trim() || row?.apiKey?.trim() || ''
@@ -181,13 +174,20 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   }
 
   for (const c of capabilityChain) {
+    // 协议对齐：只收与自有模型同一套协议的候选（见上方注释）。
+    if (isImageGenerationModel(c.modelId) !== usesImageProtocol) continue
     if (seen.has(candidateKey(c))) continue
     seen.add(candidateKey(c))
     chain.push(c)
   }
 
-  // 链尾兜底：基线模型（deepseek + deepseek-v4-flash）
-  if (!seen.has(`${FALLBACK_PROVIDER_ID}::${FALLBACK_MODEL_NAME}`)) {
+  // 链尾兜底：基线模型（deepseek + deepseek-v4-flash）。
+  //
+  // 基线是 **chat 模型**，只对 chat 协议有意义。生图成员把 chat 模型当候选必然撞 400
+  // （且不触发降级），所以生图协议下不补它 —— 宁可让「所有生图模型都不可用」这个事实
+  // 以真实的生图报错暴露出来，也不要用一个注定失败的候选把错误信息搅浑。
+  // 代价：生图 Agent 的链尾不再是基线，`hasBaselineFallback` 对它们返回 false。
+  if (!usesImageProtocol && !seen.has(`${FALLBACK_PROVIDER_ID}::${FALLBACK_MODEL_NAME}`)) {
     const baseline = await buildBaselineCandidate()
     if (baseline) chain.push(baseline)
   }

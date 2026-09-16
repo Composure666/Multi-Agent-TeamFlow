@@ -85,27 +85,44 @@ describe('built-in automation seed', () => {
 })
 
 /**
- * 回归：线上「落地发布组」的 主图设计师（modality='image' + adapter_name='custom'）
- * 导致 t4 连续 4 次失败。运行时已由 registry 纠偏，这里补一次存储值修复，
- * 让 Agent 配置面板的显示与实际行为一致。
+ * 回归：适配器必须与自有模型的**协议**匹配，判据是「模型是不是生图模型」而不是 modality。
+ *
+ * 两个方向都要修：
+ *  ① 生图模型 + 非 image-gen 适配器 → image-gen（chat 请求打到生图模型上会被网关拒，
+ *     且该 400 不触发降级 → run 在 0.3s 内猝死）；
+ *  ② image-gen 适配器 + 非生图模型 → custom **并回填视觉生产工具集**
+ *     （这条修的是 2026-09-16 那版旧不变式造成的倒退：生图师 / 视觉设计师 / 图表设计师 /
+ *      主图设计师 原本是「chat 模型 + 工具循环」，靠 bash / fs_write / write_artifact
+ *      自己产 SVG 图或调外部生图服务，被一刀切清空工具后只剩「调一个端点出一张图」。）
  */
-describe('生图模态适配器的存量修复', () => {
-  it('把「生图模态 + 非 image-gen 适配器」的 Agent 修正为 image-gen', () => {
+describe('适配器与模型协议不匹配的存量修复', () => {
+  const insertAgent = (
+    sqlite: Database.Database,
+    id: string,
+    adapterName: string,
+    modelId: string,
+    toolNames: string,
+    modality = 'image',
+  ) => {
+    sqlite
+      .prepare(
+        `INSERT INTO agents
+           (id, name, avatar, description, capabilities, system_prompt, adapter_name,
+            model_provider, model_id, api_key, api_base_url, tool_names,
+            mcp_server_ids, skill_ids, is_builtin, is_orchestrator, supports_vision,
+            modality, created_at)
+         VALUES
+           (?, ?, '🎨', '', '[]', '', ?,
+            'deepseek', ?, 'sk-x', 'https://api.deepseek.com/v1',
+            ?, '[]', '[]', 0, 0, 1, ?, 0)`,
+      )
+      .run(id, id, adapterName, modelId, toolNames, modality)
+  }
+
+  it('① 生图模型挂了 chat 适配器 → 修正为 image-gen，并清空工具集', () => {
     withTempDb((sqlite) => {
       bootstrapDatabase(sqlite)
-      sqlite
-        .prepare(
-          `INSERT INTO agents
-             (id, name, avatar, description, capabilities, system_prompt, adapter_name,
-              model_provider, model_id, api_key, api_base_url, tool_names,
-              mcp_server_ids, skill_ids, is_builtin, is_orchestrator, supports_vision,
-              modality, created_at)
-           VALUES
-             ('ag_img_bad', '主图设计师', '🎨', '', '[]', '', 'custom',
-              'deepseek', 'deepseek-v4-flash', 'sk-x', 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-              '["write_artifact","web_search"]', '[]', '[]', 0, 0, 1, 'image', 0)`,
-        )
-        .run()
+      insertAgent(sqlite, 'ag_img_bad', 'custom', 'z-image-turbo', '["write_artifact","web_search"]')
 
       bootstrapDatabase(sqlite)
 
@@ -113,65 +130,82 @@ describe('生图模态适配器的存量修复', () => {
         .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
         .get('ag_img_bad') as { adapter_name: string; tool_names: string }
       expect(row.adapter_name).toBe('image-gen')
-      // tool_names 与创建路径对 image-gen 的处理保持一致（不消费工具集）
+      // 生图适配器没有工具循环，工具留着只会在配置页制造「这成员能用工具」的假象
       expect(row.tool_names).toBe('[]')
     })
   })
 
-  it('修复是幂等的：再启动一次不会重复改写、也不会波及别的 Agent', () => {
+  it('② image-gen 适配器挂了 chat 模型 → 改回 custom，并回填视觉生产工具集', () => {
     withTempDb((sqlite) => {
       bootstrapDatabase(sqlite)
-      const before = sqlite
-        .prepare("SELECT id, adapter_name, tool_names FROM agents WHERE modality != 'image' ORDER BY id")
-        .all()
-
-      sqlite
-        .prepare(
-          `INSERT INTO agents
-             (id, name, avatar, description, capabilities, system_prompt, adapter_name,
-              model_provider, model_id, api_key, api_base_url, tool_names,
-              mcp_server_ids, skill_ids, is_builtin, is_orchestrator, supports_vision,
-              modality, created_at)
-           VALUES
-             ('ag_img_bad2', '生图手', '🎨', '', '[]', '', 'custom',
-              'deepseek', 'deepseek-v4-flash', 'sk-x', 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-              '["write_artifact"]', '[]', '[]', 0, 0, 1, 'image', 0)`,
-        )
-        .run()
+      insertAgent(sqlite, 'ag_visual_broken', 'image-gen', 'deepseek-v4-flash', '[]')
 
       bootstrapDatabase(sqlite)
-      bootstrapDatabase(sqlite)
 
-      const after = sqlite
-        .prepare("SELECT id, adapter_name, tool_names FROM agents WHERE modality != 'image' ORDER BY id")
-        .all()
-      expect(after).toEqual(before)
+      const row = sqlite
+        .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
+        .get('ag_visual_broken') as { adapter_name: string; tool_names: string }
+      expect(row.adapter_name).toBe('custom')
+      const tools = JSON.parse(row.tool_names) as string[]
+      // 出图靠工具循环，这三件缺一不可（历史上分别对应：写 SVG 图 / 写脚本 / 跑脚本）
+      expect(tools).toContain('write_artifact')
+      expect(tools).toContain('fs_write')
+      expect(tools).toContain('bash')
+      // 内嵌联网工具一并补齐，与运行时兜底注入的口径一致
+      expect(tools).toContain('web_search')
+      expect(tools).toContain('web_fetch')
     })
   })
 
-  it('不误伤：模态是别名（multimodal / 大小写）的 Agent 保持原样', () => {
+  it('② 只回填「工具集为空」的成员，不覆盖用户自己配过的工具集', () => {
     withTempDb((sqlite) => {
       bootstrapDatabase(sqlite)
-      sqlite
-        .prepare(
-          `INSERT INTO agents
-             (id, name, avatar, description, capabilities, system_prompt, adapter_name,
-              model_provider, model_id, api_key, api_base_url, tool_names,
-              mcp_server_ids, skill_ids, is_builtin, is_orchestrator, supports_vision,
-              modality, created_at)
-           VALUES
-             ('ag_alias', '多模态助手', '🤖', '', '[]', '', 'custom',
-              'deepseek', 'deepseek-v4-flash', 'sk-x', 'https://api.deepseek.com/v1',
-              '["fs_read"]', '[]', '[]', 0, 0, 0, 'multimodal', 0)`,
-        )
-        .run()
+      insertAgent(sqlite, 'ag_visual_configured', 'image-gen', 'qwen3.8-flash', '["fs_read"]')
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
+        .get('ag_visual_configured') as { adapter_name: string; tool_names: string }
+      expect(row.adapter_name).toBe('custom')
+      expect(row.tool_names).toBe('["fs_read"]')
+    })
+  })
+
+  it('修复是幂等的：再启动一次不会重复改写', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertAgent(sqlite, 'ag_img_bad2', 'custom', 'z-image-turbo', '[]')
+      insertAgent(sqlite, 'ag_visual_broken2', 'image-gen', 'deepseek-v4-flash', '[]')
+
+      bootstrapDatabase(sqlite)
+      const first = sqlite
+        .prepare('SELECT id, adapter_name, tool_names FROM agents ORDER BY id')
+        .all() as Array<{ id: string; adapter_name: string; tool_names: string }>
+      bootstrapDatabase(sqlite)
+      const second = sqlite
+        .prepare('SELECT id, adapter_name, tool_names FROM agents ORDER BY id')
+        .all()
+      expect(second).toEqual(first)
+
+      // 顺带确认两个方向都真的发生了修复
+      const byId = new Map(first.map((r) => [r.id, r]))
+      expect(byId.get('ag_img_bad2')?.adapter_name).toBe('image-gen')
+      expect(byId.get('ag_visual_broken2')?.adapter_name).toBe('custom')
+    })
+  })
+
+  it('不误伤：chat 模型 + custom 适配器（模态取别名）的 Agent 保持原样', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertAgent(sqlite, 'ag_alias', 'custom', 'deepseek-v4-flash', '["fs_read"]', 'multimodal')
 
       bootstrapDatabase(sqlite)
 
       const row = sqlite
         .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
         .get('ag_alias') as { adapter_name: string; tool_names: string }
-      // normalizeModality('multimodal') === 'vision'，与运行时判据一致，不该被改成 image-gen
+      // 两个方向都不匹配（模型是 chat、适配器是 custom），不该被动
       expect(row.adapter_name).toBe('custom')
       expect(row.tool_names).toBe('["fs_read"]')
     })

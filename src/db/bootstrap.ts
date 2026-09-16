@@ -26,9 +26,10 @@ import {
   BAILIAN_PROVIDER_ID,
   BUILTIN_PROVIDERS,
   DEFAULT_MODEL_ASSIGNMENT_PLAN,
-  normalizeModality,
+  isImageGenerationModel,
   scopeForCapability,
 } from '@/lib/llm-shared'
+import { VISUAL_AGENT_TOOLS, withAlwaysOnAgentTools } from '@/shared/agent-builder-config'
 
 const FRONTEND_DEPLOYMENT_PROMPT_HINT =
   'deploy_artifact / deploy_workspace 返回的 previewPath 是当前 AgentHub 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。'
@@ -1070,49 +1071,78 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
 }
 
 /**
- * 修正「生图模态却挂了非 image-gen 适配器」的存量 Agent。
+ * 修正「适配器与自有模型协议不匹配」的存量 Agent（幂等，两个方向都修）。
  *
- * 这类 Agent 的 run 会在 0.3s 内猝死：chat 请求被网关按模型路由到生图模型上 → 400
- * 不触发降级 → 每次都报逐字相同的 `input.messages` 校验错。运行时已由 registry 兜底纠偏，
- * 这里再把存储值改对，让 Agent 配置面板的显示与实际行为一致。
+ * **① 自有模型是生图模型却挂了 chat 适配器 ⇒ 改走 `image-gen`，并清空工具集。**
+ * 不修的后果：chat 请求被网关按模型名路由到生图处理器，回
+ * `Input should be 'user': input.messages.0.role`；这个错属业务错、不触发降级 →
+ * run 在 0.3s 内猝死，每次重试报错逐字相同。生图适配器没有工具循环，工具留着只会
+ * 在配置页制造「这成员能用工具」的假象，所以一并清空。
  *
- * 判据刻意与运行时的 `resolveEffectiveAdapterName` 共用 `normalizeModality` —— 不能用
- * SQL 的 `lower(trim(...))` 近似，否则「被修存储值的」与「被运行时纠偏的」会不是同一批
- * （例如 `modality='IMAGE'` 在归一化里会落成 text，不该被改成生图适配器）。
+ * **② 挂了 `image-gen` 适配器但自有模型不是生图模型 ⇒ 改回 `custom`，并回填工具集。**
+ * 这是 2026-09-16 那版旧不变式（「modality === 'image' ⇒ image-gen + 清空 tools」）留下的
+ * 伤：生图师 / 视觉设计师 / 图表设计师 / 主图设计师 原本是「chat 模型 + 工具循环」的视觉
+ * 生产成员 —— 靠 bash / fs_write / write_artifact 自己产 `data:image/svg+xml` 图、自己写
+ * python 脚本调外部 `/images/generations`、或搭渲染管线出位图（线上 run 耗时 97~2397s，
+ * 交付「成图 + 提示词文档 + 复现记录」）。一刀切后只剩「调一个端点出一张栅格图」（12s），
+ * 能力被砍窄。判据换成「模型是否生图模型」后，这些成员应当回到 custom + 工具循环。
  *
- * 幂等：条件包含 `adapter_name != 'image-gen'`，修完再跑就没有匹配行了。
- * tool_names 一并清空，与创建路径对 image-gen 的处理（不消费工具集）保持一致。
+ * 判据与运行时 `resolveEffectiveAdapterName` 同源（共用 `isImageGenerationModel`），
+ * 避免「被修存储值的」与「被运行时纠偏的」不是同一批。
+ *
+ * 幂等：① 修完条件不再匹配；② 只回填「工具集为空的」行，不覆盖用户自己配过的工具集。
  */
 function repairImageModalityAdapters(sqlite: Database.Database): void {
   const rows = sqlite
-    .prepare('SELECT id, name, modality, adapter_name, tool_names FROM agents')
+    .prepare('SELECT id, name, modality, adapter_name, model_id, tool_names FROM agents')
     .all() as Array<{
     id: string
     name: string
     modality: string | null
     adapter_name: string
+    model_id: string | null
     tool_names: string | null
   }>
 
-  const needsRepair = rows.filter(
-    (row) =>
-      normalizeModality(row.modality) === 'image' &&
-      (row.adapter_name !== 'image-gen' || row.tool_names !== '[]'),
+  const toImageGen = rows.filter(
+    (row) => row.adapter_name !== 'image-gen' && isImageGenerationModel(row.model_id),
   )
-  if (needsRepair.length === 0) return
+  const toChatAdapter = rows.filter(
+    (row) => row.adapter_name === 'image-gen' && !isImageGenerationModel(row.model_id),
+  )
 
-  const update = sqlite.prepare(
+  if (toImageGen.length === 0 && toChatAdapter.length === 0) return
+
+  const setImageGen = sqlite.prepare(
     "UPDATE agents SET adapter_name = 'image-gen', tool_names = '[]' WHERE id = ?",
   )
+  const setCustom = sqlite.prepare('UPDATE agents SET adapter_name = ?, tool_names = ? WHERE id = ?')
+  // 回填的默认工具集 = 视觉生产工具集 + 内嵌联网工具（与运行时兜底注入的口径一致）
+  const visualToolsJson = JSON.stringify(withAlwaysOnAgentTools(VISUAL_AGENT_TOOLS))
+
   const tx = sqlite.transaction(() => {
-    for (const row of needsRepair) update.run(row.id)
+    for (const row of toImageGen) setImageGen.run(row.id)
+    for (const row of toChatAdapter) {
+      const currentTools = (row.tool_names ?? '').trim()
+      const toolsAreEmpty = currentTools === '' || currentTools === '[]'
+      setCustom.run('custom', toolsAreEmpty ? visualToolsJson : row.tool_names, row.id)
+    }
   })
   tx()
 
-  console.warn(
-    `[bootstrap] 已把 ${needsRepair.length} 个「生图模态 + 非 image-gen 适配器」的 Agent 修正为 image-gen：` +
-      needsRepair.map((row) => `${row.name}(${row.id})`).join('、'),
-  )
+  if (toImageGen.length > 0) {
+    console.warn(
+      `[bootstrap] 已把 ${toImageGen.length} 个「生图模型 + 非 image-gen 适配器」的 Agent 修正为 image-gen：` +
+        toImageGen.map((row) => `${row.name}(${row.id})`).join('、'),
+    )
+  }
+  if (toChatAdapter.length > 0) {
+    console.warn(
+      `[bootstrap] 已把 ${toChatAdapter.length} 个「image-gen 适配器 + 非生图模型」的 Agent 改回 custom 适配器` +
+        `（并回填视觉生产工具集，让它们恢复工具循环）：` +
+        toChatAdapter.map((row) => `${row.name}(${row.id})`).join('、'),
+    )
+  }
 }
 
 // ─── LLM 供应商 / 模型分配 seed ───────────────────────────────────

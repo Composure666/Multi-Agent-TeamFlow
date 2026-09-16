@@ -333,19 +333,28 @@ describe('降级兜底转发', () => {
 })
 
 /**
- * 回归：线上「落地发布组」t4「主图重做」4/4 失败、t5 被连带 skipped。
+ * 回归：适配器 / 降级链必须与自有模型的**协议**一致，判据是「模型是不是生图模型」。
  *
  * 现场是 主图设计师（modality='image' + adapter_name='custom' + 自有模型 deepseek-v4-flash）：
- *  1) 适配器是 chat 协议 → chat 请求被网关按模型路由到生图模型上 →
- *     `Input should be 'user': input.messages.0.role`（HTTP 200 + SSE error，故 classifyError
- *     判不出「可降级」）；
- *  2) 即便改成 image-gen 适配器，降级链首位仍是 agent 自有的 chat 模型，打原生生图端点
- *     得 HTTP 400「url error」—— 400 同样不触发降级 → 还是当场死。
- * 两条都必须修，run 才跑得通。
+ *  1) chat 适配器 + 生图模型 → `Input should be 'user': input.messages.0.role`
+ *     （HTTP 200 + SSE error，故 classifyError 判不出「可降级」）→ run 0.3s 猝死；
+ *  2) 只改适配器不改模型也不行：chat 模型打原生生图端点得 HTTP 400「url error」——
+ *     400 同样不触发降级 → 还是当场死。
+ *
+ * 第一版修复是「让模型跟着模态走」（skipOwnModel：生图模态就把自有 chat 模型换成生图链），
+ * 方向错了 —— 它把一批「chat 模型 + 工具循环」的视觉生产成员一起拉去生图链，能力被砍窄。
+ * 正确做法是**让适配器跟着模型走**（`shouldUseImageGenAdapter`），链只收同一套协议的候选。
  */
-describe('生图模态的一致性（适配器 + 降级链首）', () => {
+describe('适配器 / 降级链的协议一致性（判据是模型，不是模态）', () => {
   // 延迟构造：llmShared 是 beforeAll 里动态 import 的，模块收集阶段还没有值
   const imageOwnModelCase = () => ({
+    modelProvider: 'openai-compatible' as const,
+    modelId: 'z-image-turbo',
+    apiKey: BAILIAN_KEY,
+    apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+    modality: 'image',
+  })
+  const chatModelOnImageModalityCase = () => ({
     modelProvider: 'deepseek' as const,
     modelId: 'deepseek-v4-flash',
     apiKey: BAILIAN_KEY,
@@ -353,22 +362,37 @@ describe('生图模态的一致性（适配器 + 降级链首）', () => {
     modality: 'image',
   })
 
-  it('生图模态的降级链首必须是生图模型，不能被 agent 自有的 chat 模型占位', async () => {
+  it('生图模型：链首就是它自己，链上只收生图模型', async () => {
     const chain = await failover.buildAgentFailoverChain(imageOwnModelCase())
 
     expect(chain[0].modelId).toBe('z-image-turbo')
     expect(llmShared.isImageGenerationModel(chain[0].modelId)).toBe(true)
-    // 兜底层仍然保留（链尾恒 deepseek-v4-flash 是用户硬要求）
-    const last = chain[chain.length - 1]
-    expect(`${last.providerId}/${last.modelId}`).toBe('deepseek/deepseek-v4-flash')
+    expect(chain.every((c) => llmShared.isImageGenerationModel(c.modelId))).toBe(true)
+    // 备用生图模型也在链上
+    expect(chain.map((c) => c.modelId)).toContain('qwen-image-3.0-pro')
   })
 
-  it('生图模态链上同时有主用与备用两张生图模型', async () => {
+  it('生图协议下不补 chat 基线兜底：基线是 chat 模型，对生图只会撞不降级的 400', async () => {
     const chain = await failover.buildAgentFailoverChain(imageOwnModelCase())
-    const imageModels = chain
-      .filter((c) => llmShared.isImageGenerationModel(c.modelId))
-      .map((c) => c.modelId)
-    expect(imageModels).toEqual(['z-image-turbo', 'qwen-image-3.0-pro'])
+    expect(failover.hasBaselineFallback(chain)).toBe(false)
+    expect(chain.map((c) => c.modelId)).not.toContain('deepseek-v4-flash')
+  })
+
+  it('回归：生图模态 + chat 模型**不再**被强行拉去生图链', async () => {
+    // 2026-09-16 那版 skipOwnModel 会把这里的链首换成 z-image-turbo，等于偷偷改掉用户
+    // 显式配置的模型，还把成员从「工具循环的视觉生产」变成「只会调一个出图端点」。
+    const chain = await failover.buildAgentFailoverChain(chatModelOnImageModalityCase())
+
+    expect(chain[0].modelId).toBe('deepseek-v4-flash')
+    expect(chain.some((c) => llmShared.isImageGenerationModel(c.modelId))).toBe(false)
+  })
+
+  it('chat 成员：agent:image 链上的生图模型会被过滤掉，不会留在候选里', async () => {
+    const chain = await failover.buildAgentFailoverChain(chatModelOnImageModalityCase())
+    // 线上 agent:image 链是 z-image-turbo → qwen-image-3.0-pro → deepseek-v4-flash，
+    // 前两个是生图模型，对 chat 协议只会撞 400 —— 必须被过滤。
+    expect(chain.map((c) => c.modelId)).not.toContain('z-image-turbo')
+    expect(chain.map((c) => c.modelId)).not.toContain('qwen-image-3.0-pro')
   })
 
   it('非生图模态不受影响：显式配置的自有模型仍排链首', async () => {
@@ -391,16 +415,16 @@ describe('生图模态的一致性（适配器 + 降级链首）', () => {
     }
   })
 
-  it('创建时强制纠偏：生图模态 + custom 适配器会被落到 image-gen', async () => {
+  it('创建时按**模型**纠偏：生图模型 + custom 适配器会被落到 image-gen 并清空工具集', async () => {
     const created = await agentService.createCustomAgent({
-      name: '主图设计师',
+      name: '海报生成器',
       avatar: '🎨',
-      description: '横版主图生成',
+      description: '横版海报生成',
       capabilities: [],
-      systemPrompt: '你是主图设计师',
+      systemPrompt: '你是海报生成器',
       adapterName: 'custom',
-      modelProvider: 'deepseek',
-      modelId: 'deepseek-v4-flash',
+      modelProvider: 'openai-compatible',
+      modelId: 'z-image-turbo',
       apiKey: BAILIAN_KEY,
       apiBaseUrl: llmShared.BAILIAN_BASE_URL,
       toolNames: ['write_artifact', 'web_search'],
@@ -408,11 +432,52 @@ describe('生图模态的一致性（适配器 + 降级链首）', () => {
     })
 
     expect(created.adapterName).toBe('image-gen')
-    // 与创建路径对 image-gen 的处理一致：不消费工具集
+    // 生图适配器不消费工具集
     expect(created.toolNames).toEqual([])
   })
 
-  it('编辑时同样纠偏：把已有 Agent 的模态改成生图，适配器自动切到 image-gen', async () => {
+  it('创建时：生图模态 + chat 模型 + custom 适配器**保持 custom 并保留工具集**', async () => {
+    // 回归 2026-09-16：这是生图师 / 视觉设计师 / 图表设计师 / 主图设计师 的正常形态 ——
+    // 它们靠 bash / fs_write / write_artifact 自己产 SVG 图或调外部生图服务。
+    const created = await agentService.createCustomAgent({
+      name: '视觉设计师',
+      avatar: '🎨',
+      description: '视觉设计',
+      capabilities: [],
+      systemPrompt: '你是视觉设计师',
+      adapterName: 'custom',
+      modelProvider: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      apiKey: BAILIAN_KEY,
+      apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+      toolNames: ['write_artifact', 'bash'],
+      modality: 'image',
+    })
+
+    expect(created.adapterName).toBe('custom')
+    expect(created.toolNames).toEqual(['write_artifact', 'bash'])
+  })
+
+  it('显式请求 image-gen 但模型不是生图模型 → 报错并给出修法', async () => {
+    await expect(
+      agentService.createCustomAgent({
+        name: '错配助手',
+        avatar: '🎨',
+        description: '',
+        capabilities: [],
+        systemPrompt: 'x',
+        adapterName: 'image-gen',
+        modelProvider: 'deepseek',
+        modelId: 'deepseek-v4-flash',
+        apiKey: BAILIAN_KEY,
+        apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+        toolNames: [],
+        modality: 'image',
+      }),
+    ).rejects.toThrow(/生图适配器需要生图模型/)
+  })
+
+  it('编辑时按**模型**纠偏：把已有 Agent 的模型换成生图模型，适配器自动切到 image-gen', async () => {
     const created = await agentService.createCustomAgent({
       name: '文案小助手',
       avatar: '✍️',
@@ -429,11 +494,40 @@ describe('生图模态的一致性（适配器 + 降级链首）', () => {
     })
     expect(created.adapterName).toBe('custom')
 
-    await agentService.updateCustomAgent(created.id, { modality: 'image' })
+    await agentService.updateCustomAgent(created.id, {
+      modelId: 'z-image-turbo',
+      modelProvider: 'openai-compatible',
+    })
 
     const row = client.sqlite
       .prepare('SELECT adapter_name FROM agents WHERE id = ?')
       .get(created.id) as { adapter_name: string }
     expect(row.adapter_name).toBe('image-gen')
+  })
+
+  it('回归：把模态改成生图但模型仍是 chat 模型时，适配器保持 custom', async () => {
+    const created = await agentService.createCustomAgent({
+      name: '图表设计师',
+      avatar: '📊',
+      description: '做图表',
+      capabilities: [],
+      systemPrompt: '你做图表',
+      adapterName: 'custom',
+      modelProvider: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      apiKey: BAILIAN_KEY,
+      apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+      toolNames: ['write_artifact', 'bash'],
+      modality: 'text',
+    })
+
+    await agentService.updateCustomAgent(created.id, { modality: 'image' })
+
+    const row = client.sqlite
+      .prepare('SELECT adapter_name, tool_names FROM agents WHERE id = ?')
+      .get(created.id) as { adapter_name: string; tool_names: string }
+    expect(row.adapter_name).toBe('custom')
+    // 工具集必须留着 —— 这是它出图的手段
+    expect(JSON.parse(row.tool_names)).toContain('bash')
   })
 })

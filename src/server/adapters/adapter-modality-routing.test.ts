@@ -9,17 +9,21 @@ import type { AgentRow } from '@/db/schema'
 /**
  * 回归：线上「落地发布组」的 t4「主图重做」连续 4 次尝试全部失败，t5 被连带 skipped。
  *
- * 根因是「生图模态 + chat 适配器」这个组合：
- *  - modality='image' ⇒ AgentRunner 按 `agent:image` 解析降级链，链上是一串**生图模型**
- *    （线上实际是 bailian/z-image-turbo → bailian/qwen-image-3.0-pro → deepseek/deepseek-v4-flash）；
- *  - 但适配器是 custom（chat 协议），把 `{role:'system'}` + `{role:'user'}` 的
- *    chat completions 打到生图模型上；
- *  - 网关按模型名路由到生图处理器，按原生结构校验后回
+ * 根因是「模型协议 ⇄ 适配器」不匹配：
+ *  - 该 Agent 的自有模型是 chat 模型（deepseek-v4-flash），却按 `agent:image` 解析出
+ *    一串**生图模型**（bailian/z-image-turbo → qwen-image-3.0-pro → deepseek-v4-flash）；
+ *  - 适配器是 custom（chat 协议），把 `{role:'system'}` + `{role:'user'}` 的 chat completions
+ *    打到生图模型上；网关按模型名路由到生图处理器，按原生结构校验后回
  *    `Input should be 'user': input.messages.0.role & Input should be a valid list: input.messages.0.content`
  *    （实测是 **HTTP 200 + SSE error**，所以 classifyError 也判不出「可降级」）；
  *  - run 在 0.3s 内猝死，且 4/4 次报错逐字相同。
  *
- * 所以修复必须落在「模态 → 适配器」这条路由上，而不是生图请求本身（那条路径是对的）。
+ * 第一版修复判据取的是「`modality === 'image'` ⇒ 强制 image-gen 适配器 + 清空 tools」，
+ * 方向错了：那把一批「chat 模型 + 工具循环」的视觉生产成员（生图师 / 视觉设计师 /
+ * 图表设计师 / 主图设计师）一起改掉，它们从此只会调一个端点出一张栅格图 ——
+ * 交付物从「成图 + 提示词文档 + 复现记录」缩成「一张图」，run 耗时从 97~2397s 缩到 12s。
+ *
+ * 现在判据是**自有模型是不是生图模型**：决定请求协议的是模型，不是成员分类。
  */
 
 let dataDir: string
@@ -73,29 +77,65 @@ function agentRow(overrides: Partial<AgentRow> = {}): AgentRow {
   } as AgentRow
 }
 
-describe('生图模态的适配器路由', () => {
-  it('生图模态挂着 chat 适配器时纠偏到 image-gen，并留下告警', () => {
+describe('适配器路由：判据是「自有模型」而不是「模态」', () => {
+  it('生图模型挂在 chat 适配器上时纠偏到 image-gen，并留下告警', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const effective = registry.resolveEffectiveAdapterName(
-        agentRow({ modality: 'image', adapterName: 'custom' }),
+        agentRow({ modality: 'image', adapterName: 'custom', modelId: 'z-image-turbo' }),
       )
       expect(effective).toBe('image-gen')
       expect(warn).toHaveBeenCalledTimes(1)
-      // 告警必须点名 Agent，便于线上定位是哪一条配置坏了
-      expect(String(warn.mock.calls[0]?.[0])).toContain('ag_test')
+      // 告警必须点名 Agent 与模型，便于线上定位是哪一条配置坏了
+      const text = String(warn.mock.calls[0]?.[0])
+      expect(text).toContain('ag_test')
+      expect(text).toContain('z-image-turbo')
     } finally {
       warn.mockRestore()
     }
   })
 
-  it('生图模态 + image-gen 是正确配置，原样返回且不告警', () => {
+  it('回归：生图模态 + chat 模型 + custom 适配器**保持 custom**，不被强制改成 image-gen', () => {
+    // 2026-09-16 事故：旧判据只认 `modality === 'image'`，把一批「chat 模型 + 工具循环」的
+    // 视觉生产成员（生图师 / 视觉设计师 / 图表设计师 / 主图设计师）连工具集一起改成了
+    // image-gen —— 它们从此只会调一个端点出一张栅格图，能力反而被砍窄。
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      for (const modelId of ['deepseek-v4-flash', 'qwen3.8-flash', 'glm-5.3', 'qwen3-vl-plus']) {
+        expect(
+          registry.resolveEffectiveAdapterName(
+            agentRow({ modality: 'image', adapterName: 'custom', modelId }),
+          ),
+        ).toBe('custom')
+      }
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('生图模型 + image-gen 是正确配置，原样返回且不告警', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       expect(
-        registry.resolveEffectiveAdapterName(agentRow({ modality: 'image', adapterName: 'image-gen' })),
+        registry.resolveEffectiveAdapterName(
+          agentRow({ modality: 'image', adapterName: 'image-gen', modelId: 'qwen-image-3.0-pro' }),
+        ),
       ).toBe('image-gen')
       expect(warn).not.toHaveBeenCalled()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('判据与模态解耦：把生图模型配给 text 模态的成员，同样纠偏到 image-gen', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      expect(
+        registry.resolveEffectiveAdapterName(
+          agentRow({ modality: 'text', adapterName: 'custom', modelId: 'flux-1-dev' }),
+        ),
+      ).toBe('image-gen')
     } finally {
       warn.mockRestore()
     }
@@ -113,25 +153,11 @@ describe('生图模态的适配器路由', () => {
     )
   })
 
-  it('模态判据与 normalizeModality 一致：首尾空白会被裁掉，所以仍算生图', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    try {
-      expect(
-        registry.resolveEffectiveAdapterName(agentRow({ modality: ' image ', adapterName: 'custom' })),
-      ).toBe('image-gen')
-    } finally {
-      warn.mockRestore()
-    }
-  })
-
-  it('模态判据与 normalizeModality 一致：看起来像生图但归一化后不是的值不纠偏', () => {
-    // normalizeModality 只认精确的小写 'image'；别名表把 audio→text、multimodal→vision，
-    // 大小写变体则落到兜底值 'text'。这些都不能触发纠偏，否则会把非生图 Agent
-    // 强行改成生图适配器（它拿不到生图端点，反而更糟）。
-    for (const modality of ['IMAGE', 'Image', '图文', 'multimodal', 'audio', '生图', '', null]) {
+  it('模态取别名 / 大小写 / 空白时不影响判据（判据已与 modality 完全解耦）', () => {
+    for (const modality of ['IMAGE', 'Image', '图文', 'multimodal', 'audio', '生图', ' image ', '', null]) {
       expect(
         registry.resolveEffectiveAdapterName(
-          agentRow({ modality: modality as string, adapterName: 'custom' }),
+          agentRow({ modality: modality as string, adapterName: 'custom', modelId: 'deepseek-v4-flash' }),
         ),
       ).toBe('custom')
     }

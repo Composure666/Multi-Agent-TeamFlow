@@ -43,6 +43,29 @@ export const AVAILABLE_AGENT_TOOLS = [
  */
 export const ALWAYS_ON_AGENT_TOOLS = ['web_search', 'web_fetch'] as const
 
+/**
+ * 视觉生产成员的推荐工具集（生图 / 视觉设计 / 图表设计）。
+ *
+ * 这类成员出图靠的是**工具循环**，历史上有三条路，都需要 bash + fs_write + write_artifact：
+ *   1. `write_artifact type:"image"` 直接塞 `data:image/svg+xml`（矢量图即产物）；
+ *   2. 写 python 脚本调外部 OpenAI 兼容的 `/images/generations`（自己重试、校验、选优）；
+ *   3. 探测 rsvg-convert / chromium / playwright 把矢量图渲成位图。
+ *
+ * 2026-09-16 的事故正是把这条抹掉了：旧不变式「生图模态 ⇒ image-gen 适配器 + 清空 tools」
+ * 让这批成员从「97~2397s 的 agentic 生产、交付成图 + 提示词文档 + 复现记录」缩成
+ * 「12s 出一张栅格图」。bootstrap 的存量修复用它回填被清空的工具集。
+ */
+export const VISUAL_AGENT_TOOLS = [
+  'write_artifact',
+  'read_artifact',
+  'read_attachment',
+  'ask_user',
+  'fs_list',
+  'fs_read',
+  'fs_write',
+  'bash',
+] as const
+
 /** 保证工具名列表一定包含内嵌联网工具（保持原顺序，去重补齐）。 */
 export function withAlwaysOnAgentTools(toolNames: readonly string[]): string[] {
   const out = [...toolNames]

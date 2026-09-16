@@ -1,5 +1,5 @@
 import type { AgentRow } from '@/db/schema'
-import { normalizeModality } from '@/lib/llm-shared'
+import { isImageGenerationModel } from '@/lib/llm-shared'
 import type { AdapterName } from '@/shared/types'
 
 import { ClaudeCodeAdapter } from './claude-code-adapter'
@@ -36,18 +36,23 @@ class AgentRegistry {
 /**
  * 解析 Agent 实际应该使用的适配器名（运行时纠偏）。
  *
- * 生图模态（`modality='image'`）必须走 ImageGenAdapter：只有它会调生图端点并落地图片产物。
- * 「生图模态 + custom（chat）适配器」会让 chat 请求打到生图模型上，被网关按模型路由后
- * 400 拒绝（`input.messages` 校验失败），且 400 不触发降级 → run 秒挂、每次报错完全相同。
+ * 判据是**自有模型是不是生图模型**，不是 modality —— 决定请求协议的是模型，不是成员分类。
  *
- * 这里做一次运行时纠偏，让**存量数据**（本次改动之前建的 Agent）不迁移也能恢复；
- * 新建 / 编辑路径已由 agent-service 强制同一不变式，bootstrap 也会修一次存储值。
+ * 只在「生图模型 + chat 适配器」这个方向上纠偏：chat 协议打到生图端点上会被网关按模型名
+ * 路由到生图处理器，回 `Input should be 'user': input.messages.0.role`，而且这个错属于
+ * 业务错、**不触发降级** → run 在 0.3s 内猝死、每次重试报错逐字相同。
+ *
+ * 反方向（image-gen 适配器 + 非生图模型）同样必然失败（chat 模型打原生
+ * multimodal-generation 端点得 HTTP 400「url error」），但**这里刻意不纠偏**：
+ * `isImageGenerationModel` 认不出陌生的生图模型名时会返回 false，若据此把用户显式选的
+ * image-gen 改写成 custom，会把一个本来正确的配置改坏。反方向的存量数据由
+ * bootstrap 的 `repairImageModalityAdapters` 一次性修（那里只动存储值，不猜运行时）。
  */
 export function resolveEffectiveAdapterName(agent: AgentRow): AdapterName {
-  if (normalizeModality(agent.modality) === 'image' && agent.adapterName !== 'image-gen') {
+  if (agent.adapterName !== 'image-gen' && isImageGenerationModel(agent.modelId)) {
     console.warn(
-      `[agent-registry] Agent "${agent.name}" (${agent.id}) 是生图模态却挂了 "${agent.adapterName}" ` +
-        '适配器，已自动改走 image-gen（chat 适配器调用生图模型会被网关拒绝）。',
+      `[agent-registry] Agent "${agent.name}" (${agent.id}) 的模型 "${agent.modelId}" 是生图模型，` +
+        `却挂了 "${agent.adapterName}" 适配器，已自动改走 image-gen（chat 协议调用生图模型会被网关拒绝）。`,
     )
     return 'image-gen'
   }
