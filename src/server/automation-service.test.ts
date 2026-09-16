@@ -291,4 +291,116 @@ describe('automation service bindings and notifications', () => {
     expect(row?.nextRunAt).toBeGreaterThan(now)
     expect(row?.nextRunAt).toBe(new Date(2026, 6, 23, 10, 35, 0, 0).getTime())
   })
+
+  it('rejects a manual run while a fresh run is still in flight', async () => {
+    const automation = await service.createAutomation({
+      title: '并发运行拒绝测试',
+      prompt: '并发运行',
+      scheduleType: 'manual',
+    })
+    const startedAt = Date.now() - 30_000
+    await dbClient.db.insert(dbClient.schema.automationRuns).values({
+      id: 'arun_fresh_running',
+      automationId: automation.id,
+      status: 'running',
+      trigger: 'manual',
+      agentRunId: null,
+      conversationId: automation.conversationId,
+      attempt: 1,
+      durationMs: null,
+      startedAt,
+      finishedAt: null,
+      error: null,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    })
+
+    await expect(service.runAutomation(automation.id, { trigger: 'manual' })).rejects.toThrow(
+      /already has a running run/,
+    )
+  })
+
+  it('收尾僵尸 running 记录后，手动运行不再被 409 永久拒绝', async () => {
+    const automation = await service.createAutomation({
+      title: '僵尸运行收尾测试',
+      prompt: '僵尸运行',
+      scheduleType: 'manual',
+    })
+    // 40 分钟前发起、至今未收尾 = 进程重启留下的僵尸记录
+    const startedAt = Date.now() - 40 * 60 * 1000
+    await dbClient.db.insert(dbClient.schema.automationRuns).values({
+      id: 'arun_stale_running',
+      automationId: automation.id,
+      status: 'running',
+      trigger: 'schedule',
+      agentRunId: null,
+      conversationId: automation.conversationId,
+      attempt: 1,
+      durationMs: null,
+      startedAt,
+      finishedAt: null,
+      error: null,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    })
+
+    expect(await service.reconcileStaleAutomationRuns({ automationId: automation.id })).toBe(1)
+
+    const stale = await dbClient.db.query.automationRuns.findFirst({
+      where: (table, { eq }) => eq(table.id, 'arun_stale_running'),
+    })
+    expect(stale?.status).toBe('failed')
+    expect(stale?.finishedAt).toBeTruthy()
+    expect(stale?.error).toContain('服务重启')
+
+    sendMessageMock.mockResolvedValueOnce({ messageId: 'msg_test', runIds: ['run_agent_after_stale'] })
+    await dbClient.db.insert(dbClient.schema.agentRuns).values({
+      id: 'run_agent_after_stale',
+      conversationId: automation.conversationId!,
+      agentId: automation.agentId!,
+      triggerMessageId: null,
+      status: 'queued',
+      error: null,
+      parentRunId: null,
+      usage: null,
+      startedAt: Date.now(),
+      finishedAt: null,
+    })
+
+    const run = await service.runAutomation(automation.id, { trigger: 'manual' })
+    expect(run.status).toBe('success')
+  })
+
+  it('maxAgeMs=0 时把所有 running 记录都当作僵尸（进程启动收尾）', async () => {
+    const automation = await service.createAutomation({
+      title: '启动收尾测试',
+      prompt: '启动收尾',
+      scheduleType: 'manual',
+    })
+    const startedAt = Date.now() // 刚发起：运行期不该动它
+    await dbClient.db.insert(dbClient.schema.automationRuns).values({
+      id: 'arun_boot_running',
+      automationId: automation.id,
+      status: 'running',
+      trigger: 'manual',
+      agentRunId: null,
+      conversationId: automation.conversationId,
+      attempt: 1,
+      durationMs: null,
+      startedAt,
+      finishedAt: null,
+      error: null,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    })
+
+    // 运行期阈值（10 分钟）下它不算僵尸
+    expect(await service.reconcileStaleAutomationRuns({ automationId: automation.id })).toBe(0)
+    // 启动收尾（maxAgeMs=0）则会把它收掉
+    expect(await service.reconcileStaleAutomationRuns({ maxAgeMs: 0 })).toBeGreaterThanOrEqual(1)
+    const row = await dbClient.db.query.automationRuns.findFirst({
+      where: (table, { eq }) => eq(table.id, 'arun_boot_running'),
+    })
+    expect(row?.status).toBe('failed')
+  })
 })

@@ -296,6 +296,7 @@ export async function updateAutomation(id: string, input: UpdateAutomationInput)
 
 export async function deleteAutomation(id: string): Promise<void> {
   await getAutomationRow(id)
+  await reconcileStaleAutomationRuns({ automationId: id })
   const running = await findRunningRun(id)
   if (running) throw new AutomationServiceError('Automation is running and cannot be deleted', 409)
   await db.delete(schema.automations).where(eq(schema.automations.id, id))
@@ -336,6 +337,9 @@ export async function runAutomation(
   options: { trigger: AutomationRunTrigger; scheduledFor?: number | null; schedulerNow?: number },
 ): Promise<AutomationRunDetailItem> {
   const automation = await ensureAutomationBinding(await getAutomationRow(id))
+  // 上一进程崩溃 / 重启会留下永远 running 的僵尸记录；不先收尾的话，
+  // 「手动运行」会被 409 永久拒绝（线上 2026-09-16 报障）。
+  await reconcileStaleAutomationRuns({ automationId: id })
   const running = await findRunningRun(id)
   if (running) throw new AutomationServiceError('Automation already has a running run', 409)
 
@@ -610,6 +614,61 @@ async function findRunningRun(automationId: string): Promise<typeof schema.autom
   return db.query.automationRuns.findFirst({
     where: and(eq(schema.automationRuns.automationId, automationId), eq(schema.automationRuns.status, 'running')),
   })
+}
+
+/**
+ * running 记录超过这个时长即视为僵尸。
+ *
+ * runAutomation 在 sendMessage 返回后立刻收尾，正常运行的 running 窗口只有秒级；
+ * 真正会把记录永久留在 running 的只有「进程重启 / 崩溃」这类情况。
+ */
+const AUTOMATION_RUN_STALE_MS = 10 * 60 * 1000
+
+/**
+ * 收尾僵尸运行记录，返回收尾条数。
+ *
+ * maxAgeMs=0 表示「本进程刚启动，此时所有 running 记录都不可信」（启动钩子用）；
+ * 运行期调用默认 10 分钟阈值，避免误杀本进程刚发起的真实运行。
+ */
+export async function reconcileStaleAutomationRuns(
+  options: { automationId?: string; maxAgeMs?: number } = {},
+): Promise<number> {
+  const maxAgeMs = options.maxAgeMs ?? AUTOMATION_RUN_STALE_MS
+  const now = Date.now()
+  const runningStatus = eq(schema.automationRuns.status, 'running')
+  const where = options.automationId
+    ? and(runningStatus, eq(schema.automationRuns.automationId, options.automationId))
+    : runningStatus
+  const rows = await db.select().from(schema.automationRuns).where(where)
+
+  let reconciled = 0
+  for (const run of rows) {
+    if (now - run.startedAt < maxAgeMs) continue
+    const durationMs = Math.max(0, now - run.startedAt)
+    await db
+      .update(schema.automationRuns)
+      .set({
+        status: 'failed',
+        durationMs,
+        finishedAt: now,
+        error: '运行中断：服务重启或执行器异常退出，本次运行已标记为失败',
+        updatedAt: now,
+      })
+      .where(eq(schema.automationRuns.id, run.id))
+    await appendAutomationRunLog({
+      runId: run.id,
+      level: 'error',
+      message: 'Automation run marked failed (stale running record)',
+      metadata: {
+        automationId: run.automationId,
+        startedAt: run.startedAt,
+        durationMs,
+        staleAfterMs: maxAgeMs,
+      },
+    })
+    reconciled += 1
+  }
+  return reconciled
 }
 
 function mapAutomationRow(item: typeof schema.automations.$inferSelect): AutomationListItem {

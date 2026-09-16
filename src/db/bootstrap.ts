@@ -981,9 +981,13 @@ function ensureDemoAutomations(sqlite: Database.Database): void {
       })
     }
 
-    const runRows = [
+    // 显式标注元组类型（不再用 as const）：将来若要加回 'running' 演示行，
+    // 下面的 finishedAt 分支仍然成立，不会因为字面量收窄而编译失败。
+    const runRows: Array<[string, string, 'success' | 'failed' | 'running', number, number | null]> = [
       ['arun_ai_news_today', 'auto_daily_ai_news', 'success', 36_000, latestRuns.auto_daily_ai_news],
-      ['arun_english_today', 'auto_daily_english_words', 'running', 12_000, latestRuns.auto_daily_english_words],
+      // 曾经写成 'running' 做「运行中」演示 —— 那条记录永远不会结束，
+      // 结果该自动化的「立即运行」被 409 永久拒绝（线上 2026-09-16 报障）。演示态改用成功。
+      ['arun_english_today', 'auto_daily_english_words', 'success', 12_000, latestRuns.auto_daily_english_words],
       ['arun_report_recent', 'auto_weekly_work_report', 'success', 138_000, latestRuns.auto_weekly_work_report],
       ['arun_movie_yesterday', 'auto_classic_movie', 'failed', 8_000, latestRuns.auto_classic_movie],
       ['arun_history_today', 'auto_today_history', 'success', 24_000, clampPast(startOfToday + 9 * 60 * 60 * 1000, 2)],
@@ -995,7 +999,7 @@ function ensureDemoAutomations(sqlite: Database.Database): void {
       ['arun_english_d4', 'auto_daily_english_words', 'success', 17_000, startOfToday - 4 * DAY_MS + 7 * 60 * 60 * 1000],
       ['arun_ai_news_d5', 'auto_daily_ai_news', 'success', 34_000, startOfToday - 5 * DAY_MS + 8 * 60 * 60 * 1000],
       ['arun_movie_d6', 'auto_classic_movie', 'success', 39_000, startOfToday - 6 * DAY_MS + 20 * 60 * 60 * 1000],
-    ] as const
+    ]
 
     for (const [id, automationId, status, durationMs, startedAt] of runRows) {
       if (startedAt === null) continue
