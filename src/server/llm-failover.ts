@@ -118,7 +118,20 @@ export async function resolveFailoverChain(capabilityKey: string): Promise<Failo
 }
 
 function candidateKey(c: FailoverCandidate): string {
-  return `${c.providerId ?? 'unknown'}::${c.modelId}`
+  const key = (c.apiKey ?? '').trim()
+  if (key) {
+    // **有显式 key 时，`端点 + key + 模型` 才是目标的完整身份。**
+    //
+    // 为什么不能只用 `providerId::modelId`：`providerId` 是归因账本上的标签，线上存在
+    // 两行供应商「端点 + key 完全相同」的情况（`openai` 行被填成了百炼的兼容端点 +
+    // 百炼 key，与 `bailian` 行等价）。归因改按端点反查后，同一个目标会被两行分别认领，
+    // 按 providerId 判重就留不下一个重复候选 —— 白烧一次切换配额，还挤掉链尾基线。
+    const endpoint = (c.apiBaseUrl ?? '').trim().replace(/\/+$/, '').toLowerCase()
+    return `${endpoint}::${key}::${c.modelId}`
+  }
+  // 没有显式 key 时（内置供应商读 env），协议与凭证都由 providerId 决定，不能只看端点。
+  const endpoint = (c.apiBaseUrl ?? '').trim().replace(/\/+$/, '').toLowerCase()
+  return `${c.providerId ?? 'unknown'}::${endpoint}::${c.modelId}`
 }
 
 /**
@@ -194,9 +207,16 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   // （且不触发降级），所以生图协议下不补它 —— 宁可让「所有生图模型都不可用」这个事实
   // 以真实的生图报错暴露出来，也不要用一个注定失败的候选把错误信息搅浑。
   // 代价：生图 Agent 的链尾不再是基线，`hasBaselineFallback` 对它们返回 false。
-  if (!usesImageProtocol && !seen.has(`${FALLBACK_PROVIDER_ID}::${FALLBACK_MODEL_NAME}`)) {
+  //
+  // 判重必须走同一个 `candidateKey`：写成朴素的 `deepseek::deepseek-v4-flash` 会与
+  // capabilityChain 里那条同名基线对不上（它的 key 是 `端点::key::模型`），
+  // 结果是基线被补第二遍，链尾多出一个完全相同的候选。
+  if (!usesImageProtocol) {
     const baseline = await buildBaselineCandidate()
-    if (baseline) chain.push(baseline)
+    if (baseline && !seen.has(candidateKey(baseline))) {
+      seen.add(candidateKey(baseline))
+      chain.push(baseline)
+    }
   }
 
   return chain

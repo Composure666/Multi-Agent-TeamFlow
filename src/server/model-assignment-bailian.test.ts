@@ -636,4 +636,39 @@ describe('供应商归因按端点定，不按 model_provider 标签定', () => 
 
     expect(await providerService.findProviderIdForEndpoint({ apiBaseUrl: null })).toBeNull()
   })
+
+  it('两行供应商端点 + key 相同 → 候选链不会留下重复目标', async () => {
+    // 线上真实数据：`openai` 行被填成了百炼的兼容端点 + 百炼 key，与 `bailian` 行**完全等价**。
+    // 归因改按端点反查后，两行会各自认领同一次请求；若判重仍只看 `providerId`，链上就会留下
+    // 两个一模一样的目标 —— 第一个失败后第二个必然同样失败，白烧一次切换配额，还挤掉链尾基线。
+    const before = await providerService.getProvider('openai')
+    try {
+      await providerService.upsertProvider({
+        id: 'openai',
+        baseUrl: llmShared.BAILIAN_BASE_URL,
+        apiKey: BAILIAN_KEY,
+      })
+
+      const chain = await failover.buildAgentFailoverChain({
+        modelProvider: 'openai-compatible',
+        modelId: 'qwen3.8-flash',
+        apiKey: BAILIAN_KEY,
+        apiBaseUrl: llmShared.BAILIAN_BASE_URL,
+        modality: 'text',
+      })
+
+      const targets = chain.map((c) => `${c.apiBaseUrl}|${c.apiKey}|${c.modelId}`)
+      expect(new Set(targets).size).toBe(targets.length)
+      // 端点 + key + 模型相同的两行只能留一个
+      expect(chain.filter((c) => c.modelId === 'qwen3.8-flash').length).toBe(1)
+      // 链尾基线仍要在：重复候选不该把兜底挤掉
+      expect(failover.hasBaselineFallback(chain)).toBe(true)
+    } finally {
+      await providerService.upsertProvider({
+        id: 'openai',
+        baseUrl: before?.baseUrl ?? null,
+        apiKey: before?.apiKey ?? null,
+      })
+    }
+  })
 })
