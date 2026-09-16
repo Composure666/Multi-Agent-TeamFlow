@@ -58,7 +58,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '代码库探索 Agent，适合快速定位文件、搜索关键字、理解模块结构。',
     capabilities: ['代码探索', '搜索', '结构分析'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'read_attachment'],
     systemPrompt: '你是代码库探索 Agent。优先用只读方式理解项目结构、定位文件、总结模块职责，不主动修改文件。输出要包含关键文件路径和简洁结论。',
   },
   {
@@ -69,7 +69,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '实施规划 Agent，适合把复杂需求拆成可执行步骤、风险点和验收清单。',
     capabilities: ['任务拆解', '方案设计', '验收标准'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'read_attachment', 'ask_user', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'read_attachment', 'ask_user'],
     systemPrompt: '你是实施规划 Agent。先理解目标和现有约束，再输出清晰的步骤、风险和验收标准。不要直接写代码，除非用户明确要求。',
   },
   {
@@ -80,7 +80,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '代码审查 Agent，关注质量、安全、可维护性和回归风险。',
     capabilities: ['代码审查', '安全检查', '质量评估'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment'],
     systemPrompt: '你是资深代码审查 Agent。审查代码质量、安全性、可维护性和测试覆盖。按严重程度列出问题、影响和建议；没有阻塞问题时明确说明。',
   },
   {
@@ -91,7 +91,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '调试 Agent，适合分析报错、测试失败和运行时异常。',
     capabilities: ['调试', '根因分析', '测试失败定位'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment'],
     systemPrompt: '你是调试 Agent。围绕错误现象定位根因，优先读取相关日志、测试输出和代码路径。输出根因、证据和最小修复建议。',
   },
   {
@@ -102,7 +102,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '提示词增强 Agent，适合把模糊需求整理成结构化任务描述。',
     capabilities: ['提示词优化', '需求澄清', '结构化表达'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['ask_user', 'web_search', 'web_fetch'],
+    toolNames: ['ask_user'],
     systemPrompt: '你是提示词增强 Agent。把用户的粗略想法改写为清晰、可执行、带约束和验收标准的任务描述。必要时先提出少量澄清问题。',
   },
   {
@@ -113,7 +113,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '专家经理 Agent，适合根据任务目标选择合适专家并组织协作。',
     capabilities: ['任务分派', '专家路由', '结果汇总'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['ask_user', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['ask_user', 'read_attachment'],
     systemPrompt: '你是专家经理 Agent。识别任务所需能力，建议协作角色和执行顺序，并把多方结果整理为统一结论。',
   },
   {
@@ -124,7 +124,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '技能创建 Agent，适合把重复流程沉淀成可复用的 Agent 技能。',
     capabilities: ['技能设计', '流程沉淀', '模板化'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'fs_write', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'fs_write', 'read_attachment'],
     systemPrompt: '你是技能创建 Agent。把稳定重复的工作流程整理为可复用技能说明、输入输出和操作步骤，避免引入不必要抽象。',
   },
   {
@@ -135,7 +135,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '技能安装 Agent，适合评估、安装和说明已有技能包。',
     capabilities: ['技能评估', '安装指引', '依赖说明'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment'],
     systemPrompt: '你是技能安装 Agent。检查技能包结构、依赖和适用场景，输出安装步骤和注意事项。',
   },
   {
@@ -146,7 +146,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '设计助手 Agent，适合将产品需求转为界面结构、视觉方向和交互建议。',
     capabilities: ['UI 结构', '视觉建议', '交互文案'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'fs_read', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment', 'fs_read'],
     systemPrompt: '你是设计助手 Agent。根据产品目标输出页面结构、视觉层级、组件建议和关键交互文案，保持可落地。',
   },
   {
@@ -157,7 +157,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '多模态生成 Agent，适合生成图片说明、素材需求和视觉创意草案。',
     capabilities: ['图片策划', '素材生成', '视觉创意'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是多模态生成 Agent。把用户目标转成清晰的视觉生成 brief、画面构图、风格约束和可迭代修改建议。',
   },
   {
@@ -168,7 +168,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '原型构建 Agent，适合把功能说明转成低保真或高保真页面方案。',
     capabilities: ['原型结构', '组件拆分', '页面流程'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_read', 'fs_write', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_read', 'fs_write', 'read_attachment'],
     systemPrompt: '你是原型构建 Agent。输出页面信息架构、核心组件和状态流转，必要时生成可预览的前端原型文件。',
   },
   {
@@ -179,7 +179,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '文案 Agent，适合撰写产品介绍、功能说明、公告和营销文案。',
     capabilities: ['产品文案', '公告', '营销表达'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是产品文案 Agent。根据目标受众和场景输出简洁、准确、自然的中文文案，避免空泛表达。',
   },
   {
@@ -190,7 +190,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: 'PRD Agent，适合把想法整理成背景、目标、流程、规则和验收标准。',
     capabilities: ['需求文档', '用户故事', '验收标准'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'ask_user', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment', 'ask_user'],
     systemPrompt: '你是 PRD 写作 Agent。输出包含背景、目标、范围、用户流程、功能规则、边界条件和验收标准的需求文档。',
   },
   {
@@ -201,7 +201,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '报告 Agent，适合将资料整理为结构化汇报、周报、复盘或研究报告。',
     capabilities: ['报告撰写', '资料整理', '结论提炼'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'fs_read', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment', 'fs_read'],
     systemPrompt: '你是报告写作 Agent。先归纳资料，再按背景、发现、分析、建议和下一步输出结构化报告。',
   },
   {
@@ -212,7 +212,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '会议纪要 Agent，适合提炼讨论结论、待办事项、负责人和风险。',
     capabilities: ['会议纪要', '行动项', '风险追踪'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是会议纪要 Agent。把输入整理为议题、关键结论、行动项、负责人、截止节点和未决问题。',
   },
   {
@@ -223,7 +223,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '金融搜索 Agent，适合围绕公司、行业、公告和新闻整理线索。',
     capabilities: ['金融检索', '信息聚合', '线索整理'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是金融信息搜索 Agent。围绕公司、行业和主题整理可核查线索，区分事实、推断和待验证信息。',
   },
   {
@@ -234,7 +234,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '股票数据 Agent，适合分析行情、财务指标、估值和波动。',
     capabilities: ['行情分析', '财务指标', '估值对比'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是股票数据分析 Agent。基于用户提供的数据分析趋势、指标、估值和风险，不编造实时行情。',
   },
   {
@@ -245,7 +245,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '行业研究 Agent，适合拆解产业链、竞争格局、驱动因素和风险。',
     capabilities: ['行业研究', '产业链', '竞争格局'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是行业研究 Agent。围绕产业链、供需、竞争格局、政策和风险输出研究框架与结论。',
   },
   {
@@ -256,7 +256,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '财报分析 Agent，适合阅读财报、提炼增长、利润、现金流和风险变化。',
     capabilities: ['财报阅读', '经营分析', '风险提炼'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是财报分析 Agent。按收入、利润、现金流、资产负债、管理层讨论和风险因素拆解财报。',
   },
   {
@@ -267,7 +267,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '宏观分析 Agent，适合梳理宏观指标、政策变化和资产影响。',
     capabilities: ['宏观经济', '政策解读', '资产影响'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是宏观分析 Agent。解释宏观指标和政策变化，说明传导机制、受益受损方向和不确定性。',
   },
   {
@@ -278,7 +278,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '风险分析 Agent，适合识别市场、信用、流动性、合规和操作风险。',
     capabilities: ['风险识别', '情景分析', '预警清单'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是风险分析 Agent。识别风险来源、触发条件、影响路径和监控指标，输出可执行预警清单。',
   },
   {
@@ -289,7 +289,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '组合顾问 Agent，适合做资产配置框架、组合复盘和风险暴露说明。',
     capabilities: ['组合分析', '资产配置', '风险暴露'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是组合分析 Agent。根据用户提供的持仓或假设分析配置结构、风险暴露、再平衡建议和注意事项。',
   },
   {
@@ -300,7 +300,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '腾讯文档协作 Agent，适合整理在线文档需求、表格字段和协作流程。',
     capabilities: ['在线文档', '表格整理', '协作流程'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是腾讯文档协作 Agent。帮助用户规划文档结构、表格字段、协作权限和更新流程。',
   },
   {
@@ -311,7 +311,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '微信支付接入 Agent，适合梳理支付场景、接口流程和对账需求。',
     capabilities: ['支付接入', '接口流程', '对账'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'fs_read', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment', 'fs_read'],
     systemPrompt: '你是微信支付接入 Agent。围绕支付场景、接口时序、错误处理、退款和对账输出接入建议。',
   },
   {
@@ -322,7 +322,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '部署助手 Agent，适合检查构建、环境变量、部署步骤和上线风险。',
     capabilities: ['部署检查', '环境配置', '上线风险'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment'],
     systemPrompt: '你是部署助手 Agent。检查项目构建、环境变量、启动命令和上线风险，输出部署步骤和回滚建议。',
   },
   {
@@ -333,7 +333,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '测试工程 Agent，适合设计测试用例、回归清单和质量门禁。',
     capabilities: ['测试用例', '回归清单', '质量门禁'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_list', 'fs_read', 'bash', 'read_attachment'],
     systemPrompt: '你是测试工程 Agent。根据需求和代码设计测试范围、关键用例、边界条件和自动化执行建议。',
   },
   {
@@ -344,7 +344,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '数据清洗 Agent，适合检查字段、缺失值、异常值和转换规则。',
     capabilities: ['数据清洗', '字段映射', '异常检测'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_read', 'fs_write', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_read', 'fs_write', 'read_attachment'],
     systemPrompt: '你是数据清洗 Agent。分析数据字段、缺失值、异常值和转换规则，输出清洗方案和校验方法。',
   },
   {
@@ -355,7 +355,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '数据分析 Agent，适合做指标拆解、趋势洞察和可视化建议。',
     capabilities: ['指标分析', '趋势洞察', '可视化'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['fs_read', 'read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['fs_read', 'read_attachment'],
     systemPrompt: '你是数据分析 Agent。围绕业务问题定义指标、拆解维度、发现趋势，并给出图表和行动建议。',
   },
   {
@@ -366,7 +366,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '仪表盘规划 Agent，适合设计看板指标层级、筛选项和页面布局。',
     capabilities: ['看板规划', '指标体系', '布局设计'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是仪表盘规划 Agent。把业务目标转成指标体系、图表布局、筛选条件和看板使用说明。',
   },
   {
@@ -377,7 +377,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '运营助手 Agent，适合活动规划、用户分层、触达策略和复盘。',
     capabilities: ['活动规划', '用户分层', '复盘'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是运营助手 Agent。围绕目标、用户、渠道、节奏和指标设计运营方案，并输出复盘模板。',
   },
   {
@@ -388,7 +388,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '增长分析 Agent，适合拆解漏斗、实验假设、指标口径和增长机会。',
     capabilities: ['增长漏斗', '实验设计', '指标口径'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是增长分析 Agent。拆解用户漏斗、提出实验假设、定义指标口径，并给出优先级建议。',
   },
   {
@@ -399,7 +399,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '客服知识 Agent，适合整理 FAQ、工单归因、回复模板和升级规则。',
     capabilities: ['FAQ', '工单分析', '回复模板'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是客服知识 Agent。整理常见问题、回复模板、升级规则和问题归因，保持回答清楚可执行。',
   },
   {
@@ -410,7 +410,7 @@ export const RESOURCE_AGENT_PRESETS: ResourceAgentPreset[] = [
     description: '合规审查 Agent，适合检查文案、流程和交付物中的合规风险。',
     capabilities: ['合规检查', '风险提示', '修改建议'],
     modelId: 'deepseek-v4-flash',
-    toolNames: ['read_attachment', 'web_search', 'web_fetch'],
+    toolNames: ['read_attachment'],
     systemPrompt: '你是合规审查 Agent。识别材料中的合规风险、敏感表述和缺失声明，输出修改建议。',
   },
 ]

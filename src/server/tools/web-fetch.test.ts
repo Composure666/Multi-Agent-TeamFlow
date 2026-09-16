@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  WebFetchError,
-  extractReadableText,
-  fetchWebUrl,
-  formatWebFetchError,
-  validateFetchUrl,
-} from './web-fetch'
+import { extractReadableText, fetchWebUrl, validateFetchUrl } from './web-fetch'
 
 const publicLookup = async () => [{ address: '93.184.216.34', family: 4 }]
 const privateLookup = async () => [{ address: '127.0.0.1', family: 4 }]
@@ -111,60 +105,5 @@ describe('web_fetch tool', () => {
 
   it('extracts basic text for non-HTML responses', () => {
     expect(extractReadableText(' {\n  "ok": true\n} ', 'application/json')).toEqual({ text: '{ "ok": true }' })
-  })
-})
-
-describe('web_fetch failure classification', () => {
-  it('classifies a non-HTTPS input as a caller-side URL problem', async () => {
-    const error = await validateFetchUrl('http://example.com', publicLookup).catch((err: unknown) => err)
-
-    expect(error).toBeInstanceOf(WebFetchError)
-    expect((error as WebFetchError).kind).toBe('non_https_input')
-    expect(formatWebFetchError(error)).toContain('https://')
-    expect(formatWebFetchError(error)).toContain('提示：')
-  })
-
-  it('blames the target site — not the caller — when a redirect lands on http://', async () => {
-    // 现场就是这种：so.com / sogou 的反爬把请求 302 到 http:// 的验证页
-    const fetchImpl = async () =>
-      response('', { status: 302, headers: { location: 'http://qcaptcha.so.com/verify' } })
-
-    const error = await fetchWebUrl({ url: 'https://example.com/start' }, {
-      fetchImpl,
-      lookupImpl: publicLookup,
-    }).catch((err: unknown) => err)
-
-    expect(error).toBeInstanceOf(WebFetchError)
-    expect((error as WebFetchError).kind).toBe('non_https_redirect')
-    const formatted = formatWebFetchError(error)
-    expect(formatted).toContain('redirected from https://example.com/start')
-    expect(formatted).toContain('不是你入参 URL 写错了')
-  })
-
-  it('rejects search engine result pages and points at web_search', async () => {
-    const fetchImpl = async () => response('unused', { status: 200, headers: { 'content-type': 'text/html' } })
-
-    for (const url of [
-      'https://www.baidu.com/s?wd=test',
-      'https://www.bing.com/search?q=test',
-      'https://www.sogou.com/web?query=test',
-      'https://duckduckgo.com/html/?q=test',
-    ]) {
-      const error = await fetchWebUrl({ url }, { fetchImpl, lookupImpl: publicLookup }).catch((err: unknown) => err)
-      expect(error).toBeInstanceOf(WebFetchError)
-      expect((error as WebFetchError).kind).toBe('search_engine_result_page')
-      expect(formatWebFetchError(error)).toContain('web_search')
-    }
-  })
-
-  it('still allows fetching pages on sites that merely host search', async () => {
-    const fetchImpl = async () => response('article body', { status: 200, headers: { 'content-type': 'text/html' } })
-
-    const result = await fetchWebUrl({ url: 'https://news.sogou.com/article/1' }, {
-      fetchImpl,
-      lookupImpl: publicLookup,
-    })
-
-    expect(result.text).toBe('article body')
   })
 })

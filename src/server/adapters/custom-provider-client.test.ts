@@ -25,11 +25,11 @@ describe('resolveCustomProviderClientConfig', () => {
       resolveCustomProviderClientConfig(
         'openai-compatible',
         '  provider-key  ',
-        '  https://dashscope.aliyuncs.com/compatible-mode/v1  ',
+        '  https://gateway.example.com/v1  ',
       ),
     ).toEqual({
       apiKey: 'provider-key',
-      baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      baseURL: 'https://gateway.example.com/v1',
     })
   })
 
@@ -44,7 +44,7 @@ describe('resolveCustomProviderClientConfig', () => {
       resolveCustomProviderClientConfig(
         'openai-compatible',
         null,
-        'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        'https://gateway.example.com/v1',
       ),
     ).toThrow(OPENAI_COMPATIBLE_API_KEY_REQUIRED_ERROR)
   })
@@ -59,15 +59,15 @@ describe('resolveCustomProviderClientConfig', () => {
    * 回归：显式端点必须优先于厂商默认地址。
    *
    * 老逻辑对 deepseek / volcano-ark / openai **无条件**用官方默认地址、忽略 `apiBaseUrl`，
-   * 于是 `model_provider=deepseek` + `api_base_url=百炼` 的成员（线上 5 个视觉类成员就这么配的）
-   * 拿着百炼 key 去打 `api.deepseek.com` → 401，且被记到 deepseek 名下把兜底打进冷却。
+   * 于是「`model_provider=deepseek` + `api_base_url` 指向另一家网关」的成员（线上 5 个视觉类成员
+   * 就这么配的）拿着那家的 key 去打 `api.deepseek.com` → 401，且被记到 deepseek 名下把兜底打进冷却。
    */
   it('deepseek：显式端点优先，没给才用官方默认地址', () => {
     expect(
-      resolveCustomProviderClientConfig('deepseek', ' bailian-key ', '  https://dashscope.aliyuncs.com/compatible-mode/v1  '),
+      resolveCustomProviderClientConfig('deepseek', ' gateway-key ', '  https://gateway.example.com/v1  '),
     ).toEqual({
-      apiKey: 'bailian-key',
-      baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      apiKey: 'gateway-key',
+      baseURL: 'https://gateway.example.com/v1',
     })
 
     process.env.DEEPSEEK_API_KEY = 'env-deepseek-key'

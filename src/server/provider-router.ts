@@ -29,7 +29,7 @@ const GLOBAL_CAPABILITY_KEY = 'global:default'
 
 /** 可触发故障转移的错误码/状态。 */
 export const FAILOVER_TRIGGER_CODES = {
-  // ⚠️ 余额类必须认全「欠费」的各家叫法：百炼欠费返回的是 **HTTP 400 + `Arrearage`**，
+  // ⚠️ 余额类必须认全「欠费」的各家叫法：部分网关欠费返回的是 **HTTP 400 + `Arrearage`**，
   // 消息里带 `#overdue-payment`，而不是 402 —— 只认 402 的话，账号一欠费就会
   // 当场硬失败（400 不触发切换），链尾那条健康的兜底模型完全用不上。
   // 线上实测（2026-09-16）：`{"type":"Arrearage","code":"Arrearage",

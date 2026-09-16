@@ -119,24 +119,10 @@ export function isTaskResultReportToolName(toolName: string): boolean {
   )
 }
 
-export interface TaskResultReportEvaluationOptions {
-  /**
-   * 交付方是否具备工具循环（默认 true）。
-   *
-   * 生图成员（image-gen 适配器）没有工具：不跑命令、不调 write_artifact，所以
-   * `requiredCommands` / `requiredEvidence` / 代码任务的验证命令这类「自证式」要求
-   * 它永远满足不了。这里对工具型成员照旧严格，对非工具型成员跳过 ——
-   * 要求本身仍会写进交付回报，交由编排者的复查阶段核对，而不是让每次派发都重试到上限
-   * （每次重试都会再出一张图，产物爆炸）。
-   */
-  toolCapable?: boolean
-}
-
 export function evaluateTaskResultReport(
   task: DispatchPlanItem,
   report: TaskResultReport | undefined,
   evidence: RunToolEvidence = { fileWrites: [], commands: [] },
-  options: TaskResultReportEvaluationOptions = {},
 ): TaskResultReportEvaluation {
   if (!report) {
     return {
@@ -202,35 +188,32 @@ export function evaluateTaskResultReport(
     }
   }
 
-  // 命令 / 文件类「自证式」要求：非工具型成员（生图）无法满足，跳过（见 options 注释）。
-  if (options.toolCapable !== false) {
-    const missingCommands = (task.requiredCommands ?? []).filter(
-      (required) => !hasSuccessfulCommandEvidence(required.command, report, evidence),
-    )
-    if (missingCommands.length > 0) {
-      return {
-        ok: false,
-        error: `Task "${task.id}" report is missing successful command evidence: ${missingCommands
-          .map((required) => required.command)
-          .join('; ')}`,
-      }
+  const missingCommands = (task.requiredCommands ?? []).filter(
+    (required) => !hasSuccessfulCommandEvidence(required.command, report, evidence),
+  )
+  if (missingCommands.length > 0) {
+    return {
+      ok: false,
+      error: `Task "${task.id}" report is missing successful command evidence: ${missingCommands
+        .map((required) => required.command)
+        .join('; ')}`,
     }
+  }
 
-    if (isCodeImplementationTask(task) && !hasSuccessfulVerificationCommandEvidence(evidence)) {
-      return {
-        ok: false,
-        error: `Task "${task.id}" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0`,
-      }
+  if (isCodeImplementationTask(task) && !hasSuccessfulVerificationCommandEvidence(evidence)) {
+    return {
+      ok: false,
+      error: `Task "${task.id}" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0`,
     }
+  }
 
-    const missingEvidence = (task.requiredEvidence ?? []).filter(
-      (required) => !requiredEvidenceSatisfied(required, report, evidence),
-    )
-    if (missingEvidence.length > 0) {
-      return {
-        ok: false,
-        error: `Task "${task.id}" report is missing required evidence: ${missingEvidence.join('; ')}`,
-      }
+  const missingEvidence = (task.requiredEvidence ?? []).filter(
+    (required) => !requiredEvidenceSatisfied(required, report, evidence),
+  )
+  if (missingEvidence.length > 0) {
+    return {
+      ok: false,
+      error: `Task "${task.id}" report is missing required evidence: ${missingEvidence.join('; ')}`,
     }
   }
 

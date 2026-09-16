@@ -17,17 +17,8 @@ export const AGENT_BUILDER_PROVIDER_DEFAULTS: Record<
 export const CLAUDE_CODE_DEFAULT_MODEL = 'claude-opus-4-7'
 export const CODEX_DEFAULT_MODEL = 'gpt-5-codex'
 
-/**
- * 按需生图工具名。
- *
- * 抽成常量是因为它有三处引用：可选工具清单（创建/编辑页勾选）、视觉生产成员的推荐工具集、
- * 以及 bootstrap 对存量视觉成员的「只增不删」能力补齐。三处各写字面量迟早会漂移。
- */
-export const IMAGE_GENERATE_TOOL_NAME = 'image_generate' as const
-
 export const AVAILABLE_AGENT_TOOLS = [
   'write_artifact',
-  IMAGE_GENERATE_TOOL_NAME,
   'deploy_artifact',
   'deploy_workspace',
   'read_artifact',
@@ -38,56 +29,7 @@ export const AVAILABLE_AGENT_TOOLS = [
   'fs_write',
   'bash',
   'web_fetch',
-  'web_search',
 ] as const
-
-/**
- * 所有自定义 Agent 默认内嵌的联网工具。
- *
- * 创建 Agent 时就会写进工具集；AgentRunner 在组装运行时也会对 custom Agent 兜底注入一次，
- * 于是本次改动之前创建的存量 Agent 同样具备联网能力 —— 两处共用这一个常量，避免漂移。
- *
- * 为什么做成默认内嵌而不是可选项：联网检索是绝大多数任务的隐含前提。缺了它，Agent 只能
- * 拿 web_fetch 去手拼搜索引擎 URL 硬抓（实测一个子任务因此烧掉 40 分钟、50+ 次无效抓取）。
- */
-export const ALWAYS_ON_AGENT_TOOLS = ['web_search', 'web_fetch'] as const
-
-/**
- * 视觉生产成员的推荐工具集（生图 / 视觉设计 / 图表设计）。
- *
- * 这类成员出图靠的是**工具循环**，历史上有三条路，都需要 bash + fs_write + write_artifact：
- *   1. `write_artifact type:"image"` 直接塞 `data:image/svg+xml`（矢量图即产物）；
- *   2. 写 python 脚本调外部 OpenAI 兼容的 `/images/generations`（自己重试、校验、选优）；
- *   3. 探测 rsvg-convert / chromium / playwright 把矢量图渲成位图。
- *
- * `image_generate`（2026-09-16 新增）是第 4 条、也是首选的一条：官方生图通路，自带
- * 供应商降级、尺寸修边、OSS/本地统一存储、产物图集聚合与 run 验收证据 —— 不必再让模型
- * 自己写脚本找 Key、自己校验尺寸。前三条仍然有效（矢量图 / 精细排版场景更合适）。
- *
- * 2026-09-16 的事故正是把这条抹掉了：旧不变式「生图模态 ⇒ image-gen 适配器 + 清空 tools」
- * 让这批成员从「97~2397s 的 agentic 生产、交付成图 + 提示词文档 + 复现记录」缩成
- * 「12s 出一张栅格图」。bootstrap 的存量修复用它回填被清空的工具集。
- */
-export const VISUAL_AGENT_TOOLS = [
-  'write_artifact',
-  IMAGE_GENERATE_TOOL_NAME,
-  'read_artifact',
-  'read_attachment',
-  'ask_user',
-  'fs_list',
-  'fs_read',
-  'fs_write',
-  'bash',
-] as const
-
-/** 保证工具名列表一定包含内嵌联网工具（保持原顺序，去重补齐）。 */
-export function withAlwaysOnAgentTools(toolNames: readonly string[]): string[] {
-  const out = [...toolNames]
-  for (const name of ALWAYS_ON_AGENT_TOOLS) {
-    if (!out.includes(name)) out.push(name)
-  }
-  return out
-}
 
 export type AgentToolName = (typeof AVAILABLE_AGENT_TOOLS)[number]
 export type AgentToolPresetId = 'all-purpose' | 'local-code' | 'artifact' | 'review'
@@ -110,19 +52,19 @@ export const AGENT_TOOL_PRESETS: readonly AgentToolPreset[] = [
     id: 'local-code',
     label: '本地代码',
     desc: '读写 workspace 并运行命令',
-    tools: ['deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'fs_write', 'bash', 'web_fetch', 'web_search'],
+    tools: ['deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'fs_write', 'bash'],
   },
   {
     id: 'artifact',
     label: '产物交付',
     desc: '网页、文档、原型卡片',
-    tools: ['write_artifact', 'deploy_artifact', 'deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'web_fetch', 'web_search'],
+    tools: ['write_artifact', 'deploy_artifact', 'deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user'],
   },
   {
     id: 'review',
     label: '审查验证',
     desc: '读取产物/文件并跑检查',
-    tools: ['read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'bash', 'web_fetch', 'web_search'],
+    tools: ['read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'bash'],
   },
 ]
 
@@ -130,7 +72,6 @@ export const DEFAULT_CUSTOM_AGENT_TOOLS = AGENT_TOOL_PRESETS[0].tools
 
 export const AGENT_TOOL_META: Record<AgentToolName, { label: string; desc: string }> = {
   write_artifact: { label: '创建产物', desc: '生成可预览的代码 / 网页 / 文档 / PPT，支持多版本迭代' },
-  image_generate: { label: '生成图片', desc: '用生图模型按提示词出图并交付为图片产物（可选同时落盘到工作区）；供应商取自「设置-模型分配 → 生图 Agent」' },
   deploy_artifact: { label: '部署网页', desc: '把网页产物发布为本地静态站点，生成预览链接与下载包' },
   deploy_workspace: { label: '部署目录', desc: '把工作区内 dist/build/out 等静态目录生成预览链接与下载包' },
   read_artifact: { label: '读取产物', desc: '查看会话中已有产物的完整内容，便于在其基础上继续改' },
@@ -141,7 +82,6 @@ export const AGENT_TOOL_META: Record<AgentToolName, { label: string; desc: strin
   fs_write: { label: '写入文件', desc: '在工作区内新建 / 修改文件；review 模式下需用户批准' },
   bash: { label: '执行命令', desc: '在工作区内运行命令行；受命令黑名单与沙箱目录约束' },
   web_fetch: { label: '读取网页', desc: '读取公开 HTTPS 网页文本；会阻断 localhost、私网、metadata endpoint 和二进制响应' },
-  web_search: { label: '联网搜索', desc: '联网检索实时信息（新闻 / 行情 / 政策 / 文档），返回摘要与来源链接；抓搜索引擎结果页无效，检索一律走这个工具' },
 }
 
 export interface AgentDraftAssumption {
@@ -203,9 +143,7 @@ export function getAgentToolPreset(presetId: AgentToolPresetId): AgentToolPreset
 export function buildToolPermissionSummaries(
   toolNames: readonly string[],
 ): AgentToolPermissionSummary[] {
-  // 与 AgentRunner 运行时对齐：联网工具是内嵌的，摘要里也要显示出来，
-  // 否则预览说的工具集和实际跑起来的工具集对不上。
-  return normalizeAgentToolNames(withAlwaysOnAgentTools(toolNames)).map((toolName) => ({
+  return normalizeAgentToolNames(toolNames).map((toolName) => ({
     toolName,
     ...AGENT_TOOL_META[toolName],
   }))

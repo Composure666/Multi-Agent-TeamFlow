@@ -1,206 +1,96 @@
-# 模型分配与降级兜底（阿里云百炼接入）
+# 模型分配与降级兜底
 
-> 本文档是「设置 → 模型分配」的取舍依据与最终清单。代码里的常量在
-> `src/lib/llm-shared.ts`（`BAILIAN_MODELS` / `BAILIAN_MODEL_NOTES` /
-> `DEFAULT_MODEL_ASSIGNMENT_PLAN`），本文档与之一一对应，改代码时请同步改这里。
-
----
-
-## 1. 接入概览
-
-| 项 | 值 |
-| --- | --- |
-| 供应商 ID | `bailian` |
-| 展示名 | 阿里云百炼 |
-| OpenAI 兼容 Base URL | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| Anthropic 兼容 Base URL | `https://dashscope.aliyuncs.com/apps/anthropic` |
-| 模型协议 | 对话 / 工具调用 / 流式 / 视觉 → OpenAI 兼容；**生图 → DashScope 原生** |
-| 环境变量 | `BAILIAN_API_KEY`（未配置时 bootstrap 跳过建行，项目仍以 deepseek 基线运行） |
-
-### 1.1 两套生图协议（踩过的坑）
-
-百炼的 OpenAI 兼容层**没有** `/images/generations`（实测 404）。生图必须走原生接口：
-
-```
-POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-```
-
-代码里由 `resolveImageApiProtocol(baseUrl)` 按 host 自动分派：
-
-- host 是 `dashscope.aliyuncs.com` → 走 DashScope 原生（`toDashScopeSize` 把 `1024x1024` 转成 `1024*1024`）；
-- 其它网关（SiliconFlow 等）→ 仍走 OpenAI 兼容协议，行为不变。
-
-所以「生图 Agent」在百炼下能直接跑通，无需用户改协议。
+> 本文说明「设置 → 模型分配」的能力键体系、优先级链结构，以及 Agent 运行时的降级兜底机制。
+>
+> 常量真相源：`src/lib/llm-shared.ts`；运行时：`src/server/llm-failover.ts` +
+> `src/server/provider-router.ts`；数据表：`llm_providers` / `llm_model_assignments` /
+> `llm_failover_config` / `llm_provider_status` / `llm_failover_events`。
 
 ---
 
-## 2. 对比基准：native `deepseek/deepseek-v4-flash`
+## 1. 三个概念
 
-它是项目原有水位，也是**所有能力链的链尾兜底**，改造后地位不变。
-
-| 维度 | deepseek-v4-flash（基准） | 百炼接入后的增量 |
+| 概念 | 落点 | 说明 |
 | --- | --- | --- |
-| 上下文窗口 | 64K | 主力 128K，长文本 1M（`qwen-long`） |
-| 工具调用 | 支持，但长链路（多轮 tool loop）稳定性一般 | `qwen3-coder-plus` / `qwen3.8-flash` 多轮工具链更稳 |
-| 视觉（识图） | **完全不支持** | `qwen3-vl-plus/flash` + `qwen3.5-ocr` 补齐 |
-| 生图 | **完全不支持** | `z-image-turbo` / `qwen-image-3.0(-pro)` 补齐 |
-| 代码 | 可用，非专项 | `qwen3-coder-plus` 仓库级理解；`kimi-k2.7-code` 异构复核 |
-| 供应商风险 | 单点 | 引入阿里通义 + 智谱 + 月之暗面三个家族，降低同源集体失效风险 |
+| 供应商 | `llm_providers` | 一组凭证（key、base URL）+ 可选模型清单。四个内置 id：`anthropic` / `openai` / `deepseek` / `ark`；其余（含用户自建）一律走 `openai-compatible` 协议 |
+| 能力键 | `llm_model_assignments.capability_key` | 把「一类调用场景」映射到一条优先级链。系统能力 4 个（`prompt_optimize` / `task_planning` / `context_summary` / `system_chat`）、Agent 模态 4 个（`agent:code` / `agent:text` / `agent:vision` / `agent:image`）、全局策略 3 个（`global:default` / `global:default_provider` / `global:fallback_provider`） |
+| 优先级链 | `llm_model_assignments.priority` | 升序即尝试顺序，`priority` 小的先试。同能力下未被单独配置时回退到全局链 `global:default` |
 
-**一句话定位**：deepseek-v4-flash 从「唯一可用的通用模型」降级为「通用兜底 + 基线水位」，
-百炼模型负责在**代码、视觉、生图、超长上下文、深度推理**这些它做不到或有明显短板的方面补齐。
+模态到能力键的换算是 `modalityToCapabilityKey()` / `capabilityKeyForModality()`，
+历史值 `audio` → `text`、`multimodal` → `vision` 由 `normalizeModality()` 归并，不会悬空。
 
 ---
 
-## 3. 精选模型清单（18 个）
+## 2. 基线水位：`deepseek/deepseek-v4-flash`
 
-从百炼 250+ 个模型里筛出这些，其余不进下拉框（理由见 §7）。
+`FALLBACK_PROVIDER_ID = 'deepseek'` + `FALLBACK_MODEL_NAME = 'deepseek-v4-flash'`
+是项目原有水位，也是**所有能力链的链尾兜底**（`buildBaselineCandidate()`）。
 
-### 3.1 通用文本
+它的特殊性在于：**不依赖「模型分配」是否配过**。只要供应商中心里存在可用的 deepseek key，
+链尾就一定能补上这一条。所以即使分配表被清空、或新接入的模型整体不可用，Agent 也不会彻底挂死。
 
-| 模型 | 上下文 | 差异化定位（相对 deepseek-v4-flash） |
-| --- | --- | --- |
-| `qwen3.8-flash` | 128K | **新一代通用主力**：中文指令跟随与工具调用稳定性优于同级 flash，延迟与基准持平 → 可无痛替换 |
-| `qwen3.8-max` | 256K | **旗舰通用**：复杂规划 / 长链路推理，用于 Orchestrator 拆解等高质量场景 |
-| `qwen3.7-flash` | 128K | **上一代轻量款**：作为 3.8-flash 的降级备选，避免单一版本故障 |
-
-### 3.2 第三方异构骨干（补同源失效风险）
-
-| 模型 | 上下文 | 差异化定位 |
-| --- | --- | --- |
-| `glm-5.3` | 128K | 智谱异构骨干：与通义 / DeepSeek **不同源**，用于系统级对话 |
-| `kimi-k3` | 256K | 长上下文写作 / 资料综述：长文档凝练能力强 |
-
-### 3.3 代码
-
-| 模型 | 上下文 | 差异化定位 |
-| --- | --- | --- |
-| `qwen3-coder-plus` | 256K | **代码旗舰**：仓库级理解、多轮工具链稳定，适合 refactor / debug |
-| `qwen3-coder-flash` | 128K | **代码高性价比**：延迟约为 coder-plus 的 1/2，适合批量改动与代码解释 |
-| `kimi-k2.7-code` | 256K | **代码异构备选**：换家族换思路，用于主代码模型结论可疑时的二次验证 |
-
-### 3.4 视觉
-
-| 模型 | 上下文 | 差异化定位 |
-| --- | --- | --- |
-| `qwen3-vl-plus` | 128K | **视觉旗舰**：截图 / 设计稿 / 图表理解 —— 基准模型完全不支持的模态 |
-| `qwen3-vl-flash` | 128K | **视觉高性价比**：延迟 ~0.4s，适合大批量截图与页面巡检 |
-| `qwen3.5-ocr` | 32K | **OCR 专项**：票据 / 扫描件 / 手写体结构化抽取，输出 JSON |
-
-### 3.5 生图
-
-| 模型 | 差异化定位 |
-| --- | --- |
-| `z-image-turbo` | **生图极速款**：~4s 出图，适合草图 / 迭代试稿 |
-| `qwen-image-3.0` | **生图标准款**：质量与成本平衡，主体一致性好 |
-| `qwen-image-3.0-pro` | **生图旗舰**：细节 / 排版 / 文字渲染最强，用于终稿 |
-
-### 3.6 长文本 / 深度推理 / 翻译
-
-| 模型 | 上下文 | 差异化定位 |
-| --- | --- | --- |
-| `qwen-long` | **1M** | **超长上下文**：长对话 / 长资料摘要，摘要任务单位成本最低 |
-| `qwen3.5-397b-a17b` | 128K | **MoE 大模型**：难推理 / 数学 / 复杂约束求解的强备选 |
-| `qwq-plus` | 128K | **深度推理专线（仅流式）**：思维链更长，疑难问题兜底 |
-| `qwen-mt-plus` | 16K | **翻译专项**：多语种翻译质量与术语一致性优于通用模型 |
+`hasBaselineFallback(chain)` 供测试与 UI 自检链尾是否为基线。
 
 ---
 
-## 4. 最终模型分配清单（交付物）
+## 3. 运行时拼链：`buildAgentFailoverChain()`
 
-优先级 `p0` 最优先，向下依次降级；**链尾恒为 `deepseek/deepseek-v4-flash`**。
+给 Agent 运行期（`custom` 适配器）用的候选链，顺序即尝试顺序：
 
-### 4.1 Agent 类型（按模态）
+1. **Agent 自己配的 provider/model**（`agents.model_provider` + `model_id` + 凭证）永远是第一顺位
+   —— 用户显式配过的东西不被隐性改写；
+2. 之后接该 Agent 模态能力（`agent:<modality>`）在「模型分配」里配的优先级链，去掉与第 1 项重复的；
+   - 取链规则：`resolveCapabilityChain()` 先看模态自己的链，若该链**只有基线、没有实质候选**
+     （用户没配过 / 配的供应商已删），再往下试 `agent:text` —— 「普通 chat + 工具循环」的标准链，
+     继续往下找才有跨供应商余量；
+3. 最后保证链尾是基线 `deepseek/deepseek-v4-flash`。
 
-| Agent 类型 | 能力键 | 主模型（p0） | 中间兜底 | 最终兜底 |
-| --- | --- | --- | --- | --- |
-| 代码 Agent | `agent:code` | `bailian/qwen3-coder-plus` | — | `deepseek/deepseek-v4-flash` |
-| 文本 Agent | `agent:text` | `bailian/qwen3.8-flash` | — | `deepseek/deepseek-v4-flash` |
-| 视觉 Agent | `agent:vision` | `bailian/qwen3-vl-plus` | `bailian/qwen3-vl-flash` | `deepseek/deepseek-v4-flash` |
-| 生图 Agent | `agent:image` | `bailian/z-image-turbo` | `bailian/qwen-image-3.0-pro` | `deepseek/deepseek-v4-flash` |
+返回空数组表示「没有可用的候选」，调用方（`agent-runner`）保持旧行为：直接用 agent 字段跑，报错照抛。
 
-### 4.2 系统能力
+> **只对 chat 协议成员建链。** 调用方只给 `agent.adapterName === 'custom'` 的成员建链；
+> `image-gen` 适配器走生图协议，链上任何 chat 模型都必然撞一次「不触发降级的 400」，
+> 白白烧掉一次切换配额。
 
-| 能力 | 能力键 | 主模型（p0） | 最终兜底 | 分配理由 |
-| --- | --- | --- | --- | --- |
-| 提示词增强 | `prompt_optimize` | `bailian/qwen3.8-flash` | `deepseek/deepseek-v4-flash` | 高频、短输入，要快且中文语感好 |
-| 任务规划 | `task_planning` | `bailian/qwen3.8-max` | `deepseek/deepseek-v4-flash` | Orchestrator 拆解子任务，能力优先于成本 |
-| 上下文摘要 | `context_summary` | `bailian/qwen-long` | `deepseek/deepseek-v4-flash` | 1M 窗口 + 摘要任务单位成本最低 |
-| 系统对话 | `system_chat` | `bailian/glm-5.3` | `deepseek/deepseek-v4-flash` | 刻意换供应商家族，避免与其它能力同源同故障 |
+### 3.1 候选去重键 `candidateKey()`
 
-### 4.3 全局策略
+**有显式 key 时**，目标的完整身份是 `端点::key::模型`，不是 `providerId::模型`。
 
-| 能力键 | p0 | p1 | 说明 |
-| --- | --- | --- | --- |
-| `global:default` | `bailian/qwen3.8-flash` | `deepseek/deepseek-v4-flash` | 未单独指定能力时的通用优先级链 |
-| `global:default_provider` | `bailian/qwen3.8-flash` | `deepseek/deepseek-v4-flash` | 默认供应商 |
-| `global:fallback_provider` | `deepseek/deepseek-v4-flash` | — | **兜底供应商固定为 deepseek，不参与上移** |
+原因：`providerId` 是归因账本上的标签，两行供应商完全可以被配成「端点 + key 完全相同」的等价目标；
+归因按端点反查后，同一个目标会被两行分别认领，只按 `providerId` 判重就发现不了这种重复
+—— 白烧一次切换配额，还可能把链尾基线挤掉。
 
-### 4.4 逐条分配理由（为什么是它）
+**没有显式 key 时**（内置供应商读 env），协议与凭证都由 `providerId` 决定，因此退回
+`providerId::端点::模型`。
 
-- **`agent:code` → `qwen3-coder-plus`**：代码是工具调用密度最高的场景，基准模型的长链路稳定性是短板；
-  coder-plus 有 256K 窗口和仓库级理解，且与基准同为「便宜档」，替换无成本压力。
-  中间不放 `coder-flash`：flash 与 plus 定位重叠，直接落到 deepseek 反而更能暴露真实故障。
-- **`agent:text` → `qwen3.8-flash`**：文本 Agent 是使用量最大的一类，必须保证延迟不退化。
-  3.8-flash 与基准延迟持平但中文指令跟随更好，属于「无损升级」。
-- **`agent:vision` → `qwen3-vl-plus` → `qwen3-vl-flash` → deepseek**：视觉是基准模型**完全缺失**的能力，
-  主备都必须是 VL 模型；`vl-flash` 作为同模态快速降级，`vl-plus` 故障时不至于直接掉到不会识图的 deepseek。
-- **`agent:image` → `z-image-turbo` → `qwen-image-3.0-pro` → deepseek**：同理，生图是缺失能力。
-  主用 turbo 因为生图是**迭代式**交互（试稿 → 改 → 再试），速度比单次质量更关键；
-  中间放 pro 让「turbo 明确报错」时仍能出图，只在最后才落到 deepseek（此时会明确报「不支持生图」而不是静默失败）。
-- **`task_planning` → `qwen3.8-max`**：唯一一个「能力优先于成本」的选择。规划错了后面全错，
-  且规划调用频率低（每次任务一次），用旗舰不心疼。
-- **`context_summary` → `qwen-long`**：1M 窗口直接省掉「先截断再摘要」的逻辑，且长文本摘要单价最低。
-- **`system_chat` → `glm-5.3`**：**故意选异构家族**。系统对话是用户最先感知到故障的入口，
-  如果它和主力模型同源，供应商抖动时会同时挂掉；用智谱可以把「阿里系全挂」变成一个可降级事件。
-- **`global:fallback_provider` 保持 `deepseek-v4-flash`**：这是用户明确要求 —— 兜底仍是项目原有基线，
-  保证新接入的百炼整体不可用时，项目回到改造前的能力水位继续可用。
+链尾补基线时**必须走同一个 `candidateKey`**：写成朴素的 `deepseek::deepseek-v4-flash`
+会与能力链里那条同名基线对不上（它的 key 是 `端点::key::模型`），结果基线被补第二遍。
 
 ---
 
-## 5. 降级兜底机制
+## 4. ❗ 铁律：路由与归因都由**端点**决定，不由 `model_provider` 标签决定
 
-### 5.1 三层结构
-
-```
-llm_providers          供应商凭证（key / baseUrl / 模型清单）
-      ↓
-llm_model_assignments  能力 → 「主模型 → 兜底模型」优先级链（本文档 §4）
-      ↓
-llm_failover_config    触发条件开关、重试次数、冷却时长（默认：全开 / 2 次 / 30s）
-      ↓
-llm_provider_status    运行时健康度（degraded / unavailable + 冷却到期时间）
-      ↓
-llm_failover_events    切换审计日志（「设置-故障转移」面板读这个）
-```
-
-运行时实现在 `src/server/llm-failover.ts`：
-
-- `buildAgentFailoverChain(agent)` 拼链：**Agent 自己的模型 → 该模态链 → 链尾 `deepseek/deepseek-v4-flash`**；
-- `runWithFailover(chain, attempt, …)` 逐个候选尝试，失败按分类决定是否切换。
-
-### 5.1.1 ❗ 铁律：路由与归因都由**端点**决定，不由 `model_provider` 标签决定
-
-`model_provider` 只是一个标签。用户可以把它写成 `deepseek`，而把 `api_base_url` 指向百炼
-（线上就有 5 个这样的成员：主图设计师 / 文案策划 / 视觉质检 / 总策划 / 前端发布工程师 ——
-`model_provider=deepseek` + `api_base_url=百炼兼容端点` + 百炼 key）。因此：
+`model_provider` 只是一个标签。用户可以把它写成 `deepseek`，而把 `api_base_url` 指向别的网关。
+因此：
 
 | 位置 | 规则 |
 | --- | --- |
 | `resolveCustomProviderClientConfig`（实际发请求） | 显式 `apiBaseUrl` **优先于**该厂商官方默认地址（2026-09-16 前是反的：已知厂商无条件用官方地址、忽略 `apiBaseUrl`） |
-| `buildAgentFailoverChain`（归因） | `providerId` 由 `findProviderIdForEndpoint({apiBaseUrl, apiKey, modelId})` 反查，而不是取 `row?.id`；匹配不上任何供应商行时返回 `null`（**宁可不冷却，也不把账算到没被调用的供应商头上**） |
+| `buildAgentFailoverChain`（归因） | `providerId` 由 `findProviderIdForEndpoint({ apiBaseUrl, apiKey, modelId })` 反查，而不是取 `row?.id`；端点明明是自定义的却匹配不上任何供应商行时返回 `null`（**宁可不冷却，也不把账算到没被调用的供应商头上**）。只有「算不出端点」时才退回按标签归因 |
 | `experience-service` 的复盘提炼 | 必须与执行期用同一个 `resolveCustomProviderClientConfig`，否则会出现「任务跑得通、复盘提炼必失败」 |
 
-**违反这条铁律的后果（线上真实发生过）**：请求拿百炼 key 打到了 `api.deepseek.com` → 401
-`Your api key: ****xxxx is invalid`（每秒重试一次），而失败被记到 `deepseek` 名下 →
+**违反这条铁律的后果（线上真实发生过）**：请求拿着 A 家的 key 打到了 B 家端点 → 401
+`Your api key: ****xxxx is invalid`（每秒重试一次），而失败被记到 B 名下 →
 把**健康的链尾兜底**打进冷却（`llm_provider_status` 实测 `status=unavailable`、
 `consecutive_failures=500`），兜底链形同虚设。
 
-### 5.2 触发条件（`shouldFailover`）
+---
+
+## 5. 触发条件（`shouldFailover` / `classifyError`）
 
 | 错误 | 是否切换 | 原因 |
 | --- | --- | --- |
 | 402 额度耗尽 | ✅ | 换供应商即可恢复 |
+| 余额类错误（含**HTTP 400 + `Arrearage`** 这种非 402 形状） | ✅ | 各家对「欠费」的 HTTP 状态码叫法不统一，只认 402 会让账号一欠费就当场硬失败 |
 | 401 鉴权失败 | ✅ | key 失效，重试无意义 |
 | 429 限流 | ✅ | 换供应商绕过限流 |
 | 5xx 服务端错误 | ✅ | 上游故障 |
@@ -208,68 +98,46 @@ llm_failover_events    切换审计日志（「设置-故障转移」面板读�
 | 400 参数错误 | ❌ | 换成兜底模型也会同样失败，只是白烧额度 |
 | 业务类错误 | ❌ | 同上 |
 
-### 5.3 两个关键约束
-
-1. **只在「还没产出任何内容」时切换**。适配器在首个 `text.append` / `tool_call` 时把
-   `emittedThisTurn` 置为 true，之后不再允许切换 —— 否则一条消息里会出现两段互不衔接的输出。
-2. **冷却与恢复**。连续失败累计到阈值后供应商标记 `unavailable` 并进入 30s 冷却，
-   冷却期内该候选被跳过（`auto_recover=true`，到期自动恢复）；切换事件写入
-   `llm_failover_events`，可在「设置-故障转移」面板查看。
+即使判定为**不切换**，失败仍会登记到供应商健康状态（连续失败计数 → `degraded` →
+`unavailable` + 冷却），只有「切换」这一个动作被跳过。
+每个触发条件在 `llm_failover_config` 里都有独立开关，`enabled=false` 时整体不切换。
 
 ---
 
-## 6. 验证结果
+## 6. 两个关键约束
 
-### 6.1 单元 / 集成测试（无网络）
-
-| 文件 | 用例数 | 结果 |
-| --- | --- | --- |
-| `src/server/model-assignment-bailian.test.ts` | 20 | ✅ 全通过 |
-| `src/lib/llm-shared.test.ts` | 12 | ✅ 全通过 |
-| `src/server/bootstrap-bailian-smoke.test.ts` | 4 | ✅ 全通过 |
-
-覆盖点：seed 幂等、四类模态创建 Agent 时自动匹配模型、团队成员按各自模态分配、
-凭证自动补齐（不需用户手填 Key）、链尾恒为 deepseek-v4-flash、
-429/402/401/5xx/超时触发切换、400 不切换、已出内容不切换、链尾失败抛真实错误、冷却跳过。
-
-### 6.2 真实网络活体测试
-
-`AGENTHUB_LIVE_LLM=1 vitest run src/server/bailian-live.test.ts` —— **2/2 通过**：
-
-1. **主模型可用**：`qwen3.8-flash` 真实出流，`run.usage.model = qwen3.8-flash`，**无切换事件**；
-2. **主模型不可用**（故意给坏 key）：自动转发到 `deepseek-v4-flash` 并正常出流，
-   留下 `from=bailian → to=deepseek`、`capabilityKey=agent:text` 的切换记录。
-
-### 6.3 真实库现状
-
-`.agenthub-data/agenthub.db` 已回填：
-
-- `llm_providers` 新增 `bailian`（18 个精选模型全部登记，`isConnected=true`）；
-- `llm_model_assignments` 共 **23 行**，9 个能力全部「主模型 + deepseek-v4-flash 兜底」；
-- `llm_failover_config` 落库一条 singleton 行（全触发条件开启）；
-- `resolveModelForCapability('agent:code')` → `bailian/qwen3-coder-plus`。
-
-### 6.4 seed 幂等规则（修过一个真实缺陷）
-
-早期实现「只要该能力有一条记录就整条跳过」，导致 **`BAILIAN_API_KEY` 未配置时先落了一批
-「只有兜底」的行，之后 key 配好了主模型永远补不上**。现规则：
-
-1. 该能力名下的行**全部**是 seed 出来的（id 属于计划内的确定性集合）才动；出现用户自己加的
-   / 改过的行即视为「已被用户接管」，整条跳过；
-2. 引用的供应商必须已存在（外键前提），否则跳过该条；
-3. 逐条 `ON CONFLICT(id) DO NOTHING` —— 只能补缺，不能覆盖。
+1. **只在「还没产出任何内容」时切换。** 适配器在首个 `text.append` / `tool_call` 时把
+   `emittedThisTurn` 置为 true，之后 `canSwitch()` 返回 false，不再允许切换 ——
+   否则一条消息里会出现两段互不衔接的输出。
+2. **冷却与恢复。** 连续失败累计到阈值后供应商标记 `unavailable` 并进入 30s 冷却，
+   冷却期内该候选被 `isCandidateAvailable()` 跳过（`auto_recover=true`，到期自动恢复）；
+   切换事件写入 `llm_failover_events`，可在「设置 → 故障转移」面板查看。
 
 ---
 
-## 7. 未接入的模型及原因
+## 7. 执行器：`runWithFailover()`
 
-接入前对 250+ 个模型做过真实探测（chat + tools + stream + vision + 生图），以下被排除：
+adapter 层只需要给出 `attempt(candidate)`，其余交给执行器：
 
-| 模型 / 家族 | 现象 | 结论 |
-| --- | --- | --- |
-| `kimi-k3`（原生接入名）、`GLM-5.3-Flash`、MiniMax、stepfun、xiaomi 等 | HTTP 400 `product not activated` | 账号未开通，接入会稳定报错 |
-| `qwen-plus` / `qwen-max` / `qwen-turbo` | HTTP 403 `Free quota exhausted` | 免费额度耗尽，不适合做默认主力 |
-| 其余同质模型 | 与已选 18 个定位重叠 | 只增加下拉框长度，不增加能力覆盖 |
+- 第 i 个候选失败且属于可切换错误、链上还有下一个、且 `canSwitch()` 允许
+  → 记录健康状态 + 切换事件，继续第 i + 1 个；
+- 不可切换（400 参数错误 / 业务错误）→ 直接抛出，不浪费配额；
+- `canSwitch()` 返回 false（本轮已产出内容）→ 直接抛出；
+- 链尾也失败 → 抛出最后一个错误（此时已记录足够的诊断信息）；
+- `signal.aborted` → 立即抛出，不再尝试后续候选。
 
-保留的 18 个覆盖 **通用主力 / 旗舰规划 / 异构骨干 / 代码 / 视觉 / OCR / 生图 / 长文本 / 深度推理 / 翻译** 七类，
-避免把 250+ 个模型全塞进下拉框。
+---
+
+## 8. 代码位置索引
+
+| 关注点 | 文件 |
+| --- | --- |
+| 常量 / 内置供应商 / 能力键 / 模态归一 | `src/lib/llm-shared.ts` |
+| 健康状态、冷却、错误分类、切换事件 | `src/server/provider-router.ts` |
+| 候选链组装 + 执行器 | `src/server/llm-failover.ts` |
+| 供应商行解析、按端点反查归因 | `src/server/provider-service.ts` |
+| 分配读写（面板 / API） | `src/server/model-assignment-service.ts` |
+| API 路由 | `src/app/api/model-assignments/` · `src/app/api/provider-priority/` |
+| 实际发请求时的端点解析 | `src/server/adapters/custom-provider-client.ts` |
+| 把链交给 adapter 的接线点 | `src/server/agent-runner.ts` |
+| adapter 内的逐个尝试 | `src/server/adapters/custom-agent-adapter.ts` |

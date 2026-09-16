@@ -5,14 +5,12 @@ import { deployWorkspaceTool } from './deploy-workspace'
 import { fsListTool } from './fs-list'
 import { fsReadTool } from './fs-read'
 import { fsWriteTool } from './fs-write'
-import { imageGenerateTool } from './image-generate'
 import { planTasksTool } from './plan-tasks'
 import { readArtifactTool } from './read-artifact'
 import { readAttachmentTool } from './read-attachment'
 import { reportTaskResultTool } from './report-task-result'
 import type { ToolContext, ToolDef, ToolExecutionResult, ToolResult } from './types'
 import { webFetchTool } from './web-fetch'
-import { webSearchTool } from './web-search'
 import { writeArtifactTool } from './write-artifact'
 
 /**
@@ -103,10 +101,8 @@ function buildRegistry(): ToolRegistry {
   reg.register(fsReadTool)
   reg.register(fsWriteTool)
   reg.register(bashTool)
-  reg.register(imageGenerateTool)
   reg.register(askUserTool)
   reg.register(webFetchTool)
-  reg.register(webSearchTool)
   return reg
 }
 

@@ -23,10 +23,8 @@ import {
   FALLBACK_MODEL_NAME,
   FALLBACK_PROVIDER_ID,
   GLOBAL_PRIORITY_KEY,
-  isImageGenerationModel,
   normalizeModality,
   providerIdToModelProvider,
-  shouldUseImageGenAdapter,
 } from '@/lib/llm-shared'
 import { findProviderIdForEndpoint, resolveProviderRowForAgent } from '@/server/provider-service'
 import type { ModelProvider } from '@/shared/types'
@@ -122,10 +120,9 @@ function candidateKey(c: FailoverCandidate): string {
   if (key) {
     // **有显式 key 时，`端点 + key + 模型` 才是目标的完整身份。**
     //
-    // 为什么不能只用 `providerId::modelId`：`providerId` 是归因账本上的标签，线上存在
-    // 两行供应商「端点 + key 完全相同」的情况（`openai` 行被填成了百炼的兼容端点 +
-    // 百炼 key，与 `bailian` 行等价）。归因改按端点反查后，同一个目标会被两行分别认领，
-    // 按 providerId 判重就留不下一个重复候选 —— 白烧一次切换配额，还挤掉链尾基线。
+    // 为什么不能只用 `providerId::modelId`：`providerId` 是归因账本上的标签，两行供应商
+    // 完全可以被配成「端点 + key 完全相同」的等价目标。归因按端点反查后，同一个目标会被
+    // 两行分别认领；按 providerId 判重就发现不了这种重复 —— 白烧一次切换配额，还挤掉链尾基线。
     const endpoint = (c.apiBaseUrl ?? '').trim().replace(/\/+$/, '').toLowerCase()
     return `${endpoint}::${key}::${c.modelId}`
   }
@@ -139,10 +136,11 @@ function candidateKey(c: FailoverCandidate): string {
  *
  * 顺序语义：
  *   1. `agents.model_provider` + `model_id` 永远是第一顺位 —— 用户显式配过的东西不被隐性改写；
- *   2. 之后接该 Agent 模态在「设置-模型分配」里配的优先级链（去掉与第 1 项重复的、
- *      以及与自有模型协议不一致的）；
- *   3. chat 协议下最后保证链尾存在项目基线 `deepseek + deepseek-v4-flash`，作为跨供应商的
- *      最终兜底（生图协议下不补 —— 基线是 chat 模型，对生图只有反作用）。
+ *   2. 之后接该 Agent 模态在「设置-模型分配」里配的优先级链（去掉与第 1 项重复的）；
+ *   3. 最后保证链尾存在项目基线 `deepseek + deepseek-v4-flash`，作为跨供应商的最终兜底。
+ *
+ * 只对 chat 协议成员有意义：调用方（`agent-runner`）只给 `custom` 适配器的成员建链；
+ * image-gen 适配器走生图协议，链上任何 chat 模型都必然撞一次不触发降级的 400。
  *
  * 返回空数组表示「没有可用的候选」，调用方保持旧行为（直接用 agent 字段跑，报错照抛）。
  */
@@ -150,19 +148,8 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   const chain: FailoverCandidate[] = []
   const seen = new Set<string>()
 
-  // 候选链必须与「自有模型代表的那套协议」对齐：生图模型与 chat 模型是**两套互不兼容的
-  // 协议**，链里混入另一种协议的模型，只会在轮到它时撞一次不触发降级的 400，把 run 带走：
-  //   - chat 成员拿到生图模型 → 网关按模型名路由到生图处理器 → `input.messages.0.role`；
-  //   - 生图成员拿到 chat 模型 → 原生 multimodal-generation 端点 → HTTP 400「url error」。
-  //
-  // 这也正是 2026-09-16 事故的另一半：当时为了让「生图模态」的链首变成生图模型，写了一段
-  // skipOwnModel 逻辑，把自有模型是 chat 模型的生图模态成员**强行拉去生图链**。方向错了 ——
-  // 正确做法是让适配器跟着模型走（见 `shouldUseImageGenAdapter`），而不是让模型跟着模态走。
-  //
-  // 认不出模型名时一律按 chat 处理（保守方向）：未知模型不会被当作生图模型。
   const ownModelId = agent.modelId?.trim()
-  const usesImageProtocol = shouldUseImageGenAdapter(ownModelId)
-  const capabilityChain = await resolveAlignedCapabilityChain(agent.modality, usesImageProtocol)
+  const capabilityChain = await resolveCapabilityChain(agent.modality)
 
   if (ownModelId) {
     const row = await resolveProviderRowForAgent(agent)
@@ -195,7 +182,6 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
   }
 
   for (const c of capabilityChain) {
-    // 协议对齐已在 resolveAlignedCapabilityChain 里做完（见其注释），这里只去重。
     if (seen.has(candidateKey(c))) continue
     seen.add(candidateKey(c))
     chain.push(c)
@@ -203,55 +189,34 @@ export async function buildAgentFailoverChain(agent: FailoverAgentLike): Promise
 
   // 链尾兜底：基线模型（deepseek + deepseek-v4-flash）。
   //
-  // 基线是 **chat 模型**，只对 chat 协议有意义。生图成员把 chat 模型当候选必然撞 400
-  // （且不触发降级），所以生图协议下不补它 —— 宁可让「所有生图模型都不可用」这个事实
-  // 以真实的生图报错暴露出来，也不要用一个注定失败的候选把错误信息搅浑。
-  // 代价：生图 Agent 的链尾不再是基线，`hasBaselineFallback` 对它们返回 false。
-  //
   // 判重必须走同一个 `candidateKey`：写成朴素的 `deepseek::deepseek-v4-flash` 会与
   // capabilityChain 里那条同名基线对不上（它的 key 是 `端点::key::模型`），
   // 结果是基线被补第二遍，链尾多出一个完全相同的候选。
-  if (!usesImageProtocol) {
-    const baseline = await buildBaselineCandidate()
-    if (baseline && !seen.has(candidateKey(baseline))) {
-      seen.add(candidateKey(baseline))
-      chain.push(baseline)
-    }
+  const baseline = await buildBaselineCandidate()
+  if (baseline && !seen.has(candidateKey(baseline))) {
+    seen.add(candidateKey(baseline))
+    chain.push(baseline)
   }
 
   return chain
 }
 
 /**
- * 取「与该成员协议对齐的」能力链。
+ * 取该成员模态对应的能力链。
  *
- * 生图协议（自有模型就是生图模型）：只认 `agent:image`，链上全是生图模型。
+ * 按 `成员模态 → agent:text` 的顺序取**第一条能给出实质候选**的链：模态链可能是空的
+ * （用户没配过、或配的供应商已删），此时 `agent:text` 是「普通 chat + 工具循环」的标准链，
+ * 继续往下找才有跨供应商余量。
  *
- * chat 协议：按 `成员模态 → agent:text` 的顺序取**第一条能给出实质候选**的链。
- * 为什么要回退（2026-09-16 事故的遗留缺口）：**模态是 image、自有模型是 chat 模型**的成员
- * （生图师 / 视觉设计师 / 图表设计师这类靠工具循环产图的成员）能力 key 是 `agent:image`，
- * 而那条链上配的全是生图模型 —— 协议不一致会被过滤干净，只剩链尾那条 chat 基线；基线又与
- * 自有模型撞 key 去重，最终链里**只剩自有模型一个候选**。后果是「自有模型不可用」等于
- * 「该成员彻底不可用」，没有任何跨供应商兜底。
- *
- * `agent:text` 是「普通 chat + 工具循环」的标准链，正好匹配这类成员的真实需求 ——
- * 它们要的是能写脚本、能调工具的 chat 模型，不是生图模型。
- *
- * 只剩基线（deepseek-v4-flash）不算「实质候选」：基线在链尾单独补，这里继续往下找，
- * 否则 image 模态的成员会停在「自有模型 + 基线」这条没有跨供应商余量的链上。
+ * 只剩基线（deepseek-v4-flash）不算「实质候选」：基线在链尾单独补，这里继续往下找。
  */
-async function resolveAlignedCapabilityChain(
+async function resolveCapabilityChain(
   modality: string | null | undefined,
-  usesImageProtocol: boolean,
 ): Promise<FailoverCandidate[]> {
   const primaryKey = capabilityKeyForModality(modality)
-  if (usesImageProtocol) {
-    return (await resolveFailoverChain(primaryKey)).filter((c) => isImageGenerationModel(c.modelId))
-  }
-
   const keys = primaryKey === 'agent:text' ? [primaryKey] : [primaryKey, 'agent:text']
   for (const key of keys) {
-    const aligned = (await resolveFailoverChain(key)).filter((c) => !isImageGenerationModel(c.modelId))
+    const aligned = await resolveFailoverChain(key)
     if (aligned.some((c) => !isBaselineCandidateRow(c))) return aligned
   }
   return []

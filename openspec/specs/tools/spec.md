@@ -142,43 +142,6 @@ AgentHub MUST provide an AgentHub-managed `web_fetch` tool for reading public HT
 - **AND** Codex native network/web search remains disabled
 - **AND** Claude Code is instructed to use AgentHub `web_fetch` instead of native WebFetch/WebSearch.
 
-#### Scenario: Failure messages distinguish caller error from target behaviour
-- **WHEN** `web_fetch` fails because the caller passed a non-HTTPS URL
-- **THEN** AgentHub returns a `non_https_input` failure that names the caller's URL as the problem
-- **AND WHEN** a public HTTPS URL redirects to a non-HTTPS target (anti-bot or captcha interstitial)
-- **THEN** AgentHub returns a `non_https_redirect` failure stating that the redirect is the target site's behaviour, not a malformed caller URL
-- **AND** the error carries an actionable hint so the agent does not keep rewriting the same URL.
-- **AND WHEN** the URL is a search-engine result page (baidu / bing / google / sogou / so.com / duckduckgo with a query parameter or a search path)
-- **THEN** AgentHub rejects it with a `search_engine_result_page` failure that points the agent at `web_search`.
-
-### Requirement: AgentHub SHALL provide a managed web search tool
-
-AgentHub MUST provide an AgentHub-managed `web_search` tool for live retrieval. It MUST execute through `toolRegistry` / `executeStructured()`, MUST call the DashScope native `multimodal-generation` endpoint with `enable_search: true` and `search_options.enable_source: true`, and MUST return both a synthesized answer and the structured source list so downstream agents can cite sources and follow up with `web_fetch`. The retrieval call MUST disable thinking.
-
-#### Scenario: Agent searches the live web
-- **WHEN** an enabled agent calls `web_search` with a query
-- **THEN** AgentHub calls the configured DashScope endpoint with `enable_search: true`, `search_options.enable_source: true`, and `enable_thinking: false`
-- **AND** returns `query`, `answer`, `sources[]` (`title`, `url`, `siteName`), `model`, `depth`, and `truncated`
-- **AND** de-duplicates sources by URL and bounds both the answer length and the source count.
-
-#### Scenario: Search backend is not configured
-- **WHEN** neither `BAILIAN_API_KEY` nor a `bailian` provider row with a key is available
-- **THEN** `web_search` fails with a message naming both configuration paths
-- **AND** performs no network call.
-
-### Requirement: Network tools SHALL be embedded in every Custom agent
-
-`web_search` and `web_fetch` MUST belong to `ALWAYS_ON_AGENT_TOOLS`, and every Custom agent MUST have them available whether or not its stored `tool_names` lists them. The agent builder MUST pre-select them (locked in the UI) and AgentRunner MUST inject them at run time, including in the orchestrator plan stage.
-
-#### Scenario: Agent created before the network tools existed
-- **WHEN** a Custom agent whose stored `toolNames` lacks `web_search` / `web_fetch` runs
-- **THEN** AgentRunner injects both tools before resolving the adapter input
-- **AND** the tool guidance prompt documents both tools, including the rule that search-engine result pages must be retrieved via `web_search`, never fetched.
-
-#### Scenario: SDK adapters keep their own tool sets
-- **WHEN** the agent adapter is `claude-code`, `codex`, or `image-gen`
-- **THEN** AgentRunner does not inject AgentHub network tools into that run.
-
 ### Requirement: Attachments SHALL be read through safe tool extraction
 
 `read_attachment` MUST read user-uploaded attachments scoped to the current conversation. Text-like files and PDFs with extractable text SHALL return plain text with bounded length; unsupported binary formats SHALL return metadata instead of raw bytes.

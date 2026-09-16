@@ -25,12 +25,12 @@ function explicitBaseUrl(apiBaseUrl?: string | null): string | undefined {
  *
  * ⚠️ 2026-09-16 修正（原来是无条件用官方默认地址、**忽略** `apiBaseUrl`）：
  * `model_provider` 只是一个**标签**，用户完全可能把它写成 `deepseek` 而把 base URL 指向
- * 别的网关 —— 线上就有 5 个这样的成员（视觉类成员：主图设计师 / 文案策划 / 视觉质检 /
- * 总策划 / 前端发布工程师，`model_provider=deepseek` + `api_base_url=百炼` + 百炼 key）。
- * 忽略端点后它们拿一把百炼 key 去打 `api.deepseek.com` → 401
+ * 别的网关 —— 线上就有 5 个这样的成员（主图设计师 / 文案策划 / 视觉质检 / 总策划 /
+ * 前端发布工程师：`model_provider=deepseek`，`api_base_url` 指向另一个网关，key 也是那家的）。
+ * 忽略端点后它们拿另一家的 key 去打 `api.deepseek.com` → 401
  * `Your api key: ****xxxx is invalid`（每秒重试一次），而且这个 401 被记到「deepseek」
  * 供应商名下 → **把健康的链尾兜底打进冷却**（线上实测 `consecutive_failures=500`、
- * `status=unavailable`）。实测「百炼端点 + `deepseek-v4-flash`」本身 HTTP 200，即这些成员的
+ * `status=unavailable`）。实测「那家网关 + `deepseek-v4-flash`」本身 HTTP 200，即这些成员的
  * 配置是有效的，纯粹被硬编码端点拦住。
  *
  * 与 `buildAgentFailoverChain` 同一条不变式：**路由由端点决定，不由标签决定**。

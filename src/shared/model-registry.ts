@@ -56,36 +56,6 @@ const KNOWN_MODELS: Record<string, { context: number; outputReserve?: number }> 
   'doubao-seed-2-0-lite-260428': { context: 32_000 },
   'doubao-1-5-pro-256k': { context: 256_000 },
   'doubao-pro-128k': { context: 128_000 },
-
-  // ── 阿里云百炼（DashScope OpenAI 兼容）──────────────────────────
-  // 通用文本
-  'qwen3.8-max': { context: 256_000, outputReserve: 16_384 },
-  'qwen3.8-flash': { context: 128_000, outputReserve: 16_384 },
-  'qwen3.7-flash': { context: 128_000, outputReserve: 16_384 },
-  'qwen-flash': { context: 128_000 },
-  'qwen-long': { context: 1_000_000, outputReserve: 8_192 },
-  // 代码
-  'qwen3-coder-plus': { context: 256_000, outputReserve: 16_384 },
-  'qwen3-coder-flash': { context: 128_000, outputReserve: 16_384 },
-  'qwen3-coder-next': { context: 128_000, outputReserve: 16_384 },
-  'kimi-k2.7-code': { context: 256_000, outputReserve: 16_384 },
-  // 视觉
-  'qwen3-vl-plus': { context: 128_000, outputReserve: 8_192 },
-  'qwen3-vl-flash': { context: 128_000, outputReserve: 8_192 },
-  'qwen3.5-ocr': { context: 32_000, outputReserve: 8_192 },
-  'qwen3.5-omni-plus': { context: 128_000, outputReserve: 8_192 },
-  // 第三方异构骨干
-  'glm-5.3': { context: 128_000, outputReserve: 16_384 },
-  'glm-5.2': { context: 128_000, outputReserve: 16_384 },
-  'kimi-k3': { context: 256_000, outputReserve: 16_384 },
-  // 深度推理 / MoE
-  'qwen3.5-397b-a17b': { context: 128_000, outputReserve: 16_384 },
-  'qwq-plus': { context: 128_000, outputReserve: 16_384 },
-  // 同源 DeepSeek（百炼托管）
-  'deepseek-v4-pro': { context: 128_000, outputReserve: 16_384 },
-  'deepseek-v4.1-flash': { context: 128_000, outputReserve: 8_192 },
-  // 翻译专项
-  'qwen-mt-plus': { context: 16_000, outputReserve: 4_096 },
 }
 
 export interface ModelLimits {

@@ -43,63 +43,6 @@ const BLOCKED_HOSTS = new Set([
 
 const BLOCKED_METADATA_IPS = new Set(['169.254.169.254', '168.63.129.16'])
 
-/**
- * 搜索引擎站点：结果页几乎必然反爬（302 到 http:// 的验证页），抓取只会空烧预算。
- * 命中时直接给出「改用 web_search」的可执行提示，而不是让模型怀疑自己 URL 写错了。
- */
-const SEARCH_ENGINE_HOSTS = new Set([
-  'baidu.com',
-  'bing.com',
-  'google.com',
-  'sogou.com',
-  'so.com',
-  'sm.cn',
-  'duckduckgo.com',
-  'search.yahoo.com',
-  'yandex.com',
-  'yandex.ru',
-  'ecosia.org',
-  'brave.com',
-])
-
-export type WebFetchFailureKind =
-  | 'invalid_url'
-  | 'non_https_input'
-  | 'non_https_redirect'
-  | 'search_engine_result_page'
-  | 'blocked_host'
-  | 'blocked_ip'
-  | 'dns_failure'
-  | 'non_text_content'
-  | 'redirect'
-  | 'timeout'
-
-/**
- * 带分类与修复建议的 web_fetch 错误。
- *
- * `hint` 是给模型看的「接下来该怎么做」。现场事故（子任务 19 次重试同一个 URL）的根因就是
- * 跟随重定向到 http:// 的验证页时复用了「入参必须是 https」那句文案，模型于是以为自己的
- * URL 写错了，反复换写法。分类之后，重定向类错误明确指向「这是目标站点的行为」。
- */
-export class WebFetchError extends Error {
-  readonly kind: WebFetchFailureKind
-  readonly hint: string
-
-  constructor(kind: WebFetchFailureKind, message: string, hint: string) {
-    super(message)
-    this.name = 'WebFetchError'
-    this.kind = kind
-    this.hint = hint
-  }
-}
-
-/** 工具层统一格式化：把 message 与可执行提示拼成一条，模型读得到「怎么修」。 */
-export function formatWebFetchError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err)
-  if (err instanceof WebFetchError && err.hint) return `${message}\n提示：${err.hint}`
-  return message
-}
-
 interface WebFetchArgs {
   url: string
   maxChars?: number
@@ -160,7 +103,7 @@ export const webFetchTool: ToolDef = {
       const result = await fetchWebUrl(parsed.data, { abortSignal: ctx.abortSignal })
       return { ok: true, value: result }
     } catch (err) {
-      return { ok: false, error: formatWebFetchError(err) }
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   },
 }
@@ -189,34 +132,16 @@ export async function fetchWebUrl(args: WebFetchArgs, options: FetchWebUrlOption
       })
 
       if (isRedirectStatus(response.status)) {
-        if (redirectCount === MAX_REDIRECTS) {
-          throw new WebFetchError(
-            'redirect',
-            `web_fetch exceeded ${MAX_REDIRECTS} redirects`,
-            '跳转次数超过上限，通常是登录墙或反爬；请换一个来源，不要重复重试同一 URL。',
-          )
-        }
+        if (redirectCount === MAX_REDIRECTS) throw new Error(`web_fetch exceeded ${MAX_REDIRECTS} redirects`)
         const location = response.headers.get('location')
-        if (!location) {
-          throw new WebFetchError(
-            'redirect',
-            `web_fetch redirect from ${currentUrl.href} is missing Location header`,
-            '目标站点返回了不完整的重定向，请换一个来源。',
-          )
-        }
-        currentUrl = await validateFetchUrl(new URL(location, currentUrl).toString(), lookupImpl, {
-          redirectedFrom: currentUrl.toString(),
-        })
+        if (!location) throw new Error(`web_fetch redirect from ${currentUrl.href} is missing Location header`)
+        currentUrl = await validateFetchUrl(new URL(location, currentUrl).toString(), lookupImpl)
         continue
       }
 
       const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
       if (!isTextContentType(contentType)) {
-        throw new WebFetchError(
-          'non_text_content',
-          `web_fetch only supports text responses; got content-type ${contentType || 'unknown'}`,
-          '该 URL 返回的是二进制/媒体内容（图片、PDF、压缩包等），工具只提取文本；请换 HTML 或文本页面。',
-        )
+        throw new Error(`web_fetch only supports text responses; got content-type ${contentType || 'unknown'}`)
       }
 
       const { text: rawText, bytesRead, truncated: byteTruncated } = await readResponseText(response, controller.signal)
@@ -246,35 +171,16 @@ export async function fetchWebUrl(args: WebFetchArgs, options: FetchWebUrlOption
   }
 }
 
-export interface ValidateFetchUrlOptions {
-  /** 本次校验来自哪一次重定向。给出后，非 https 会被归类为「目标站点跳转」而不是「入参写错」。 */
-  redirectedFrom?: string
-}
-
-export async function validateFetchUrl(
-  input: string,
-  lookupImpl: LookupImpl = lookupAll,
-  options: ValidateFetchUrlOptions = {},
-): Promise<URL> {
+export async function validateFetchUrl(input: string, lookupImpl: LookupImpl = lookupAll): Promise<URL> {
   let url: URL
   try {
     url = new URL(input)
   } catch {
-    throw new WebFetchError(
-      'invalid_url',
-      'web_fetch URL is invalid',
-      '请传入完整 URL，例如 https://example.com/article。',
-    )
+    throw new Error('web_fetch URL is invalid')
   }
 
-  if (url.protocol !== 'https:') throw buildNonHttpsError(url, options.redirectedFrom)
+  if (url.protocol !== 'https:') throw new Error('web_fetch only supports https:// URLs')
   if (url.username || url.password) throw new Error('web_fetch URL credentials are not allowed')
-
-  // 只拦「入参」阶段的搜索引擎 URL：重定向落到的页面另行判断，不在这里误伤。
-  if (!options.redirectedFrom) {
-    const engineHost = detectSearchEngineHost(url)
-    if (engineHost) throw buildSearchEngineError(url, engineHost)
-  }
 
   const hostname = normalizeHostname(url.hostname)
   if (!hostname) throw new Error('web_fetch URL hostname is required')
@@ -300,46 +206,6 @@ export async function validateFetchUrl(
   return url
 }
 
-function buildNonHttpsError(url: URL, redirectedFrom?: string): WebFetchError {
-  if (redirectedFrom) {
-    return new WebFetchError(
-      'non_https_redirect',
-      `web_fetch blocked a redirect to a non-HTTPS URL: ${url.toString()} (redirected from ${redirectedFrom})`,
-      '这是目标站点的行为，不是你入参 URL 写错了：该站点把请求 302 到了 http:// 的验证/反爬页面。' +
-        '反复改写同一个 URL 重试一定还是失败 —— 需要联网检索请改用 web_search，或换一个可直接访问的 https:// 来源。',
-    )
-  }
-  return new WebFetchError(
-    'non_https_input',
-    'web_fetch only supports https:// URLs',
-    '入参 URL 必须以 https:// 开头；如果拿到的是 http:// 或 API 端点地址，请换成对应的 https:// 页面地址。',
-  )
-}
-
-function buildSearchEngineError(url: URL, engineHost: string): WebFetchError {
-  return new WebFetchError(
-    'search_engine_result_page',
-    `web_fetch blocked a search engine result page: ${engineHost}`,
-    '搜索引擎结果页普遍反爬（会 302 到要求浏览器验证的页面），抓不到有用内容。' +
-      '需要联网检索请改用 web_search 工具；若当前 Agent 没有 web_search，请直接说明无法联网，不要反复重构搜索 URL。',
-  )
-}
-
-function detectSearchEngineHost(url: URL): string | null {
-  const host = normalizeHostname(url.hostname)
-  const engine = [...SEARCH_ENGINE_HOSTS].find((candidate) => host === candidate || host.endsWith(`.${candidate}`))
-  if (!engine) return null
-
-  // 只拦「搜索结果页」：带查询参数，或路径本身就是搜索入口。
-  // 同域下的文章页（如 news.sogou.com/article/1）不拦 —— 那些是正常可抓的页面。
-  const paramNames = [...url.searchParams.keys()].map((key) => key.toLowerCase())
-  const hasSearchParam = paramNames.some((key) =>
-    ['q', 'wd', 'word', 'query', 'p', 'kw', 'keyword', 'text', 'w'].includes(key),
-  )
-  const looksLikeSearchPath = /(^|\/)(search|s|web|so|results?)(\/|$)/i.test(url.pathname)
-  return hasSearchParam || looksLikeSearchPath ? host : null
-}
-
 export function extractReadableText(raw: string, contentType: string): { title?: string; text: string } {
   if (!contentType.includes('html')) {
     return { text: normalizeWhitespace(raw) }
@@ -361,46 +227,16 @@ async function lookupAll(hostname: string, options: { all: true }): Promise<Arra
 
 function assertAllowedHost(hostname: string): void {
   const withoutTrailingDot = hostname.replace(/\.+$/, '')
-  if (BLOCKED_HOSTS.has(withoutTrailingDot)) {
-    throw new WebFetchError(
-      'blocked_host',
-      `web_fetch blocked restricted host: ${hostname}`,
-      '该主机属于内网/云元数据端点，是安全边界，无法访问；请换公开站点。',
-    )
-  }
-  if (withoutTrailingDot.endsWith('.localhost')) {
-    throw new WebFetchError(
-      'blocked_host',
-      `web_fetch blocked localhost host: ${hostname}`,
-      'localhost 属于安全边界，无法访问；请换公开站点。',
-    )
-  }
+  if (BLOCKED_HOSTS.has(withoutTrailingDot)) throw new Error(`web_fetch blocked restricted host: ${hostname}`)
+  if (withoutTrailingDot.endsWith('.localhost')) throw new Error(`web_fetch blocked localhost host: ${hostname}`)
 }
 
 function assertPublicIp(address: string): void {
   const normalized = normalizeHostname(address)
   const version = isIP(normalized)
-  if (!version) {
-    throw new WebFetchError(
-      'blocked_ip',
-      `web_fetch DNS returned invalid IP address: ${address}`,
-      '该域名解析结果不可用，请换一个来源。',
-    )
-  }
-  if (version === 4 && isBlockedIpv4(normalized)) {
-    throw new WebFetchError(
-      'blocked_ip',
-      `web_fetch blocked restricted IP address: ${address}`,
-      '目标解析到内网/回环/保留地址，是安全边界，无法访问。',
-    )
-  }
-  if (version === 6 && isBlockedIpv6(normalized)) {
-    throw new WebFetchError(
-      'blocked_ip',
-      `web_fetch blocked restricted IP address: ${address}`,
-      '目标解析到内网/回环/保留地址，是安全边界，无法访问。',
-    )
-  }
+  if (!version) throw new Error(`web_fetch DNS returned invalid IP address: ${address}`)
+  if (version === 4 && isBlockedIpv4(normalized)) throw new Error(`web_fetch blocked restricted IP address: ${address}`)
+  if (version === 6 && isBlockedIpv6(normalized)) throw new Error(`web_fetch blocked restricted IP address: ${address}`)
 }
 
 function isBlockedIpv4(address: string): boolean {

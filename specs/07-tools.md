@@ -124,20 +124,18 @@ export const toolRegistry = buildRegistry()
 | 名称 | 用途 | 副作用 | 谁该装备 |
 |---|---|---|---|
 | `write_artifact` | 创建聊天内可预览 / 可交接产物 | 写 DB | 需要交付 artifact、网页原型、文档、PPT 的 agent；不用于本地源码落盘 |
-| `image_generate` | 用生图模型按提示词出图，交付为 `image` 产物（可选同时落盘到工作区） | 写 DB（图片产物）；出站生图请求；可选写 workspace 文件 | 需要真实位图（主图 / 插画 / 海报 / 封面）的 agent；图表 / 示意图仍应用 `write_artifact` |
 | `deploy_artifact` | 为 web_app 生成部署发布状态 | 写 `.agenthub-data/deployments`；可选发布到用户配置的外部静态目录；返回 preview path 与下载路径 | 前端 / web app 产出 agent |
 | `deploy_workspace` | 为 workspace 内已构建的静态目录生成部署发布状态 | 复制 workspace 静态文件到 `.agenthub-data/deployments`；可选发布到用户配置的外部静态目录 | 本地项目 / 前端代码 agent |
 | `read_artifact` | 读已有产物的完整内容 | 读 DB | 跨任务复用产物的 agent（Orchestrator 派的子 agent 常用） |
 | `read_attachment` | 读用户上传附件 | 读文件系统 | 处理用户文档 / 文本附件的 agent |
 | `ask_user` | 向用户发起结构化选择题 | 等待用户回答（in-memory pending） | 需要澄清范围 / 风格 / 平台 / 风险选择的 agent |
-| `fs_list` | 列出 workspace 内目录与文件 | 读文件系统 | 需要先探明项目结构的 agent |
+| `fs_list` | 列出 workspace 内的目录与文件（目录优先 + 字母序，默认隐藏 dotfile） | 读文件系统 | 需要先探明项目结构、再决定读哪个文件的 agent；可替代 shell 的 `ls` |
 | `plan_tasks` | Orchestrator 拆解子任务 | 无（输出端工具） | **仅 Orchestrator** |
 | `report_task_result` | 子任务上报最终语义结果 | 无（输出端工具） | Orchestrator 派发的子 agent（AgentRunner 自动注入） |
 | `fs_read` | 读 workspace 内文本文件 | 读文件系统 | 需要看用户项目代码的 agent |
 | `fs_write` | 写 workspace 内文本文件 | 写文件系统 | 需要生成 / 修改文件的 agent |
 | `bash` | 在 workspace 内跑 shell 命令 | 进程 / 文件系统 | 需要 git / 编译 / 测试的 agent |
 | `web_fetch` | 读取公开 HTTPS 网页文本 | 出站 GET 网络请求 | 需要读取公开网页、规范或文档 URL 的 agent |
-| `web_search` | 联网检索实时信息，返回摘要 + 来源 URL | 出站检索请求（后端为阿里云百炼） | 任务依赖训练数据之外的事实 / 新闻 / 行情 / 政策时必装；抓搜索引擎结果页无效 |
 
 ### write_artifact
 
@@ -170,27 +168,6 @@ write_artifact({
 ```
 
 **返回值**：`{ artifactId, title, type }`。**不发布 `artifact.create` 事件**，由 Adapter 在 tool_result 后统一发，AgentRunner 接住后注入 `artifact_ref` part（见 Spec 02 的「artifact_ref 注入路径」）。
-
-### image_generate
-
-源文件：`src/server/tools/image-generate.ts`
-
-用生图模型按提示词出图，交付为 `image` 产物（可选同时把 PNG 落盘到工作区）。
-
-- **供应商来自「生图能力」的配置位置**：候选链取「设置-模型分配 → 生图 Agent」里配的链（只保留生图模型），
-  与调用方 Agent 自己的模型 / Key 无关；链上没有生图模型时回退到百炼 + `DEFAULT_IMAGE_MODEL`。
-  链上按 `runWithFailover` 逐个尝试 —— 某家供应商额度 / 鉴权 / 5xx / 超时即自动降级。
-- **交付链路**：模型输出按 64px 网格量化 → 居中修边回请求尺寸 → 可选落盘到 `targetPath` →
-  `ensureImageStored` 统一存储（OSS 优先，否则本地化到 `/api/artifact-images/`）→
-  `upsertImageArtifact` 写进图片产物（同批次的图合并为图集，不堆碎片卡片）→
-  `recordRunArtifact` 计入 run 验收证据。
-- **入参**：`prompt`（必填）、`size`（`1920x1080` 或 `16:9`；缺省时从 prompt 里认，再缺省 `1024*1024`）、
-  `targetPath`（工作区相对路径；越界会被拒绝并不落盘）、`timeoutMs`。
-- **返回值**：`{ artifactId, title, version, url, model, requestedSize, width?, height?, mergedIntoGallery?, imageCount?, savedPath?, note? }`。
-
-**与 `image-gen` 适配器的分工**（两者互补）：适配器用于「自有模型**就是**生图模型」的成员（整轮 run 就是出图，
-没有工具循环）；本工具用于「chat 模型 + 工具循环」的成员按需出图。判据是**能力**，不是成员的 modality ——
-`modality: 'image'` 且自有模型是 chat 模型的视觉生产成员，走的正是本工具 + `bash` / `fs_write` 这条路。
 
 ### deploy_artifact
 
@@ -416,6 +393,21 @@ write_artifact({
 - 当 plan 含 `acceptanceCriteria` 时，child agent 必须在 `acceptanceResults` 中复制每条 criterion 原文，并给出 `passed/evidence`。AgentRunner 缺项或发现 `passed=false` 时，把该任务判为 `failed`。
 - 由于 `DispatchTaskStatus` 当前没有 `blocked`，`blocked` report 在 dispatch 层映射为 `failed`，错误原因保留 blocked summary / blockers；下游任务照常 skipped。
 
+### fs_list
+
+源文件：`src/server/tools/fs-list.ts`
+
+列 workspace 内指定目录的条目。用于 agent 先探明项目结构，避免用 shell 拼 `ls` / `dir`（跨平台差异是历史 bug 高发区）。
+
+**参数**：`{ path?: string }`。省略或传 `""` 表示 workspace 根；否则 resolve 后必须落在 effective cwd 子树内（`assertPathWithinWorkspace`，与 `fs_read` 同一套边界）。
+
+**行为**：
+- 目标不是目录时直接报 `Not a directory`
+- 默认隐藏 dotfile（`.` 开头）
+- 排序为「目录优先 + 字母序」，文件附带 `size`（stat 失败则省略）
+
+**返回**：`{ relPath, absolutePath, parent, entries: [{ name, isDirectory, size? }] }`。`relPath` 为 `''` 表示 workspace 根，此时 `parent` 为 `null`。
+
 ### fs_read
 
 源文件：`src/server/tools/fs-read.ts`
@@ -617,7 +609,7 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 **`getBannedPatterns(platform)` 跨 adapter / 工具共享**：定义在 `src/server/security.ts`，由 `findBannedPattern(command, platform?)` 暴露（platform 省略时取 `currentPlatform()`）。`bash` 工具和 `ClaudeCodeAdapter`（用 SDK Bash 工具时）都走同一份名单，新增模式同步 Spec 11 「命令黑名单」节并只改 `security.ts` 这一处。
 
-**bash / fs_read / fs_write / web_fetch 已实装**（详见上方各自小节）。
+**bash / fs_list / fs_read / fs_write / web_fetch 已实装**（详见上方各自小节）。
 
 新人不要以为其它规划中的工具已经存在；要么先实现，要么按 Spec 07 §「新增工具步骤」走。
 

@@ -41,7 +41,7 @@ export const CUSTOM_AGENT_MAX_TURNS = 32
  *
  * 此前完全没设置 —— 由网关默认值决定，长文档 / 大 artifact 会被静默截断成
  * `finish_reason='length'`；配合下面「截断即丢弃 tool_call」的处理，保证不会把半截
- * arguments 回传给网关。所有精选模型（deepseek / 百炼 / 火山 / openai）都支持 8192。
+ * arguments 回传给网关。主流网关（deepseek / 火山 / openai 等）都支持 8192。
  */
 export const CUSTOM_AGENT_MAX_OUTPUT_TOKENS = 8192
 
@@ -174,7 +174,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
         activeModelId = opened.candidate.modelId
       } catch (err) {
         yield baseEvent(input, { type: 'message.end', messageId })
-        throw explainChatEndpointError(err)
+        throw err
       }
 
       let finishReason: string | null = null
@@ -464,53 +464,6 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
  */
 const MAX_API_RETRIES = 2
 
-/**
- * 从任意形态的错误里尽力取出可读文本。
- *
- * 外部 SDK / 网关边界上不一定是 `Error`：实测见过直接抛普通对象、也见过抛字符串。
- * 统一在这里 normalize，避免因为形态不同而漏掉识别（仓库「外部 SDK 边界防御性
- * normalize」铁律）。
- */
-function readErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (typeof err === 'string') return err
-  if (err && typeof err === 'object' && 'message' in err) {
-    const message = (err as { message?: unknown }).message
-    if (typeof message === 'string') return message
-    try {
-      return JSON.stringify(err)
-    } catch {
-      return String(err)
-    }
-  }
-  return String(err)
-}
-
-/**
- * 把「chat 请求被路由到了生图 / 多模态模型上」这类**协议级**报错翻译成可操作的说明。
- *
- * 网关按模型名路由：往生图模型上发 chat completions 时，生图处理器会按原生结构校验参数，
- * 于是报出 `Input should be 'user': input.messages.0.role` /
- * `Input should be a valid list: input.messages.0.content` 这种与 chat 语义完全对不上的错。
- * 原始文本保留（便于排查），但补上根因与修法，避免下次再花几小时定位。
- *
- * 现在这条路径**本不该再被触发**：适配器跟着模型走（`shouldUseImageGenAdapter`），
- * «生图模型 + chat 适配器» 已在 registry 运行时纠偏。若还看到它，说明有链路绕过了纠偏。
- */
-export function explainChatEndpointError(err: unknown): unknown {
-  const text = readErrorMessage(err)
-  if (!/input\.messages/.test(text)) return err
-  return new Error(
-    '模型拒绝了这个请求：网关把 chat 请求路由到了「生图 / 多模态」模型上。\n' +
-      '根因：该 Agent 用的模型是生图模型（降级链 agent:image 里配的也是生图模型），' +
-      '而本次调用走的是 chat 协议 —— 两者不兼容。模态标成什么不影响这个判断：' +
-      '决定走哪套协议的是**模型**，不是模态。\n' +
-      '怎么修：把该 Agent 的模型换成 chat 模型（如 deepseek-v4-flash / qwen3.8-flash），' +
-      '或者把模型换成生图模型后由服务端自动切到 image-gen 适配器 —— 两者不能混搭。\n' +
-      `原始报错：${text.slice(0, 300)}`,
-  )
-}
-
 function buildClient(
   provider: ModelProvider,
   overrideKey?: string | null,
@@ -540,8 +493,8 @@ function toApiTool(t: {
 /**
  * 回传给网关的 tool_call arguments 必须是合法 JSON 字符串。
  *
- * 模型偶发输出半截 JSON（输出被截断、生成中止）时，原样回传会让百炼直接
- * 400 `InternalError.Algo.InvalidParameter: The "function.arguments" parameter ... must be in JSON format`。
+ * 模型偶发输出半截 JSON（输出被截断、生成中止）时，原样回传会被网关直接
+ * 400（`function.arguments ... must be in JSON format` 之类）。
  * 解析不了就退化成空对象 `{}` —— 对应的工具会因缺少必填参数报错，模型据此自我修正。
  */
 export function safeArgumentsJson(buffer: string): string {

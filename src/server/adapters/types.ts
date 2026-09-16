@@ -85,15 +85,12 @@ export interface AdapterInput {
    * - 只在「本轮还没产出任何内容」时才允许切到下一个候选，避免同一条消息里出现两段输出。
    * - 缺省 / 空数组时 adapter 保持旧行为：只用 apiKey + apiBaseUrl + modelId 跑一次。
    *
-   * 消费方：CustomAgentAdapter、ImageGenAdapter。
+   * 消费方：CustomAgentAdapter。
    */
   failoverChain?: AdapterFailoverCandidate[]
 
   /** 兜底链对应的能力 key（`agent:code` 等），只用于切换事件与健康状态的登记。 */
   failoverCapabilityKey?: string
-
-  /** 派发子任务的交付契约（见 AdapterDeliveryContract）；普通会话轮次为 undefined。 */
-  deliveryContract?: AdapterDeliveryContract
 }
 
 /** Agent 运行时的一次候选调用配置（主模型或兜底模型）。 */
@@ -105,24 +102,6 @@ export interface AdapterFailoverCandidate {
   apiKey: string
   apiBaseUrl: string | null
   modelId: string
-}
-
-/**
- * 派发子任务的交付契约（仅 AgentRunner 派发子任务时给出）。
- *
- * 非工具型适配器（image-gen）没有工具循环：既不会调 write_artifact，也不会跑命令，
- * 所以 runner 把「成品图要落到工作区的哪个路径、按什么尺寸生成」直接交给适配器，
- * 由它生成后自己落盘 —— 下游成员（前端）才能按计划拿到真实文件。
- *
- * 缺省时适配器保持旧行为（只入库 / 存 OSS，不碰工作区）。
- */
-export interface AdapterDeliveryContract {
-  /** 派发任务 id（如 t4），用于回报文案与排查 */
-  taskId: string
-  /** 要落盘的图片路径（工作区相对路径）；缺省表示不落盘 */
-  imageTargetPath?: string
-  /** 要传给生图接口的尺寸（DashScope 形态 `1920*1080`）；缺省用适配器默认尺寸 */
-  imageSize?: string
 }
 
 export interface AdapterAttachment {

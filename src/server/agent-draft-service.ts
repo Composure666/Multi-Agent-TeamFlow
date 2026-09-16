@@ -8,7 +8,7 @@ import {
   type AgentToolPresetId,
 } from '@/shared/agent-builder-config'
 import { resolveModelForCapability } from '@/server/model-assignment-service'
-import { normalizeModality, providerIdToModelProvider, shouldUseImageGenAdapter, type AgentModality } from '@/lib/llm-shared'
+import { normalizeModality, type AgentModality } from '@/lib/llm-shared'
 
 import { AgentConfigDraftSchema } from './agent-draft-schema'
 
@@ -28,29 +28,16 @@ export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<
       },
     ]
   }
-
-  // 适配器由**模型**决定，不是由模态决定：只有模型本身是生图模型时才走 ImageGenAdapter。
-  // 判据与 registry 运行时纠偏、bootstrap 存量修复、agent-service 创建/编辑共用
-  // `shouldUseImageGenAdapter`，四处口径必须一致。
-  //
-  // 反之，若「生图」模态在「设置-模型分配」里被指到一个 chat 模型，草稿会保留 custom 适配器
-  // 与工具集 —— 那其实是更有能力的配置（成员用工具循环自己产 SVG 图 / 调生图服务），不该被
-  // 强行降成「调一个端点出一张栅格图」。
-  if (shouldUseImageGenAdapter(draft.modelId)) {
-    draft.adapterName = 'image-gen'
-    draft.supportsVision = false
-    // 生图适配器不消费工具集（它只调图像端点），清空避免在配置页里显示一堆用不上的权限
-    draft.toolNames = []
-    draft.assumptions = [
-      ...draft.assumptions.filter((a) => a.label !== '视觉'),
-      {
-        label: '适配器',
-        detail: '模型是生图模型，自动使用生图适配器，调用图像生成端点并把图片落成产物（不走对话工具链）。',
-      },
-    ]
-  }
-
   return AgentConfigDraftSchema.parse(draft)
+}
+
+/** llm_providers.id → ModelProvider 类型映射 */
+function providerIdToModelProvider(providerId: string): AgentConfigDraft['modelProvider'] {
+  if (providerId === 'ark') return 'volcano-ark'
+  if (providerId === 'anthropic' || providerId === 'openai' || providerId === 'deepseek') {
+    return providerId
+  }
+  return 'openai-compatible'
 }
 
 export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentConfigDraft {
