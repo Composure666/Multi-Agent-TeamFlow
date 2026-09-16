@@ -2,12 +2,19 @@ import { writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { db, schema } from '@/db/client'
+import {
+  DASHSCOPE_IMAGE_GENERATION_PATH,
+  DASHSCOPE_NATIVE_ORIGIN,
+  resolveImageApiProtocol,
+  toDashScopeSize,
+} from '@/lib/llm-shared'
 import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
 import { newArtifactId, newMessageId } from '@/server/ids'
+import { runWithFailover } from '@/server/llm-failover'
 import { getOssImageConfig, uploadImageToOss } from '@/server/oss-image-store'
 import type { ArtifactContent, ArtifactRecord, StreamEvent } from '@/shared/types'
 
-import type { AdapterInput, AgentPlatformAdapter } from './types'
+import type { AdapterFailoverCandidate, AdapterInput, AgentPlatformAdapter } from './types'
 
 /**
  * ImageGenAdapter —— 生图 Agent 适配器。
@@ -20,6 +27,13 @@ import type { AdapterInput, AgentPlatformAdapter } from './types'
  * - apiKey: agent.apiKey（必填）
  * - apiBaseUrl: agent.apiBaseUrl（必填，如 https://api.siliconflow.cn/v1）
  * - modelId: agent.modelId（必填，生图模型名如 flux-1-dev）
+ *
+ * 支持两套生图协议，按 Base URL 自动选择：
+ * - OpenAI 兼容 `POST {baseUrl}/images/generations`（SiliconFlow 等）
+ * - 阿里云百炼原生 `POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation`
+ *   （百炼的 OpenAI 兼容层没有 /images/generations，实测 404）
+ *
+ * 降级兜底：`input.failoverChain` 给出候选链（主 → 兜底），逐个尝试直到出图成功。
  */
 export class ImageGenAdapter implements AgentPlatformAdapter {
   readonly name = 'image-gen' as const
@@ -28,17 +42,49 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     const messageId = newMessageId()
     const base = { conversationId: input.conversationId, timestamp: Date.now() }
 
-    // 校验配置
-    if (!input.apiKey) {
-      yield* this.yieldError(input, messageId, '生图 Agent 需要配置 API Key，请在 Agent 设置中填写。')
-      return
-    }
-    if (!input.apiBaseUrl) {
-      yield* this.yieldError(input, messageId, '生图 Agent 需要配置 API Base URL，请在 Agent 设置中填写。')
-      return
-    }
-    if (!input.modelId) {
-      yield* this.yieldError(input, messageId, '生图 Agent 需要配置模型 ID，请在 Agent 设置中填写。')
+    // 候选链：AgentRunner 解析好的「主生图模型 → 兜底生图模型」；
+    // 缺省时退化成只用 agent 自己配的那一个（保持旧行为）。
+    const chain: AdapterFailoverCandidate[] =
+      input.failoverChain && input.failoverChain.length > 0
+        ? input.failoverChain
+        : [
+            {
+              providerId: null,
+              provider: 'openai-compatible',
+              apiKey: input.apiKey ?? '',
+              apiBaseUrl: input.apiBaseUrl,
+              modelId: input.modelId ?? '',
+            },
+          ]
+    const candidates = chain.filter((c) => c.apiKey && c.apiBaseUrl && c.modelId)
+
+    // 校验配置：逐项给出可操作的提示，而不是笼统地报「配置错误」
+    if (candidates.length === 0) {
+      if (!input.apiKey) {
+        yield* this.yieldError(
+          input,
+          messageId,
+          '生图 Agent 需要配置 API Key：请在「设置 - 模型分配」里给「生图 Agent」选择已配置的供应商，或在该 Agent 上单独填写。',
+        )
+        return
+      }
+      if (!input.apiBaseUrl) {
+        yield* this.yieldError(
+          input,
+          messageId,
+          '生图 Agent 需要配置 API Base URL：请在「设置 - 供应商」里为该供应商补上 Base URL。',
+        )
+        return
+      }
+      if (!input.modelId) {
+        yield* this.yieldError(
+          input,
+          messageId,
+          '生图 Agent 需要配置模型 ID：请在「设置 - 模型分配」里给「生图 Agent」选一个生图模型（如 z-image-turbo）。',
+        )
+        return
+      }
+      yield* this.yieldError(input, messageId, '没有可用的生图模型候选：候选链里的供应商都缺少 Key 或 Base URL。')
       return
     }
 
@@ -59,14 +105,25 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     }
 
     try {
-      // 调用生图 API
-      const imageResult = await this.generateImage(
-        input.apiBaseUrl,
-        input.apiKey,
-        input.modelId,
-        prompt,
-        signal,
+      // 调用生图 API（主模型失败时按候选链降级；状态文案不算模型输出，可以安全切换）
+      const generated = await runWithFailover(
+        candidates,
+        (candidate) =>
+          this.generateImage(
+            candidate.apiBaseUrl as string,
+            candidate.apiKey,
+            candidate.modelId,
+            prompt,
+            signal,
+          ),
+        {
+          capabilityKey: input.failoverCapabilityKey ?? 'agent:image',
+          signal,
+          canSwitch: () => true,
+        },
       )
+      const imageResult = generated.value
+      const usedModel = generated.candidate.modelId
 
       // 上传到 OSS（如果配置了），否则存本地
       const imageUrl = await this.storeImage(imageResult, input.conversationId)
@@ -87,7 +144,7 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
         type: 'part.delta',
         messageId,
         partIndex: textPartIndex,
-        delta: { type: 'text.append', text: `\n\n图片已生成并保存为产物。` },
+        delta: { type: 'text.append', text: `\n\n图片已生成并保存为产物（模型：${usedModel}）。` },
       }
       yield { ...base, type: 'part.end', messageId, partIndex: textPartIndex }
 
@@ -124,8 +181,22 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     return cleaned.slice(-500) || fullPrompt.slice(-500)
   }
 
-  /** 调用 OpenAI 兼容的 /images/generations */
+  /** 调用生图端点：按 Base URL 决定走 OpenAI 兼容协议还是百炼原生协议。 */
   private async generateImage(
+    baseUrl: string,
+    apiKey: string,
+    modelId: string,
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
+    if (resolveImageApiProtocol(baseUrl) === 'dashscope') {
+      return this.generateImageWithDashScope(baseUrl, apiKey, modelId, prompt, signal)
+    }
+    return this.generateImageWithOpenAiCompatible(baseUrl, apiKey, modelId, prompt, signal)
+  }
+
+  /** 调用 OpenAI 兼容的 /images/generations */
+  private async generateImageWithOpenAiCompatible(
     baseUrl: string,
     apiKey: string,
     modelId: string,
@@ -167,13 +238,61 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
 
     // 处理 url：下载图片
     if (first.url) {
-      const imgRes = await fetch(first.url, { signal })
-      if (!imgRes.ok) throw new Error(`下载图片失败: ${imgRes.status}`)
-      const arrayBuffer = await imgRes.arrayBuffer()
-      return { buffer: Buffer.from(arrayBuffer) }
+      return this.downloadImage(first.url, signal)
     }
 
     throw new Error('生图 API 返回格式不支持（需要 url 或 b64_json）')
+  }
+
+  /**
+   * 调用阿里云百炼原生生图端点。
+   *
+   * 请求：`{ model, input: { messages: [{ role: 'user', content: [{ text }] }] }, parameters: { size, n } }`
+   * 响应：`output.choices[0].message.content[0].image`（URL），部分模型走 `output.results[0].url`。
+   */
+  private async generateImageWithDashScope(
+    baseUrl: string,
+    apiKey: string,
+    modelId: string,
+    prompt: string,
+    signal: AbortSignal,
+  ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
+    const origin = safeOrigin(baseUrl) ?? DASHSCOPE_NATIVE_ORIGIN
+    const url = `${origin}${DASHSCOPE_IMAGE_GENERATION_PATH}`
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelId,
+        input: { messages: [{ role: 'user', content: [{ text: prompt }] }] },
+        parameters: { size: toDashScopeSize('1024x1024'), n: 1, watermark: false },
+      }),
+      signal,
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      throw new Error(`百炼生图返回 ${res.status}: ${errText.slice(0, 200)}`)
+    }
+
+    const data = await res.json()
+    const imageUrl = extractDashScopeImageUrl(data)
+    if (!imageUrl) {
+      throw new Error(`百炼生图返回里找不到图片地址：${JSON.stringify(data).slice(0, 200)}`)
+    }
+    return this.downloadImage(imageUrl, signal)
+  }
+
+  /** 下载远端图片为 buffer。 */
+  private async downloadImage(url: string, signal: AbortSignal): Promise<{ buffer: Buffer }> {
+    const imgRes = await fetch(url, { signal })
+    if (!imgRes.ok) throw new Error(`下载图片失败: ${imgRes.status}`)
+    const arrayBuffer = await imgRes.arrayBuffer()
+    return { buffer: Buffer.from(arrayBuffer) }
   }
 
   /** 存储图片：优先 OSS，回退本地 */
@@ -306,4 +425,28 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     yield { ...base, type: 'message.end', messageId }
     yield { ...base, type: 'run.end', runId: input.runId, status: 'failed', error: errorMsg }
   }
+}
+
+/** 从 baseUrl 里取 origin（`https://host/compatible-mode/v1` → `https://host`）。 */
+function safeOrigin(baseUrl: string): string | null {
+  try {
+    return new URL(baseUrl.trim()).origin
+  } catch {
+    return null
+  }
+}
+
+/** 百炼生图响应的图片地址提取（兼容 choices / results 两种形态）。 */
+function extractDashScopeImageUrl(data: unknown): string | null {
+  const output = (data as { output?: unknown } | null)?.output as
+    | {
+        choices?: Array<{ message?: { content?: Array<{ image?: string }> } }>
+        results?: Array<{ url?: string }>
+      }
+    | undefined
+  if (!output) return null
+  const fromChoices = output.choices?.[0]?.message?.content?.find((c) => !!c?.image)?.image
+  if (fromChoices) return fromChoices
+  const fromResults = output.results?.find((r) => !!r?.url)?.url
+  return fromResults ?? null
 }

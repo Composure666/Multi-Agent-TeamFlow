@@ -13,7 +13,7 @@ const PatchBody = z
     description: z.string().min(1).max(280).optional(),
     capabilities: z.array(z.string()).optional(),
     systemPrompt: z.string().min(1).optional(),
-    adapterName: z.enum(['custom', 'claude-code', 'codex']).optional(),
+    adapterName: z.enum(['custom', 'claude-code', 'codex', 'image-gen']).optional(),
     modelProvider: z
       .enum(['anthropic', 'openai', 'deepseek', 'volcano-ark', 'openai-compatible'])
       .optional(),

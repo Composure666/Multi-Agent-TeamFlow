@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 
 import OpenAI from 'openai'
 
+import { runWithFailover, type FailoverCandidate } from '@/server/llm-failover'
 import { newMessageId } from '@/server/ids'
 import { toolRegistry } from '@/server/tools/registry'
 import type { ToolContext } from '@/server/tools/types'
@@ -16,6 +17,9 @@ import type { AdapterAttachment, AdapterInput, AgentPlatformAdapter } from './ty
  * 通过 openai SDK 调用底层模型（OpenAI Chat Completions 兼容协议），
  * 自己实现 tool loop：流式拉模型输出 → 解析 tool_calls → 调用 ToolExecutor →
  * 把结果回灌到 messages → 续写下一轮，直到模型不再调工具。
+ *
+ * 降级兜底：`input.failoverChain` 给出「主模型 → 兜底模型」候选链，建立流失败时依次下探，
+ * 全部失败才把错误抛给上层。切换只发生在「本轮尚未产出内容」时，避免重复输出。
  *
  * 详细规格见 specs/05-adapter-interface.md。
  */
@@ -45,9 +49,24 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
     const { modelProvider, supportsVision } = input.customConfig
     const modelId = input.modelId
     const systemPrompt = input.systemPrompt
-    const apiKey = input.apiKey
 
-    const client = buildClient(modelProvider, apiKey, input.apiBaseUrl)
+    // 候选链：AgentRunner 解析好的「主模型 → 兜底模型」；缺省时退化成只用 agent 自己配的那一个
+    // （保持旧行为：apiKey 为空时由 adapter 走环境变量兜底）。
+    const chain: FailoverCandidate[] =
+      input.failoverChain && input.failoverChain.length > 0
+        ? input.failoverChain
+        : [
+            {
+              providerId: null,
+              provider: modelProvider,
+              apiKey: input.apiKey ?? '',
+              apiBaseUrl: input.apiBaseUrl,
+              modelId,
+            },
+          ]
+    const capabilityKey = input.failoverCapabilityKey ?? 'agent:default'
+    /** 本 run 实际提供服务的候选（切换后会被更新），run.usage 里回报真实模型 */
+    let activeModelId = modelId
 
     const toolDefs = toolRegistry.resolve(input.toolNames)
     const apiTools = toolDefs.map(toApiTool)
@@ -105,18 +124,28 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
       let nextPartIndex = 0
       const toolCallBuffer = new Map<number, AccumulatingToolCall>()
 
-      let stream: Awaited<ReturnType<typeof client.chat.completions.create>>
+      // 本轮「是否已经产出内容」——决定还能不能换候选。建立流阶段恒为 false，
+      // 因此 429 / 402 / 5xx / 超时这类「握手就失败」的错误都能就地降级。
+      let emittedThisTurn = false
+      let stream: Awaited<ReturnType<OpenAI['chat']['completions']['create']>>
       try {
-        stream = await client.chat.completions.create(
-          {
-            model: modelId,
-            messages,
-            tools: apiTools.length > 0 ? apiTools : undefined,
-            stream: true,
-            stream_options: { include_usage: true },
-          },
-          { signal },
+        const opened = await runWithFailover(
+          chain,
+          (candidate) =>
+            buildClient(candidate.provider, candidate.apiKey, candidate.apiBaseUrl).chat.completions.create(
+              {
+                model: candidate.modelId,
+                messages,
+                tools: apiTools.length > 0 ? apiTools : undefined,
+                stream: true,
+                stream_options: { include_usage: true },
+              },
+              { signal },
+            ),
+          { capabilityKey, signal, canSwitch: () => !emittedThisTurn },
         )
+        stream = opened.value
+        activeModelId = opened.candidate.modelId
       } catch (err) {
         yield baseEvent(input, { type: 'message.end', messageId })
         throw err
@@ -153,6 +182,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
 
         // —— reasoning_content (thinking mode) —— 先 yield 出来让 UI 渲染 thinking part
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content.length > 0) {
+          emittedThisTurn = true
           if (thinkingPartIndex < 0) {
             thinkingPartIndex = nextPartIndex++
             yield baseEvent(input, {
@@ -172,6 +202,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
         }
 
         if (typeof delta.content === 'string' && delta.content.length > 0) {
+          emittedThisTurn = true
           if (textPartIndex < 0) {
             textPartIndex = nextPartIndex++
             yield baseEvent(input, {
@@ -191,6 +222,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
         }
 
         if (delta.tool_calls) {
+          if (delta.tool_calls.length > 0) emittedThisTurn = true
           for (const tcd of delta.tool_calls) {
             const idx = tcd.index
             let entry = toolCallBuffer.get(idx)
@@ -243,7 +275,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
         yield baseEvent(input, {
           type: 'run.usage',
           runId: input.runId,
-          usage: { ...runUsage, model: modelId },
+          usage: { ...runUsage, model: activeModelId },
         })
         return
       }
@@ -335,7 +367,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
     yield baseEvent(input, {
       type: 'run.usage',
       runId: input.runId,
-      usage: { ...runUsage, model: modelId },
+      usage: { ...runUsage, model: activeModelId },
     })
   }
 }

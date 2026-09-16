@@ -9,7 +9,7 @@ import {
 
 const ToolNameSchema = z.enum(AVAILABLE_AGENT_TOOLS)
 const ProviderSchema = z.enum(['anthropic', 'openai', 'deepseek', 'volcano-ark', 'openai-compatible'])
-const AdapterSchema = z.enum(['custom', 'claude-code', 'codex'])
+const AdapterSchema = z.enum(['custom', 'claude-code', 'codex', 'image-gen'])
 
 export const AgentDraftRequestSchema = z.object({
   intent: z.string().trim().min(6).max(4000),

@@ -19,6 +19,15 @@
 import type Database from 'better-sqlite3'
 
 import { BUILTIN_AGENTS, UI_DESIGNER_ARTIFACT_PROMPT_HINT } from './builtin-agents'
+import {
+  BAILIAN_BASE_URL,
+  BAILIAN_MODELS,
+  BAILIAN_PROVIDER_DISPLAY_NAME,
+  BAILIAN_PROVIDER_ID,
+  BUILTIN_PROVIDERS,
+  DEFAULT_MODEL_ASSIGNMENT_PLAN,
+  scopeForCapability,
+} from '@/lib/llm-shared'
 
 const FRONTEND_DEPLOYMENT_PROMPT_HINT =
   'deploy_artifact / deploy_workspace 返回的 previewPath 是当前 AgentHub 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。'
@@ -1052,4 +1061,167 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   ensureBuiltinAgents(sqlite)
   upgradeBuiltinAgents(sqlite)
   ensureDemoAutomations(sqlite)
+  ensureBuiltinProviderRows(sqlite)
+  ensureBailianProvider(sqlite)
+  ensureDefaultModelAssignments(sqlite)
+  ensureFailoverDefaults(sqlite)
+}
+
+// ─── LLM 供应商 / 模型分配 seed ───────────────────────────────────
+//
+// 阿里云百炼（DashScope OpenAI 兼容）是从「模型分配」面板可直接引用的主力供应商。
+// 这些 seed 全部幂等且「只补不覆盖」：用户改过的 key、模型清单、分配顺序都不会被冲掉。
+
+/**
+ * 补齐四个内置供应商行（缺哪个补哪个，已有的原样不动）。
+ *
+ * 「设置-模型分配」的兜底链会引用 deepseek，外键要求这行必须存在 —— 全新安装时
+ * `migrateProvidersFromAppSettings` 只在 `/api/providers` 被访问过之后才跑，
+ * 不能指望它。所以这里同步补一次，确保首次启动就能落出完整的分配表。
+ */
+function ensureBuiltinProviderRows(sqlite: Database.Database): void {
+  const insert = sqlite.prepare(
+    `INSERT INTO llm_providers (
+       id, provider_type, display_name, api_key, base_url, models,
+       is_connected, last_tested_at, last_error, created_at, updated_at
+     ) VALUES (?, ?, ?, NULL, ?, ?, 0, NULL, NULL, ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+  )
+  const now = Date.now()
+  const tx = sqlite.transaction(() => {
+    for (const [id, def] of Object.entries(BUILTIN_PROVIDERS)) {
+      insert.run(id, def.providerType, def.displayName, def.baseUrl ?? null, JSON.stringify(def.models), now, now)
+    }
+  })
+  tx()
+}
+
+/**
+ * 百炼供应商。密钥只从 env 读（`BAILIAN_API_KEY`），源码里不落密钥；
+ * 没配 env 就跳过 seed，供应商列表保持现状。
+ *
+ * 已存在时只回填缺失字段：key / baseUrl / models 任一为空才补，非空一律保留（用户可能换了网关）。
+ */
+function ensureBailianProvider(sqlite: Database.Database): void {
+  const apiKey = process.env.BAILIAN_API_KEY?.trim()
+  if (!apiKey) return
+
+  const now = Date.now()
+  const existing = sqlite
+    .prepare('SELECT id, api_key, base_url, models FROM llm_providers WHERE id = ?')
+    .get(BAILIAN_PROVIDER_ID) as
+    | { id: string; api_key: string | null; base_url: string | null; models: string | null }
+    | undefined
+
+  if (!existing) {
+    sqlite
+      .prepare(
+        `INSERT INTO llm_providers (
+           id, provider_type, display_name, api_key, base_url, models,
+           is_connected, last_tested_at, last_error, created_at, updated_at
+         ) VALUES (?, 'custom', ?, ?, ?, ?, 1, NULL, NULL, ?, ?)`,
+      )
+      .run(
+        BAILIAN_PROVIDER_ID,
+        BAILIAN_PROVIDER_DISPLAY_NAME,
+        apiKey,
+        BAILIAN_BASE_URL,
+        JSON.stringify([...BAILIAN_MODELS]),
+        now,
+        now,
+      )
+    return
+  }
+
+  const patch: Record<string, string> = {}
+  if (!existing.api_key?.trim()) patch.api_key = apiKey
+  if (!existing.base_url?.trim()) patch.base_url = BAILIAN_BASE_URL
+  // models 只补空 / 非法 JSON；用户自己删过的模型不强行加回来
+  let models: unknown = null
+  try {
+    models = existing.models ? JSON.parse(existing.models) : null
+  } catch {
+    models = null
+  }
+  if (!Array.isArray(models) || models.length === 0) {
+    patch.models = JSON.stringify([...BAILIAN_MODELS])
+  }
+  if (Object.keys(patch).length === 0) return
+
+  const sets = Object.keys(patch).map((k) => `${k} = ?`).join(', ')
+  sqlite
+    .prepare(`UPDATE llm_providers SET ${sets}, updated_at = ? WHERE id = ?`)
+    .run(...Object.values(patch), now, BAILIAN_PROVIDER_ID)
+}
+
+/** 默认分配的确定性 id —— 也用来识别「这一行是 seed 出来的，还是用户自己加的」。 */
+function planAssignmentId(capabilityKey: string, priority: number): string {
+  return `assign_${capabilityKey.replace(/[^a-z0-9]+/gi, '_')}_${priority}`
+}
+
+/**
+ * 默认模型分配链（主模型 + 兜底）。
+ *
+ * 幂等规则（三条都要满足，否则宁可不动）：
+ *   1. 该 capabilityKey 名下的行**全部**是 seed 出来的（id 落在 plan 的确定性集合里）；
+ *      只要出现一条用户自己加的/改过的行，就认为这个能力已被用户接管，整条跳过；
+ *   2. 引用的供应商必须已存在（外键前提），否则跳过这一条；
+ *   3. 逐条 `ON CONFLICT(id) DO NOTHING`，所以只能「补缺」不能「覆盖」。
+ *
+ * 第 1 条是必须的：`BAILIAN_API_KEY` 没配时会先落出一批「只有兜底」的行，
+ * 等 key 配上以后必须还能把主模型补进去（早期版本只看「有没有行」，结果永久补不上）。
+ * 代价是用户在面板上「重置为自动」清空某个能力后，下次启动会恢复推荐默认值 ——
+ * 这个方向是安全的（宁可有默认，也不要让 Agent 完全没有兜底）。
+ */
+function ensureDefaultModelAssignments(sqlite: Database.Database): void {
+  const existingIds = sqlite.prepare('SELECT id FROM llm_model_assignments WHERE capability_key = ?')
+  const providerExists = sqlite.prepare('SELECT 1 AS one FROM llm_providers WHERE id = ?')
+  const insert = sqlite.prepare(
+    `INSERT INTO llm_model_assignments (
+       id, scope, capability_key, provider_id, model_name, priority, use_global, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+  )
+  const now = Date.now()
+
+  const tx = sqlite.transaction(() => {
+    for (const [capabilityKey, items] of Object.entries(DEFAULT_MODEL_ASSIGNMENT_PLAN)) {
+      const plannedIds = new Set(items.map((item) => planAssignmentId(capabilityKey, item.priority)))
+      const rows = existingIds.all(capabilityKey) as Array<{ id: string }>
+      if (rows.some((r) => !plannedIds.has(r.id))) continue
+
+      const scope = scopeForCapability(capabilityKey)
+      for (const item of items) {
+        if (!providerExists.get(item.providerId)) continue
+        insert.run(
+          planAssignmentId(capabilityKey, item.priority),
+          scope,
+          capabilityKey,
+          item.providerId,
+          item.modelName,
+          item.priority,
+          now,
+          now,
+        )
+      }
+    }
+  })
+  tx()
+}
+
+/**
+ * 故障转移开关默认值。`provider-router` 缺行时会退化成内置默认值（已是开启态），
+ * 这里显式落库一次，让「设置-故障转移」面板打开时就能看到真实状态。
+ */
+function ensureFailoverDefaults(sqlite: Database.Database): void {
+  sqlite
+    .prepare(
+      `INSERT INTO llm_failover_config (
+         id, enabled, trigger_balance, trigger_auth, trigger_rate_limit,
+         trigger_server_error, trigger_timeout, max_retries, cooldown_seconds,
+         auto_recover, updated_at
+       ) VALUES ('singleton', 1, 1, 1, 1, 1, 1, 2, 30, 1, ?)
+       ON CONFLICT(id) DO NOTHING`,
+    )
+    .run(Date.now())
 }

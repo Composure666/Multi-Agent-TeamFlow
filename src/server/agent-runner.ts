@@ -48,6 +48,7 @@ import {
   type RunToolEvidence,
 } from './dispatch-run-evidence'
 import { formatDispatchProgressMessage } from './dispatch-progress-message'
+import { buildAgentFailoverChain, capabilityKeyForModality } from './llm-failover'
 import { publishNotification } from './notification-service'
 import { resolveAgentMcpServers } from './mcp-server-service'
 import { discoverWorkspaceSkills, listEnabledSkillsByIds, type SkillListItem } from './skill-service'
@@ -2909,6 +2910,27 @@ async function buildAdapterInput(
     }
   }
 
+  // 降级兜底候选链：主模型（agent 自己的配置）→「设置-模型分配」里该模态的优先级链 → 基线
+  // deepseek-v4-flash。custom / image-gen 消费；解析失败时保持 undefined，adapter 退化成旧行为。
+  let failoverChain: AdapterInput['failoverChain']
+  let failoverCapabilityKey: string | undefined
+  if (agent.adapterName === 'custom' || agent.adapterName === 'image-gen') {
+    const chain = await buildAgentFailoverChain({
+      modelProvider: agent.modelProvider,
+      modelId: agent.modelId,
+      apiKey: effectiveApiKey,
+      apiBaseUrl: effectiveApiBaseUrl,
+      modality: agent.modality,
+    }).catch((err) => {
+      console.warn('[agent-runner] buildAgentFailoverChain failed; running without failover', err)
+      return []
+    })
+    if (chain.length > 0) {
+      failoverChain = chain
+      failoverCapabilityKey = capabilityKeyForModality(agent.modality)
+    }
+  }
+
   // 跨 run 对话历史（仅 CustomAgentAdapter 消费；ClaudeCode / Codex 走 SDK session resume）。
   // 按模型 contextWindow 算出 historyBudget = totalContext - outputReserve - (system+currentUser 估算) - 安全 margin。
   // 失败回退到空数组，让 agent 退化到「无历史」模式而不是整个 run 崩。详见 specs/13-conversation-context.md。
@@ -2981,6 +3003,8 @@ async function buildAdapterInput(
             supportsVision: agent.supportsVision,
           }
         : undefined,
+    failoverChain,
+    failoverCapabilityKey,
   }
 
   await recordAgentRunDebugSnapshot({

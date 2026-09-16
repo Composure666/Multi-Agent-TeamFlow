@@ -22,6 +22,9 @@ import {
 } from '@/lib/llm-shared'
 import { cn } from '@/lib/utils'
 import {
+  DEFAULT_IMAGE_MODEL,
+} from '@/lib/llm-shared'
+import {
   AGENT_BUILDER_PROVIDER_DEFAULTS as PROVIDER_DEFAULTS,
   AGENT_TOOL_META as TOOL_META,
   AGENT_TOOL_PRESETS as TOOL_PRESETS,
@@ -95,16 +98,16 @@ export const DEFAULT_CUSTOM_SYSTEM_PROMPT = `你是一个 Nexora Studio custom a
 export function defaultModelForAdapter(kind: AdapterKind, provider: Provider): string {
   if (kind === 'claude-code') return CLAUDE_CODE_DEFAULT_MODEL
   if (kind === 'codex') return CODEX_DEFAULT_MODEL
+  if (kind === 'image-gen') return DEFAULT_IMAGE_MODEL
   return PROVIDER_DEFAULTS[provider].defaultModel
 }
 
-/** 从 AgentRow 的 adapterName 推导出表单支持的三种适配器。 */
+/** 从 AgentRow 的 adapterName 推导出表单支持的四种适配器。 */
 export function adapterKindFromRow(agent: AgentRow): AdapterKind {
-  return agent.adapterName === 'claude-code'
-    ? 'claude-code'
-    : agent.adapterName === 'codex'
-      ? 'codex'
-      : 'custom'
+  if (agent.adapterName === 'claude-code') return 'claude-code'
+  if (agent.adapterName === 'codex') return 'codex'
+  if (agent.adapterName === 'image-gen') return 'image-gen'
+  return 'custom'
 }
 
 export function createEmptyAgentFormValue(): AgentFormValue {
@@ -227,8 +230,8 @@ export function validateAgentFormValue(value: AgentFormValue): AgentFormIssue | 
   if (!value.name.trim()) return { tab: 'basic', message: '名称不能为空' }
   if (!value.description.trim()) return { tab: 'basic', message: '描述不能为空' }
   if (!value.systemPrompt.trim()) return { tab: 'toolsPrompt', message: 'System Prompt 不能为空' }
-  if (value.adapterName === 'custom' && !value.modelId.trim()) {
-    return { tab: 'model', message: 'Custom adapter 必须填写 Model ID' }
+  if ((value.adapterName === 'custom' || value.adapterName === 'image-gen') && !value.modelId.trim()) {
+    return { tab: 'model', message: '必须填写 Model ID' }
   }
 
   const apiBaseUrl = value.apiBaseUrl.trim()
@@ -238,11 +241,20 @@ export function validateAgentFormValue(value: AgentFormValue): AgentFormIssue | 
     const baseUrlError = validateCodexBaseUrl(apiBaseUrl || null)
     if (baseUrlError) return { tab: 'model', message: baseUrlError }
   }
-  if (value.adapterName === 'custom') {
-    const baseUrlError = validateOpenAICompatibleBaseUrl(value.modelProvider, apiBaseUrl || null)
-    if (baseUrlError) return { tab: 'model', message: baseUrlError }
-    const apiKeyError = validateOpenAICompatibleApiKey(value.modelProvider, apiKey || null)
-    if (apiKeyError) return { tab: 'model', message: apiKeyError }
+  if (value.adapterName === 'custom' || value.adapterName === 'image-gen') {
+    // 两个都留空 = 交给服务端按「模型分配 → 供应商中心」补全凭证（推荐路径，无需手填）；
+    // 只填一半才是配置错误 —— 无法判断用户到底想覆盖哪一边。
+    const hasKey = !!apiKey
+    const hasBaseUrl = !!apiBaseUrl
+    if (hasKey !== hasBaseUrl) {
+      return { tab: 'model', message: 'API Key 与 Base URL 需要同时填写，或者都留空由供应商中心自动补全' }
+    }
+    if (hasBaseUrl) {
+      const baseUrlError = validateOpenAICompatibleBaseUrl(value.modelProvider, apiBaseUrl)
+      if (baseUrlError) return { tab: 'model', message: baseUrlError }
+      const apiKeyError = validateOpenAICompatibleApiKey(value.modelProvider, apiKey)
+      if (apiKeyError) return { tab: 'model', message: apiKeyError }
+    }
   }
 
   return null
@@ -250,7 +262,8 @@ export function validateAgentFormValue(value: AgentFormValue): AgentFormIssue | 
 
 function isMcpServerCompatible(server: McpServerListItem, adapterKind: AdapterKind): boolean {
   if (!server.enabled) return false
-  if (adapterKind === 'custom') return false
+  // custom / image-gen 都不消费外部 MCP（生图适配器只调图像端点，没有工具链）
+  if (adapterKind === 'custom' || adapterKind === 'image-gen') return false
   if (adapterKind === 'codex') return server.trust === 'always'
   return adapterKind === 'claude-code'
 }
@@ -446,6 +459,26 @@ export function AgentConfigForm({
                     <div className="text-xs font-medium">Claude Code SDK</div>
                     <div className="mt-0.5 text-[10px] text-muted-foreground">
                       用 @anthropic-ai/claude-agent-sdk，自带 Bash / Read / Write / Edit / Grep / Glob / WebFetch / Task 子 agent 等一整套工具。
+                    </div>
+                  </div>
+                </label>
+                <label
+                  className={cn(
+                    'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+                    adapterKind === 'image-gen' && 'border-primary bg-primary/5',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="adapterKind"
+                    checked={adapterKind === 'image-gen'}
+                    onChange={() => handleAdapterKindChange('image-gen')}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium">生图 Agent</div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                      调用图像生成端点并把图片落成产物。适配百炼 qwen-image / z-image 与 OpenAI 兼容的生图网关。
                     </div>
                   </div>
                 </label>

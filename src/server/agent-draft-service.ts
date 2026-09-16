@@ -8,7 +8,7 @@ import {
   type AgentToolPresetId,
 } from '@/shared/agent-builder-config'
 import { resolveModelForCapability } from '@/server/model-assignment-service'
-import { normalizeModality, type AgentModality } from '@/lib/llm-shared'
+import { normalizeModality, providerIdToModelProvider, type AgentModality } from '@/lib/llm-shared'
 
 import { AgentConfigDraftSchema } from './agent-draft-schema'
 
@@ -28,16 +28,24 @@ export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<
       },
     ]
   }
-  return AgentConfigDraftSchema.parse(draft)
-}
 
-/** llm_providers.id → ModelProvider 类型映射 */
-function providerIdToModelProvider(providerId: string): AgentConfigDraft['modelProvider'] {
-  if (providerId === 'ark') return 'volcano-ark'
-  if (providerId === 'anthropic' || providerId === 'openai' || providerId === 'deepseek') {
-    return providerId
+  // 生图模态必须走 ImageGenAdapter：它是唯一会调生图端点、落地图片产物的适配器。
+  // 用 custom adapter 拿生图模型去打 chat/completions 只会报模型不存在。
+  if (modality === 'image') {
+    draft.adapterName = 'image-gen'
+    draft.supportsVision = false
+    // 生图适配器不消费工具集（它只调图像端点），清空避免在配置页里显示一堆用不上的权限
+    draft.toolNames = []
+    draft.assumptions = [
+      ...draft.assumptions.filter((a) => a.label !== '视觉'),
+      {
+        label: '适配器',
+        detail: '生图模态自动使用生图适配器，调用图像生成端点并把图片落成产物（不走对话工具链）。',
+      },
+    ]
   }
-  return 'openai-compatible'
+
+  return AgentConfigDraftSchema.parse(draft)
 }
 
 export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentConfigDraft {

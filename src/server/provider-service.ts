@@ -146,6 +146,93 @@ export async function testProviderConnection(id: string): Promise<{ connected: b
   }
 }
 
+// ─── 供应商 ↔ Agent 凭证解析 ────────────────────────────────────
+//
+// 「设置-模型分配」只存 (providerId, modelName)，而 Agent 运行时需要 apiKey + baseUrl。
+// 创建 Agent 与运行时兜底都靠下面这两个函数把模型分配翻译成可用的凭证。
+
+export function normalizeProviderBaseUrl(baseUrl: string | null | undefined): string {
+  return (baseUrl ?? '').trim().replace(/\/+$/, '').toLowerCase()
+}
+
+export interface AgentModelBinding {
+  modelProvider?: string | null
+  modelId?: string | null
+  apiBaseUrl?: string | null
+}
+
+/**
+ * 找出 Agent 实际使用的供应商行。
+ *
+ * - 内置 provider（deepseek/openai/anthropic/volcano-ark）按 id 直接命中；
+ * - openai-compatible 按 baseUrl 规范化后比对（同 baseUrl 多个候选时优先 models 里含该模型的）。
+ */
+export async function resolveProviderRowForAgent(agent: AgentModelBinding): Promise<LlmProviderRow | null> {
+  const provider = agent.modelProvider ?? null
+  const builtinId =
+    provider === 'deepseek'
+      ? 'deepseek'
+      : provider === 'openai'
+        ? 'openai'
+        : provider === 'anthropic'
+          ? 'anthropic'
+          : provider === 'volcano-ark'
+            ? 'ark'
+            : null
+  if (builtinId) {
+    return (await db.query.llmProviders.findFirst({ where: eq(schema.llmProviders.id, builtinId) })) ?? null
+  }
+
+  const target = normalizeProviderBaseUrl(agent.apiBaseUrl)
+  if (target) {
+    const rows = await db.query.llmProviders.findMany()
+    const matched = rows.filter((r) => normalizeProviderBaseUrl(r.baseUrl) === target)
+    if (matched.length > 0) {
+      if (agent.modelId) {
+        const withModel = matched.find((r) => (r.models ?? []).includes(agent.modelId as string))
+        if (withModel) return withModel
+      }
+      return matched[0]
+    }
+  }
+
+  // 兜底：按模型名反查「设置-模型分配」。凡是分配表里配过的模型，都能找回它的供应商，
+  // 这样「模型分配直接指定了模型、Agent 上没填 Base URL」的 Agent 也能自动拿到凭证。
+  if (agent.modelId) {
+    const assignments = await db.query.llmModelAssignments.findMany({
+      where: eq(schema.llmModelAssignments.modelName, agent.modelId),
+    })
+    for (const a of assignments) {
+      if (!a.providerId) continue
+      const row = await db.query.llmProviders.findFirst({ where: eq(schema.llmProviders.id, a.providerId) })
+      if (row?.apiKey?.trim()) return row
+    }
+  }
+
+  return null
+}
+
+/**
+ * 把「模型分配里的供应商」翻译成 Agent 可用的凭证。
+ *
+ * 只在 Agent 自己没填 key / baseUrl 时补，绝不覆盖 per-agent 的显式配置。
+ * 返回 null 表示解析不出来（调用方保持原样，照旧报错提示用户手填）。
+ */
+export async function resolveProviderCredentialsForAgent(agent: AgentModelBinding): Promise<{
+  providerId: string
+  apiKey: string | null
+  apiBaseUrl: string | null
+} | null> {
+  const row = await resolveProviderRowForAgent(agent)
+  if (!row) return null
+  const builtin = BUILTIN_PROVIDERS[row.id]
+  return {
+    providerId: row.id,
+    apiKey: row.apiKey?.trim() || null,
+    apiBaseUrl: row.baseUrl?.trim() || builtin?.baseUrl?.trim() || null,
+  }
+}
+
 // ─── 从 app_settings 迁移（幂等） ───────────────────────────────
 
 /**

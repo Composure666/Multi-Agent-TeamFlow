@@ -4,8 +4,21 @@
  * Client Component 只能从这里 import，不能从 @/server/*-service import，
  * 因为 service 文件顶部 import 了 db（better-sqlite3 → fs），会被打包到浏览器。
  */
+import type { ModelProvider } from '@/shared/types'
 
 export type ProviderType = 'anthropic' | 'openai' | 'deepseek' | 'ark' | 'custom'
+
+/**
+ * llm_providers.id → 运行时 ModelProvider（`agents.model_provider` 那一套）。
+ *
+ * 供应商列表里的四个内置 id 与 ModelProvider 基本同名，只有 ark ↔ volcano-ark 要换名；
+ * 其余（含自定义供应商，如百炼）一律走 openai-compatible 协议。
+ */
+export function providerIdToModelProvider(providerId: string | null | undefined): ModelProvider {
+  if (providerId === 'ark') return 'volcano-ark'
+  if (providerId === 'anthropic' || providerId === 'openai' || providerId === 'deepseek') return providerId
+  return 'openai-compatible'
+}
 
 /** 内置供应商的默认配置（Base URL + 常用模型）。 */
 export const BUILTIN_PROVIDERS: Record<
@@ -39,6 +52,102 @@ export const BUILTIN_PROVIDERS: Record<
 }
 
 export const BUILTIN_PROVIDER_IDS = Object.keys(BUILTIN_PROVIDERS)
+
+// ─── 阿里云百炼（DashScope）──────────────────────────────────────
+//
+// 接入点：OpenAI 兼容 `https://dashscope.aliyuncs.com/compatible-mode/v1`
+// （生图另有原生 `multimodal-generation` 协议，见 DASHSCOPE_NATIVE_* 常量）。
+//
+// 这里只放「精选」模型：全部经过真实调用实测（chat + tools + stream + vision + 生图），
+// 覆盖 通用 / 代码 / 视觉 / 生图 / 长文本 / 异构第三方 / 深度推理 七类，避免把 250+
+// 个模型全塞进下拉框。取舍依据见 docs/model-assignment.md。
+
+export const BAILIAN_PROVIDER_ID = 'bailian'
+export const BAILIAN_PROVIDER_DISPLAY_NAME = '阿里云百炼'
+export const BAILIAN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+
+/** 生图 Agent 的默认模型（快、便宜，适合迭代试稿）。 */
+export const DEFAULT_IMAGE_MODEL = 'z-image-turbo'
+
+/** 生图（DashScope 原生协议）：OpenAI 兼容的 /images/generations 在此接入点下不存在。 */
+export const DASHSCOPE_NATIVE_ORIGIN = 'https://dashscope.aliyuncs.com'
+export const DASHSCOPE_IMAGE_GENERATION_PATH = '/api/v1/services/aigc/multimodal-generation/generation'
+
+export type ImageApiProtocol = 'dashscope' | 'openai-compatible'
+
+/**
+ * 判断一个 Base URL 该走哪套生图协议。
+ *
+ * 百炼（dashscope.aliyuncs.com）的 OpenAI 兼容层**没有** `/images/generations`（实测 404），
+ * 生图要走原生 `multimodal-generation/generation`；其它网关（SiliconFlow 等）仍是 OpenAI 兼容协议。
+ */
+export function resolveImageApiProtocol(baseUrl: string | null | undefined): ImageApiProtocol {
+  const raw = baseUrl?.trim()
+  if (!raw) return 'openai-compatible'
+  try {
+    const host = new URL(raw).hostname.toLowerCase()
+    if (host === 'dashscope.aliyuncs.com' || host.endsWith('.dashscope.aliyuncs.com')) return 'dashscope'
+  } catch {
+    // 非法 URL 交给下游按 OpenAI 兼容处理，报错信息更贴近用户输入
+  }
+  return 'openai-compatible'
+}
+
+/** OpenAI 风格的 `1024x1024` → DashScope 原生要求的 `1024*1024`。 */
+export function toDashScopeSize(size: string): string {
+  return size.trim().replace(/x/gi, '*')
+}
+
+
+/** 精选模型清单（也是「设置-模型分配」下拉框里百炼供应商的候选模型）。 */
+export const BAILIAN_MODELS = [
+  // 通用文本
+  'qwen3.8-flash',
+  'qwen3.8-max',
+  'qwen3.7-flash',
+  // 第三方异构骨干（补同源失效风险）
+  'glm-5.3',
+  'kimi-k3',
+  // 代码
+  'qwen3-coder-plus',
+  'qwen3-coder-flash',
+  'kimi-k2.7-code',
+  // 视觉
+  'qwen3-vl-plus',
+  'qwen3-vl-flash',
+  'qwen3.5-ocr',
+  // 生图
+  'z-image-turbo',
+  'qwen-image-3.0',
+  'qwen-image-3.0-pro',
+  // 长文本 / 深度推理 / 翻译
+  'qwen-long',
+  'qwen3.5-397b-a17b',
+  'qwq-plus',
+  'qwen-mt-plus',
+] as const
+
+/** 精选模型的差异化定位（UI/文档共用的一份说明，避免两处各写一遍）。 */
+export const BAILIAN_MODEL_NOTES: Record<string, string> = {
+  'qwen3.8-flash': '新一代通用主力：中文指令跟随与工具调用稳定性优于同级 flash，延迟与 deepseek-v4-flash 持平',
+  'qwen3.8-max': '旗舰通用：复杂规划 / 长链路推理，用于 Orchestrator 拆解等高质量场景',
+  'qwen3.7-flash': '上一代通用轻量款：作为 3.8-flash 的降级备选，避免单一版本故障',
+  'glm-5.3': '智谱异构骨干：与通义/DeepSeek 不同源，用于系统级对话，降低同一供应商集体失效风险',
+  'kimi-k3': '长上下文写作 / 资料综述：256K 上下文，长文档凝练能力强',
+  'qwen3-coder-plus': '代码旗舰：仓库级理解、多轮工具链稳定，适合 refactor / debug',
+  'qwen3-coder-flash': '代码高性价比：延迟约为 coder-plus 的 1/2，适合批量改动与代码解释',
+  'kimi-k2.7-code': '代码异构备选：换家族换思路，用于主代码模型结论可疑时的二次验证',
+  'qwen3-vl-plus': '视觉旗舰：截图 / 设计稿 / 图表理解，deepseek-v4-flash 完全不支持的模态',
+  'qwen3-vl-flash': '视觉高性价比：延迟 ~0.4s，适合大批量截图与页面巡检',
+  'qwen3.5-ocr': 'OCR 专项：票据 / 扫描件 / 手写体结构化抽取，输出 JSON',
+  'z-image-turbo': '生图极速款：~4s 出图，适合草图 / 迭代试稿',
+  'qwen-image-3.0': '生图标准款：质量与成本平衡，主体一致性好',
+  'qwen-image-3.0-pro': '生图旗舰：细节 / 排版 / 文字渲染最强，用于终稿',
+  'qwen-long': '超长上下文（1M）：长对话 / 长资料摘要，摘要任务单位成本最低',
+  'qwen3.5-397b-a17b': 'MoE 大模型：难推理 / 数学 / 复杂约束求解的强备选',
+  'qwq-plus': '深度推理专线（仅流式）：思维链更长，适合疑难问题兜底',
+  'qwen-mt-plus': '翻译专项：多语种翻译质量与术语一致性优于通用模型',
+}
 
 export type AssignmentScope = 'global' | 'system' | 'agent'
 
@@ -113,6 +222,89 @@ export const GLOBAL_KEYS = {
   fallbackProvider: 'global:fallback_provider',
   autoFailover: 'global:auto_failover',
 } as const
+
+/** provider-router 用的全局优先级 key（与 GLOBAL_KEYS 并存：前者是「默认供应商」，这个是「优先级链」）。 */
+export const GLOBAL_PRIORITY_KEY = 'global:default'
+
+// ─── 降级兜底（基线模型）───────────────────────────────────────
+//
+// 项目原有基线：deepseek 供应商 + deepseek-v4-flash。它是所有能力链的最后兜底，
+// 保证「新接入的百炼模型不可用时，项目仍以原有能力水位稳定运行」。
+
+export const FALLBACK_PROVIDER_ID = 'deepseek'
+export const FALLBACK_MODEL_NAME = 'deepseek-v4-flash'
+
+export interface PlannedAssignment {
+  providerId: string
+  modelName: string
+  priority: number
+}
+
+/**
+ * 模型分配默认方案（新装 / 首次启动时 seed，已配置过的能力不会被覆盖）。
+ *
+ * 每个能力都是一条「主模型 → 兜底」链，priority 越小越优先；
+ * 链尾恒为 deepseek-v4-flash，即项目原有基线。
+ */
+export const DEFAULT_MODEL_ASSIGNMENT_PLAN: Record<string, PlannedAssignment[]> = {
+  [GLOBAL_PRIORITY_KEY]: [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3.8-flash', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  [GLOBAL_KEYS.defaultProvider]: [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3.8-flash', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  [GLOBAL_KEYS.fallbackProvider]: [
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 0 },
+  ],
+
+  // ── Agent 模态 ──────────────────────────────────────────────
+  'agent:code': [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3-coder-plus', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  'agent:text': [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3.8-flash', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  'agent:vision': [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3-vl-plus', priority: 0 },
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3-vl-flash', priority: 1 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 2 },
+  ],
+  'agent:image': [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'z-image-turbo', priority: 0 },
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen-image-3.0-pro', priority: 1 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 2 },
+  ],
+
+  // ── 系统能力 ────────────────────────────────────────────────
+  prompt_optimize: [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3.8-flash', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  task_planning: [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen3.8-max', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  context_summary: [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'qwen-long', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+  system_chat: [
+    { providerId: BAILIAN_PROVIDER_ID, modelName: 'glm-5.3', priority: 0 },
+    { providerId: FALLBACK_PROVIDER_ID, modelName: FALLBACK_MODEL_NAME, priority: 1 },
+  ],
+}
+
+/** 分配方案里每个能力的 scope（落到 llm_model_assignments.scope）。 */
+export function scopeForCapability(capabilityKey: string): AssignmentScope {
+  if (capabilityKey.startsWith('global:')) return 'global'
+  if (capabilityKey.startsWith('agent:')) return 'agent'
+  return 'system'
+}
+
 
 export interface ProviderUsage {
   systemCapabilities: string[]

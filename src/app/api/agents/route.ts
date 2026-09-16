@@ -31,7 +31,9 @@ const CreateBody = z
   .refine(
     (d) => {
       if (d.adapterName === 'custom') return !!(d.modelProvider && d.modelId)
-      if (d.adapterName === 'image-gen') return !!(d.apiKey && d.apiBaseUrl && d.modelId)
+      // image-gen 的凭证（apiKey + apiBaseUrl）由服务端按模型分配从供应商中心补全，
+      // 因此这里只要求有模型；缺凭证时 createCustomAgent 会给出可操作的错误信息。
+      if (d.adapterName === 'image-gen') return !!d.modelId
       return true
     },
     { message: 'Adapter requires specific configuration' },

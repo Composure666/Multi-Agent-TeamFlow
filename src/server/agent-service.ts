@@ -1,8 +1,9 @@
 import { and, desc, eq } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
-import { normalizeModality } from '@/lib/llm-shared'
+import { BUILTIN_PROVIDER_IDS, normalizeModality } from '@/lib/llm-shared'
 import { newAgentId } from '@/server/ids'
+import { resolveProviderCredentialsForAgent } from '@/server/provider-service'
 import {
   validateOpenAICompatibleApiKey,
   validateOpenAICompatibleBaseUrl,
@@ -46,18 +47,40 @@ export async function createCustomAgent(args: CreateAgentArgs) {
   const createdAt = Date.now()
   const adapterName: AdapterName = args.adapterName ?? 'custom'
 
+  // 「设置-模型分配」里只存 (供应商, 模型名)，凭证在供应商中心。这里把凭证补进 Agent，
+  // 否则「按模态自动匹配模型」创建出来的 Agent 会带着空 key 去跑，直到第一次对话才报缺 Key。
+  const credentials = await resolveProviderCredentialsForAgent({
+    modelProvider: args.modelProvider ?? null,
+    modelId: args.modelId ?? null,
+    apiBaseUrl: args.apiBaseUrl ?? null,
+  })
+  const apiKey = args.apiKey?.trim() || credentials?.apiKey || null
+  const apiBaseUrl =
+    args.apiBaseUrl?.trim() ||
+    (adapterName === 'image-gen' || !isBuiltinProviderId(credentials?.providerId)
+      ? credentials?.apiBaseUrl ?? null
+      : null)
+
   if (adapterName === 'custom') {
     if (!args.modelProvider || !args.modelId) {
       throw new Error('Custom adapter requires modelProvider and modelId')
     }
-    const baseUrlError = validateOpenAICompatibleBaseUrl(args.modelProvider, args.apiBaseUrl)
+    const baseUrlError = validateOpenAICompatibleBaseUrl(args.modelProvider, apiBaseUrl)
     if (baseUrlError) throw new Error(baseUrlError)
-    const apiKeyError = validateOpenAICompatibleApiKey(args.modelProvider, args.apiKey)
+    const apiKeyError = validateOpenAICompatibleApiKey(args.modelProvider, apiKey)
     if (apiKeyError) throw new Error(apiKeyError)
   }
   if (adapterName === 'image-gen') {
-    if (!args.apiKey) throw new Error('Image-gen adapter requires apiKey')
-    if (!args.apiBaseUrl) throw new Error('Image-gen adapter requires apiBaseUrl')
+    if (!apiKey) {
+      throw new Error(
+        '生图适配器需要 API Key：请在「设置 - 模型分配」里给「生图 Agent」选择已配置的供应商，或在该 Agent 上单独填写 API Key。',
+      )
+    }
+    if (!apiBaseUrl) {
+      throw new Error(
+        '生图适配器需要 API Base URL：请在「设置 - 供应商」里为对应供应商填写 Base URL 后重新创建。',
+      )
+    }
     if (!args.modelId) throw new Error('Image-gen adapter requires modelId')
   }
 
@@ -71,8 +94,8 @@ export async function createCustomAgent(args: CreateAgentArgs) {
     adapterName,
     modelProvider: adapterName === 'custom' || adapterName === 'image-gen' ? (args.modelProvider ?? (adapterName === 'image-gen' ? 'openai-compatible' : null)) : null,
     modelId: args.modelId ?? null,
-    apiKey: args.apiKey?.trim() || null,
-    apiBaseUrl: args.apiBaseUrl?.trim() || null,
+    apiKey,
+    apiBaseUrl,
     // SDK adapter 走各自内置工具集，不消费 toolNames；强制空数组避免 UI 残留
     toolNames: adapterName === 'custom' ? args.toolNames : [],
     mcpServerIds: args.mcpServerIds ?? [],
@@ -86,6 +109,10 @@ export async function createCustomAgent(args: CreateAgentArgs) {
 
   await db.insert(schema.agents).values(row)
   return row
+}
+
+function isBuiltinProviderId(providerId: string | null | undefined): boolean {
+  return !!providerId && BUILTIN_PROVIDER_IDS.includes(providerId)
 }
 
 export async function deleteCustomAgent(agentId: string): Promise<void> {
@@ -137,9 +164,25 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   const nextAdapterName: AdapterName = patch.adapterName ?? agent.adapterName
   const nextModelProvider = patch.modelProvider ?? agent.modelProvider
   const nextModelId = patch.modelId ?? agent.modelId
-  const nextApiBaseUrl =
+  let nextApiBaseUrl =
     patch.apiBaseUrl !== undefined ? patch.apiBaseUrl?.trim() || null : agent.apiBaseUrl
-  const nextApiKey = patch.apiKey !== undefined ? patch.apiKey?.trim() || null : agent.apiKey
+  let nextApiKey = patch.apiKey !== undefined ? patch.apiKey?.trim() || null : agent.apiKey
+
+  // 换了模型/供应商但没带凭证时，从供应商中心补一次（与创建路径同一条规则）
+  if ((nextAdapterName === 'custom' || nextAdapterName === 'image-gen') && (!nextApiKey || !nextApiBaseUrl)) {
+    const credentials = await resolveProviderCredentialsForAgent({
+      modelProvider: nextModelProvider,
+      modelId: nextModelId,
+      apiBaseUrl: nextApiBaseUrl,
+    })
+    if (!nextApiKey) nextApiKey = credentials?.apiKey ?? null
+    if (!nextApiBaseUrl) {
+      nextApiBaseUrl =
+        nextAdapterName === 'image-gen' || !isBuiltinProviderId(credentials?.providerId)
+          ? credentials?.apiBaseUrl ?? null
+          : null
+    }
+  }
 
   if (nextAdapterName === 'custom' && (!nextModelProvider || !nextModelId)) {
     throw new Error('Custom adapter requires modelProvider and modelId')
@@ -166,8 +209,10 @@ export async function updateCustomAgent(agentId: string, patch: UpdateAgentPatch
   if (patch.modality !== undefined) updates.modality = normalizeModality(patch.modality)
   if (patch.mcpServerIds !== undefined) updates.mcpServerIds = patch.mcpServerIds
   if (patch.skillIds !== undefined) updates.skillIds = patch.skillIds
-  if (patch.apiKey !== undefined) updates.apiKey = patch.apiKey?.trim() || null
-  if (patch.apiBaseUrl !== undefined) updates.apiBaseUrl = patch.apiBaseUrl?.trim() || null
+  if (patch.apiKey !== undefined || nextApiKey !== agent.apiKey) updates.apiKey = nextApiKey
+  if (patch.apiBaseUrl !== undefined || nextApiBaseUrl !== agent.apiBaseUrl) {
+    updates.apiBaseUrl = nextApiBaseUrl
+  }
 
   if (nextAdapterName === 'custom' || nextAdapterName === 'image-gen') {
     if (patch.modelProvider !== undefined) updates.modelProvider = patch.modelProvider

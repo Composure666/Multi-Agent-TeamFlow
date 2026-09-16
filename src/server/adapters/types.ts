@@ -78,6 +78,30 @@ export interface AdapterInput {
     /** 该 agent 的 model 是否支持视觉（来自 agent.supportsVision） */
     supportsVision?: boolean
   }
+
+  /**
+   * 降级兜底候选链（含主模型本身，数组顺序即尝试顺序；由 AgentRunner 解析）。
+   *
+   * - 只在「本轮还没产出任何内容」时才允许切到下一个候选，避免同一条消息里出现两段输出。
+   * - 缺省 / 空数组时 adapter 保持旧行为：只用 apiKey + apiBaseUrl + modelId 跑一次。
+   *
+   * 消费方：CustomAgentAdapter、ImageGenAdapter。
+   */
+  failoverChain?: AdapterFailoverCandidate[]
+
+  /** 兜底链对应的能力 key（`agent:code` 等），只用于切换事件与健康状态的登记。 */
+  failoverCapabilityKey?: string
+}
+
+/** Agent 运行时的一次候选调用配置（主模型或兜底模型）。 */
+export interface AdapterFailoverCandidate {
+  /** 供应商 id（llm_providers.id）；识别不出时为 null，此时只切换、不登记健康状态 */
+  providerId: string | null
+  /** OpenAI 兼容协议族，决定 baseURL 的解析方式 */
+  provider: ModelProvider
+  apiKey: string
+  apiBaseUrl: string | null
+  modelId: string
 }
 
 export interface AdapterAttachment {
