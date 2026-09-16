@@ -24,6 +24,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Scan,
   Search,
   Share2,
   TerminalSquare,
@@ -39,11 +40,13 @@ import {
   ReactFlow,
   useNodesState,
   type Edge,
+  type FitViewOptions,
   type NodeChange,
   type ReactFlowInstance,
   type NodeProps,
   type NodeTypes,
 } from '@xyflow/react'
+import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -119,6 +122,19 @@ import {
 } from '@/stores/app-store'
 import type { AgentRunDebugDetail, AgentRunDebugEventRecord, AgentRunDebugListItem, TerminalEventRecord, TerminalSessionRecord } from '@/shared/types'
 
+/**
+ * 画布自适应视野参数。
+ *
+ * minZoom 必须放得下最大的会话图：会话范围内多个 Run 纵向排布、当前 Run 展开子图后
+ * 总高轻松超过 4000px，若把自适应缩放钳在 0.42，fitView 最多只能缩到 0.42，右侧与
+ * 下方的卡片就会被挤出可视区（用户反馈的「运行流程图卡片丢失在视野」）。0.1 保证
+ * 「一屏看全」，看细节时再用滚轮放大。
+ */
+const CANVAS_FIT_VIEW_OPTIONS: FitViewOptions<AgentRunDebuggerNode> = { padding: 0.16, minZoom: 0.1, maxZoom: 1.1 }
+/** 手动缩放范围：下限与 fitView 对齐，否则 store 会把 fitView 算出的缩放再钳一次。 */
+const CANVAS_MIN_ZOOM = 0.1
+const CANVAS_MAX_ZOOM = 2
+
 const nodeTypes: NodeTypes = {
   runDebuggerNode: DebuggerNode,
 }
@@ -134,6 +150,7 @@ const TIMELINE_FILTER_OPTIONS: Array<{ id: AgentRunTimelineFilter; label: string
 ]
 
 export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused: boolean) => void }) {
+  const { resolvedTheme } = useTheme()
   const conversations = useConversationList().filter((conversation) => !conversation.archived)
   const activeConversationId = useAppStore((state) => state.activeConversationId)
   const targetConversationId = useAppStore((state) => state.activeRunBoardConversationId)
@@ -171,6 +188,8 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   // 不需要触发渲染，也避免和 useNodesState 打架。
   const draggedPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
   const canvasLayoutKeyRef = useRef<string>('')
+  // 用户手动平移 / 滚轮缩放画布后就不再自动抢回视野（自动适配只在「图结构变了且用户没动过画布」时发生）。
+  const userAdjustedViewRef = useRef(false)
 
   const selectedConversation = conversations.find((conversation) => conversation.id === conversationId) ?? null
   const conversationMessages = useMessagesForConversation(conversationId ?? '')
@@ -246,7 +265,11 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   useEffect(() => {
     const layoutChanged = canvasLayoutKeyRef.current !== canvasLayoutKey
     canvasLayoutKeyRef.current = canvasLayoutKey
-    if (layoutChanged) draggedPositionsRef.current = new Map()
+    if (layoutChanged) {
+      draggedPositionsRef.current = new Map()
+      // 换了一套布局 = 视野也该重来，允许下一次结构变化自动适配视野。
+      userAdjustedViewRef.current = false
+    }
     const dragged = draggedPositionsRef.current
     setFlowNodes((previous) => {
       const previousPositions = new Map(previous.map((node) => [node.id, node.position]))
@@ -258,6 +281,32 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
     })
     setFlowEdges(focusedGraph.edges)
   }, [canvasLayoutKey, focusedGraph, setFlowNodes])
+
+  /** 把全部卡片放回可视区（工具栏「适配视野」）。 */
+  const fitCanvasView = useCallback(() => {
+    userAdjustedViewRef.current = false
+    if (!flowInstance) return
+    flowInstance.fitView(CANVAS_FIT_VIEW_OPTIONS)
+    // 节点尺寸要等一帧才被量出来，第二帧再对一次，保证缩放算得准。
+    requestAnimationFrame(() => flowInstance.fitView(CANVAS_FIT_VIEW_OPTIONS))
+  }, [flowInstance])
+
+  const handleCanvasMoveStart = useCallback((event: MouseEvent | TouchEvent | null) => {
+    // 程序化 fitView / setCenter 的 event 是 null，只有用户自己平移 / 缩放才标记。
+    if (event) userAdjustedViewRef.current = true
+  }, [])
+
+  // 图结构变化（子图晚一步到达、展开 Run、切换范围）后重新适配视野：
+  // onInit 那次 fitView 往往发生在子图还没到达时（详情是异步二次拉取的），后到的
+  // 卡片会落在可视区外，且再没有任何机会回到视野里 —— 就是「卡片丢失在视野」。
+  const flowNodeSignature = useMemo(() => flowNodes.map((node) => node.id).join('|'), [flowNodes])
+  useEffect(() => {
+    if (!flowInstance || !flowNodeSignature || userAdjustedViewRef.current) return
+    const frame = requestAnimationFrame(() => {
+      flowInstance.fitView(CANVAS_FIT_VIEW_OPTIONS)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [flowInstance, flowNodeSignature])
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<AgentRunDebuggerNode>[]) => {
@@ -274,9 +323,10 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   /** 丢弃手动位置，回到自动布局并重新适配视野。 */
   const resetCanvasLayout = useCallback(() => {
     draggedPositionsRef.current = new Map()
+    userAdjustedViewRef.current = false
     setFlowNodes(focusedGraph.nodes.map((node) => ({ ...node, draggable: true })))
     requestAnimationFrame(() => {
-      flowInstance?.fitView({ padding: 0.2, minZoom: 0.42, maxZoom: 1.1 })
+      flowInstance?.fitView(CANVAS_FIT_VIEW_OPTIONS)
     })
   }, [focusedGraph, flowInstance, setFlowNodes])
   const workerAgentCount = useMemo(
@@ -967,6 +1017,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                   filter={timelineFilter}
                   onFilterChange={setTimelineFilter}
                   onResetLayout={resetCanvasLayout}
+                  onFitView={fitCanvasView}
                 />
               )}
               {(loadingRuns || loadingDetail) && !canRenderCanvas ? (
@@ -983,12 +1034,20 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                       nodeTypes={nodeTypes}
                       onNodesChange={handleNodesChange}
                       nodesConnectable={false}
+                      // React Flow 的暗色变量作用域是 `.react-flow.dark`（dark 类必须加在画布
+                      // 容器上），而项目用 next-themes 把 .dark 加在 <html> —— 不传 colorMode
+                      // 时缩放 / 定位按钮永远停留在浅色默认值（白底 + 继承来的浅色图标），
+                      // 暗色主题下就是「一片白、看不清」。
+                      colorMode={resolvedTheme === 'dark' ? 'dark' : 'light'}
+                      minZoom={CANVAS_MIN_ZOOM}
+                      maxZoom={CANVAS_MAX_ZOOM}
                       fitView
-                      fitViewOptions={{ padding: 0.2, minZoom: 0.42, maxZoom: 1.1 }}
+                      fitViewOptions={CANVAS_FIT_VIEW_OPTIONS}
+                      onMoveStart={handleCanvasMoveStart}
                       onInit={(instance) => {
                         setFlowInstance(instance)
                         requestAnimationFrame(() => {
-                          instance.fitView({ padding: 0.2, minZoom: 0.42, maxZoom: 1.1 })
+                          instance.fitView(CANVAS_FIT_VIEW_OPTIONS)
                         })
                       }}
                       onNodeClick={(_, node) => {
@@ -1085,6 +1144,7 @@ function CanvasToolbar({
   filter,
   onFilterChange,
   onResetLayout,
+  onFitView,
 }: {
   graphScope: CanvasGraphScope
   onGraphScopeChange: (scope: CanvasGraphScope) => void
@@ -1095,6 +1155,7 @@ function CanvasToolbar({
   filter: AgentRunTimelineFilter
   onFilterChange: (filter: AgentRunTimelineFilter) => void
   onResetLayout: () => void
+  onFitView: () => void
 }) {
   const views: Array<{ id: AgentRunDebuggerCanvasView; label: string }> = [
     { id: 'graph', label: '任务图' },
@@ -1157,6 +1218,15 @@ function CanvasToolbar({
         {view === 'graph' && (
           <>
             <span className="mr-1 hidden text-[11px] text-slate-400 lg:inline">拖动卡片可调整位置</span>
+            <button
+              type="button"
+              onClick={onFitView}
+              title="适配视野：把全部卡片放回可视区"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+            >
+              <Scan className="size-3.5" />
+              适配视野
+            </button>
             <button
               type="button"
               onClick={onResetLayout}
