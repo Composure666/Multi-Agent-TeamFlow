@@ -36,6 +36,29 @@ interface AccumulatingToolCall {
 const MAX_IMAGES_PER_MESSAGE = 5
 export const CUSTOM_AGENT_MAX_TURNS = 32
 
+/**
+ * 单轮输出上限。
+ *
+ * 此前完全没设置 —— 由网关默认值决定，长文档 / 大 artifact 会被静默截断成
+ * `finish_reason='length'`；配合下面「截断即丢弃 tool_call」的处理，保证不会把半截
+ * arguments 回传给网关。所有精选模型（deepseek / 百炼 / 火山 / openai）都支持 8192。
+ */
+export const CUSTOM_AGENT_MAX_OUTPUT_TOKENS = 8192
+
+/** 连续被长度上限截断的容忍次数；超过就终止 run，避免空转烧预算。 */
+const MAX_TRUNCATION_STREAK = 2
+
+/** 截断时回填的 assistant 占位正文（避免用 null content 触发部分网关的校验）。 */
+const TRUNCATED_ASSISTANT_PLACEHOLDER = '（本条输出因达到单次长度上限被截断，正文不完整）'
+
+/** 截断后注入的续写指令：明确「上一次调用已作废」，并给出分块产出的做法。 */
+const TRUNCATION_RETRY_NOTICE = [
+  '[系统提示] 你上一条输出因达到单次长度上限而被截断，其中不完整的工具调用已被全部丢弃，请重新执行。',
+  '- 需要调用工具时，先发起工具调用（arguments 必须是完整、合法的 JSON），工具调用之前不要输出大段正文。',
+  '- 单条正文 / 单个工具参数不要超过约 4000 token；内容很长时请拆成多次调用分块产出（例如按章节分批写 artifact）。',
+  '- 不要重复已经输出过的内容。',
+].join('\n')
+
 export class CustomAgentAdapter implements AgentPlatformAdapter {
   readonly name = 'custom' as const
 
@@ -96,6 +119,8 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
     ]
 
     let turn = 0
+    /** 连续被长度上限截断的轮数：正常收尾或被截断后的续写会重置。 */
+    let truncationStreak = 0
     // 跨 turn 累加 token 用量；run 结束前 yield run.usage 给 AgentRunner 落库
     const runUsage = {
       inputTokens: 0,
@@ -139,6 +164,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
                 tools: apiTools.length > 0 ? apiTools : undefined,
                 stream: true,
                 stream_options: { include_usage: true },
+                max_tokens: CUSTOM_AGENT_MAX_OUTPUT_TOKENS,
               },
               { signal },
             ),
@@ -248,6 +274,36 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
 
       const toolCalls = Array.from(toolCallBuffer.values()).filter((tc) => tc.id && tc.name)
 
+      // ── 输出被长度上限截断：本轮 tool_call 的 arguments 必然不完整 ──
+      // 这里绝不能"照常执行"：现场事故就是把半截 arguments 原样回传，网关直接
+      // 400 `function.arguments must be in JSON format`，整个 run 猝死、已产出产物一并作废。
+      if (finishReason === 'length') {
+        truncationStreak += 1
+        if (truncationStreak > MAX_TRUNCATION_STREAK) {
+          yield baseEvent(input, { type: 'message.end', messageId })
+          throw new Error(
+            `模型输出连续 ${truncationStreak} 次达到单次长度上限（max_tokens=${CUSTOM_AGENT_MAX_OUTPUT_TOKENS}）。` +
+              '请把任务拆得更小，或让 Agent 分块产出内容后再试。',
+          )
+        }
+        console.warn(
+          `[CustomAgentAdapter] finish_reason=length：丢弃本轮 ${toolCalls.length} 个不完整 tool_call（第 ${truncationStreak} 次）`,
+        )
+        // 只保留已完整产出的正文；不带 tool_calls（半截参数回传会被网关拒绝）
+        messages.push({
+          role: 'assistant',
+          content: textBuffer || TRUNCATED_ASSISTANT_PLACEHOLDER,
+          ...(reasoningBuffer ? { reasoning_content: reasoningBuffer } : {}),
+        } as ChatMessage)
+        messages.push({ role: 'user', content: TRUNCATION_RETRY_NOTICE })
+        if (msgUsage.inputTokens > 0 || msgUsage.outputTokens > 0) {
+          yield baseEvent(input, { type: 'message.usage', messageId, usage: msgUsage })
+        }
+        yield baseEvent(input, { type: 'message.end', messageId })
+        continue
+      }
+      truncationStreak = 0
+
       // 写回 assistant message
       // DeepSeek thinking-mode 模型要求把 reasoning_content 一起回传到下一轮，
       // 否则 API 返回 "The reasoning_content in the thinking mode must be passed back".
@@ -260,7 +316,7 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
             ? toolCalls.map((tc) => ({
                 id: tc.id,
                 type: 'function' as const,
-                function: { name: tc.name, arguments: tc.argsBuffer || '{}' },
+                function: { name: tc.name, arguments: safeArgumentsJson(tc.argsBuffer) },
               }))
             : undefined,
         ...(reasoningBuffer ? { reasoning_content: reasoningBuffer } : {}),
@@ -282,6 +338,31 @@ export class CustomAgentAdapter implements AgentPlatformAdapter {
 
       // 执行工具
       for (const tc of toolCalls) {
+        // 参数不是合法 JSON：不回传原始片段（网关会 400 打死整个 run），
+        // 改为产出一条明确的工具错误，让模型重新发起一次完整调用。
+        const invalidArgs = describeInvalidToolArguments(tc.argsBuffer)
+        if (invalidArgs) {
+          const errorText =
+            `工具参数不是合法 JSON（${invalidArgs}）。收到的原始参数片段：${truncateForPrompt(tc.argsBuffer, 300)}。` +
+            `请重新调用 ${tc.name}，确保 arguments 是完整、合法的 JSON 对象；内容过长时请拆成多次调用分批产出。`
+          yield baseEvent(input, {
+            type: 'tool.call',
+            messageId,
+            callId: tc.id,
+            toolName: tc.name,
+            args: {},
+          })
+          yield baseEvent(input, {
+            type: 'tool.result',
+            messageId,
+            callId: tc.id,
+            result: { error: errorText },
+            isError: true,
+          })
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: `Error: ${errorText}` })
+          continue
+        }
+
         let args: unknown
         try {
           args = tc.argsBuffer ? JSON.parse(tc.argsBuffer) : {}
@@ -407,6 +488,42 @@ function toApiTool(t: {
       parameters: t.parameters,
     },
   }
+}
+
+/**
+ * 回传给网关的 tool_call arguments 必须是合法 JSON 字符串。
+ *
+ * 模型偶发输出半截 JSON（输出被截断、生成中止）时，原样回传会让百炼直接
+ * 400 `InternalError.Algo.InvalidParameter: The "function.arguments" parameter ... must be in JSON format`。
+ * 解析不了就退化成空对象 `{}` —— 对应的工具会因缺少必填参数报错，模型据此自我修正。
+ */
+export function safeArgumentsJson(buffer: string): string {
+  const trimmed = buffer.trim()
+  if (!trimmed) return '{}'
+  try {
+    JSON.parse(trimmed)
+    return trimmed
+  } catch {
+    return '{}'
+  }
+}
+
+/** 参数能解析时返回 null；不能解析时返回错误描述（供工具错误信息使用）。 */
+export function describeInvalidToolArguments(buffer: string): string | null {
+  const trimmed = buffer.trim()
+  if (!trimmed) return null
+  try {
+    JSON.parse(trimmed)
+    return null
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err)
+  }
+}
+
+/** 把可能是超长半截 JSON 的参数压成一行短摘要放进错误信息。 */
+function truncateForPrompt(value: string, max: number): string {
+  const flat = value.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
 function hasArtifactId(value: unknown): value is { artifactId: string } {

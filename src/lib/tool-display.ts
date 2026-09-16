@@ -11,6 +11,7 @@ const AGENTHUB_TOOL_LABELS = {
   bash: '执行命令',
   ask_user: '询问用户',
   web_fetch: '读取网页',
+  web_search: '联网搜索',
 } as const
 
 const EXTERNAL_TOOL_LABELS: Record<string, string> = {

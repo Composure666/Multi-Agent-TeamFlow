@@ -71,9 +71,32 @@ export const DEFAULT_IMAGE_MODEL = 'z-image-turbo'
 
 /** 生图（DashScope 原生协议）：OpenAI 兼容的 /images/generations 在此接入点下不存在。 */
 export const DASHSCOPE_NATIVE_ORIGIN = 'https://dashscope.aliyuncs.com'
-export const DASHSCOPE_IMAGE_GENERATION_PATH = '/api/v1/services/aigc/multimodal-generation/generation'
+
+/**
+ * DashScope 原生「多模态生成」端点。
+ *
+ * 生图与联网搜索都走这一个端点（参数与响应结构按业务区分）：
+ * - 生图：`parameters` 传 size/prompt，读 `output.choices[0].message.content[0].image`
+ * - 搜索：`parameters.enable_search + search_options.enable_source`，读 `output.search_info.search_results[]`
+ */
+export const DASHSCOPE_MULTIMODAL_GENERATION_PATH = '/api/v1/services/aigc/multimodal-generation/generation'
+/** 与 DASHSCOPE_MULTIMODAL_GENERATION_PATH 同一端点；保留此名以兼容既有生图引用。 */
+export const DASHSCOPE_IMAGE_GENERATION_PATH = DASHSCOPE_MULTIMODAL_GENERATION_PATH
 
 export type ImageApiProtocol = 'dashscope' | 'openai-compatible'
+
+/** 该 Base URL 是否指向阿里云百炼（DashScope）。原生能力（生图 / 联网搜索）只在它上面可用。 */
+export function isDashScopeBaseUrl(baseUrl: string | null | undefined): boolean {
+  const raw = baseUrl?.trim()
+  if (!raw) return false
+  try {
+    const host = new URL(raw).hostname.toLowerCase()
+    return host === 'dashscope.aliyuncs.com' || host.endsWith('.dashscope.aliyuncs.com')
+  } catch {
+    // 非法 URL 交给下游按 OpenAI 兼容处理，报错信息更贴近用户输入
+    return false
+  }
+}
 
 /**
  * 判断一个 Base URL 该走哪套生图协议。
@@ -82,15 +105,7 @@ export type ImageApiProtocol = 'dashscope' | 'openai-compatible'
  * 生图要走原生 `multimodal-generation/generation`；其它网关（SiliconFlow 等）仍是 OpenAI 兼容协议。
  */
 export function resolveImageApiProtocol(baseUrl: string | null | undefined): ImageApiProtocol {
-  const raw = baseUrl?.trim()
-  if (!raw) return 'openai-compatible'
-  try {
-    const host = new URL(raw).hostname.toLowerCase()
-    if (host === 'dashscope.aliyuncs.com' || host.endsWith('.dashscope.aliyuncs.com')) return 'dashscope'
-  } catch {
-    // 非法 URL 交给下游按 OpenAI 兼容处理，报错信息更贴近用户输入
-  }
-  return 'openai-compatible'
+  return isDashScopeBaseUrl(baseUrl) ? 'dashscope' : 'openai-compatible'
 }
 
 /** OpenAI 风格的 `1024x1024` → DashScope 原生要求的 `1024*1024`。 */
@@ -99,7 +114,16 @@ export function toDashScopeSize(size: string): string {
 }
 
 
-/** 精选模型清单（也是「设置-模型分配」下拉框里百炼供应商的候选模型）。 */
+/**
+ * 联网搜索（web_search 工具）使用的检索模型。
+ *
+ * 只负责「拿检索资料 + 组织摘要」，能力由 DashScope 侧注入的搜索结果决定，
+ * 因此选便宜的 flash 档；换模型时只需要保证它支持 `enable_search`。
+ */
+export const BAILIAN_SEARCH_MODEL = 'qwen3.8-flash'
+
+/**
+ * 精选模型清单（也是「设置-模型分配」下拉框里百炼供应商的候选模型）。 */
 export const BAILIAN_MODELS = [
   // 通用文本
   'qwen3.8-flash',

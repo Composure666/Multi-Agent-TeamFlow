@@ -29,7 +29,28 @@ export const AVAILABLE_AGENT_TOOLS = [
   'fs_write',
   'bash',
   'web_fetch',
+  'web_search',
 ] as const
+
+/**
+ * 所有自定义 Agent 默认内嵌的联网工具。
+ *
+ * 创建 Agent 时就会写进工具集；AgentRunner 在组装运行时也会对 custom Agent 兜底注入一次，
+ * 于是本次改动之前创建的存量 Agent 同样具备联网能力 —— 两处共用这一个常量，避免漂移。
+ *
+ * 为什么做成默认内嵌而不是可选项：联网检索是绝大多数任务的隐含前提。缺了它，Agent 只能
+ * 拿 web_fetch 去手拼搜索引擎 URL 硬抓（实测一个子任务因此烧掉 40 分钟、50+ 次无效抓取）。
+ */
+export const ALWAYS_ON_AGENT_TOOLS = ['web_search', 'web_fetch'] as const
+
+/** 保证工具名列表一定包含内嵌联网工具（保持原顺序，去重补齐）。 */
+export function withAlwaysOnAgentTools(toolNames: readonly string[]): string[] {
+  const out = [...toolNames]
+  for (const name of ALWAYS_ON_AGENT_TOOLS) {
+    if (!out.includes(name)) out.push(name)
+  }
+  return out
+}
 
 export type AgentToolName = (typeof AVAILABLE_AGENT_TOOLS)[number]
 export type AgentToolPresetId = 'all-purpose' | 'local-code' | 'artifact' | 'review'
@@ -52,19 +73,19 @@ export const AGENT_TOOL_PRESETS: readonly AgentToolPreset[] = [
     id: 'local-code',
     label: '本地代码',
     desc: '读写 workspace 并运行命令',
-    tools: ['deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'fs_write', 'bash'],
+    tools: ['deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'fs_write', 'bash', 'web_fetch', 'web_search'],
   },
   {
     id: 'artifact',
     label: '产物交付',
     desc: '网页、文档、原型卡片',
-    tools: ['write_artifact', 'deploy_artifact', 'deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user'],
+    tools: ['write_artifact', 'deploy_artifact', 'deploy_workspace', 'read_artifact', 'read_attachment', 'ask_user', 'web_fetch', 'web_search'],
   },
   {
     id: 'review',
     label: '审查验证',
     desc: '读取产物/文件并跑检查',
-    tools: ['read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'bash'],
+    tools: ['read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'bash', 'web_fetch', 'web_search'],
   },
 ]
 
@@ -82,6 +103,7 @@ export const AGENT_TOOL_META: Record<AgentToolName, { label: string; desc: strin
   fs_write: { label: '写入文件', desc: '在工作区内新建 / 修改文件；review 模式下需用户批准' },
   bash: { label: '执行命令', desc: '在工作区内运行命令行；受命令黑名单与沙箱目录约束' },
   web_fetch: { label: '读取网页', desc: '读取公开 HTTPS 网页文本；会阻断 localhost、私网、metadata endpoint 和二进制响应' },
+  web_search: { label: '联网搜索', desc: '联网检索实时信息（新闻 / 行情 / 政策 / 文档），返回摘要与来源链接；抓搜索引擎结果页无效，检索一律走这个工具' },
 }
 
 export interface AgentDraftAssumption {
@@ -143,7 +165,9 @@ export function getAgentToolPreset(presetId: AgentToolPresetId): AgentToolPreset
 export function buildToolPermissionSummaries(
   toolNames: readonly string[],
 ): AgentToolPermissionSummary[] {
-  return normalizeAgentToolNames(toolNames).map((toolName) => ({
+  // 与 AgentRunner 运行时对齐：联网工具是内嵌的，摘要里也要显示出来，
+  // 否则预览说的工具集和实际跑起来的工具集对不上。
+  return normalizeAgentToolNames(withAlwaysOnAgentTools(toolNames)).map((toolName) => ({
     toolName,
     ...AGENT_TOOL_META[toolName],
   }))

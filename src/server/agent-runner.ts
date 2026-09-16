@@ -23,6 +23,7 @@ import type {
   TaskResultReport,
 } from '@/shared/types'
 import { estimateTokens, getModelLimits } from '@/shared/model-registry'
+import { withAlwaysOnAgentTools } from '@/shared/agent-builder-config'
 
 import { agentRegistry } from './adapters/registry'
 import type { AdapterAttachment, AdapterInput, ExternalMcpServerConfig } from './adapters/types'
@@ -233,6 +234,7 @@ const ORCHESTRATOR_PLAN_ALLOWED_TOOLS = new Set([
   'fs_list',
   'fs_read',
   'web_fetch',
+  'web_search',
   'read_artifact',
   'read_attachment',
 ])
@@ -601,7 +603,12 @@ async function executeSimpleRun(
   prompt: string,
   attachments: AdapterAttachment[],
 ): Promise<RunExecutionResult> {
-  const baseToolNames = args.overrideToolNames ?? agent.toolNames
+  const declaredToolNames = args.overrideToolNames ?? agent.toolNames
+  // 联网能力内嵌：custom Agent 一定带上 web_search / web_fetch，覆盖本次改动之前创建的
+  // 存量 Agent 与编排派发的子任务（它们的 tool_names 里可能还没有这两个工具）。
+  // SDK agent（claude-code / codex）用 SDK 自带工具集，image-gen 没有工具链，都不注入。
+  const baseToolNames =
+    agent.adapterName === 'custom' ? withAlwaysOnAgentTools(declaredToolNames) : declaredToolNames
   const toolNames = args.requireTaskReport
     ? ensureIncludes(baseToolNames, REPORT_TASK_RESULT_TOOL_NAME)
     : baseToolNames
@@ -865,9 +872,11 @@ async function runPlanStage(
 ): Promise<{ plan: DispatchPlanItem[] | null; planRun: RunExecutionResult }> {
   const planSystemPrompt = buildOrchestratorPlanPrompt(agent.systemPrompt, otherAgents, workspace)
   const existingArtifactsContext = await buildExistingArtifactsPlanContext(args.conversationId)
+  // 与普通 Agent 一致：编排者规划前也能联网检索（存量内置 Agent 的 toolNames 不会随
+  // 代码更新而回填，所以这里同样兜底注入一次）。
   const planToolNames = ensureIncludes(
     ensureIncludes(
-      agent.toolNames.filter((name) => ORCHESTRATOR_PLAN_ALLOWED_TOOLS.has(name)),
+      withAlwaysOnAgentTools(agent.toolNames).filter((name) => ORCHESTRATOR_PLAN_ALLOWED_TOOLS.has(name)),
       'plan_tasks',
     ),
     ASK_USER_TOOL_NAME,
@@ -3350,13 +3359,25 @@ function buildAgentHubToolGuidance(
     ])
   }
 
+  if (tools.has('web_search')) {
+    add([
+      '### web_search',
+      '用途：需要训练数据之外、或需要核实的实时信息时（新闻、行情、政策法规、企业动态、最新文档），用 web_search 检索；它返回一段摘要 + 可引用的来源链接。',
+      '正确案例：web_search({ query: "2026年 新能源汽车 购置税 政策 调整", maxSources: 6 })。',
+      '分工：检索信息用 web_search；已经拿到具体 URL、需要读正文时才用 web_fetch。',
+      '错误案例：用 web_fetch 去抓 baidu / bing / google / sogou / so.com / duckduckgo 的搜索结果页 —— 这些站点反爬会 302 到验证页，工具会直接拒绝；反复改写同一个 URL 只是浪费预算，不会成功。',
+      '检索要有节制：先想清楚要查什么，通常 1-3 次检索就能拿到要点；同一问题不要反复检索。',
+    ])
+  }
+
   if (tools.has('web_fetch')) {
     add([
       '### web_fetch',
-      '用途：读取公开 HTTPS 网页或文档 URL 的文本内容；联网必须走 AgentHub web_fetch，不要使用原生 WebFetch/WebSearch 或 shell/curl/wget 作为替代。',
-      '安全边界：只支持 GET + https://；会拒绝 URL 凭据、localhost、私网/回环/link-local IP、metadata endpoint、跳转到受限地址、非文本响应和超限响应。',
+      '用途：读取一个已知的公开 HTTPS 网页或文档 URL 的正文；URL 要么来自上下文，要么来自 web_search 返回的来源链接。',
+      '安全边界：只支持 GET + https://；会拒绝 URL 凭据、localhost、私网/回环/link-local IP、metadata endpoint、跳转到 http:// 或受限地址、非文本响应和超限响应。',
       '正确案例：web_fetch({ url: "https://example.com/docs", maxChars: 12000, timeoutMs: 10000 })。',
-      '常见错误：抓取需要登录/cookie/header 的页面、传 http:// URL、请求本机服务、下载图片/PDF/压缩包、或自行编造网页内容。',
+      '常见错误：抓取需要登录/cookie/header 的页面、传 http:// URL、请求本机服务、下载图片/PDF/压缩包、抓搜索引擎结果页、或自行编造网页内容。',
+      '工具返回的错误里带「提示：」时，先按提示换做法；绝不要对同一个 URL 反复改写重试。',
     ])
   }
 

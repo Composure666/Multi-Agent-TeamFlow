@@ -28,12 +28,14 @@ import {
   AGENT_BUILDER_PROVIDER_DEFAULTS as PROVIDER_DEFAULTS,
   AGENT_TOOL_META as TOOL_META,
   AGENT_TOOL_PRESETS as TOOL_PRESETS,
+  ALWAYS_ON_AGENT_TOOLS,
   AVAILABLE_AGENT_TOOLS,
   CLAUDE_CODE_DEFAULT_MODEL,
   CODEX_DEFAULT_MODEL,
   DEFAULT_CUSTOM_AGENT_TOOLS,
   buildToolPermissionSummaries,
   normalizeAgentToolNames,
+  withAlwaysOnAgentTools,
   type AgentBuilderAdapter as AdapterKind,
   type AgentBuilderProvider as Provider,
   type AgentConfigDraft,
@@ -141,7 +143,9 @@ export function agentFormValueToDraft(
   value: AgentFormValue,
   base?: Partial<AgentConfigDraft>,
 ): AgentConfigDraft {
-  const toolNames = normalizeAgentToolNames(value.toolNames)
+  // 内嵌联网工具在保存时就写入 toolNames，让 DB 里的配置与运行时一致
+  // （运行时 AgentRunner 还会再兜底注入一次，两者共用 ALWAYS_ON_AGENT_TOOLS）。
+  const toolNames = normalizeAgentToolNames(withAlwaysOnAgentTools(value.toolNames))
   return {
     name: value.name.trim(),
     avatar: base?.avatar ?? '🤖',
@@ -712,31 +716,41 @@ export function AgentConfigForm({
                   </div>
                   {AVAILABLE_AGENT_TOOLS.map((t) => {
                     const meta = TOOL_META[t]
-                    const checked = value.toolNames.includes(t)
+                    // 联网工具是所有 Agent 的内嵌能力：始终勾选、不允许取消。
+                    const locked = (ALWAYS_ON_AGENT_TOOLS as readonly string[]).includes(t)
+                    const checked = locked || value.toolNames.includes(t)
                     return (
                       <label
                         key={t}
                         className={cn(
-                          'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+                          'flex items-start gap-2 rounded-md border px-3 py-2 transition',
+                          locked ? 'cursor-default border-dashed' : 'cursor-pointer hover:border-foreground/30',
                           checked && 'border-primary bg-primary/5',
                         )}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() =>
+                          disabled={locked}
+                          onChange={() => {
+                            if (locked) return
                             onChange({
                               toolNames: checked
                                 ? value.toolNames.filter((name) => name !== t)
                                 : [...value.toolNames, t],
                             })
-                          }
-                          className="mt-0.5 accent-primary"
+                          }}
+                          className="mt-0.5 accent-primary disabled:cursor-not-allowed"
                         />
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium">{meta.label}</span>
                             <code className="font-mono text-[10px] text-muted-foreground">{t}</code>
+                            {locked && (
+                              <span className="rounded bg-muted px-1 text-[9px] text-muted-foreground">
+                                内嵌
+                              </span>
+                            )}
                           </div>
                           <div className="mt-0.5 text-[10px] text-muted-foreground">{meta.desc}</div>
                         </div>
