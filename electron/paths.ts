@@ -12,8 +12,9 @@ export function setupDataDir(): void {
   if (process.env.AGENTHUB_DATA_DIR) return
 
   if (app.isPackaged) {
-    // macOS: ~/Library/Application Support/AgentHub/data
-    // Windows: %APPDATA%\AgentHub\data
+    // macOS: ~/Library/Application Support/<app 名>/data
+    // Windows: %APPDATA%\<app 名>\data
+    // <app 名> 取自 electron/main.ts 的 app.setName；品牌改名后旧目录仍会被沿用，见那里的注释
     process.env.AGENTHUB_DATA_DIR = path.join(app.getPath('userData'), 'data')
   } else {
     // electron:dev 走仓库根的 .agenthub-data（与 web 模式共用 DB / workspace）

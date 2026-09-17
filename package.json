@@ -111,7 +111,7 @@
   },
   "build": {
     "appId": "com.agenthub.app",
-    "productName": "Nexora Studio",
+    "productName": "Multi-Agent TeamFlow",
     "directories": {
       "output": "release",
       "buildResources": "electron/build"

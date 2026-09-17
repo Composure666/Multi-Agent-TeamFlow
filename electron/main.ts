@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { app, BrowserWindow, ipcMain, Menu, Notification, session, shell } from 'electron'
@@ -13,9 +14,21 @@ let mainUrlPromise: Promise<string> | null = null
 let closeCompanionServer: (() => Promise<void>) | null = null
 
 // Electron 默认用 package.json 的 `name` 字段（'bytedance-agenthub'）作为 app 名，
-// 用户数据会落在 ~/Library/Application Support/bytedance-agenthub/。覆盖成 productName 'AgentHub'，
-// 让 userData 路径更友好；必须在任何 app.getPath('userData') 调用之前完成。
-app.setName('Nexora Studio')
+// userData 会落在 ~/Library/Application Support/bytedance-agenthub/
+//（Windows: %APPDATA%\bytedance-agenthub\）。这里覆盖成品牌名，让窗口 / 菜单 / 安装后的
+// 应用显示名统一；必须在任何 app.getPath('userData') 调用之前完成。
+const APP_DISPLAY_NAME = 'Multi-Agent TeamFlow'
+
+// ⚠️ app 名同时决定 userData 目录名。品牌从 'Nexora Studio' 改成新名后目录名会跟着变，
+// 那等于让已有桌面端用户的 DB / workspace（<userData>/data）凭空消失。所以旧目录存在就
+// 继续用它，只有全新安装才落到新名字下。userData 路径属**内部标识**，别再跟着品牌改。
+const LEGACY_USER_DATA_DIR_NAME = 'Nexora Studio'
+
+app.setName(APP_DISPLAY_NAME)
+const legacyUserDataDir = path.join(app.getPath('appData'), LEGACY_USER_DATA_DIR_NAME)
+if (fs.existsSync(legacyUserDataDir)) {
+  app.setPath('userData', legacyUserDataDir)
+}
 
 type NativeNotificationTarget = {
   type: 'conversation' | 'automation' | 'artifact' | 'settings'
@@ -250,7 +263,7 @@ async function createMainWindow(): Promise<void> {
     height: 800,
     minWidth: 980,
     minHeight: 600,
-    title: 'Nexora Studio',
+    title: APP_DISPLAY_NAME,
     backgroundColor: '#0F1115',
     autoHideMenuBar: true,
     frame: false,
