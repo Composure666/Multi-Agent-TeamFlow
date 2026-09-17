@@ -19,6 +19,7 @@
 import type Database from 'better-sqlite3'
 
 import { BUILTIN_AGENTS, UI_DESIGNER_ARTIFACT_PROMPT_HINT } from './builtin-agents'
+import { MESSAGE_SEARCH_BACKFILL, MESSAGE_SEARCH_DDL } from './message-search-schema'
 
 const FRONTEND_DEPLOYMENT_PROMPT_HINT =
   'deploy_artifact / deploy_workspace 返回的 previewPath 是当前 AgentHub 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。'
@@ -172,6 +173,10 @@ const DDL: string[] = [
     created_at INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at)`,
+  // messages_fts：全局搜索（/api/search）的 FTS 索引。
+  // 语句定义在 message-search-schema.ts —— 曾经只在手工脚本里、运行时无人调用，导致线上库
+  // 一直没有这张表、搜索恒 500。放进 DDL 数组后每次启动都保证存在（IF NOT EXISTS，不扫表）。
+  ...MESSAGE_SEARCH_DDL,
 
   // ─── artifacts ─────────────────────────────────
   `CREATE TABLE IF NOT EXISTS artifacts (
@@ -646,6 +651,32 @@ function pauseBuiltinAutomationsOnce(sqlite: Database.Database): void {
   tx()
 }
 
+/**
+ * 存量安装的一次性回填：把已有 messages 的 text 片段灌进 messages_fts。
+ *
+ * 为什么要单独拆一次：`MESSAGE_SEARCH_DDL` 只建空表，存量消息得回填才搜得到。回填要
+ * `json_each(m.parts)` 全表扫，放在 DDL 里等于每次启动都重扫一遍 —— 所以用
+ * `bootstrap_migrations` 标记守卫成只跑一次（与 `pauseBuiltinAutomationsOnce` 同一套约定）。
+ *
+ * 没有标记时（线上库就是这么来的：messages_fts 建都还没建）会补建 + 回填，一次修好。
+ */
+const MESSAGE_SEARCH_BACKFILL_MIGRATION = 'messages_fts_backfill_v1'
+
+function backfillMessageSearchOnce(sqlite: Database.Database): void {
+  const applied = sqlite
+    .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+    .get(MESSAGE_SEARCH_BACKFILL_MIGRATION)
+  if (applied) return
+
+  const tx = sqlite.transaction(() => {
+    sqlite.exec(MESSAGE_SEARCH_BACKFILL)
+    sqlite
+      .prepare('INSERT OR REPLACE INTO bootstrap_migrations (key, applied_at) VALUES (?, ?)')
+      .run(MESSAGE_SEARCH_BACKFILL_MIGRATION, Date.now())
+  })
+  tx()
+}
+
 function ensureSchema(sqlite: Database.Database): void {
   for (const stmt of DDL) {
     sqlite.exec(stmt)
@@ -1049,6 +1080,7 @@ function backfillDemoAutomationPrompts(sqlite: Database.Database): void {
 
 export function bootstrapDatabase(sqlite: Database.Database): void {
   ensureSchema(sqlite)
+  backfillMessageSearchOnce(sqlite)
   ensureBuiltinAgents(sqlite)
   upgradeBuiltinAgents(sqlite)
   ensureDemoAutomations(sqlite)
