@@ -495,8 +495,25 @@ function isSuccessfulVerificationCommandEvidence(
     // 编排侧声明的验证命令（plan 的 requiredCommands）已经由 supervisor 明确标记，
     // 不必再猜它像不像验证命令 —— 否则 plan 写成 `node -e "…process.exit(1)…"` 这类
     // 一行流校验时，任务会永远卡在这道门禁上（2026-09-17 线上 4 次 attempt 全灭）。
-    (command.verification === true || isVerificationCommand(command.command))
+    (isDeclaredVerificationCommand(command) || isVerificationCommand(command.command))
   )
+}
+
+/**
+ * 编排侧明确标记过的验证命令（plan 的 `requiredCommands`）。
+ *
+ * 光是标记不够：plan 完全可能把 `pnpm install` 也写进 requiredCommands，
+ * 而「依赖装完了」不构成「代码被跑过」。所以只排除**整条都是由准备 / 探测动作组成**的命令，
+ * 其余（含 `node -e "…process.exit(1)…"` 这种词形古怪的真校验）一律认。
+ */
+function isDeclaredVerificationCommand(command: RunToolEvidence['commands'][number]): boolean {
+  if (command.verification !== true) return false
+  const segments = splitShellSegments(command.command)
+  if (segments.length === 0) return false
+  return !segments.every((segment) => {
+    const text = normalizeCommand(segment.text)
+    return isPrepareCommand(text) || BENIGN_PROBE_SEGMENT_RE.test(text)
+  })
 }
 
 function requiredEvidenceSatisfied(

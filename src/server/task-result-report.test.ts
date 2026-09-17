@@ -624,6 +624,30 @@ describe('evaluateTaskResultReport', () => {
     ).toBe(false)
   })
 
+  it('does not count a declared install command as verification evidence', () => {
+    // plan 可以把任何命令写进 requiredCommands，安装依赖不算「代码被跑过」。
+    for (const command of ['pnpm install', 'cd landing && pnpm install', 'npm ci; echo done']) {
+      const result = evaluateTaskResultReport(
+        task({ task: 'Implement the landing page', taskKind: 'code' }),
+        { status: 'complete', summary: 'Dependencies installed.' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command,
+              cwd: 'E:/repo',
+              exitCode: 0,
+              timedOut: false,
+              isError: false,
+              verification: true,
+            },
+          ],
+        },
+      )
+      expect(result.ok, command).toBe(false)
+    }
+  })
+
   it('allows non-code review tasks to complete without runnable verification', () => {
     expect(
       evaluateTaskResultReport(
