@@ -10,6 +10,7 @@ import { statSync } from 'node:fs'
 import { z } from 'zod'
 
 import { classifyBashApproval, waitForBashApproval } from '@/server/bash-command-approval'
+import { findBlockedNetworkTarget } from '@/server/network-guard'
 import { db, schema } from '@/db/client'
 import type { WorkspaceRow } from '@/db/schema'
 import { recordRunFileWrite } from '@/server/dispatch-run-evidence'
@@ -751,6 +752,15 @@ async function bridgePermission(
     const banned = findBannedPattern(cmd)
     if (banned) {
       return deny(`Command blocked by safety policy (matches ${banned}): ${cmd.slice(0, 100)}`)
+    }
+    // 网络出口守卫 —— 与 bash 工具同一套策略（specs/11-platform.md「bash 网络出口」）
+    const blockedTarget = await findBlockedNetworkTarget(cmd)
+    if (blockedTarget) {
+      return deny(
+        `Network target blocked: ${blockedTarget.target} (${blockedTarget.reason}). ` +
+          `Agent commands must not reach the platform's own service, other local services, ` +
+          `private networks, or cloud metadata endpoints.`,
+      )
     }
     const approval = classifyBashApproval(cmd, currentPlatform())
     if (approval.required) {

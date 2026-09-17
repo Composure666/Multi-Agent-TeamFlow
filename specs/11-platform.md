@@ -273,6 +273,35 @@ DNS rebinding 无法在当前 `fetch` 抽象下完全消除；AgentHub 通过 IP
 
 ---
 
+## bash 网络出口
+
+上面 `web_fetch` 的全部防护**只对 `web_fetch` 这一个工具生效**。`bash` 能发起真实网络请求，
+若不额外约束，`curl http://127.0.0.1:<PORT>/api/...` 可直接读到平台自身 API 的数据
+（回环端口无鉴权），云 metadata 同样可达 —— 等于绕开整套 SSRF 防护。
+
+`src/server/network-guard.ts` 提供出口守卫；`tools/bash.ts` 与 claude-code adapter 的
+`canUseTool` Bash 分支都必须在执行命令前调用 `findBlockedNetworkTarget()`，命中即拒。
+
+### 拦截规则
+
+- **一律拒绝**：云 metadata（IP 与厂商域名别名）、link-local、私有网段（10/8、172.16/12、192.168/16）、
+  CGNAT（100.64/10）、组播、未指定地址；非 http(s) 协议（`file://` 读本地文件等）；
+  「强行改写目标」类选项（`--resolve`、`--connect-to`、`--unix-socket`）。
+- **回环只拒平台自身端口**：`resolvePlatformPorts()` 从 `PORT` / `AGENTHUB_INTERNAL_BASE_URL` 解析，
+  默认含 3000。其余回环端口放行 —— 保留「在沙箱里起本地 dev server 再 curl 自测」的开发流程。
+- **域名做 DNS 预解析**：任一解析结果落入上述被禁类别即拒；解析失败或超时按放行处理
+  （此时真实请求同样会失败，不阻塞正常工作）。结果带 60s 缓存。
+- **触发条件**：命令里出现带协议的 URL，或出现网络类命令 token（`curl`/`wget`/`nc`/`python -c`…）。
+  普通文本里的 URL 不误伤。
+
+### 已知边界（bash 网络出口）
+
+本守卫只覆盖**网络**这一条路径。Agent 的 bash 以服务账号身份执行，因此仍可读该账号有权访问的
+本地文件（包括平台数据目录下的 SQLite 库）。要彻底消除需要让 Agent 的 shell 以独立受限账号运行
+（仅 workspace 读写权限），属独立的架构改动，不在本守卫范围内。
+
+---
+
 ## Workspace 清理重试
 
 `conversation-service.ts` 的 `rmSync(workspace.rootPath, { recursive: true, force: true })` 在 Windows 经常抛 `EBUSY` / `EPERM` / `ENOTEMPTY`：

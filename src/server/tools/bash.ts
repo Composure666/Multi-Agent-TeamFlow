@@ -9,6 +9,7 @@ import { db, schema } from '@/db/client'
 import { getWriteApprovalMode } from '@/server/approval-mode'
 import { classifyBashApproval, waitForBashApproval } from '@/server/bash-command-approval'
 import { recordRunCommand } from '@/server/dispatch-run-evidence'
+import { findBlockedNetworkTarget } from '@/server/network-guard'
 import { currentPlatform, type Platform } from '@/server/platform'
 import { findBannedPattern } from '@/server/security'
 import { runTerminalCommand } from '@/server/terminal-session-service'
@@ -166,6 +167,21 @@ export async function executeBashCommand(
     const rewrittenBanned = findBannedPattern(executedCommand, PLATFORM)
     if (rewrittenBanned) {
       return { ok: false, error: `Command rejected by safety policy: ${rewrittenBanned.source}` }
+    }
+  }
+
+  // 网络出口守卫：黑名单只拦 `curl … | bash` 这类管道写法，裸 curl 会绕过 web_fetch 的全部
+  // SSRF 防护并触达平台自身 API / 云 metadata / 内网服务。见 specs/11-platform.md「bash 网络出口」。
+  const blockedTarget = await findBlockedNetworkTarget(executedCommand)
+  if (blockedTarget) {
+    return {
+      ok: false,
+      error:
+        `Command rejected: network target ${blockedTarget.target} is not reachable from Agent tools ` +
+        `(${blockedTarget.reason}). Agent commands must not reach the platform's own service, ` +
+        `other local services, private networks, or cloud metadata endpoints. ` +
+        `Use web_fetch to read public HTTPS pages. To self-test a local server, bind it to a ` +
+        `non-platform port inside the workspace and clean it up in the same command.`,
     }
   }
 
