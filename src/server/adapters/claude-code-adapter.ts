@@ -52,7 +52,14 @@ import type { AdapterInput, AgentPlatformAdapter, ExternalMcpServerConfig } from
  * HMR-safe singleton。dev server 重启会丢失 —— 但 SDK 本身持久化到磁盘 (~/.claude
  * sessions)，所以即使我们丢了 id，SDK 数据还在；只是接下来的会话变成新 session。
  */
-const DEFAULT_MODEL = 'claude-opus-4-7'
+/**
+ * SDK 请求的默认模型。
+ *
+ * 本平台的 cc adapter 走 DeepSeek 的 Anthropic 兼容端点（`https://api.deepseek.com/anthropic`），
+ * 要用 DeepSeek 的模型 ID —— 传 `claude-opus-4-7` 会被端点以 invalid_request_error 拒绝
+ * （官方只接受 deepseek-flash / deepseek-v4-pro）。
+ */
+const DEFAULT_MODEL = 'deepseek-flash'
 /** SDK 内置工具中会改文件的，需要走审批 */
 const FS_WRITE_TOOLS = new Set(['Write', 'Edit'])
 /** 需要路径沙箱检查的工具（Bash 单独走黑名单 + cwd 限定） */
@@ -349,8 +356,11 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
         append: input.systemPrompt,
       },
       tools: isPlanStage ? CLAUDE_PLAN_STAGE_BUILTIN_TOOLS : { type: 'preset', preset: 'claude_code' },
-      // 禁用 SDK 内置 AskUserQuestion 和原生联网工具 —— 统一走 AgentHub MCP ask_user / web_fetch
-      disallowedTools: ['AskUserQuestion', 'WebFetch', 'WebSearch'],
+      // 禁用 SDK 内置 AskUserQuestion 与 WebFetch —— 统一走 AgentHub MCP ask_user / web_fetch
+      // （web_fetch 有 DNS/IP 重校验与私网拦截，SDK 原生 WebFetch 不受这套策略管控）。
+      // WebSearch 保留放开：AgentHub 没有搜索工具，原生 WebSearch 是当前唯一的联网搜索路径；
+      // 它由 DeepSeek 的 Anthropic 兼容端点服务端执行，费用并入模型 token 账单，不产生独立搜索账单。
+      disallowedTools: ['AskUserQuestion', 'WebFetch'],
       mcpServers: { agenthub: agenthubMcpServer, ...buildExternalClaudeMcpServers(input.externalMcpServers) },
       includePartialMessages: true,
       // 'project' = 只读绑定目录里的 CLAUDE.md（项目级上下文），不读用户全局 ~/.claude 设定（避免污染）

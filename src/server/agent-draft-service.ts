@@ -14,19 +14,23 @@ import { AgentConfigDraftSchema } from './agent-draft-schema'
 
 export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<AgentConfigDraft> {
   const draft = buildHeuristicAgentConfigDraft(input)
-  // 按模态自动匹配模型（替代硬编码 deepseek）
-  const modality = normalizeModality(draft.modality)
-  const resolved = await resolveModelForCapability(`agent:${modality}`)
-  if (resolved?.providerId && resolved.modelName) {
-    draft.modelProvider = providerIdToModelProvider(resolved.providerId)
-    draft.modelId = resolved.modelName
-    draft.assumptions = [
-      ...draft.assumptions.filter((a) => a.label !== '模型'),
-      {
-        label: '模型',
-        detail: `按「${modality}」模态自动匹配：${draft.modelProvider} / ${draft.modelId}（可在详细配置中修改）`,
-      },
-    ]
+  // SDK adapter（claude-code / codex）的模型由各自端点决定，不参与「按模态挑供应商模型」——
+  // cc adapter 走 DeepSeek 的 Anthropic 兼容端点，只接受 deepseek-flash / deepseek-v4-pro。
+  if (draft.adapterName === 'custom') {
+    // 按模态自动匹配模型（替代硬编码 deepseek）
+    const modality = normalizeModality(draft.modality)
+    const resolved = await resolveModelForCapability(`agent:${modality}`)
+    if (resolved?.providerId && resolved.modelName) {
+      draft.modelProvider = providerIdToModelProvider(resolved.providerId)
+      draft.modelId = resolved.modelName
+      draft.assumptions = [
+        ...draft.assumptions.filter((a) => a.label !== '模型'),
+        {
+          label: '模型',
+          detail: `按「${modality}」模态自动匹配：${draft.modelProvider} / ${draft.modelId}（可在详细配置中修改）`,
+        },
+      ]
+    }
   }
   return AgentConfigDraftSchema.parse(draft)
 }
@@ -62,15 +66,19 @@ export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentC
       presetLabel: preset.label,
       permissionSummaries,
     }),
-    adapterName: 'custom',
+    // 新建 Agent 默认 claude-code adapter（Claude Agent SDK + DeepSeek 的 Anthropic 兼容端点）。
+    // SDK adapter 走 SDK 内置工具集 + AgentHub MCP 工具，不消费 toolNames ——
+    // 草稿里必须是空数组（AgentConfigDraftSchema 会拒绝带 toolNames 的 SDK 草稿）。
+    adapterName: 'claude-code',
     modelProvider: 'deepseek',
     modelId: AGENT_BUILDER_PROVIDER_DEFAULTS.deepseek.defaultModel,
     modality: inferModality(combined, presetId),
-    toolNames: permissionSummaries.map((summary) => summary.toolName),
+    toolNames: [],
     supportsVision: true,
     rationale: [
       `根据描述匹配到「${preset.label}」工具预设。`,
       '按普通自建 Agent 生成，不包含 Orchestrator 专用工具。',
+      '默认使用 claude-code adapter（Claude Agent SDK），自带原生联网搜索能力。',
       '最终保存仍会走现有 Agent 创建接口，保存前可切到详细配置继续调整。',
     ],
     assumptions: [
@@ -84,7 +92,7 @@ export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentC
       },
       {
         label: '权限',
-        detail: `工具权限来自「${preset.label}」预设，保存前会逐项展示，可切到详细配置增减。`,
+        detail: `以「${preset.label}」预设描述工作范围；claude-code adapter 实际使用 SDK 内置工具集与 AgentHub 工具。`,
       },
     ],
     toolPermissionSummaries: permissionSummaries,

@@ -8,7 +8,7 @@
 
 ## 定位
 
-自建 Agent 默认 `adapterName='custom'`，也可以选择 `claude-code` 或 `codex` SDK adapter（详见 Spec 05）。新建入口统一为 Agent 列表顶部的「创建 Agent」按钮；点击后第一步选择「对话创建」或「详细配置」，编辑已有 Agent 时直接进入详细配置。用户配置：
+自建 Agent 的新建入口**默认 `adapterName='claude-code'`**（Claude Agent SDK 驱动，经供应商中心的 `anthropic` 行指向 `https://api.deepseek.com/anthropic`，因而自带 SDK 内置工具集与原生 `WebSearch`）；用户也可以在详细配置里切到 `custom` 或 `codex`（详见 Spec 05）。`createCustomAgent` 的 API 层默认值仍是 `custom` —— UI 总会显式传 `adapterName`，API 默认值只作为不传参时的兜底。新建入口统一为 Agent 列表顶部的「创建 Agent」按钮；点击后第一步选择「对话创建」或「详细配置」，编辑已有 Agent 时直接进入详细配置。用户配置：
 
 - 身份：name / avatar / description / capabilities
 - 行为：systemPrompt
@@ -199,7 +199,7 @@ CreateAgentDialog (open, agent=undefined)
 POST /api/agents { name, description, ..., modelProvider, modelId, apiKey?, apiBaseUrl? }
        │
        ▼
-createCustomAgent: avatar='🤖' 默认，adapterName='custom'，isBuiltin=false, isOrchestrator=false
+createCustomAgent: avatar='🤖' 默认，adapterName=入参 ?? 'custom'（UI 新建默认传 'claude-code'），isBuiltin=false, isOrchestrator=false
        │
        ▼
 返回 AgentRow → upsertAgent(row) 入 store

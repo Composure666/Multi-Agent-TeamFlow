@@ -290,7 +290,7 @@ write_artifact({
 **Adapter 暴露**：
 
 - Custom Agent：只有 `agent.toolNames` 包含 `web_fetch` 才暴露。
-- Claude Code：internal AgentHub MCP 暴露 `web_fetch`，并禁用 / 提示不要使用原生 `WebFetch` / `WebSearch` 绕过 AgentHub 安全策略。
+- Claude Code：internal AgentHub MCP 暴露 `web_fetch`；原生 `WebFetch` 禁用（提示走 `mcp__agenthub__web_fetch`，以免绕过 AgentHub 安全策略）。原生 `WebSearch` **保留可用**，是平台唯一的联网搜索入口。
 - Codex：internal stdio MCP bridge 暴露 `web_fetch`；Codex 原生 `networkAccessEnabled=false`、`webSearchMode='disabled'` 保持不变。
 - Orchestrator plan stage：可用 `web_fetch` 读取公开 HTTPS 需求 / 文档 URL，但不能用它访问本地服务或私有网络。
 
@@ -627,7 +627,9 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 **副作用**：sandbox 模式 quota（`SANDBOX_TOTAL_BYTES` / `SANDBOX_TOTAL_FILES`）对 Claude Code agent 失效（SDK 自己写盘绕过 quota 检查）。Claude Code agent 实际场景都是 `workspace.mode === 'local'`（绑真实项目），quota 不适用，可接受。
 
-**AgentHub MCP 工具**：Claude Code adapter 通过 SDK in-process MCP server 暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。其中 `write_artifact` 的结果会被 adapter 翻译为 `artifact.create`，`deploy_artifact` / `deploy_workspace` 的结果会被翻译为 `deploy.status`。`web_fetch` 是默认联网读取路径；原生 `WebFetch` / `WebSearch` 应禁用或通过提示约束避免绕过 AgentHub 安全策略。
+**AgentHub MCP 工具**：Claude Code adapter 通过 SDK in-process MCP server 暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。其中 `write_artifact` 的结果会被 adapter 翻译为 `artifact.create`，`deploy_artifact` / `deploy_workspace` 的结果会被翻译为 `deploy.status`。`web_fetch` 是受管控的联网读取路径（SSRF / content-type / 私网拦截）；原生 `WebFetch` 已禁用，但原生 `WebSearch` **保留可用**（平台唯一的联网搜索入口，服务端执行）。
+
+**工具可见性**：cc agent 的 AgentHub MCP 工具由 `filterAgentHubMcpToolsForRun(input.toolNames, tools)` 决定 —— `toolNames` 含 `plan_tasks` 时只给计划阶段白名单，否则给**除 `plan_tasks` 外的全部** AgentHub 工具。因此 `agent.toolNames` 对 cc agent 不构成裁剪，但**仍要保留**：Orchestrator 的计划阶段靠它过滤出 `fs_list` / `web_fetch` / `read_artifact` 等上下文工具，置空会让计划阶段失去这些能力。
 
 ---
 

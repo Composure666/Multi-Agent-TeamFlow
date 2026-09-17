@@ -230,8 +230,26 @@ export async function getEffectiveApiKey(
   }
 }
 
-/** Anthropic 的 base URL（第三方网关）；空 = 走 SDK 默认。 */
+/**
+ * Anthropic 的 base URL（第三方网关）；空 = 走 SDK 默认。
+ *
+ * 顺序与 `getEffectiveApiKey` 对齐：llm_providers（供应商中心，UI 主入口）→ app_settings → env。
+ * 供应商中心那一行是主入口 —— 否则用户在那里把 anthropic 指向 DeepSeek 的 Anthropic 兼容端点，
+ * cc adapter 仍会去请求官方端点，表现为「key 对但 401 / model not found」。
+ */
 export async function getEffectiveAnthropicBaseUrl(): Promise<string | null> {
+  try {
+    const providerRow = await db.query.llmProviders.findFirst({
+      where: eq(schema.llmProviders.id, BUILTIN_PROVIDER_ROW_ID.anthropic),
+    })
+    const rowBaseUrl = providerRow?.baseUrl?.trim()
+    if (rowBaseUrl) return rowBaseUrl
+  } catch (err) {
+    console.warn(
+      '[settings-service] read anthropic provider row base URL failed; falling back to app_settings/env',
+      err,
+    )
+  }
   const settings = await getAppSettings()
   return settings.anthropicBaseUrl ?? process.env.ANTHROPIC_BASE_URL ?? null
 }

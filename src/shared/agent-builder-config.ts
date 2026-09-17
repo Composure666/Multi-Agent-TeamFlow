@@ -7,14 +7,23 @@ export const AGENT_BUILDER_PROVIDER_DEFAULTS: Record<
   AgentBuilderProvider,
   { label: string; defaultModel: string }
 > = {
-  deepseek: { label: 'DeepSeek', defaultModel: 'deepseek-v4-flash' },
+  // DeepSeek 官方 `/v1/models` 只列出 deepseek-flash / deepseek-v4-pro（2026-09-17 实测）；
+  // 旧别名 deepseek-v4-flash、deepseek-chat 仍可用但不再作为默认值。
+  deepseek: { label: 'DeepSeek', defaultModel: 'deepseek-flash' },
   anthropic: { label: 'Anthropic', defaultModel: 'claude-opus-4-7' },
   openai: { label: 'OpenAI', defaultModel: 'gpt-4o' },
   'volcano-ark': { label: '火山方舟 (豆包)', defaultModel: 'doubao-seed-2-0-lite-260428' },
   'openai-compatible': { label: 'OpenAI-compatible', defaultModel: '' },
 }
 
-export const CLAUDE_CODE_DEFAULT_MODEL = 'claude-opus-4-7'
+/**
+ * Claude Code adapter 的默认模型。
+ *
+ * 平台统一把 cc adapter 指向 DeepSeek 的 Anthropic 兼容端点
+ * （`https://api.deepseek.com/anthropic`，见供应商中心的 anthropic 行），
+ * 因此这里必须是 DeepSeek 的模型 ID，否则会请求一个 DeepSeek 不认识的 Claude 模型名。
+ */
+export const CLAUDE_CODE_DEFAULT_MODEL = 'deepseek-flash'
 export const CODEX_DEFAULT_MODEL = 'gpt-5-codex'
 
 export const AVAILABLE_AGENT_TOOLS = [

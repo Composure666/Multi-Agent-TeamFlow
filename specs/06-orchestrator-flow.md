@@ -10,7 +10,7 @@ Orchestrator 是「特殊 Agent」（详见 Spec 01）：
 - `isOrchestrator: true`
 - `toolNames` 必含 `plan_tasks`；早期 `dispatch_to_agent` 命名已废弃，不再作为独立工具实现
 - 走同一个 `AgentRunner`，与普通 Agent 共享代码路径
-- 默认 `adapterName: 'custom'`，由用户在创建时选定底层 LLM
+- 默认 `adapterName: 'claude-code'`（2026-09-17 起：平台统一走 Claude Agent SDK + DeepSeek 的 Anthropic 兼容端点），`toolNames` 仍需保留（计划阶段靠它过滤上下文工具）
 
 **不要**为 Orchestrator 写独立服务。
 

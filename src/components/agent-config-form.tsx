@@ -113,9 +113,12 @@ export function createEmptyAgentFormValue(): AgentFormValue {
     description: '',
     capabilitiesText: '',
     systemPrompt: DEFAULT_CUSTOM_SYSTEM_PROMPT,
-    adapterName: 'custom',
+    // 新建 Agent 默认走 claude-code adapter：它由 Claude Agent SDK 驱动，
+    // 经供应商中心的 anthropic 行指向 DeepSeek 的 Anthropic 兼容端点，
+    // 因而自带 SDK 内置工具与原生 WebSearch（联网搜索）。
+    adapterName: 'claude-code',
     modelProvider: 'deepseek',
-    modelId: PROVIDER_DEFAULTS.deepseek.defaultModel,
+    modelId: CLAUDE_CODE_DEFAULT_MODEL,
     toolNames: [...DEFAULT_CUSTOM_AGENT_TOOLS],
     mcpServerIds: [],
     skillIds: [],

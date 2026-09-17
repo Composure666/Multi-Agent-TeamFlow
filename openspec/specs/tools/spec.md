@@ -140,7 +140,8 @@ AgentHub MUST provide an AgentHub-managed `web_fetch` tool for reading public HT
 - **WHEN** Claude Code or Codex needs public web page text
 - **THEN** AgentHub exposes `web_fetch` through the internal `agenthub` MCP server
 - **AND** Codex native network/web search remains disabled
-- **AND** Claude Code is instructed to use AgentHub `web_fetch` instead of native WebFetch/WebSearch.
+- **AND** Claude Code is instructed to use AgentHub `web_fetch` instead of native WebFetch
+- **AND** Claude Code keeps native `WebSearch` enabled (the server-side search of the configured Anthropic-compatible endpoint), because AgentHub ships no search tool of its own.
 
 ### Requirement: Attachments SHALL be read through safe tool extraction
 

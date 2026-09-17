@@ -239,7 +239,7 @@ const result = await toolRegistry.execute(name, args, ctx)
 AgentHub-managed `web_fetch` 是统一的公开网页读取路径：
 
 - CustomAgentAdapter：当 `AdapterInput.toolNames` 包含 `web_fetch` 时，通过 `toolRegistry.resolve()` 暴露给 OpenAI-compatible function calling，工具执行走 `executeStructured()`。
-- ClaudeCodeAdapter：通过 internal `agenthub` MCP server 暴露 `web_fetch`，要求 agent 使用 `mcp__agenthub__web_fetch` 读取公开 HTTPS 页面；原生 `WebFetch` / `WebSearch` 应在 `disallowedTools` 中禁用，或至少通过 system/MCP instructions 兜底约束。
+- ClaudeCodeAdapter：通过 internal `agenthub` MCP server 暴露 `web_fetch`，要求 agent 使用 `mcp__agenthub__web_fetch` 读取公开 HTTPS 页面；原生 `WebFetch` 在 `disallowedTools` 中禁用（它不受 `web_fetch` 的 SSRF / content-type 策略管控）。原生 **`WebSearch` 保留可用**：它是平台当前唯一的联网搜索路径（AgentHub 工具表里没有搜索工具），由 DeepSeek 的 Anthropic 兼容端点服务端执行，费用并入模型 token 账单、不产生独立搜索账单。平台默认把 `anthropic` 供应商行指向 `https://api.deepseek.com/anthropic`，故 cc adapter 的默认模型是 DeepSeek 的模型 ID。
 - CodexAdapter：通过 `scripts/agenthub-codex-mcp.mjs` 暴露 `web_fetch`，实际调用内部 `/api/internal/agenthub-tools`，仍由 `toolRegistry.executeStructured()` 执行。
 - Codex 原生网络保持关闭：`networkAccessEnabled=false`、`webSearchMode='disabled'`。Codex 需要网页文本时只能经 AgentHub MCP `web_fetch`。
 - 外部 MCP server 若自行提供 fetch/search 工具，不继承 AgentHub `web_fetch` 的 SSRF 与 content-type 策略；它们受外部 MCP opt-in / trust 模型约束。
