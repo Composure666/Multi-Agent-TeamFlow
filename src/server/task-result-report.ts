@@ -213,7 +213,7 @@ export function evaluateTaskResultReport(
   if (isCodeImplementationTask(task) && !hasSuccessfulVerificationCommandEvidence(evidence)) {
     return {
       ok: false,
-      error: `Task "${task.id}" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0`,
+      error: `Task "${task.id}" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0${describeVerificationGap(evidence)}`,
     }
   }
 
@@ -354,13 +354,135 @@ export function hasSuccessfulVerificationCommandEvidence(evidence: RunToolEviden
   return evidence.commands.some(isSuccessfulVerificationCommandEvidence)
 }
 
+/**
+ * 这条命令算不算「一次验证动作」。
+ *
+ * 2026-09-17：旧实现把**整串**命令直接丢进 VERIFICATION_COMMAND_PATTERNS，两类真实形态
+ * 全部落空 ——
+ *   1. 零依赖项目自写的校验脚本（`node landing/qa/check.mjs`、`python qa/check.py`）；
+ *   2. 复合 / 多行命令（`cd landing && node qa/check.mjs`、`npm test; echo done`）——
+ *      白名单里的 `(?=.*…)` 前瞻跨不过换行。
+ * 结果是「42 项全 PASS、exitCode=0」的交付仍被判 failed，agent 只能反复重跑同一件事。
+ * 现在按 shell 分隔符切段逐段判定（与 isBenignFailure 同一套切段器）。
+ *
+ * 已知局限：`cmd A; echo ok` 这类链路记录下来的 exitCode 是**最后一段**的退出码，
+ * 一旦 A 失败而尾段成功，门禁无法从这一个数字里拆出来（这是 shell 语义决定的，
+ * 不是判定逻辑能补救的）。因此只把 `||` 尾段当作硬信号拒绝 —— `A || B` 里的 B
+ * 只在 A 失败时才跑，它成功退出恰恰证明验证失败了（`npm test || echo skipped`）。
+ */
 export function isVerificationCommand(command: string): boolean {
-  const normalized = normalizeCommand(command)
-  return (
-    !isPrepareCommand(normalized) &&
-    VERIFICATION_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
+  if (isPrepareCommand(normalizeCommand(command))) return false
+
+  const segments = splitShellSegments(command)
+  const lastVerificationIndex = segments.reduce(
+    (last, segment, index) => (isVerificationSegment(segment.text) ? index : last),
+    -1,
   )
+  if (lastVerificationIndex === -1) return false
+
+  return segments
+    .slice(lastVerificationIndex + 1)
+    .every((segment) => segment.operator !== '||')
 }
+
+function isVerificationSegment(segment: string): boolean {
+  const normalized = normalizeCommand(segment)
+  if (!normalized) return false
+  if (isVerificationScriptRun(normalized)) return true
+  // `echo tsc` / `ls package.json` / `cat check.mjs` 命中白名单纯属词形巧合，
+  // 它们的首 token 是探测命令、脚本只是参数，不是「跑了一次验证」。
+  if (BENIGN_PROBE_SEGMENT_RE.test(normalized)) return false
+  return VERIFICATION_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+/**
+ * 「直接跑一个校验脚本」也算验证动作。
+ *
+ * 零依赖项目（没有 package.json / 没有测试框架）的验证方式就是自写脚本：
+ * `node landing/qa/check.mjs`、`python qa/check.py`、`bash scripts/verify.sh`、
+ * `npx tsx qa/check.ts`。只认包管理器与已知测试框架的旧白名单必然漏掉这一类。
+ *
+ * 语义由**脚本路径**决定，不由 runner 决定：`node server.js`（起服务）、
+ * `node -e "..."`（模块探测）不算，`node qa/check.mjs` 算。
+ */
+function isVerificationScriptRun(normalized: string): boolean {
+  const tokens = normalized.toLowerCase().split(' ').filter(Boolean)
+  const runnerIndex = tokens.findIndex((token) =>
+    SCRIPT_RUNNER_TOKENS.has(stripExecutableSuffix(token)),
+  )
+  if (runnerIndex === -1) return false
+  // 允许 `timeout 300 node …` / `env FOO=1 node …` 这类前缀，但不能是别的东西把脚本当参数。
+  if (!tokens.slice(0, runnerIndex).every((token) => SCRIPT_RUNNER_PREFIX_RE.test(token))) {
+    return false
+  }
+  const script = tokens
+    .slice(runnerIndex + 1)
+    .find((token) => !token.startsWith('-') && SCRIPT_FILE_TOKEN_RE.test(token))
+  return script ? looksLikeVerificationScript(script) : false
+}
+
+function stripExecutableSuffix(token: string): string {
+  return token.replace(/\.(?:exe|cmd|bat)$/, '')
+}
+
+/** 脚本文件形态：末段是已知脚本扩展名（`qa/check.mjs`、`verify.sh`、`check.py`）。 */
+const SCRIPT_FILE_TOKEN_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx|py|sh|bash|ps1|rb|go|lua|php|pl)$/
+
+/**
+ * 脚本名里的验证语义：按非字母数字切词后逐词**前缀**匹配 ——
+ * `run-checks.mjs` / `verify-site.sh` / `qa.mjs` / `checker.py` 算，
+ * `latest.mjs`（含 "test" 子串）/ `server.js` / `start.sh` 不算。
+ */
+const VERIFICATION_SCRIPT_WORDS = [
+  'test',
+  'spec',
+  'check',
+  'verify',
+  'validat',
+  'lint',
+  'typecheck',
+  'audit',
+  'qa',
+  'e2e',
+  'smoke',
+  'sanity',
+  'acceptance',
+  'build',
+  'compile',
+  'doctor',
+]
+
+function looksLikeVerificationScript(scriptPath: string): boolean {
+  const tokens = scriptPath.split(/[^a-z0-9]+/).filter(Boolean)
+  return tokens.some((token) => VERIFICATION_SCRIPT_WORDS.some((word) => token.startsWith(word)))
+}
+
+/** 执行脚本的 runner；验证语义在脚本名里，runner 只用来确认「这确实在跑脚本」。 */
+const SCRIPT_RUNNER_TOKENS = new Set([
+  'node',
+  'bun',
+  'deno',
+  'tsx',
+  'ts-node',
+  'npx',
+  'pnpx',
+  'bunx',
+  'python',
+  'python3',
+  'py',
+  'bash',
+  'sh',
+  'zsh',
+  'dash',
+  'pwsh',
+  'powershell',
+  'ruby',
+  'php',
+  'perl',
+])
+
+/** runner 之前允许出现的前缀：计时 / 环境变量 / 数字参数 / 标志位。 */
+const SCRIPT_RUNNER_PREFIX_RE = /^(?:time|timeout|env|nice|ionice|command|exec|\d+[smhd]?|-\S+|[A-Za-z_][A-Za-z0-9_]*=\S*)$/
 
 function isSuccessfulVerificationCommandEvidence(
   command: RunToolEvidence['commands'][number],
@@ -383,6 +505,29 @@ function requiredEvidenceSatisfied(
     return hasSuccessfulVerificationCommandEvidence(evidence)
   }
   return evidenceMentions(required, report, evidence)
+}
+
+/**
+ * 门禁失败时必须说清「我看到了什么 / 什么才算数 / 怎么改」。
+ *
+ * 2026-09-17：agent 反复重跑同一条 exit 0 的校验脚本，收到的却始终是同一句笼统报错，
+ * 只能靠猜。这里把记到的命令连同各自结局列出来，并点名会被承认的形态。
+ * 没有任何命令证据时保持原文案（空列表无信息量，只会让报错变长）。
+ */
+function describeVerificationGap(evidence: RunToolEvidence): string {
+  if (evidence.commands.length === 0) return ''
+  const seen = evidence.commands
+    .slice(-6)
+    .map((command) => `${command.command} (${describeCommandOutcome(command)})`)
+    .join(' | ')
+  return ` Commands seen: [${seen}]. Accepted forms: npm/pnpm/yarn/bun/deno run build|test|lint|check|verify|qa, tsc, next/vite build, pytest, go test, cargo test, or a check script run directly (node qa/check.mjs, python check.py, bash verify.sh). Run the check as its own bash call so its own exitCode is the one recorded.`
+}
+
+function describeCommandOutcome(command: RunToolEvidence['commands'][number]): string {
+  if (command.timedOut) return 'timed out'
+  if (command.isError) return formatCommandFailure(command)
+  if (command.prepare) return `prepare, exit ${command.exitCode}`
+  return `exit ${command.exitCode}`
 }
 
 function evidenceMentions(
@@ -502,10 +647,22 @@ function isBenignFailure(command: string): boolean {
   )
 }
 
+interface ShellSegment {
+  text: string
+  /**
+   * 与本段之前的连接符（首段为 null）。
+   *
+   * 验证判定必须区分 `&&` 与 `||`：`A || B` 里的 B 只在 A 失败时才跑，
+   * 它 exit 0 恰恰是「A 失败了」的证据（`npm test || echo skipped` 的假绿）。
+   */
+  operator: ';' | '&&' | '||' | '|' | null
+}
+
 /** 引号感知的链路切段：python -c "import x; print()" 里的 ; 不能当命令分隔符。换行要切。 */
-function splitCommandSegments(command: string): string[] {
-  const segments: string[] = []
+function splitShellSegments(command: string): ShellSegment[] {
+  const segments: ShellSegment[] = []
   let current = ''
+  let operator: ShellSegment['operator'] = null
   let quote: string | null = null
   for (let i = 0; i < command.length; i++) {
     const ch = command[i]
@@ -519,27 +676,34 @@ function splitCommandSegments(command: string): string[] {
       current += ch
       continue
     }
+    let next: ShellSegment['operator'] = null
     if (ch === ';' || ch === '\n' || ch === '\r') {
-      segments.push(current)
-      current = ''
-      continue
-    }
-    if (ch === '&' && command[i + 1] === '&') {
-      segments.push(current)
-      current = ''
+      next = ';'
+      // \r\n 只算一个换行。
+      if (ch === '\r' && command[i + 1] === '\n') i++
+    } else if (ch === '&' && command[i + 1] === '&') {
+      next = '&&'
       i++
+    } else if (ch === '|') {
+      next = command[i + 1] === '|' ? '||' : '|'
+      if (next === '||') i++
+    }
+    if (!next) {
+      current += ch
       continue
     }
-    if (ch === '|') {
-      segments.push(current)
-      current = ''
-      if (command[i + 1] === '|') i++
-      continue
-    }
-    current += ch
+    const text = current.trim()
+    if (text) segments.push({ text, operator })
+    current = ''
+    operator = next
   }
-  segments.push(current)
-  return segments.map((segment) => segment.trim()).filter(Boolean)
+  const tail = current.trim()
+  if (tail) segments.push({ text: tail, operator })
+  return segments
+}
+
+function splitCommandSegments(command: string): string[] {
+  return splitShellSegments(command).map((segment) => segment.text)
 }
 
 function hasLaterSuccessfulCommand(
@@ -642,16 +806,20 @@ const ARTIFACT_TYPES_BY_EXTENSION: Record<string, readonly string[]> = {
 }
 
 const VERIFICATION_COMMAND_PATTERNS = [
-  /\b(?:pnpm|npm|yarn|bun)(?:\.cmd)?\b(?=.*\b(?:run\s+)?(?:build|test|lint|typecheck|check|compile)(?:\b|:))/i,
+  // 包脚本名本身就是验证语义的才算：`npm run qa|verify|check|e2e` 与 `npm test` 等价，
+  // 而 `npm run dev|start|serve|watch` 是起服务，不能当验证证据。
+  /\b(?:pnpm|npm|yarn|bun|deno)(?:\.cmd)?\b(?=.*\b(?:run\s+)?(?:build|test|lint|typecheck|type-check|check|compile|verify|validate|validation|audit|qa|e2e|smoke|sanity|acceptance)(?:\b|:))/i,
   /\b(?:tsc|tsc\.cmd)\b/i,
   /\bnext(?:\.cmd)?\s+build\b/i,
   /\bvite(?:\.cmd)?\s+build\b/i,
+  /\b(?:node|bun|deno)(?:\.exe)?\s+--(?:test|test-only)\b/i,
+  /\bnode(?:\.exe)?\s+--check\b/i,
   /\bmvn(?:\.cmd)?\b(?=.*\b(?:compile|test|package|verify)\b)/i,
   /\b(?:gradle|gradlew|gradlew\.bat|\.\/gradlew)\b(?=.*\b(?:build|test|check)\b)/i,
   /\bgo\s+(?:test|build)\b/i,
   /\bcargo\s+(?:test|build|check)\b/i,
   /\b(?:pytest|py\.test)\b/i,
-  /\bpython(?:3)?(?:\.exe)?\s+-m\s+pytest\b/i,
+  /\bpython(?:3)?(?:\.exe)?\s+-m\s+(?:pytest|unittest|doctest)\b/i,
   /\bruff\s+check\b/i,
   /\bmypy\b/i,
   /\bdotnet\s+(?:build|test)\b/i,

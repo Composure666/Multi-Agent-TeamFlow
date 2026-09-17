@@ -543,6 +543,7 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 - 不要用 `write_artifact` 保存应该落盘的源码、`package.json`、`tsconfig`、`server/`、`client/` 或构建配置。
 - `write_artifact` 只用于用户明确要求 artifact / 可预览原型 / 独立 demo / 文档交接，或任务本身声明 artifact handoff。
 - 本地代码改动完成后优先运行 install / typecheck / build / test 等验证命令；无法运行时说明原因。
+- 验证命令要单独作为一条 bash 调用执行（`npm test`、`node qa/check.mjs`、`bash scripts/verify.sh`），不要串在 `cd x && … ; echo done` 里 —— 完成门禁记录的是这条命令自己的 exitCode（判定见 `src/server/task-result-report.ts`），`A || B` 兜底会被判成验证失败。
 
 如果当前是 local workspace 但 agent 没有文件/命令工具，提示会要求 agent 说明能力不足，而不是用 `write_artifact` 假装已经写入本地项目。
 

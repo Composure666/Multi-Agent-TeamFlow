@@ -3367,6 +3367,7 @@ function buildAgentHubToolGuidance(
       '- 如果本地项目已经构建出 dist / build / out / client/dist 等静态目录，可用 deploy_workspace 为该目录生成部署预览卡。',
       '- write_artifact 只用于用户明确要求 artifact / 可预览原型 / 独立 demo / 文档交接，或任务本身声明需要 artifact handoff。',
       '- 完成本地项目改动后，优先运行必要的验证命令（install / typecheck / build / test）；如果无法运行，说明具体原因。',
+      '- 验证命令要单独作为一条 bash 调用执行（`npm test`、`node qa/check.mjs`、`bash scripts/verify.sh`），不要串在 `cd x && … ; echo done` 里：完成门禁只认这条命令自己的 exitCode，被 `||` 兜底的写法（`npm test || echo skipped`）会被判成验证失败。',
     ])
   } else if (workspace.mode === 'local' && tools.has('write_artifact')) {
     add([

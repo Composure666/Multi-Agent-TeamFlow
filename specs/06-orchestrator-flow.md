@@ -373,6 +373,10 @@ async function runSubTask(
 代码实现任务没有成功的非 prepare 验证命令 evidence:
   TaskResult.status = 'failed'
   error 记录缺少 build/compile/test/typecheck/lint exitCode=0 evidence
+       + 实际记录到的命令及各自结局 + 被承认的形态（重试需要可执行的输入）
+  按 shell 段判定：复合 / 多行命令里的验证段算（cd landing && node landing/qa/check.mjs）
+  自写校验脚本算（node qa/check.mjs / python check.py / bash verify.sh）
+  起服务、装依赖、只读探测、A || B 兜底不算
   进入已有重试 / 动态重规划补救流程
 
 代码实现任务缺少 required project output:

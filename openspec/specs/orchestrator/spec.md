@@ -70,7 +70,14 @@ AgentRunner MUST execute dispatch tasks as a DAG and skip dependent tasks when p
 - **WHEN** a code implementation child task reports `complete`
 - **AND** recorded command evidence has no successful non-prepare build, compile, test, lint, or typecheck command
 - **THEN** the dispatch task is treated as `failed`
+- **AND** the error lists the recorded commands with their outcomes and the accepted verification forms
 - **AND** the existing retry or replan flow may remediate it.
+
+#### Scenario: Verification is a project check script or nested in a compound command
+- **WHEN** a code implementation child task reports `complete`
+- **AND** recorded command evidence has a successful non-prepare shell segment that runs a check-shaped script (`node qa/check.mjs`, `python qa/check.py`, `bash scripts/verify.sh`) or a verification-named package script (`npm run check|verify|qa|lint|test`)
+- **THEN** the runnable verification requirement is satisfied
+- **AND** a command whose success comes only from a `||` fallback (`npm test || echo skipped`) does not satisfy it.
 
 #### Scenario: Code task lacks project output
 - **WHEN** a code implementation child task reports `complete`

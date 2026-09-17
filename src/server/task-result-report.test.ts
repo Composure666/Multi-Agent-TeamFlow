@@ -17,6 +17,14 @@ function task(overrides: Partial<DispatchPlanItem> = {}): DispatchPlanItem {
   }
 }
 
+/**
+ * 验证门禁失败信息的固定尾巴：它必须说清「实际看到了哪些命令」与「什么形态才被承认」，
+ * 否则 agent 只能对着同一句笼统报错反复重跑同一条 exit 0 的命令。
+ */
+function verificationGapHint(seen: string): string {
+  return ` Commands seen: [${seen}]. Accepted forms: npm/pnpm/yarn/bun/deno run build|test|lint|check|verify|qa, tsc, next/vite build, pytest, go test, cargo test, or a check script run directly (node qa/check.mjs, python check.py, bash verify.sh). Run the check as its own bash call so its own exitCode is the one recorded.`
+}
+
 const completeReport: TaskResultReport = {
   status: 'complete',
   summary: 'Reviewed the implementation and found it acceptable.',
@@ -425,7 +433,8 @@ describe('evaluateTaskResultReport', () => {
     ).toEqual({
       ok: false,
       error:
-        'Task "t1" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0',
+        'Task "t1" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0' +
+        verificationGapHint('pnpm install (prepare, exit 0)'),
     })
   })
 
@@ -477,8 +486,102 @@ describe('evaluateTaskResultReport', () => {
     ).toEqual({
       ok: false,
       error:
-        'Task "t1" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0',
+        'Task "t1" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0' +
+        verificationGapHint('ls (exit 0)'),
     })
+  })
+
+  // 回归（2026-09-17 线上）：零依赖项目用自写脚本验证（`node landing/qa/check.mjs`，
+  // 42 项全 PASS / exitCode=0），旧白名单只认包管理器与已知测试框架，于是交付被判 failed，
+  // agent 只能反复重跑同一条已经绿了的命令。
+  it('accepts a project check script as runnable verification', () => {
+    expect(
+      evaluateTaskResultReport(
+        task({ task: 'Implement the landing page', taskKind: 'code' }),
+        { status: 'complete', summary: 'Implemented the landing page; check script passes.' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'node landing/qa/check.mjs',
+              cwd: 'E:/repo',
+              exitCode: 0,
+              timedOut: false,
+              isError: false,
+            },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
+  it('accepts verification nested in compound and multi-line commands', () => {
+    const commands = [
+      'cd landing && node landing/qa/check.mjs',
+      'cd landing\nnode landing/qa/check.mjs',
+      'bash scripts/verify.sh',
+      'npm test; echo done',
+    ]
+    for (const command of commands) {
+      const result = evaluateTaskResultReport(
+        task({ task: 'Implement the landing page', taskKind: 'code' }),
+        { status: 'complete', summary: 'Verified.' },
+        {
+          fileWrites: [],
+          commands: [{ command, cwd: 'E:/repo', exitCode: 0, timedOut: false, isError: false }],
+        },
+      )
+      expect(result, command).toEqual({ ok: true })
+    }
+  })
+
+  it('does not accept a failed verification masked by an || fallback', () => {
+    // `A || B` 里的 B 只在 A 失败时才跑，它 exit 0 恰恰说明验证没过 —— 不能算证据。
+    expect(
+      evaluateTaskResultReport(
+        task({ task: 'Implement the landing page', taskKind: 'code' }),
+        { status: 'complete', summary: 'Verified.' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'npm test || echo skipped',
+              cwd: 'E:/repo',
+              exitCode: 0,
+              timedOut: false,
+              isError: false,
+            },
+          ],
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error:
+        'Task "t1" is missing successful runnable verification command evidence: build/compile/test/typecheck/lint command exitCode=0' +
+        verificationGapHint('npm test || echo skipped (exit 0)'),
+    })
+  })
+
+  it('names the commands it saw when verification is missing', () => {
+    const result = evaluateTaskResultReport(
+      task({ task: 'Implement the landing page', taskKind: 'code' }),
+      { status: 'complete', summary: 'Started the dev server and looked at it.' },
+      {
+        fileWrites: [],
+        commands: [
+          {
+            command: 'node server.js',
+            cwd: 'E:/repo',
+            exitCode: 0,
+            timedOut: false,
+            isError: false,
+          },
+        ],
+      },
+    )
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('Commands seen: [node server.js (exit 0)]')
+    expect(result.error).toContain('node qa/check.mjs')
   })
 
   it('allows non-code review tasks to complete without runnable verification', () => {
