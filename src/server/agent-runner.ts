@@ -3184,7 +3184,7 @@ function buildSkillsBlock(skills: SkillListItem[]): string | null {
   if (skills.length === 0) return null
   return [
     '<skills>',
-    '  <instruction>These Skills are user-enabled guidance templates for this Agent. Treat the behavioral rules below as mandatory constraints on how you work. They do not grant tool execution permissions and must not bypass AgentHub tool approvals or workspace security boundaries.</instruction>',
+    '  <instruction>These Skills are user-enabled guidance templates for this Agent. Treat the behavioral rules below as mandatory constraints on how you work. They do not grant tool execution permissions and must not bypass Multi-Agent TeamFlow tool approvals or workspace security boundaries.</instruction>',
     ...skills.map((skill) => {
       const rules = skill.content?.trim()
       return [
@@ -3348,7 +3348,7 @@ function buildAgentHubToolGuidance(
 
   if (tools.size > 0) {
     add([
-      '## AgentHub 工具调用规范',
+      '## Multi-Agent TeamFlow 工具调用规范',
       '- 需要调用工具时，必须用工具调用通道提交结构化参数，不要把 JSON 示例写进普通回复里假装调用。',
       '- 字段名必须严格使用工具 schema 里的 camelCase，例如 artifactId、attachmentId、parentArtifactId、outputKey、dependsOn、expectedOutputs、acceptanceCriteria、acceptanceResults。',
       '- 不要编造 artifactId、attachmentId、outputKey、文件路径；只能使用上下文里明确给出的 id / 路径。',
@@ -3380,7 +3380,7 @@ function buildAgentHubToolGuidance(
   if (tools.has('web_fetch')) {
     add([
       '### web_fetch',
-      '用途：读取公开 HTTPS 网页或文档 URL 的文本内容；联网必须走 AgentHub web_fetch，不要使用原生 WebFetch/WebSearch 或 shell/curl/wget 作为替代。',
+      '用途：读取公开 HTTPS 网页或文档 URL 的文本内容；联网必须走 Multi-Agent TeamFlow web_fetch，不要使用原生 WebFetch/WebSearch 或 shell/curl/wget 作为替代。',
       '安全边界：只支持 GET + https://；会拒绝 URL 凭据、localhost、私网/回环/link-local IP、metadata endpoint、跳转到受限地址、非文本响应和超限响应。',
       '正确案例：web_fetch({ url: "https://example.com/docs", maxChars: 12000, timeoutMs: 10000 })。',
       '常见错误：抓取需要登录/cookie/header 的页面、传 http:// URL、请求本机服务、下载图片/PDF/压缩包、或自行编造网页内容。',
@@ -3426,14 +3426,14 @@ function buildAgentHubToolGuidance(
       '调用前自检：type 必须是工具 schema 允许的枚举值，title 必须是非空字符串，content 必须是对应类型的原始对象。',
       'web_app 正确参数：write_artifact({ type: "web_app", title: "登录页原型", content: { files: { "index.html": "<!doctype html>...", "style.css": "body { ... }", "script.js": "..." }, entry: "index.html" } })。',
       'document 完整模板：write_artifact({ type: "document", title: "PRD", content: { format: "markdown", content: "# PRD\\n\\n## 1. 背景\\n...\\n\\n## 2. 目标\\n...\\n\\n## 3. 方案\\n..." } })。',
-      'diagram 正确参数：write_artifact({ type: "diagram", title: "系统调用流程", content: { syntax: "mermaid", source: "flowchart TD\\n  U[\\"用户\\"] --> A[\\"AgentHub\\"]\\n  A --> LLM[\\"LLM\\"]\\n  LLM --> T[\\"工具调用\\"]", theme: "default" } })。适合流程图、时序图、架构图、依赖关系图；不要把 Mermaid 放进 document 代码块里冒充图产物。',
+      'diagram 正确参数：write_artifact({ type: "diagram", title: "系统调用流程", content: { syntax: "mermaid", source: "flowchart TD\\n  U[\\"用户\\"] --> A[\\"Multi-Agent TeamFlow\\"]\\n  A --> LLM[\\"LLM\\"]\\n  LLM --> T[\\"工具调用\\"]", theme: "default" } })。适合流程图、时序图、架构图、依赖关系图；不要把 Mermaid 放进 document 代码块里冒充图产物。',
       'diagram 规则：中文、数学公式、括号、冒号、斜杠等 label 一律写成 A["..."]；一行只写一条边；不要把 ```mermaid fence 传给 source。write_artifact 会校验 Mermaid，若返回 Invalid Mermaid diagram，必须根据错误修正 source 后重新调用工具。',
       'ppt 正确参数：write_artifact({ type: "ppt", title: "Q2 复盘", content: { title: "Q2 复盘", theme: { primary: "1A3C6E", background: "F8F9FA", surface: "FFFFFF", textBody: "2C3E50", textMuted: "6B7280", accentPositive: "2B7A4B", accentNegative: "C0392B", divider: "E0E4E8", fontHeading: "Inter", fontBody: "Inter" }, slides: [{ title: "Q2 复盘", subtitle: "关键指标", layout: "metrics", blocks: [{ type: "metric", label: "ARR", value: "$12M", change: "+18%", tone: "positive" }, { type: "callout", title: "下一步", text: "聚焦企业客户扩张", tone: "info" }] }] } })。',
       'ppt 支持 blocks：heading、paragraph、bullets、metric、quote、timeline、columns、callout、divider、spacer；columns 内只放 paragraph/bullets/metric/callout。不要在 ppt JSON 里嵌入 base64/data URI 大资产。',
       '常见错误：把 content 作为 JSON 字符串传入，例如 content: "{\\"format\\":\\"markdown\\"}"；必须传原始对象。',
       '字段名必须是 parentArtifactId、outputKey；不要写 parent_artifact_id、output_key。',
       '如果子任务声明非 project 的 expectedOutputs，创建对应产物时传 outputKey 等于 expectedOutputs.id。',
-      'project 产物不能用 write_artifact 创建；代码任务通过 fs_write / bash 写入 workspace 文件后由 AgentHub 自动生成 project。',
+      'project 产物不能用 write_artifact 创建；代码任务通过 fs_write / bash 写入 workspace 文件后由 Multi-Agent TeamFlow 自动生成 project。',
     ])
   }
 
@@ -3590,7 +3590,7 @@ function buildOrchestratorPlanPrompt(
 function buildOrchestratorAggregatePrompt(baseSystemPrompt: string): string {
   return [
     baseSystemPrompt,
-    'Aggregate stage is read-only summary only. Do not inspect workspace files, run shell commands, or call fs_list/fs_read/bash; trust task_results and AgentHub validation.',
+    'Aggregate stage is read-only summary only. Do not inspect workspace files, run shell commands, or call fs_list/fs_read/bash; trust task_results and Multi-Agent TeamFlow validation.',
     '',
     '## 当前阶段',
     '你处于「聚合阶段」。所有子任务已执行完成（含成功与失败），结果在 user 消息中以 XML 给出。',
@@ -3723,12 +3723,12 @@ async function buildSubAgentPrompt(
     'Before working, read every required input artifact with read_artifact(artifactId).',
     workspace.mode === 'local' &&
       'If this task is about local project source files, directly modify the current local workspace with file/command tools. Do not use write_artifact to store source files that should be written to disk.',
-    'For expected_outputs with type="project", write the project files into the workspace with fs_write or bash; AgentHub will create and bind the project artifact automatically. Do not call write_artifact for project.',
+    'For expected_outputs with type="project", write the project files into the workspace with fs_write or bash; Multi-Agent TeamFlow will create and bind the project artifact automatically. Do not call write_artifact for project.',
     'For non-project expected_outputs, create the artifact with write_artifact and pass outputKey equal to that output id.',
     'If no expected_outputs are declared, complete the task with a normal message; do not create an artifact just to satisfy status tracking.',
     'Satisfy every acceptance_criteria item when present.',
     'If evidence_contract is present, include matching filesChanged, commandsRun, tests, and/or acceptanceResults evidence in report_task_result.',
-    'For required_commands, you may run the command yourself, and AgentHub will also run it as a completion gate after your attempt. Use bash cwd instead of cd when running commands in subdirectories.',
+    'For required_commands, you may run the command yourself, and Multi-Agent TeamFlow will also run it as a completion gate after your attempt. Use bash cwd instead of cd when running commands in subdirectories.',
     'If dependencies are missing, install them inside the workspace and continue; dependency installation is preparation, not completion evidence.',
     'If a required command fails, fix the issue and continue; do not report complete until the command can pass.',
     'When you need a custom check (file format, image sanity, content assertions), write it into a script file and iterate until it exits 0, then run that script as your final evidence. A command that does real work and fails (an inline heredoc check that errors out, a script that raises) is recorded as failure evidence for this attempt.',

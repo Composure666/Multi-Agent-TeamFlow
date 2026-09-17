@@ -182,3 +182,100 @@ describe('messages_fts self-heal', () => {
     })
   })
 })
+
+/**
+ * 回归：品牌改名后，**存量库**里 builtin agent 的提示词必须一起改名。
+ *
+ * 背景：builtin agent 的 system_prompt 只在建库时写一次，upgradeBuiltinAgents 之后只做追加，
+ * 所以改源码不会影响老库 —— 不迁移的话 Agent 会在对话里继续自称旧品牌名。
+ *
+ * 边界（与本用例同等重要）：小写 `.agenthub-data/`、`AGENTHUB_*`、`mcp__agenthub__*`
+ * 都是内部标识，迁移绝不能碰；用户自建 Agent 属用户数据，也不碰。
+ */
+describe('legacy brand rename migration', () => {
+  it('rewrites the old brand in builtin prompts and keeps internal identifiers intact', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+
+      // 还原老库：提示词里同时含旧品牌（大写，该改）与内部标识（小写，不该改）
+      sqlite
+        .prepare(`UPDATE agents SET system_prompt = ? WHERE id = 'ag_orchestrator'`)
+        .run(
+          '你是 AgentHub 平台的 Orchestrator。数据在 .agenthub-data/，env 叫 AGENTHUB_DATA_DIR，工具前缀 mcp__agenthub__ask_user。',
+        )
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare(`SELECT system_prompt FROM agents WHERE id = 'ag_orchestrator'`)
+        .get() as { system_prompt: string }
+
+      expect(row.system_prompt).toContain('你是 Multi-Agent TeamFlow 平台的 Orchestrator')
+      expect(row.system_prompt).not.toContain('AgentHub 平台')
+      expect(row.system_prompt).toContain('.agenthub-data/')
+      expect(row.system_prompt).toContain('AGENTHUB_DATA_DIR')
+      expect(row.system_prompt).toContain('mcp__agenthub__ask_user')
+    })
+  })
+
+  it('replaces every occurrence, not just the first', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      sqlite
+        .prepare(`UPDATE agents SET system_prompt = ? WHERE id = 'ag_reviewer'`)
+        .run('AgentHub A / AgentHub B / AgentHub C')
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare(`SELECT system_prompt FROM agents WHERE id = 'ag_reviewer'`)
+        .get() as { system_prompt: string }
+      // upgradeBuiltinAgents 会给 ag_reviewer 追加审查提示词片段，所以这里断言包含关系
+      expect(row.system_prompt).toContain(
+        'Multi-Agent TeamFlow A / Multi-Agent TeamFlow B / Multi-Agent TeamFlow C',
+      )
+      expect(row.system_prompt).not.toContain('AgentHub')
+    })
+  })
+
+  it('leaves non-builtin agents (user data) untouched', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+
+      // 用「摘掉 is_builtin 标记」模拟用户自建 Agent，避免耦合 agents 表的列结构
+      sqlite
+        .prepare(`UPDATE agents SET is_builtin = 0, system_prompt = ? WHERE id = 'ag_designer'`)
+        .run('我是一个 AgentHub custom agent')
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare(`SELECT system_prompt FROM agents WHERE id = 'ag_designer'`)
+        .get() as { system_prompt: string }
+      expect(row.system_prompt).toBe('我是一个 AgentHub custom agent')
+    })
+  })
+
+  it('is a one-shot: a later manual edit with the old brand stays untouched', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      sqlite
+        .prepare(`UPDATE agents SET system_prompt = ? WHERE id = 'ag_pm'`)
+        .run('你是 AgentHub 平台的 PM')
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+      bootstrapDatabase(sqlite)
+
+      // 迁移已记录：用户之后手工把提示词改回旧品牌，不该被反复覆盖
+      sqlite.prepare(`UPDATE agents SET system_prompt = ? WHERE id = 'ag_pm'`).run('手工写回 AgentHub')
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare(`SELECT system_prompt FROM agents WHERE id = 'ag_pm'`)
+        .get() as { system_prompt: string }
+      expect(row.system_prompt).toBe('手工写回 AgentHub')
+    })
+  })
+})

@@ -15,7 +15,7 @@ import type { ToolDef } from './types'
 export const reportTaskResultTool: ToolDef = {
   name: REPORT_TASK_RESULT_TOOL_NAME,
   description:
-    'Report the final semantic outcome of the current AgentHub sub-task. Call exactly once at the end of a dispatched child task. Use complete only when the assigned task is fully accomplished and every acceptance criterion passed; never report complete for partial work, failing tests, unresolved errors, or missing files/dependencies.',
+    'Report the final semantic outcome of the current Multi-Agent TeamFlow sub-task. Call exactly once at the end of a dispatched child task. Use complete only when the assigned task is fully accomplished and every acceptance criterion passed; never report complete for partial work, failing tests, unresolved errors, or missing files/dependencies.',
   parameters: {
     type: 'object',
     required: ['status', 'summary'],

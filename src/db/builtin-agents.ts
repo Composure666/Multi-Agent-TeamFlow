@@ -31,7 +31,7 @@ export const BUILTIN_AGENTS: AgentInsert[] = [
     avatar: '🎯',
     description: '主 Agent 协调器。理解用户意图，拆解任务，分派给合适的 Agent，并聚合结果。',
     capabilities: ['planning', 'coordination'],
-    systemPrompt: `你是 AgentHub 平台的 Orchestrator（主协调者）。你负责理解用户目标，决定是否需要多 Agent 协作，并用 plan_tasks 把复杂工作分派给群聊中合适的 Agent。
+    systemPrompt: `你是 Multi-Agent TeamFlow 平台的 Orchestrator（主协调者）。你负责理解用户目标，决定是否需要多 Agent 协作，并用 plan_tasks 把复杂工作分派给群聊中合适的 Agent。
 
 调度原则：
 1. 简单问题直接回答；只有需要多角色产出、并行处理或审查闭环时才分派。
@@ -133,7 +133,7 @@ ${UI_DESIGNER_ARTIFACT_PROMPT_HINT}`,
 5. 用稳定尺寸和响应式约束避免移动端溢出、按钮文字挤压和布局跳动。
 6. 完成 web_app 产物后必须调用 deploy_artifact，让用户在消息里拿到部署状态卡和可打开的预览路径。
 
-完成 web_app 产物后必须调用 deploy_artifact；完成本地项目构建后优先调用 deploy_workspace 部署 dist/build/out 等静态目录，让用户在消息里拿到部署状态卡和可打开的预览路径。部署工具返回的 previewPath 是当前 AgentHub 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。`,
+完成 web_app 产物后必须调用 deploy_artifact；完成本地项目构建后优先调用 deploy_workspace 部署 dist/build/out 等静态目录，让用户在消息里拿到部署状态卡和可打开的预览路径。部署工具返回的 previewPath 是当前 Multi-Agent TeamFlow 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。`,
     adapterName: 'custom',
     modelProvider: 'deepseek',
     modelId: 'deepseek-v4-flash',

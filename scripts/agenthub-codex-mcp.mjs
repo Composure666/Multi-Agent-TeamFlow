@@ -19,7 +19,7 @@ registerTool(
   'plan_tasks',
   {
     description:
-      'Create the AgentHub Orchestrator dispatch plan. Call this exactly once when the plan is ready; AgentHub will stop the planning stage and execute the plan after user review.',
+      'Create the Multi-Agent TeamFlow Orchestrator dispatch plan. Call this exactly once when the plan is ready; Multi-Agent TeamFlow will stop the planning stage and execute the plan after user review.',
     inputSchema: {
       reasoning: z.string(),
       tasks: z
@@ -76,14 +76,14 @@ registerTool(
   'write_artifact',
   {
     description:
-      'Create a previewable AgentHub artifact in the current conversation. Supported types: web_app, document, image, ppt, diagram. Use web_app for HTML/CSS/JS bundles, ppt for structured slide decks, and diagram for Mermaid diagrams. Always pass type, title, and a complete content object in the same call; never call with empty or partial args.',
+      'Create a previewable Multi-Agent TeamFlow artifact in the current conversation. Supported types: web_app, document, image, ppt, diagram. Use web_app for HTML/CSS/JS bundles, ppt for structured slide decks, and diagram for Mermaid diagrams. Always pass type, title, and a complete content object in the same call; never call with empty or partial args.',
     inputSchema: {
       type: z.enum(['web_app', 'document', 'image', 'ppt', 'diagram']),
       title: z.string(),
       content: z
         .unknown()
         .describe(
-          'Artifact body as a JSON OBJECT, NOT a JSON-stringified string. web_app: { files: { "index.html": "..." }, entry: "index.html" }. document: { format: "markdown", content: "..." }. image: { url, alt }. diagram: { syntax: "mermaid", source: "flowchart TD\\nA[\\"User\\"] --> B[\\"AgentHub\\"]" }. PPT: { title?, theme?, slides: [{ title?, subtitle?, layout?, blocks?: [{ type: "heading"|"paragraph"|"bullets"|"metric"|"quote"|"timeline"|"columns"|"callout"|"divider"|"spacer", ... }] }] }. Do not embed raw base64/data URI assets in ppt JSON.',
+          'Artifact body as a JSON OBJECT, NOT a JSON-stringified string. web_app: { files: { "index.html": "..." }, entry: "index.html" }. document: { format: "markdown", content: "..." }. image: { url, alt }. diagram: { syntax: "mermaid", source: "flowchart TD\\nA[\\"User\\"] --> B[\\"Multi-Agent TeamFlow\\"]" }. PPT: { title?, theme?, slides: [{ title?, subtitle?, layout?, blocks?: [{ type: "heading"|"paragraph"|"bullets"|"metric"|"quote"|"timeline"|"columns"|"callout"|"divider"|"spacer", ... }] }] }. Do not embed raw base64/data URI assets in ppt JSON.',
         ),
       outputKey: z
         .string()
@@ -98,7 +98,7 @@ registerTool(
 registerTool(
   'read_artifact',
   {
-    description: 'Read the full content of an existing AgentHub artifact by id.',
+    description: 'Read the full content of an existing Multi-Agent TeamFlow artifact by id.',
     inputSchema: {
       artifactId: z.string(),
     },
@@ -122,7 +122,7 @@ registerTool(
   'fs_list',
   {
     description:
-      'List files and directories inside the current AgentHub workspace. Prefer this before reading files when exploring project structure.',
+      'List files and directories inside the current Multi-Agent TeamFlow workspace. Prefer this before reading files when exploring project structure.',
     inputSchema: {
       path: z.string().optional().describe('Directory path. Omit or pass "" for the workspace root.'),
     },
@@ -134,7 +134,7 @@ registerTool(
   'deploy_artifact',
   {
     description:
-      'Create a ready local preview deployment for a web_app artifact and return previewPath plus package download paths. previewPath is a relative path for the current AgentHub instance; do not invent or print a public hostname.',
+      'Create a ready local preview deployment for a web_app artifact and return previewPath plus package download paths. previewPath is a relative path for the current Multi-Agent TeamFlow instance; do not invent or print a public hostname.',
     inputSchema: {
       artifactId: z.string(),
     },
@@ -160,7 +160,7 @@ registerTool(
   'web_fetch',
   {
     description:
-      'Fetch a public HTTPS URL through AgentHub safety checks. Only GET is supported; localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, redirects to restricted addresses, and binary responses are blocked.',
+      'Fetch a public HTTPS URL through Multi-Agent TeamFlow safety checks. Only GET is supported; localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, redirects to restricted addresses, and binary responses are blocked.',
     inputSchema: {
       url: z.string().describe('Public HTTPS URL to fetch.'),
       maxChars: z.number().int().positive().optional().describe('Maximum number of text characters to return.'),
@@ -205,7 +205,7 @@ registerTool(
   'report_task_result',
   {
     description:
-      'Report the final semantic outcome of the current AgentHub sub-task. Call exactly once at the end of a dispatched child task. Use complete only when the assigned task is fully accomplished and every acceptance criterion passed; never report complete for partial work, failing tests, unresolved errors, or missing files/dependencies.',
+      'Report the final semantic outcome of the current Multi-Agent TeamFlow sub-task. Call exactly once at the end of a dispatched child task. Use complete only when the assigned task is fully accomplished and every acceptance criterion passed; never report complete for partial work, failing tests, unresolved errors, or missing files/dependencies.',
     inputSchema: {
       status: z.enum(['complete', 'failed', 'blocked']),
       summary: z.string(),
@@ -270,7 +270,7 @@ async function callAgentHubTool(toolName, args) {
 
   const result = await response.json().catch(() => ({
     ok: false,
-    error: `AgentHub internal tool API returned ${response.status}`,
+    error: `Multi-Agent TeamFlow internal tool API returned ${response.status}`,
   }))
 
   if (!response.ok || !result.ok) {

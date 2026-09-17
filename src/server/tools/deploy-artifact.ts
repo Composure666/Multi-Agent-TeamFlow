@@ -18,12 +18,12 @@ const ArgsSchema = z.object({
 })
 
 const EXTERNAL_DEPLOYMENT_SUMMARY_INSTRUCTION =
-  'User-facing summaries may quote the returned previewPath/publicUrl exactly. Do not invent or rewrite hostnames. If localPreviewPath is present, mention it only as a local fallback inside AgentHub.'
+  'User-facing summaries may quote the returned previewPath/publicUrl exactly. Do not invent or rewrite hostnames. If localPreviewPath is present, mention it only as a local fallback inside Multi-Agent TeamFlow.'
 
 export const deployArtifactTool: ToolDef = {
   name: 'deploy_artifact',
   description:
-    'Create a local static deployment for a web_app artifact and return its stable previewPath plus downloadable packages. The previewPath is a relative path for the current AgentHub instance; do not invent or print a public hostname. In user-facing summaries, tell the user to use the deployment card buttons or quote previewPath exactly.',
+    'Create a local static deployment for a web_app artifact and return its stable previewPath plus downloadable packages. The previewPath is a relative path for the current Multi-Agent TeamFlow instance; do not invent or print a public hostname. In user-facing summaries, tell the user to use the deployment card buttons or quote previewPath exactly.',
   parameters: {
     type: 'object',
     required: ['artifactId'],

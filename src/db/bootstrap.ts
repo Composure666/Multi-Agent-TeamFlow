@@ -18,11 +18,12 @@
  */
 import type Database from 'better-sqlite3'
 
+import { BRAND_NAME } from '@/lib/brand'
 import { BUILTIN_AGENTS, UI_DESIGNER_ARTIFACT_PROMPT_HINT } from './builtin-agents'
 import { MESSAGE_SEARCH_BACKFILL, MESSAGE_SEARCH_DDL } from './message-search-schema'
 
 const FRONTEND_DEPLOYMENT_PROMPT_HINT =
-  'deploy_artifact / deploy_workspace 返回的 previewPath 是当前 AgentHub 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。'
+  'deploy_artifact / deploy_workspace 返回的 previewPath 是当前 Multi-Agent TeamFlow 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。'
 const FRONTEND_LOCAL_WORKSPACE_PROMPT_HINT =
   '当 workspace_info mode=local 且用户要求创建 / 修改 / 初始化 / 调试前端项目、源码文件、依赖或构建配置时，优先使用 fs_read / fs_write / bash 直接操作本地文件并运行验证；不要用 write_artifact 代替应该落盘的源码。构建出 dist/build/out 等静态目录后，可用 deploy_workspace 生成部署预览卡。只有用户明确要求网页产物、可预览原型、artifact 或独立 demo 时，才用 write_artifact + deploy_artifact。'
 const REVIEWER_LOCAL_WORKSPACE_PROMPT_HINT =
@@ -677,6 +678,47 @@ function backfillMessageSearchOnce(sqlite: Database.Database): void {
   tx()
 }
 
+/** 品牌改名前的大写产品名。只用于一次性提示词迁移；内部标识 agenthub / AGENTHUB_* 不在此列。 */
+const LEGACY_BRAND_NAME = 'AgentHub'
+const BRAND_RENAME_MIGRATION = 'brand_rename_multi_agent_teamflow_v1'
+
+/**
+ * 品牌改名的一次性迁移：把**已建库**里 builtin agent 提示词中残留的旧品牌换成新品牌。
+ *
+ * 为什么需要它：builtin agent 的 system_prompt 只在建库时写一次，之后
+ * upgradeBuiltinAgents 只做追加、不会覆盖，所以改源码不会影响存量库 ——
+ * 不迁移的话 Agent 会继续在对话里自称旧品牌名。
+ *
+ * 边界：只动 is_builtin = 1 的行（用户自建 Agent 属用户数据，不碰）；只替换大小写敏感的
+ * `AgentHub`，小写 `agenthub`（数据目录 / MCP server 名）与 `AGENTHUB_*`（env）保持原样。
+ */
+function renameLegacyBrandOnce(sqlite: Database.Database): void {
+  const applied = sqlite
+    .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+    .get(BRAND_RENAME_MIGRATION)
+  if (applied) return
+
+  // 用 instr() 而不是 LIKE：SQLite 的 LIKE 对 ASCII 大小写不敏感，
+  // 会把只含小写 `agenthub`（数据目录 / 工具名）的行也选进来，与「只替换大写品牌」的
+  // 意图不符；instr() 是大小写敏感的。
+  const rows = sqlite
+    .prepare('SELECT id, system_prompt FROM agents WHERE is_builtin = 1 AND instr(system_prompt, ?) > 0')
+    .all(LEGACY_BRAND_NAME) as { id: string; system_prompt: string }[]
+
+  const update = sqlite.prepare('UPDATE agents SET system_prompt = ? WHERE id = ? AND is_builtin = 1')
+
+  const tx = sqlite.transaction(() => {
+    for (const row of rows) {
+      // 用 split/join 而不是 replace：字符串形式的 replace 只会换掉第一处。
+      update.run(row.system_prompt.split(LEGACY_BRAND_NAME).join(BRAND_NAME), row.id)
+    }
+    sqlite
+      .prepare('INSERT OR REPLACE INTO bootstrap_migrations (key, applied_at) VALUES (?, ?)')
+      .run(BRAND_RENAME_MIGRATION, Date.now())
+  })
+  tx()
+}
+
 function ensureSchema(sqlite: Database.Database): void {
   for (const stmt of DDL) {
     sqlite.exec(stmt)
@@ -1083,5 +1125,8 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   backfillMessageSearchOnce(sqlite)
   ensureBuiltinAgents(sqlite)
   upgradeBuiltinAgents(sqlite)
+  // 品牌改名的一次性提示词迁移放在 builtin agent 升级之后，
+  // 这样 upgradeBuiltinAgents 追加的提示词片段也能被一起扫到。
+  renameLegacyBrandOnce(sqlite)
   ensureDemoAutomations(sqlite)
 }

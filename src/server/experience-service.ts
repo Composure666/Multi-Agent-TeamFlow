@@ -1457,7 +1457,7 @@ function buildAnthropicExtractionChoice(
 }
 
 const EXTRACTION_SYSTEM_PROMPT = [
-  '你是 AgentHub 的经验提炼器。你的产出会在下一次相似任务里被注入 Agent 的系统提示，直接改变它做事的方式。',
+  '你是 Multi-Agent TeamFlow 的经验提炼器。你的产出会在下一次相似任务里被注入 Agent 的系统提示，直接改变它做事的方式。',
   '下面是一次完整任务的运行记录（可能包含多个子 Agent 与多次重试）。',
   '',
   '## 你提炼的不是任务总结，而是「换个任务还成立、并能改变下一次执行」的信息',

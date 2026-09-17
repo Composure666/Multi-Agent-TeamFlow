@@ -117,7 +117,7 @@ export const planTasksTool: ToolDef = {
                     type: 'string',
                     enum: ['web_app', 'document', 'image', 'ppt', 'diagram', 'project'],
                     description:
-                      'Expected artifact type. Use project for workspace code trees; project is created by AgentHub from fs_write evidence, not by write_artifact.',
+                      'Expected artifact type. Use project for workspace code trees; project is created by Multi-Agent TeamFlow from fs_write evidence, not by write_artifact.',
                   },
                   required: {
                     type: 'boolean',
@@ -179,7 +179,7 @@ export const planTasksTool: ToolDef = {
             requiredCommands: {
               type: 'array',
               description:
-                'Commands that AgentHub must run successfully before accepting this task as complete, such as pnpm test or mvn compile. Use cwd instead of cd for subdirectories.',
+                'Commands that Multi-Agent TeamFlow must run successfully before accepting this task as complete, such as pnpm test or mvn compile. Use cwd instead of cd for subdirectories.',
               items: {
                 type: 'object',
                 required: ['command'],

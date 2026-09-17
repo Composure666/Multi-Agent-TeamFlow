@@ -92,7 +92,7 @@ export function buildHeuristicAgentConfigDraft(input: AgentDraftRequest): AgentC
       },
       {
         label: '权限',
-        detail: `以「${preset.label}」预设描述工作范围；claude-code adapter 实际使用 SDK 内置工具集与 AgentHub 工具。`,
+        detail: `以「${preset.label}」预设描述工作范围；claude-code adapter 实际使用 SDK 内置工具集与 Multi-Agent TeamFlow 工具。`,
       },
     ],
     toolPermissionSummaries: permissionSummaries,

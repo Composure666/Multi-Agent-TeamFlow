@@ -71,7 +71,7 @@ interface FetchWebUrlOptions {
 export const webFetchTool: ToolDef = {
   name: 'web_fetch',
   description:
-    'Fetch a public HTTPS web page through AgentHub safety checks. Only GET is supported. Localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, and binary responses are blocked. Returns extracted text with size limits.',
+    'Fetch a public HTTPS web page through Multi-Agent TeamFlow safety checks. Only GET is supported. Localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, and binary responses are blocked. Returns extracted text with size limits.',
   parameters: {
     type: 'object',
     required: ['url'],

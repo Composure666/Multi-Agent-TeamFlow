@@ -140,7 +140,7 @@ export const readAttachmentTool: ToolDef = {
       ok: true,
       value: {
         ...meta,
-        note: `This is a ${row.mimeType} binary file. AgentHub does not yet extract text from this format; only metadata is available. Ask the user for a text version if you need to inspect content.`,
+        note: `This is a ${row.mimeType} binary file. Multi-Agent TeamFlow does not yet extract text from this format; only metadata is available. Ask the user for a text version if you need to inspect content.`,
       },
     }
   },

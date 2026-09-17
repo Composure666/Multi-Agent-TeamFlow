@@ -482,7 +482,7 @@ function escapeAttr(value: string): string {
 }
 
 const COMPACTION_SYSTEM_PROMPT = [
-  '你是 AgentHub 的上下文压缩器。你的任务是把较早的会话历史压缩成一份可继续工作的摘要。',
+  '你是 Multi-Agent TeamFlow 的上下文压缩器。你的任务是把较早的会话历史压缩成一份可继续工作的摘要。',
   '',
   '输出要求：',
   '- 使用中文，除非历史内容主要是英文。',

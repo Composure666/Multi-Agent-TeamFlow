@@ -14,7 +14,7 @@ const MANIFEST_PATH = `${PRIVATE_DIR}/manifest.json`
 const SOURCE_ROOT = `${PRIVATE_DIR}/source`
 const RUNTIME_ENTRY = 'index.html'
 const DEPLOYMENT_SUMMARY_INSTRUCTION =
-  'User-facing summaries must not invent a hostname or public URL for this deployment. The previewPath is a local relative path for the current AgentHub instance; tell the user to use the deployment card buttons, or quote previewPath exactly.'
+  'User-facing summaries must not invent a hostname or public URL for this deployment. The previewPath is a local relative path for the current Multi-Agent TeamFlow instance; tell the user to use the deployment card buttons, or quote previewPath exactly.'
 
 export interface DeploymentManifest {
   id: string

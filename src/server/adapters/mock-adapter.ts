@@ -171,7 +171,7 @@ const GREETING_SCRIPT: ScriptStep[] = [
   {
     kind: 'text',
     content:
-      '你好！我是 Mock Agent，目前用于验证 AgentHub 的端到端骨架。我会按预设脚本流式回复，不消耗任何 LLM token。\n\n你可以试试输入「写代码」或「执行任务」看其他场景。',
+      '你好！我是 Mock Agent，目前用于验证 Multi-Agent TeamFlow 的端到端骨架。我会按预设脚本流式回复，不消耗任何 LLM token。\n\n你可以试试输入「写代码」或「执行任务」看其他场景。',
   },
 ]
 

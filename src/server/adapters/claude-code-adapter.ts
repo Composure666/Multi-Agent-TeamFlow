@@ -151,7 +151,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
     const mcpTools = [
         tool(
           PLAN_TASKS_TOOL_NAME,
-          'Create the AgentHub Orchestrator dispatch plan. Call this exactly once when the plan is ready; AgentHub will stop the planning stage and execute the plan after user review.',
+          'Create the Multi-Agent TeamFlow Orchestrator dispatch plan. Call this exactly once when the plan is ready; Multi-Agent TeamFlow will stop the planning stage and execute the plan after user review.',
           {
             reasoning: z.string(),
             tasks: z
@@ -228,13 +228,13 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
         ),
         tool(
           'fs_list',
-          'List files and directories inside the current AgentHub workspace. Prefer this before reading files when exploring project structure.',
+          'List files and directories inside the current Multi-Agent TeamFlow workspace. Prefer this before reading files when exploring project structure.',
           { path: z.string().optional() },
           async (args) => executeAgentHubMcpTool('fs_list', args, toolCtx),
         ),
         tool(
           'deploy_artifact',
-          'Create a ready local preview deployment for a web_app artifact. The returned previewPath is a relative path for the current AgentHub instance; do not invent or print a public hostname. Use this after write_artifact when the user should receive a deployment card with open/copy/download actions.',
+          'Create a ready local preview deployment for a web_app artifact. The returned previewPath is a relative path for the current Multi-Agent TeamFlow instance; do not invent or print a public hostname. Use this after write_artifact when the user should receive a deployment card with open/copy/download actions.',
           { artifactId: z.string() },
           async (args) => executeAgentHubMcpTool('deploy_artifact', args, toolCtx),
         ),
@@ -250,7 +250,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
         ),
         tool(
           REPORT_TASK_RESULT_TOOL_NAME,
-          'Report the final semantic outcome of the current AgentHub sub-task. Call exactly once at the end of a dispatched child task. Use complete only when the assigned task is fully accomplished and every acceptance criterion passed; never report complete for partial work, failing tests, unresolved errors, or missing files/dependencies.',
+          'Report the final semantic outcome of the current Multi-Agent TeamFlow sub-task. Call exactly once at the end of a dispatched child task. Use complete only when the assigned task is fully accomplished and every acceptance criterion passed; never report complete for partial work, failing tests, unresolved errors, or missing files/dependencies.',
           {
             status: z.enum(['complete', 'failed', 'blocked']),
             summary: z.string(),
@@ -297,7 +297,7 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
         ),
         tool(
           'web_fetch',
-          'Fetch a public HTTPS URL through AgentHub safety checks. Only GET is supported; localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, redirects to restricted addresses, and binary responses are blocked.',
+          'Fetch a public HTTPS URL through Multi-Agent TeamFlow safety checks. Only GET is supported; localhost, private IP ranges, link-local addresses, metadata endpoints, credentials, non-HTTPS URLs, redirects to restricted addresses, and binary responses are blocked.',
           {
             url: z.string(),
             maxChars: z.number().int().positive().optional(),
@@ -337,8 +337,8 @@ export class ClaudeCodeAdapter implements AgentPlatformAdapter {
       name: 'agenthub',
       version: '1.0.0',
       instructions: isPlanStage
-        ? 'AgentHub Orchestrator planning tools: inspect context with fs_list/read_artifact/read_attachment when needed, use web_fetch only for public HTTPS requirement or documentation URLs, ask finite blocking questions with ask_user, then call plan_tasks exactly once. Do not write files, run commands, deploy, or complete child work in the planning stage.'
-        : '内置 AgentHub 工具：用 write_artifact 创建可预览产物（网页 / 文档 / 图片 / PPT / Mermaid 图），流程、架构、时序、依赖关系优先用 type="diagram" 且 content 为 { syntax: "mermaid", source }；Mermaid 图会在写入时做预检，中文/数学/括号等 label 写成 A["..."]，不要传 ```mermaid fence，若工具返回 Invalid Mermaid diagram 必须修正 source 后重试；PPT 优先使用 semantic blocks（heading、paragraph、bullets、metric、quote、timeline、columns、callout、divider、spacer），不要在 PPT JSON 中嵌入 base64/data URI 大资产；用 read_artifact 读其他 Agent 的产物，用 fs_list 查看 AgentHub workspace 目录，用 web_fetch 读取公开 HTTPS 网页文本（不要使用原生 WebFetch/WebSearch 绕过 AgentHub 安全策略），用 deploy_artifact 为 web_app artifact 生成本地预览路径，用 deploy_workspace 为当前 workspace 内 dist/build/out 等静态目录生成部署卡。需要用户在有限方案中选择时，用 ask_user 发起结构化问答，不要只在普通文本里提问。被分派为子任务时，结束前必须调用 report_task_result 上报真实任务结果。部署工具返回的 previewPath 是当前 AgentHub 实例下的相对路径；不要把它改写成公网域名或自造完整 URL，面向用户时让用户点击部署卡片按钮或原样引用 previewPath。',
+        ? 'Multi-Agent TeamFlow Orchestrator planning tools: inspect context with fs_list/read_artifact/read_attachment when needed, use web_fetch only for public HTTPS requirement or documentation URLs, ask finite blocking questions with ask_user, then call plan_tasks exactly once. Do not write files, run commands, deploy, or complete child work in the planning stage.'
+        : '内置 Multi-Agent TeamFlow 工具：用 write_artifact 创建可预览产物（网页 / 文档 / 图片 / PPT / Mermaid 图），流程、架构、时序、依赖关系优先用 type="diagram" 且 content 为 { syntax: "mermaid", source }；Mermaid 图会在写入时做预检，中文/数学/括号等 label 写成 A["..."]，不要传 ```mermaid fence，若工具返回 Invalid Mermaid diagram 必须修正 source 后重试；PPT 优先使用 semantic blocks（heading、paragraph、bullets、metric、quote、timeline、columns、callout、divider、spacer），不要在 PPT JSON 中嵌入 base64/data URI 大资产；用 read_artifact 读其他 Agent 的产物，用 fs_list 查看 Multi-Agent TeamFlow workspace 目录，用 web_fetch 读取公开 HTTPS 网页文本（不要使用原生 WebFetch/WebSearch 绕过 Multi-Agent TeamFlow 安全策略），用 deploy_artifact 为 web_app artifact 生成本地预览路径，用 deploy_workspace 为当前 workspace 内 dist/build/out 等静态目录生成部署卡。需要用户在有限方案中选择时，用 ask_user 发起结构化问答，不要只在普通文本里提问。被分派为子任务时，结束前必须调用 report_task_result 上报真实任务结果。部署工具返回的 previewPath 是当前 Multi-Agent TeamFlow 实例下的相对路径；不要把它改写成公网域名或自造完整 URL，面向用户时让用户点击部署卡片按钮或原样引用 previewPath。',
       tools: filterAgentHubMcpToolsForRun(input.toolNames, mcpTools),
     })
 
