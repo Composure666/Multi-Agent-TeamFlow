@@ -31,6 +31,7 @@ import {
   toggleArchiveConversation as toggleArchiveConversationAPI,
   togglePinConversation as togglePinConversationAPI,
 } from '@/lib/api'
+import { BRAND_NAME, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { subscribeUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import type { AgentRow, ConversationRow } from '@/db/schema'
@@ -168,8 +169,8 @@ export function Sidebar() {
       >
         {!collapsed && (
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold">Nexora Studio</h1>
-            <p className="truncate text-xs text-muted-foreground">智能协作工作台</p>
+            <h1 className="truncate text-base font-semibold">{BRAND_NAME}</h1>
+            <p className="truncate text-xs text-muted-foreground">{BRAND_TAGLINE_ZH}</p>
           </div>
         )}
         <div className={cn('flex items-center', collapsed ? 'flex-col gap-1' : 'gap-0.5')}>

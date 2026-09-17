@@ -79,6 +79,7 @@ import {
   uploadAttachment,
   type UsageSummary,
 } from '@/lib/api'
+import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
@@ -145,7 +146,7 @@ export function AppWorkbench() {
     }
   }
 
-  const currentViewLabel = navItems.find((item) => item.id === view)?.label ?? 'Nexora Studio'
+  const currentViewLabel = navItems.find((item) => item.id === view)?.label ?? BRAND_NAME
   const openMobileSidebar = () => setMobileSidebarOpen(true)
   const closeMobileSidebar = () => setMobileSidebarOpen(false)
   const changeViewFromMobile = (nextView: WorkbenchView) => {
@@ -452,7 +453,7 @@ function MobileWorkbenchTopBar({
         <Sparkles className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">Nexora Studio</div>
+        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">{BRAND_NAME}</div>
         <div className="truncate text-xs text-slate-500 dark:text-slate-400">{currentLabel}</div>
       </div>
       <button
@@ -516,8 +517,8 @@ function MobileWorkbenchDrawer({
               <Sparkles className="size-4" />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">Nexora Studio</div>
-              <div className="truncate text-xs text-slate-500 dark:text-slate-400">智能协作工作台</div>
+              <div className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{BRAND_NAME}</div>
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">{BRAND_TAGLINE_ZH}</div>
             </div>
           </button>
           <button
@@ -814,18 +815,24 @@ function WorkbenchNav({
           type="button"
           onClick={() => onViewChange('new-task')}
           className={cn('flex min-w-0 items-center gap-2 text-left', compact ? 'w-full flex-col justify-center' : 'flex-1')}
-          title={compact ? 'Nexora Studio' : undefined}
+          title={compact ? BRAND_NAME : undefined}
         >
           <img
             src="/icons/agenthub-mark-32.png"
-            alt="Nexora Studio"
+            alt={BRAND_NAME}
             className="size-8 shrink-0 rounded-lg object-cover"
           />
-          {compact && <span className="truncate text-[11px] font-semibold tracking-tight text-slate-900 dark:text-slate-50">Nexora Studio</span>}
+          {/* 72px 窄轨放不下整名，按品牌规范折成两行：Multi-Agent / TeamFlow */}
+          {compact && (
+            <span className="text-center text-[11px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50">
+              <span className="block">Multi-Agent</span>
+              <span className="block">TeamFlow</span>
+            </span>
+          )}
           {!compact && (
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">Nexora Studio</div>
-              <div className="truncate text-[11px] text-slate-500/60 dark:text-slate-400/60">AI Collaboration Workspace</div>
+              <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">{BRAND_NAME}</div>
+              <div className="truncate text-[11px] text-slate-500/60 dark:text-slate-400/60">{BRAND_TAGLINE_EN}</div>
             </div>
           )}
         </button>
@@ -1164,9 +1171,9 @@ function NewTaskView({
           <div className="grid items-center gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)] xl:gap-10 2xl:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
             <div className="min-w-0 translate-y-5">
               <h1 className="text-[38px] font-[760] leading-[1.25] tracking-tight text-slate-950 dark:text-slate-50 xl:text-[42px] 2xl:text-[46px]">
-                <span className="block">Nexora Studio</span>
+                <span className="block">{BRAND_NAME}</span>
                 <span className="block">
-                  你的<span className="text-[var(--agenthub-accent)]">智能协作</span>工作台
+                  多 Agent <span className="text-[var(--agenthub-accent)]">团队协作</span>工作流
                 </span>
               </h1>
               <p className="mt-3 text-[15px] leading-relaxed text-slate-500 dark:text-slate-400 xl:text-[16px] 2xl:text-[17px]">{activeCategoryMeta.description}</p>
@@ -1254,7 +1261,7 @@ function NewTaskView({
                   }
                 }}
                 onPaste={handleTaskPaste}
-                placeholder="今天想让 Nexora Studio 帮你完成什么？"
+                placeholder={`今天想让 ${BRAND_NAME} 帮你完成什么？`}
                 className="min-h-[150px] max-h-[280px] resize-none overflow-y-auto border-0 bg-transparent px-6 pb-3.5 pt-8 text-[15px] shadow-none placeholder:text-slate-400 focus-visible:ring-0 2xl:min-h-[168px] 2xl:max-h-[320px] 2xl:px-7 2xl:text-[16px]"
               />
               {contentOverflow && (

@@ -10,6 +10,7 @@ import {
   fetchPendingMcpToolApprovals,
   rejectPendingMcpToolApproval,
 } from '@/lib/api'
+import { BRAND_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { useAppStore, usePendingMcpToolApprovals } from '@/stores/app-store'
 import type { PendingMcpToolApproval } from '@/shared/types'
@@ -113,7 +114,7 @@ function PendingMcpToolApprovalCard({
           <span className="whitespace-pre-wrap break-words">{argsPreview}</span>
         </div>
         <div className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
-          外部 MCP server 在 Nexora Studio workspace 沙箱和 bash 黑名单保护之外运行；仅在信任该 server 与本次工具参数时批准。
+          外部 MCP server 在 {BRAND_NAME} workspace 沙箱和 bash 黑名单保护之外运行；仅在信任该 server 与本次工具参数时批准。
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { GlobalSearch } from '@/components/global-search'
 import { NotificationCenter } from '@/components/notification-center'
 import { StreamProvider } from '@/components/stream-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { BRAND_NAME, BRAND_TAGLINE_ZH } from '@/lib/brand'
 
 import './globals.css'
 
@@ -19,8 +20,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Nexora Studio',
-  description: '智能协作工作台',
+  title: BRAND_NAME,
+  description: BRAND_TAGLINE_ZH,
   icons: {
     // 只声明 PNG：这里曾经把 /icons/agenthub-mark.svg 列为首选 favicon —— 那个「SVG」其实
     // 只是一张 512px PNG 的 base64 包装（不含矢量图形），578KB、gzip 后仍有 434KB，

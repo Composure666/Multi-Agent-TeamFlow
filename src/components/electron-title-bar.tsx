@@ -3,6 +3,9 @@
 import { Copy, Minus, Square, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { BRAND_NAME } from '@/lib/brand'
+
+
 const APP_MARK_URL = '/icons/agenthub-mark-32.png'
 
 export function ElectronTitleBar() {
@@ -49,7 +52,7 @@ export function ElectronTitleBar() {
             aria-hidden="true"
             style={{ backgroundImage: `url(${APP_MARK_URL})` }}
           />
-          <span className="truncate">Nexora Studio</span>
+          <span className="truncate">{BRAND_NAME}</span>
         </div>
       </div>
 

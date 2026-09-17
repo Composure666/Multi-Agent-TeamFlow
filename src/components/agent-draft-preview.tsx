@@ -2,6 +2,7 @@
 
 import { ShieldCheck, Sparkles, Wrench } from 'lucide-react'
 
+import { BRAND_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import {
   AGENT_BUILDER_PROVIDER_DEFAULTS,
@@ -85,7 +86,7 @@ export function AgentDraftPreview({
           </div>
         ) : (
           <div className="mt-2 text-[11px] text-muted-foreground">
-            SDK adapter 使用运行时内置工具集，不保存 Nexora Studio 自定义 toolNames。
+            SDK adapter 使用运行时内置工具集，不保存 {BRAND_NAME} 自定义 toolNames。
           </div>
         )}
       </section>
