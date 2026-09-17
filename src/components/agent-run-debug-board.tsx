@@ -74,6 +74,7 @@ import {
   type AgentRunLifecycleItem,
   type AgentRunToolTraceItem,
 } from '@/lib/agent-run-debug-projection'
+import { selectUnloadedMessages } from '@/server/message-payload'
 import {
   buildAgentRunDebuggerGraph,
   buildAgentRunInspectorViewModel,
@@ -667,9 +668,21 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
   useEffect(() => {
     if (!conversationId) return
     let cancelled = false
-    fetchMessages(conversationId)
+    // slim：调试图只把消息当「卡片预览 + callId 关联」用，不需要 tool_result 正文。
+    // 线上实测单会话全量 parts 3.6MB（55% 是 tool_result.result），slim 后约 0.09MB。
+    // 详见 src/server/message-payload.ts。
+    fetchMessages(conversationId, { slim: true })
       .then((messages) => {
-        if (!cancelled) setMessagesForConversation(conversationId, messages)
+        if (cancelled) return
+        // ❗ store 里 messages 是按 id 归一化的**共享**结构，且 setMessagesForConversation 的
+        // areMessagesEquivalent() 会比较 parts —— 所以「谁后写谁赢」。
+        // slim 是**降级**数据，无条件写进去会把 message-list 已加载的完整消息覆盖成
+        // result:null，工具输出就会渲染成空白。故只补 store 中尚不存在的消息：
+        //   - 首次进入调试图（store 空）→ 全量写入 slim 版本，够画会话图
+        //   - 从会话页切过来（store 已有最新 50 条完整数据）→ 只补更早的
+        //   - 之后 message-list 用完整数据写同一条 id → 判定不等 → 完整版胜出（方向正确）
+        const missing = selectUnloadedMessages(useAppStore.getState().messages, messages)
+        if (missing.length > 0) setMessagesForConversation(conversationId, missing)
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))

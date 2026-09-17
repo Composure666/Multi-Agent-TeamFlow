@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { db, schema } from '@/db/client'
 import { clearConversationHistory, listMessages, sendMessage } from '@/server/conversation-service'
+import { parseSlimFlag, slimMessage } from '@/server/message-payload'
 
 const DEFAULT_MESSAGE_PAGE_SIZE = 50
 const MAX_MESSAGE_PAGE_SIZE = 200
@@ -12,6 +13,15 @@ const MessagesQuery = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_MESSAGE_PAGE_SIZE).default(DEFAULT_MESSAGE_PAGE_SIZE),
   before: z.coerce.number().int().positive().optional(),
   aroundMessageId: z.string().trim().min(1).optional(),
+  /**
+   * `slim=1` → 去掉 tool_result.result / tool_use.args / thinking.content 等正文，
+   * 只留「结构 + 预览」。给 run-board 那种只做卡片预览的消费方用，单会话 payload 从
+   * 3.6MB 降到约 0.09MB。见 `@/server/message-payload`。
+   *
+   * 用 enum 而不是 `z.coerce.boolean()`：后者把 `'0'` / `'false'` 都判成 true，
+   * 会让「显式要求完整数据」得到反向结果。这里写错值直接 400，不静默。
+   */
+  slim: z.enum(['0', '1']).optional(),
 })
 
 interface RouteContext {
@@ -38,6 +48,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
   }
 
   const { limit, before, aroundMessageId } = parsed.data
+  const slim = parseSlimFlag(parsed.data.slim)
   if (aroundMessageId) {
     const target = await db.query.messages.findFirst({
       where: and(eq(schema.messages.id, aroundMessageId), eq(schema.messages.conversationId, id)),
@@ -51,7 +62,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       .orderBy(schema.messages.createdAt)
       .limit(limit)
     return NextResponse.json({
-      messages: rows,
+      messages: slim ? rows.map(slimMessage) : rows,
       hasMore: rows.length >= limit,
       nextBefore: rows[0]?.createdAt ?? null,
     })
@@ -61,7 +72,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
   const hasMore = rows.length > limit
   const messages = hasMore ? rows.slice(rows.length - limit) : rows
   return NextResponse.json({
-    messages,
+    messages: slim ? messages.map(slimMessage) : messages,
     hasMore,
     nextBefore: messages[0]?.createdAt ?? null,
   })

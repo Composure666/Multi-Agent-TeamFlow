@@ -1080,24 +1080,40 @@ export interface MessagePage {
 
 export async function fetchMessagePage(
   conversationId: string,
-  opts: { limit?: number; before?: number; aroundMessageId?: string } = {},
+  opts: { limit?: number; before?: number; aroundMessageId?: string; slim?: boolean } = {},
 ): Promise<MessagePage> {
   const params = new URLSearchParams()
   if (opts.limit) params.set('limit', String(opts.limit))
   if (opts.before) params.set('before', String(opts.before))
   if (opts.aroundMessageId) params.set('aroundMessageId', opts.aroundMessageId)
+  // slim=1：只取「结构 + 预览」，丢掉 tool_result.result / tool_use.args / thinking.content 正文
+  if (opts.slim) params.set('slim', '1')
   const qs = params.toString()
   return json<MessagePage>(
     fetch(`/api/conversations/${conversationId}/messages${qs ? `?${qs}` : ''}`),
   )
 }
 
-export async function fetchMessages(conversationId: string): Promise<MessageRow[]> {
+/**
+ * 拉取**整段会话历史**（200 条/页，循环到没有更早的为止）。
+ *
+ * ⚠️ 只在两个地方用，且都不需要工具输出全文：
+ *  - run-board 的会话级调试图（只为消息卡片渲染一行预览 + 按 callId 关联工具调用）
+ *  - 输入框的 `/export` 斜杠命令（导出 markdown）
+ * 所以 run-board 侧传 `slim: true`。实测线上单会话 653 条消息的 parts 合计 3.6MB
+ * （其中 55% 是 tool_result.result），slim 后约 0.09MB。
+ *
+ * 普通消息流**不要**走这里 —— `message-list.tsx` 用 `fetchMessagePage` 按页取，且需要正文。
+ */
+export async function fetchMessages(
+  conversationId: string,
+  opts: { slim?: boolean } = {},
+): Promise<MessageRow[]> {
   const pageSize = 200
   const all: MessageRow[] = []
   let before: number | undefined
   for (;;) {
-    const page = await fetchMessagePage(conversationId, { limit: pageSize, before })
+    const page = await fetchMessagePage(conversationId, { limit: pageSize, before, slim: opts.slim })
     all.unshift(...page.messages)
     if (!page.hasMore || page.nextBefore === null) return all
     before = page.nextBefore

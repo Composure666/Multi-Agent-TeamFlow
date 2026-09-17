@@ -71,4 +71,69 @@ describe('GET /api/conversations/[id]/messages', () => {
 
     expect(listMessagesMock).toHaveBeenCalledWith('conv_1', { limit: 3, before: 60 })
   })
+
+  it('returns the full payload by default', async () => {
+    const heavy = makeMessage('m1', 10)
+    heavy.parts = [
+      { type: 'text', content: 'hello' },
+      { type: 'tool_result', callId: 'c1', result: 'x'.repeat(5000), isError: false },
+    ]
+    listMessagesMock.mockResolvedValueOnce([heavy])
+
+    const res = await GET(makeReq('http://localhost/api/conversations/conv_1/messages?limit=1'), makeCtx())
+    const body = await res.json()
+
+    expect(body.messages[0].parts[1].result).toHaveLength(5000)
+  })
+
+  it('strips tool payloads when slim=1 (run-board 只做预览)', async () => {
+    const heavy = makeMessage('m1', 10)
+    heavy.parts = [
+      { type: 'text', content: 'hello' },
+      { type: 'thinking', content: 'y'.repeat(5000) },
+      { type: 'tool_use', callId: 'c1', toolName: 'bash', args: { command: 'z'.repeat(5000) } },
+      { type: 'tool_result', callId: 'c1', result: 'x'.repeat(5000), isError: true },
+    ]
+    listMessagesMock.mockResolvedValueOnce([heavy])
+
+    const res = await GET(
+      makeReq('http://localhost/api/conversations/conv_1/messages?limit=1&slim=1'),
+      makeCtx(),
+    )
+    const body = await res.json()
+
+    // 结构与数量不变，否则下游按 type 分支 / parts.length 兜底的代码会静默失效
+    expect(body.messages[0].parts.map((p: { type: string }) => p.type))
+      .toEqual(['text', 'thinking', 'tool_use', 'tool_result'])
+    expect(body.messages[0].parts[0]).toEqual({ type: 'text', content: 'hello' })
+    expect(body.messages[0].parts[1]).toEqual({ type: 'thinking', content: '' })
+    expect(body.messages[0].parts[2]).toEqual({ type: 'tool_use', callId: 'c1', toolName: 'bash', args: null })
+    expect(body.messages[0].parts[3]).toEqual({ type: 'tool_result', callId: 'c1', result: null, isError: true })
+    // 非 parts 字段照旧
+    expect(body.messages[0].id).toBe('m1')
+  })
+
+  it('keeps the full payload for slim=0 (不把「显式要完整数据」反向解读)', async () => {
+    const heavy = makeMessage('m1', 10)
+    heavy.parts = [{ type: 'tool_result', callId: 'c1', result: 'x'.repeat(5000), isError: false }]
+    listMessagesMock.mockResolvedValueOnce([heavy])
+
+    const res = await GET(
+      makeReq('http://localhost/api/conversations/conv_1/messages?limit=1&slim=0'),
+      makeCtx(),
+    )
+    const body = await res.json()
+
+    expect(body.messages[0].parts[0].result).toHaveLength(5000)
+  })
+
+  it('rejects an unrecognized slim value instead of silently guessing', async () => {
+    const res = await GET(
+      makeReq('http://localhost/api/conversations/conv_1/messages?limit=1&slim=yes'),
+      makeCtx(),
+    )
+
+    expect(res.status).toBe(400)
+    expect(listMessagesMock).not.toHaveBeenCalled()
+  })
 })
