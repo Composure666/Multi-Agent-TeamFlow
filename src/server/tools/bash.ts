@@ -35,6 +35,11 @@ export interface BashExecutionArgs {
   command: string
   cwd?: string
   timeoutMs?: number
+  /**
+   * `prepare` = 依赖安装 / 目录准备，失败不算交付失败；
+   * `verification` = 编排侧声明的验证命令（plan 的 requiredCommands），
+   * 成功即作为完成门禁的验证证据 —— 不依赖命令词形是否命中白名单。
+   */
   evidenceKind?: 'prepare' | 'verification'
 }
 
@@ -260,6 +265,7 @@ function runShellCommand(
         timedOut: result.timedOut,
         isError: result.exitCode !== 0 || result.timedOut,
         ...(args.evidenceKind === 'prepare' ? { prepare: true } : {}),
+        ...(args.evidenceKind === 'verification' ? { verification: true } : {}),
       })
 
       return {
@@ -288,6 +294,7 @@ function runShellCommand(
         timedOut: false,
         isError: true,
         ...(args.evidenceKind === 'prepare' ? { prepare: true } : {}),
+        ...(args.evidenceKind === 'verification' ? { verification: true } : {}),
         error,
       })
       return { ok: false, error }

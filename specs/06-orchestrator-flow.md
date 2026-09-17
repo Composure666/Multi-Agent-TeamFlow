@@ -376,6 +376,9 @@ async function runSubTask(
        + 实际记录到的命令及各自结局 + 被承认的形态（重试需要可执行的输入）
   按 shell 段判定：复合 / 多行命令里的验证段算（cd landing && node landing/qa/check.mjs）
   自写校验脚本算（node qa/check.mjs / python check.py / bash verify.sh）
+  编排侧声明的 requiredCommands 里非 prepare 的一段跑成功也算（词形不限，
+  由 evidenceKind='verification' 在证据上盖章）—— 线上曾有 plan 把校验写成
+  node -e "…process.exit(1)…" 一行流，被这道门禁钉死 4 次 attempt
   起服务、装依赖、只读探测、A || B 兜底不算
   进入已有重试 / 动态重规划补救流程
 

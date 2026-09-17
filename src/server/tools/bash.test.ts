@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 let dataDir: string
 let bash: typeof import('./bash')
 let terminalService: typeof import('../terminal-session-service')
+let evidence: typeof import('@/server/dispatch-run-evidence')
 let dbClient: typeof import('@/db/client')
 
 type DbClient = typeof import('@/db/client')
@@ -45,6 +46,7 @@ beforeAll(async () => {
 
   bash = await import('./bash')
   terminalService = await import('../terminal-session-service')
+  evidence = await import('@/server/dispatch-run-evidence')
   dbClient = await import('@/db/client')
 })
 
@@ -104,6 +106,38 @@ describe('bash terminal integration', () => {
       toolCallId: 'call_bash',
       status: 'exited',
     })
+  })
+
+  // 完成门禁读的就是这份证据。编排侧声明的验证命令（plan 的 requiredCommands，
+  // 经 supervisor 带 evidenceKind='verification' 执行）必须被标记下来，否则
+  // `node -e "…process.exit(1)…"` 这类一行流校验永远过不了门禁（2026-09-17 线上 4 次全灭）。
+  it('records verification evidence for a plan-declared verification command', async () => {
+    await seedAgent(dbClient, 'ag_bash')
+    await seedConversation(dbClient, 'conv_bash', ['ag_bash'])
+    await seedWorkspace(dbClient, 'conv_bash', dataDir)
+    await seedRun(dbClient, 'run_verify', 'conv_bash', 'ag_bash')
+    const fake = new FakePtyProcess()
+    terminalService.setTerminalPtyFactoryForTests({ spawn: () => fake })
+
+    const command = 'node -e "process.exit(0)"'
+    const resultPromise = bash.executeBashCommand(
+      { command, evidenceKind: 'verification' },
+      {
+        conversationId: 'conv_bash',
+        workspacePath: dataDir,
+        agentId: 'ag_bash',
+        runId: 'run_verify',
+        toolCallId: 'call_verify',
+        abortSignal: new AbortController().signal,
+      },
+    )
+    await waitForTerminalSessions('conv_bash', 'run_verify', 1)
+    fake.emitExit(0)
+    await resultPromise
+
+    expect(evidence.getRunToolEvidence('run_verify').commands).toEqual([
+      expect.objectContaining({ command, exitCode: 0, verification: true }),
+    ])
   })
 })
 

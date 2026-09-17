@@ -22,7 +22,7 @@ function task(overrides: Partial<DispatchPlanItem> = {}): DispatchPlanItem {
  * 否则 agent 只能对着同一句笼统报错反复重跑同一条 exit 0 的命令。
  */
 function verificationGapHint(seen: string): string {
-  return ` Commands seen: [${seen}]. Accepted forms: npm/pnpm/yarn/bun/deno run build|test|lint|check|verify|qa, tsc, next/vite build, pytest, go test, cargo test, or a check script run directly (node qa/check.mjs, python check.py, bash verify.sh). Run the check as its own bash call so its own exitCode is the one recorded.`
+  return ` Commands seen: [${seen}]. Accepted forms: npm/pnpm/yarn/bun/deno run build|test|lint|check|verify|qa, tsc, next/vite build, pytest, go test, cargo test, or a check script run directly (node qa/check.mjs, python check.py, bash verify.sh), or any non-prepare command the plan declared in requiredCommands. Run the check as its own bash call so its own exitCode is the one recorded.`
 }
 
 const completeReport: TaskResultReport = {
@@ -582,6 +582,46 @@ describe('evaluateTaskResultReport', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toContain('Commands seen: [node server.js (exit 0)]')
     expect(result.error).toContain('node qa/check.mjs')
+  })
+
+  // 回归（2026-09-17 线上）：plan 的 requiredCommand 是它自己写的
+  // `node -e "…readFileSync('landing/index.html')…process.exit(1)…"` 一行流校验 ——
+  // exit 0 跑过、也进了 evidence.commands，但词形不在白名单里，门禁仍判「没有验证命令证据」，
+  // 同一任务 4 次 attempt 全灭。plan 声明过的验证命令由 supervisor 标记，不再靠猜词形。
+  it('accepts a plan-declared required command as verification evidence', () => {
+    const declaredCheck = `node -e "const fs=require('fs');const h=fs.readFileSync('landing/index.html','utf8');if(!h.includes('viewport'))process.exit(1)"`
+    const withEvidence = (command: Record<string, unknown>) => {
+      return {
+        fileWrites: [],
+        commands: [
+          {
+            command: declaredCheck,
+            cwd: 'E:/repo',
+            exitCode: 0,
+            timedOut: false,
+            isError: false,
+            ...command,
+          },
+        ],
+      }
+    }
+
+    expect(
+      evaluateTaskResultReport(
+        task({ task: 'Implement the landing page', taskKind: 'code' }),
+        { status: 'complete', summary: 'The declared check passes.' },
+        withEvidence({ verification: true }),
+      ),
+    ).toEqual({ ok: true })
+
+    // 没有标记时同一条命令仍不算验证证据 —— 凭据是「plan 声明过」，不是词形巧合。
+    expect(
+      evaluateTaskResultReport(
+        task({ task: 'Implement the landing page', taskKind: 'code' }),
+        { status: 'complete', summary: 'The declared check passes.' },
+        withEvidence({}),
+      ).ok,
+    ).toBe(false)
   })
 
   it('allows non-code review tasks to complete without runnable verification', () => {

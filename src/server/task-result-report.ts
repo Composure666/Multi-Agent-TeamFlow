@@ -492,7 +492,10 @@ function isSuccessfulVerificationCommandEvidence(
     !command.isError &&
     !command.timedOut &&
     command.exitCode === 0 &&
-    isVerificationCommand(command.command)
+    // 编排侧声明的验证命令（plan 的 requiredCommands）已经由 supervisor 明确标记，
+    // 不必再猜它像不像验证命令 —— 否则 plan 写成 `node -e "…process.exit(1)…"` 这类
+    // 一行流校验时，任务会永远卡在这道门禁上（2026-09-17 线上 4 次 attempt 全灭）。
+    (command.verification === true || isVerificationCommand(command.command))
   )
 }
 
@@ -520,7 +523,7 @@ function describeVerificationGap(evidence: RunToolEvidence): string {
     .slice(-6)
     .map((command) => `${command.command} (${describeCommandOutcome(command)})`)
     .join(' | ')
-  return ` Commands seen: [${seen}]. Accepted forms: npm/pnpm/yarn/bun/deno run build|test|lint|check|verify|qa, tsc, next/vite build, pytest, go test, cargo test, or a check script run directly (node qa/check.mjs, python check.py, bash verify.sh). Run the check as its own bash call so its own exitCode is the one recorded.`
+  return ` Commands seen: [${seen}]. Accepted forms: npm/pnpm/yarn/bun/deno run build|test|lint|check|verify|qa, tsc, next/vite build, pytest, go test, cargo test, or a check script run directly (node qa/check.mjs, python check.py, bash verify.sh), or any non-prepare command the plan declared in requiredCommands. Run the check as its own bash call so its own exitCode is the one recorded.`
 }
 
 function describeCommandOutcome(command: RunToolEvidence['commands'][number]): string {

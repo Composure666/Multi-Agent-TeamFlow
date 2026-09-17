@@ -12,6 +12,18 @@ export interface RunCommandEvidence {
   timedOut: boolean
   isError: boolean
   prepare?: boolean
+  /**
+   * 这是**编排侧声明的验证命令**：plan 的 `requiredCommands` 由 AgentRunner 的 supervisor
+   * 执行，执行时带 `evidenceKind: 'verification'`。
+   *
+   * 2026-09-17 线上：任务 t2 的 requiredCommand 是 plan 自己写的
+   * `node -e "…readFileSync('landing/index.html')…process.exit(1)…"` 一行流 —— 它 exit 0
+   * 跑过、也进了 evidence.commands，但词形不在 VERIFICATION_COMMAND_PATTERNS 里，门禁仍判
+   * 「没有验证命令证据」，同一任务 4 次 attempt 全灭。plan 既然已经声明过这是它的校验命令，
+   * 识别就不该再靠猜词形。这也正是 BashExecutionArgs.evidenceKind 里 'verification'
+   * 一直预留、却从未被使用的那个分支。
+   */
+  verification?: boolean
   error?: string
   /**
    * 这条命令属于哪个 run（= 哪个 attempt）。由 recordRunCommand 自动填充。

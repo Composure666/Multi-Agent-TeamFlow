@@ -1633,6 +1633,11 @@ async function runRequiredCommands(
       timedOut: failed?.timedOut ?? false,
       isError: Boolean(failed),
       ...(failed?.error ? { error: failed.error } : {}),
+      // plan 的 requiredCommands 就是这条任务的验证通道：只要其中非 prepare 的一段
+      // 成功跑过，就按验证证据记（词形千奇百怪，见 RunCommandEvidence.verification）。
+      ...(commandResults.some((result) => !result.prepare && result.ok)
+        ? { verification: true }
+        : {}),
     })
   }
 

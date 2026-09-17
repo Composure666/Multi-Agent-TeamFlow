@@ -78,6 +78,12 @@ AgentRunner MUST execute dispatch tasks as a DAG and skip dependent tasks when p
 - **AND** recorded command evidence has a successful non-prepare shell segment that runs a check-shaped script (`node qa/check.mjs`, `python qa/check.py`, `bash scripts/verify.sh`) or a verification-named package script (`npm run check|verify|qa|lint|test`)
 - **THEN** the runnable verification requirement is satisfied
 - **AND** a command whose success comes only from a `||` fallback (`npm test || echo skipped`) does not satisfy it.
+- **AND** any non-prepare command declared in the task's `requiredCommands` satisfies it when it exits 0, whatever its textual form (`node -e "…"` one-liners included), because AgentRunner runs those commands with `evidenceKind: 'verification'`.
+
+#### Scenario: Child agent runs commands through SDK tools
+- **WHEN** a code implementation child task runs on an SDK adapter (claude-code / codex) and executes its checks with the SDK's own Bash tool
+- **THEN** those calls are not part of the recorded command evidence (only the platform `bash` tool and AgentRunner-run `requiredCommands` record evidence)
+- **AND** the task's `requiredCommands` are therefore the only channel the plan controls for producing verification evidence.
 
 #### Scenario: Code task lacks project output
 - **WHEN** a code implementation child task reports `complete`
