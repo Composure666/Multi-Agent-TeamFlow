@@ -95,14 +95,12 @@ export async function maybePublishExternally(local: DeployStatusRecord): Promise
   if (!settings.deploymentPublishEnabled) return local
 
   if (!settings.deploymentPublishDir || !settings.deploymentPublicBaseUrl) {
-    return {
-      ...local,
-      status: 'failed',
-      deploymentType: 'external_static',
-      localPreviewPath: local.previewPath,
-      error:
-        'External static publishing is enabled, but deployment publish directory or public base URL is not configured',
-    }
+    // Spec 08「约束」/ openspec tools：外部发布目标配置不齐时不阻断部署，
+    // 按契约回落为纯本地静态部署（ready），只记日志提醒运维补配置。
+    console.warn(
+      '[deploy] External static publishing is enabled, but deployment publish directory or public base URL is not configured; falling back to local deployment',
+    )
+    return local
   }
 
   try {
