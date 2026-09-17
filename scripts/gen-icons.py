@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Nexora Studio 图标生成器（唯一入口）。
+"""Multi-Agent TeamFlow 图标生成器（唯一入口）。
 
 用法：python scripts/gen-icons.py
 

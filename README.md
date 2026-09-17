@@ -1,4 +1,4 @@
-# AgentHub
+# Multi-Agent TeamFlow
 
 <p align="center">
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white">
@@ -13,12 +13,12 @@
   <b>English</b> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-AgentHub is a local-first multi-agent workspace for IM-style AI collaboration.
+Multi-Agent TeamFlow is a local-first multi-agent workspace for IM-style AI collaboration.
 
 It keeps conversations, agents, artifacts, approvals, and workspace files in one place so you can manage real work instead of juggling separate prompts and terminals.
 
 <p align="center">
-  <img src="docs/images/agenthub-preview.png" alt="AgentHub multi-agent collaboration and artifact preview" width="100%" />
+  <img src="docs/images/agenthub-preview.png" alt="Multi-Agent TeamFlow collaboration and artifact preview" width="100%" />
 </p>
 
 > **Current release: v0.2.0-rc.1** (2026-09-12) — first ship-candidate after security audit & QA pass.

@@ -1,6 +1,6 @@
-# CLAUDE.md — AgentHub 项目 AI 协作主文档
+# CLAUDE.md — Multi-Agent TeamFlow 项目 AI 协作主文档
 
-> 这是 AgentHub 项目的「项目级 AI 协作约定」。任何 AI 协作工具（Claude Code、Cursor、Codex 等）在本项目工作时**必须**先读此文档，再开始任务。
+> 这是 Multi-Agent TeamFlow 项目的「项目级 AI 协作约定」。任何 AI 协作工具（Claude Code、Cursor、Codex 等）在本项目工作时**必须**先读此文档，再开始任务。
 >
 > 本文档与 `openspec/`、`specs/` 配套：CLAUDE.md 定**规则**（怎么做、不做什么），`openspec/specs/` 定 OpenSpec 能力契约，`specs/` 保留编号版详细规格。
 >
@@ -10,7 +10,7 @@
 
 ## 1. 项目背景
 
-**AgentHub** 是一个多 Agent 协作平台。一句话定位：
+**Multi-Agent TeamFlow** 是一个多 Agent 协作平台。一句话定位：
 
 > 把多 Agent 协作做成 IM 群聊体验。Agent 是「联系人」，对话是「工作空间」，Orchestrator 是「群里的项目经理」。
 
@@ -174,7 +174,7 @@ Key 来源按优先级（详见 `src/server/settings-service.ts` 与 `src/server
 2. **`app_settings.<provider>_api_key`** — 用户在「设置」面板（Sidebar 齿轮）全局自填，存 SQLite `app_settings` 单行表
 3. **`process.env.<PROVIDER>_API_KEY`** — `.env.local` 兜底（dev / CI 友好）
 
-Codex adapter 额外约束：运行时 `CODEX_HOME` / `CODEX_SQLITE_HOME` 指向 AgentHub dataDir 下的隔离目录，不默认读取用户本机 `~/.codex`，避免 CC Switch 等外部 Codex 配置影响 AgentHub。Codex 的自定义 `apiBaseUrl` 必须是 Codex/Responses 兼容 endpoint；DeepSeek 等 Chat Completions-only provider 走 CustomAgentAdapter。
+Codex adapter 额外约束：运行时 `CODEX_HOME` / `CODEX_SQLITE_HOME` 指向 Multi-Agent TeamFlow dataDir 下的隔离目录，不默认读取用户本机 `~/.codex`，避免 CC Switch 等外部 Codex 配置影响 Multi-Agent TeamFlow。Codex 的自定义 `apiBaseUrl` 必须是 Codex/Responses 兼容 endpoint；DeepSeek 等 Chat Completions-only provider 走 CustomAgentAdapter。
 
 约束：
 

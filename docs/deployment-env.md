@@ -52,7 +52,7 @@
 | `AGENTHUB_DATA_DIR` | 平台挂载卷路径，如 `/workspace/.agenthub-data` | 数据库、会话、产物目录 |
 
 Electron 模式下这个值由主进程注入 `userData`，**不需要手填**；web / dev 未设置时兜底为 cwd。
-容器里不设会导致整个 AgentHub 数据随实例销毁一起丢失。
+容器里不设会导致整个 Multi-Agent TeamFlow 数据随实例销毁一起丢失。
 
 ---
 

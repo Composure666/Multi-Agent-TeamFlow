@@ -1,4 +1,4 @@
-# AgentHub
+# Multi-Agent TeamFlow
 
 <p align="center">
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white">
@@ -13,12 +13,12 @@
   <a href="./README.md">English</a> · <b>简体中文</b>
 </p>
 
-AgentHub 是一个本地优先的多 Agent 协作工作空间，把 AI 协作做成类似 IM 群聊的体验。
+Multi-Agent TeamFlow 是一个本地优先的多 Agent 协作工作空间，把 AI 协作做成类似 IM 群聊的体验。
 
 它把会话、Agent、产物、审批和工作目录放在同一个界面里。你可以让不同 Agent 分工处理任务，也可以在同一个工作空间里查看文件改动、命令输出和产物预览。
 
 <p align="center">
-  <img src="docs/images/agenthub-preview.png" alt="AgentHub 多 Agent 协作与产物预览" width="100%" />
+  <img src="docs/images/agenthub-preview.png" alt="Multi-Agent TeamFlow 多 Agent 协作与产物预览" width="100%" />
 </p>
 
 > **当前版本：v0.2.0-rc.1**（2026-09-12）—— 经过完整上线前全检后的首个 release-candidate。

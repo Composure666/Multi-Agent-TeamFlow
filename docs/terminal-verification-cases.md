@@ -3,7 +3,7 @@
 > 验证目标：修复后「运行展板」的终端面板应满足 ——
 > **实时**
 >
-> ：Agent 运行中，自定义 adapter（AgentHub 自有 bash 工具）的命令实时显示并滚动
+> ：Agent 运行中，自定义 adapter（Multi-Agent TeamFlow 自有 bash 工具）的命令实时显示并滚动
 > **保留**
 >
 > ：运行完成后命令 + 输出保留在终端页，刷新 / 重新进入不丢
@@ -23,8 +23,8 @@
 | #  | 条件             | 说明                                                                                                                                                                   |
 | -- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1 | 修复代码在位         | `agent-runner.ts:2427` `isCommandToolName()`（小写归一）；`agent-run-debug-board.ts:1203` `projectAgentRunTerminalOutput`（含 `readCliToolResultOutputText` + `runRunning` 门） |
-| P2 | dev server 运行中 | `pnpm dev`，浏览器打开 AgentHub                                                                                                                                            |
-| P3 | 可用 agent       | ① 任意 **custom** adapter（如 产品文案助手，走 AgentHub bash 工具，**有实时**）；② **claude-code** adapter（如 PPT 设计师，走 CLI 内部 Bash，**无实时、有投影**）                                          |
+| P2 | dev server 运行中 | `pnpm dev`，浏览器打开 Multi-Agent TeamFlow                                                                                                                                            |
+| P3 | 可用 agent       | ① 任意 **custom** adapter（如 产品文案助手，走 Multi-Agent TeamFlow bash 工具，**有实时**）；② **claude-code** adapter（如 PPT 设计师，走 CLI 内部 Bash，**无实时、有投影**）                                          |
 | P4 | 记录本次验证时间       | 用于区分新旧 run                                                                                                                                                           |
 
 ## 用例总览

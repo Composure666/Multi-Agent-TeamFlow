@@ -1,4 +1,4 @@
-# AgentHub 项目全貌（OVERVIEW）
+# Multi-Agent TeamFlow 项目全貌（OVERVIEW）
 
 > **这份文档是给 AI / 新对话窗口的「全貌速览」**：读完它,不翻代码也能掌握项目做了什么、怎么分层、代码在哪、当前进度。
 >
@@ -55,7 +55,7 @@ L1 Persistence                          src/db/**（Drizzle+SQLite） + workspac
 | ClaudeCodeAdapter | ✅ | claude-agent-sdk + 全套工具 + Session 续接 |
 | CustomAgentAdapter | ✅ | OpenAI 兼容（DeepSeek/OpenAI/火山方舟）+ 自驱 tool loop |
 | MockAdapter | ✅ | 开发期不烧 token |
-| CodexAdapter | ✅ | @openai/codex-sdk + 线程续接 + AgentHub MCP bridge |
+| CodexAdapter | ✅ | @openai/codex-sdk + 线程续接 + Multi-Agent TeamFlow MCP bridge |
 | 自建 Agent | ✅ | 表单/对话式创建,自定义 prompt + 工具集 |
 | Orchestrator 编排 | ✅ | 三阶段规划 + DAG 调度 + 级联中止 + 可视化卡 + 同波次代码冲突检测（检测+上报，不自动合并） |
 | 工具系统 | ✅ | write/deploy/read_artifact · read_attachment · fs_read/fs_write/bash · plan_tasks · ask_user |

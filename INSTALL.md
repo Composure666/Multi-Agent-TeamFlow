@@ -1,10 +1,10 @@
-# AgentHub 安装与启动指南
+# Multi-Agent TeamFlow 安装与启动指南
 
-本文档说明如何从源码安装并启动 AgentHub。适用于本地 Web 开发模式和 Electron 桌面端开发、调试与打包。
+本文档说明如何从源码安装并启动 Multi-Agent TeamFlow。适用于本地 Web 开发模式和 Electron 桌面端开发、调试与打包。
 
 ## 1. 项目概述
 
-AgentHub 是一个 local-first 的多 Agent 协作工作空间。它把会话、Agent、产物、审批和工作目录放在同一个界面里，方便你直接在本机完成真实工作，而不是在多个工具之间来回切换。
+Multi-Agent TeamFlow 是一个 local-first 的多 Agent 协作工作空间。它把会话、Agent、产物、审批和工作目录放在同一个界面里，方便你直接在本机完成真实工作，而不是在多个工具之间来回切换。
 
 ## 2. 环境要求
 
