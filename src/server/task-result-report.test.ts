@@ -728,4 +728,142 @@ describe('evaluateTaskResultReport', () => {
     expect(result.error).toContain('npm run build (exit 2)')
     expect(result.error).not.toContain('tool error')
   })
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 回归（2026-09-17 线上生图任务 4 次重试全灭）：多行脚本形式的探测 / 装依赖命令
+  // 也要豁免。子 agent 习惯把「cd 进目录 + 打印几行 + pip/npm 试装」一次提交，旧实现
+  // 只认 ; && | 切段，整段以 cd 开头 → 永远命中不了白名单，pip 超时把任务钉死。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('excuses multi-line probe and dependency-install scripts', () => {
+    const multiLineProbe = [
+      'cd /opt/agenthub/workspaces/conv_x',
+      'head -c 16 outputs/real_A_en.png | xxd | head -1',
+      'echo "=== try pip install pillow ==="',
+      'pip install --quiet pillow 2>&1 | tail -5; python3 -c "import PIL;print(\'PIL OK\',PIL.__version__)" 2>&1 | tail -1',
+      'echo "=== try pip install numpy ==="',
+      'pip install --quiet numpy 2>&1 | tail -3; python3 -c "import numpy;print(\'numpy OK\',numpy.__version__)" 2>&1 | tail -1',
+    ].join('\n')
+    expect(
+      evaluateTaskResultReport(
+        task({ task: '用真实 API 生成候选图', taskKind: 'design' }),
+        { status: 'complete', summary: '候选图已交付。' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: multiLineProbe,
+              cwd: '/w',
+              exitCode: null,
+              timedOut: true,
+              isError: true,
+            },
+            {
+              command: 'npm install --no-audit',
+              cwd: '/w',
+              exitCode: 1,
+              timedOut: false,
+              isError: true,
+            },
+            {
+              command: 'mkdir -p outputs/meta',
+              cwd: '/w',
+              exitCode: 1,
+              timedOut: false,
+              isError: true,
+            },
+          ],
+        },
+      ),
+    ).toEqual({ ok: true })
+  })
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 回归（2026-09-17 同一次事故）：失败定罪只认当前 attempt。
+  // 第 1 次 attempt 的 pip 超时 + 第 2 次 attempt 的探索脚本报错，不该让第 4 次
+  // attempt（VERIFY OK / exitCode=0）也判失败。
+  // ─────────────────────────────────────────────────────────────────────────
+
+  it('does not let earlier attempts failures convict the current attempt', () => {
+    const evidence = {
+      fileWrites: [],
+      commands: [
+        {
+          command: 'pip install --quiet numpy 2>&1 | tail -3',
+          cwd: '/w',
+          exitCode: null,
+          timedOut: true,
+          isError: true,
+          runId: 'run_attempt1',
+        },
+        {
+          command: "python3 - <<'EOF'\nfrom PIL import Image\nassert False\nEOF",
+          cwd: '/w',
+          exitCode: 1,
+          timedOut: false,
+          isError: true,
+          runId: 'run_attempt2',
+        },
+        {
+          command: 'python3 verify_real.py',
+          cwd: '/w',
+          exitCode: 0,
+          timedOut: false,
+          isError: false,
+          runId: 'run_attempt4',
+        },
+      ],
+      artifacts: [{ artifactId: 'art_img', title: '候选图', type: 'image', version: 1 }],
+    }
+
+    expect(
+      evaluateTaskResultReport(
+        task({ task: '用真实 API 生成候选图', taskKind: 'design' }),
+        { status: 'complete', summary: '候选图已交付。' },
+        evidence,
+        { attemptRunIds: ['run_attempt4'] },
+      ),
+    ).toEqual({ ok: true })
+
+    // 同一份证据里当前 attempt 自己失败 → 照常定罪
+    expect(
+      evaluateTaskResultReport(
+        task({ task: '用真实 API 生成候选图', taskKind: 'design' }),
+        { status: 'complete', summary: '候选图已交付。' },
+        evidence,
+        { attemptRunIds: ['run_attempt2'] },
+      ),
+    ).toMatchObject({ ok: false })
+
+    // 不传 attemptRunIds = 旧的全量行为（无法归因的证据仍定罪，不放水）
+    expect(
+      evaluateTaskResultReport(
+        task({ task: '用真实 API 生成候选图', taskKind: 'design' }),
+        { status: 'complete', summary: '候选图已交付。' },
+        evidence,
+      ),
+    ).toMatchObject({ ok: false })
+  })
+
+  it('keeps convicting evidence without a run id so legacy callers stay strict', () => {
+    expect(
+      evaluateTaskResultReport(
+        task(),
+        { status: 'complete', summary: 'Done.' },
+        {
+          fileWrites: [],
+          commands: [
+            {
+              command: 'npm run build',
+              cwd: '/w',
+              exitCode: 1,
+              timedOut: false,
+              isError: true,
+            },
+          ],
+        },
+        { attemptRunIds: ['run_attempt9'] },
+      ),
+    ).toMatchObject({ ok: false })
+  })
 })

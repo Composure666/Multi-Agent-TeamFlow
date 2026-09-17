@@ -24,6 +24,8 @@ const ArgsSchema = z.object({
 })
 
 const DEFAULT_TIMEOUT_MS = 30_000
+/** 依赖安装的默认超时：装包在慢机器上经常 1-5 分钟，用 30s 必误伤。 */
+const INSTALL_TIMEOUT_MS = 5 * 60_000
 const MIN_TIMEOUT_MS = 1_000
 const MAX_TIMEOUT_MS = 15 * 60_000
 const POSIX_LOGIN_INTERACTIVE_SHELLS = new Set(['bash', 'zsh'])
@@ -87,7 +89,7 @@ function buildShellInvocation(command: string, platform: Platform): ShellInvocat
 const PLATFORM = currentPlatform()
 
 const DESCRIPTION_POSIX =
-  'Run a shell command inside the workspace. Optional cwd must stay inside the workspace. POSIX uses the user login shell for zsh/bash ($SHELL -l -i -c) when available, otherwise sh -c. Use POSIX syntax: ls, grep, cat, git, npm, python, etc. Output is stdout + stderr combined, truncated to 10000 chars, 30s timeout. Destructive commands (rm -rf /, sudo, fork bombs, curl | sh) are blocked. No interactive stdin. Do not leave persistent background servers running; start test servers only inside a command that cleans them up.'
+  'Run a shell command inside the workspace. Optional cwd must stay inside the workspace. POSIX uses the user login shell for zsh/bash ($SHELL -l -i -c) when available, otherwise sh -c. Use POSIX syntax: ls, grep, cat, git, npm, python, etc. Output is stdout + stderr combined, truncated to 10000 chars, 30s timeout (5min default for dependency installs like pip/npm/apt install; pass timeoutMs for other slow steps). A timed-out command counts as failure evidence — give slow commands an explicit timeoutMs. Destructive commands (rm -rf /, sudo, fork bombs, curl | sh) are blocked. No interactive stdin. Do not leave persistent background servers running; start test servers only inside a command that cleans them up.'
 
 const DESCRIPTION_WINDOWS =
   'Run a Windows PowerShell 5.1 command inside the workspace. Optional cwd must stay inside the workspace. ' +
@@ -126,7 +128,7 @@ export const bashTool: ToolDef = {
       timeoutMs: {
         type: 'number',
         description:
-          'Optional timeout in milliseconds. Values are clamped to AgentHub safety bounds.',
+          'Optional timeout in milliseconds (max 900000). Default 30000; dependency installs (pip/npm/pnpm/yarn/bun/apt install) default to 300000. Raise it explicitly for slow steps (builds, installs, long test suites) — a timed-out command is recorded as failure evidence.',
       },
     },
   },
@@ -213,7 +215,10 @@ function runShellCommand(
   executedCommand: string,
   rewriteNotes: string[],
 ): Promise<ToolResult> {
-  const timeoutMs = clampTimeout(args.timeoutMs)
+  const timeoutMs = clampTimeout(
+    args.timeoutMs ??
+      (isDependencyInstallCommand(executedCommand) ? INSTALL_TIMEOUT_MS : undefined),
+  )
   const shell = buildShellInvocation(executedCommand, PLATFORM)
 
   return runTerminalCommand({
@@ -276,4 +281,17 @@ function runShellCommand(
 function clampTimeout(timeoutMs: number | undefined): number {
   if (timeoutMs === undefined) return DEFAULT_TIMEOUT_MS
   return Math.max(MIN_TIMEOUT_MS, Math.min(timeoutMs, MAX_TIMEOUT_MS))
+}
+
+/**
+ * 依赖安装类命令给更宽的默认超时。
+ *
+ * 2026-09-17 线上事故：`pip install --quiet pillow` 在 2C2G 服务器上超过 30s 默认超时，
+ * 被记成 timed out 的失败命令证据（后来又叠加「跨 attempt 永久定罪」把任务钉死 4 次）。
+ * 安装本身是准备动作，不该被 30s 掐死；模型显式传 timeoutMs 时仍然尊重模型的值。
+ */
+function isDependencyInstallCommand(command: string): boolean {
+  return /(?:^|[\s;&|(])(?:pip3?|python3?(?:\.\d+)?\s+-m\s+pip|npm|pnpm|yarn|bun|apt|apt-get|dnf|yum|apk)\s+(?:install|add|ci|i)\b/.test(
+    command,
+  )
 }

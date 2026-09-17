@@ -79,6 +79,7 @@ import {
   isTaskResultReportToolName,
   readTaskResultReportFromToolResult,
   REPORT_TASK_RESULT_TOOL_NAME,
+  type TaskResultReportEvaluationOptions,
 } from './task-result-report'
 import { executeBashCommand } from './tools/bash'
 import { assertPathWithinWorkspace, getEffectiveCwd } from './workspace-utils'
@@ -143,6 +144,8 @@ interface ChildAttemptEvaluation {
   result: DispatchTaskResult
   evidence: RunToolEvidence
   verificationResults: VerificationCommandResult[]
+  /** 本次 attempt 的 run id —— 验收定罪只认它名下的失败命令（见 evaluateTaskResultReport）。 */
+  runId?: string
 }
 
 interface VerificationCommandResult {
@@ -1212,10 +1215,13 @@ async function runChildTask(
       if (attemptEvaluation.rawResult.runId) attemptRunIds.push(attemptEvaluation.rawResult.runId)
       mergeRunExecutionResult(aggregate, attemptEvaluation.rawResult)
       mergeRunToolEvidence(aggregateEvidence, attemptEvaluation.evidence)
+      // 证据是累积的（正向证据要跨 attempt 复用：文件、产物、成功命令），
+      // 但失败定罪只看当前 attempt 的 run —— 否则第 1 次的 pip 超时会永久钉死后面每一次重试。
       const evaluatedResult = evaluateChildTaskResult(
         task,
         attemptEvaluation.rawResult,
         aggregateEvidence,
+        { attemptRunIds: attemptRunIdsToScope(attemptEvaluation) },
       )
       let currentEvaluation: ChildAttemptEvaluation = {
         ...attemptEvaluation,
@@ -1447,14 +1453,15 @@ async function runChildTaskAttempt(
       ? []
       : await runRequiredCommands(task, childRunId, ctx)
   const evidence = getRunToolEvidence(childRunId)
-  const result = evaluateChildTaskResult(task, raw, evidence)
-  return { rawResult: raw, result, evidence, verificationResults }
+  const result = evaluateChildTaskResult(task, raw, evidence, { attemptRunIds: [childRunId] })
+  return { rawResult: raw, result, evidence, verificationResults, runId: childRunId }
 }
 
 function evaluateChildTaskResult(
   task: DispatchPlanItem,
   result: DispatchTaskResult,
   evidence: RunToolEvidence = { fileWrites: [], commands: [] },
+  options: TaskResultReportEvaluationOptions = {},
 ): DispatchTaskResult {
   if (result.status !== 'complete') {
     return result
@@ -1465,6 +1472,7 @@ function evaluateChildTaskResult(
     task,
     result.taskReport,
     evidence,
+    options,
   )
   if (!reportEvaluation.ok) {
     return {
@@ -1491,6 +1499,24 @@ function mergeRunToolEvidence(target: RunToolEvidence, source: RunToolEvidence):
   if (source.artifacts && source.artifacts.length > 0) {
     target.artifacts = [...(target.artifacts ?? []), ...source.artifacts]
   }
+}
+
+/**
+ * 当前 attempt 的定罪范围。
+ *
+ * 优先用本轮 run id；拿不到时退回「本轮证据里出现过的 run id」，再拿不到就返回 undefined
+ * （= 旧的全量定罪行为，宁可保守也不放过）。
+ */
+function attemptRunIdsToScope(
+  evaluation: ChildAttemptEvaluation,
+): TaskResultReportEvaluationOptions['attemptRunIds'] {
+  if (evaluation.runId) return [evaluation.runId]
+  const runIds = new Set(
+    evaluation.evidence.commands
+      .map((command) => command.runId)
+      .filter((runId): runId is string => Boolean(runId)),
+  )
+  return runIds.size > 0 ? [...runIds] : undefined
 }
 
 function cloneRunToolEvidence(source: RunToolEvidence): RunToolEvidence {
@@ -3705,6 +3731,8 @@ async function buildSubAgentPrompt(
     'For required_commands, you may run the command yourself, and AgentHub will also run it as a completion gate after your attempt. Use bash cwd instead of cd when running commands in subdirectories.',
     'If dependencies are missing, install them inside the workspace and continue; dependency installation is preparation, not completion evidence.',
     'If a required command fails, fix the issue and continue; do not report complete until the command can pass.',
+    'When you need a custom check (file format, image sanity, content assertions), write it into a script file and iterate until it exits 0, then run that script as your final evidence. A command that does real work and fails (an inline heredoc check that errors out, a script that raises) is recorded as failure evidence for this attempt.',
+    'Verify with capabilities the sandbox already has. Do not make your deliverable depend on heavy optional libraries (numpy, matplotlib, ...) that may not be installable: a timed-out dependency install is recorded as failure evidence too.',
     'Environment probes (which / command -v, python -c "import ...", pip install, ls/cat on not-yet-created dirs) may legitimately fail and do NOT mean the task failed. Never spend attempts probing the environment; if a tool is missing, work around it or deliver without it.',
     'Deliverables are verified by write_artifact (and its returned artifactId) or real files, not by cat-ing files back or re-checking tool availability.',
     'For target_paths, list every changed or verified path in report_task_result.filesChanged.',

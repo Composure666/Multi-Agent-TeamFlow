@@ -59,6 +59,14 @@ export interface TaskResultReportEvaluation {
   error?: string
 }
 
+export interface TaskResultReportEvaluationOptions {
+  /**
+   * 当前 attempt 的 runId 集合。给了就只对这一轮 attempt 里的失败命令定罪；
+   * 不传 = 旧行为（全量证据定罪，向后兼容旧调用点与单测）。
+   */
+  attemptRunIds?: readonly string[]
+}
+
 export function normalizeTaskResultReport(data: ParsedTaskResultReport): TaskResultReport {
   const acceptanceResults = data.acceptanceResults
     ?.map((result) => ({
@@ -123,6 +131,7 @@ export function evaluateTaskResultReport(
   task: DispatchPlanItem,
   report: TaskResultReport | undefined,
   evidence: RunToolEvidence = { fileWrites: [], commands: [] },
+  options: TaskResultReportEvaluationOptions = {},
 ): TaskResultReportEvaluation {
   if (!report) {
     return {
@@ -140,6 +149,7 @@ export function evaluateTaskResultReport(
 
   const failedCommands = evidence.commands.filter(
     (command, index) =>
+      belongsToAttempt(command, options.attemptRunIds) &&
       !command.prepare &&
       isFailedCommand(command) &&
       !isBenignFailure(command.command) &&
@@ -411,6 +421,22 @@ function isFailedCommand(command: RunToolEvidence['commands'][number]): boolean 
   return command.isError || command.timedOut || command.exitCode !== 0
 }
 
+/**
+ * 失败定罪只认当前 attempt 的命令。
+ *
+ * 历史 attempt 的失败（例：第 1 次 attempt 里 pip install 超时）不该让第 4 次 attempt
+ * 里已经 VERIFY OK 的交付判失败 —— 每次 attempt 是一个独立 run，runId 就是它的身份。
+ * 无法归因的旧证据（没盖 runId 的历史数据 / 单测构造的证据）按旧行为处理，不放水也不误伤。
+ */
+function belongsToAttempt(
+  command: RunToolEvidence['commands'][number],
+  attemptRunIds: readonly string[] | undefined,
+): boolean {
+  if (!attemptRunIds || attemptRunIds.length === 0) return true
+  if (!command.runId) return true
+  return attemptRunIds.includes(command.runId)
+}
+
 /** 门禁失败信息必须能定位根因：isError 且没记 error 时要露出真实退出码，不能再笼统写 "tool error"。 */
 function formatCommandFailure(command: RunToolEvidence['commands'][number]): string {
   if (command.isError) {
@@ -439,9 +465,16 @@ function formatCommandFailure(command: RunToolEvidence['commands'][number]): str
 
 /** 只读探测段的首 token（ls/cat/grep/which/find… 不改文件、不联网、不执行用户代码）。 */
 const BENIGN_PROBE_SEGMENT_RE =
-  /^(?:pwd|echo|printf|ls|cat|head|tail|wc|which|command|type|whereis|hash|file|stat|du|df|env|printenv|date|uname|whoami|hostname|basename|dirname|realpath|readlink|true|false|find|tree|jq|sleep)\b/
-/** 依赖安装：失败属于准备性质（pnpm/npm/yarn/bun 已由 prepare 标记覆盖，这里补 pip）。 */
-const BENIGN_DEP_INSTALL_RE = /^(?:pip3?|python3?\s+-m\s+pip)\s+install\b/
+  /^(?:pwd|echo|printf|ls|cat|head|tail|wc|which|command|type|whereis|hash|file|stat|du|df|env|printenv|date|uname|whoami|hostname|basename|dirname|realpath|readlink|true|false|find|tree|jq|sleep|cd|sort|uniq|cut|tr|nl|tac|more|less|xxd|od|hexdump)\b/
+/**
+ * 依赖安装 / 目录准备：失败属于准备性质，不算交付失败。
+ *
+ * pnpm/npm/yarn/bun install 在门禁侧由 prepare 标记覆盖，但**子 agent 自己跑的**那些
+ * 不会被标记（2026-09-17：worker 跑 `pnpm install` 失败后被记成交付失败证据）；
+ * pip/apt 系则从来没有覆盖。全部按准备性质豁免。
+ */
+const BENIGN_DEP_INSTALL_RE =
+  /^(?:(?:pip3?|python3?\s+-m\s+pip)\s+install|(?:npm|pnpm|yarn|bun)\s+(?:install|add|ci)\b|apt(?:-get)?\s+install|(?:dnf|yum|apk)\s+(?:install|add)\b|mkdir\b)/
 /** 模块存在性检查：python -c "import X" / node -e "require('X')"。 */
 const BENIGN_MODULE_PROBE_RE =
   /^(?:python3?\s+-c\s+["']?\s*import|node\s+(?:-e|--eval)\s+["']?\s*(?:require|import))/
@@ -449,9 +482,13 @@ const BENIGN_MODULE_PROBE_RE =
 const STDERR_SUPPRESSED_RE = /2>\s*\/dev\/null/
 
 /**
- * 命令的每一段（按 && / || / ; / | 切开，引号内的分隔符不算）都是探测/安装/模块检查时，
+ * 命令的每一段（按 && / || / ; / | / 换行切开，引号内的分隔符不算）都是探测/安装/模块检查时，
  * 失败豁免。只要任何一段会做实际工作（build、curl 落盘、跑脚本……），整条命令的失败
  * 照常定罪。
+ *
+ * 换行必须切段（2026-09-17 线上事故）：子 agent 习惯把「cd 进目录 / 打印几行 / 试装依赖」
+ * 写成多行脚本一次提交，旧实现只认 ; && | ，整段以 `cd` 开头于是永远豁免不了 ——
+ * pip 装依赖超时就这样把任务钉死 4 次。
  */
 function isBenignFailure(command: string): boolean {
   const segments = splitCommandSegments(normalizeCommand(command).toLowerCase())
@@ -465,7 +502,7 @@ function isBenignFailure(command: string): boolean {
   )
 }
 
-/** 引号感知的链路切段：python -c "import x; print()" 里的 ; 不能当命令分隔符。 */
+/** 引号感知的链路切段：python -c "import x; print()" 里的 ; 不能当命令分隔符。换行要切。 */
 function splitCommandSegments(command: string): string[] {
   const segments: string[] = []
   let current = ''
@@ -482,7 +519,7 @@ function splitCommandSegments(command: string): string[] {
       current += ch
       continue
     }
-    if (ch === ';') {
+    if (ch === ';' || ch === '\n' || ch === '\r') {
       segments.push(current)
       current = ''
       continue

@@ -13,6 +13,15 @@ export interface RunCommandEvidence {
   isError: boolean
   prepare?: boolean
   error?: string
+  /**
+   * 这条命令属于哪个 run（= 哪个 attempt）。由 recordRunCommand 自动填充。
+   *
+   * 2026-09-17 线上事故：任务被 `MAX_CHILD_TASK_ATTEMPTS` 重试时，历史 attempt 的失败
+   * 证据会和当前 attempt 的合并后一起定罪，导致「当前 attempt 全部命令都成功」也判失败
+   * （生图任务第 3、4 次 attempt 已 VERIFY OK，仍因第 1 次 attempt 的 pip 超时被判 4 次全灭）。
+   * 验收只对当前 attempt 的失败定罪，历史失败不得毒化后续 attempt。
+   */
+  runId?: string
 }
 
 /**
@@ -57,7 +66,8 @@ export function recordRunArtifact(runId: string, evidence: RunArtifactEvidence):
 }
 
 export function recordRunCommand(runId: string, evidence: RunCommandEvidence): void {
-  ensureEvidence(runId).commands.push(evidence)
+  // runId 由本函数统一盖章：调用点不必逐个传，合并到 aggregate 后仍能区分 attempt。
+  ensureEvidence(runId).commands.push({ ...evidence, runId })
 }
 
 export function getRunToolEvidence(runId: string): RunToolEvidence {
