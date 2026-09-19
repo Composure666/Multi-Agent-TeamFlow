@@ -279,3 +279,189 @@ describe('legacy brand rename migration', () => {
     })
   })
 })
+
+/**
+ * 回归：模型分配必须能从「空表」自愈。
+ *
+ * 线上事故（2026-09-19）：09-17 弃用百炼清理供应商时把 `llm_model_assignments` 一起清空了，
+ * 于是 `resolveProvider(capability)` 对任何能力都返回 null —— 提示词增强 / 团队成员「重新生成」
+ * 这类走能力优先级链的功能永远只能落到本地兜底，用户看到的是「点了没变化」。
+ *
+ * 边界（与本用例同等重要）：**只在空表时补**。用户 / UI 配过的东西不能被迁移改写，
+ * 用户后来手动清空也不能被重新塞回来。
+ */
+describe('default llm model assignment seed', () => {
+  const MIGRATION = 'seed_default_llm_assignments_v1'
+
+  function insertProvider(
+    sqlite: Database.Database,
+    row: { id: string; models?: string[]; apiKey?: string | null; connected?: boolean },
+  ): void {
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT OR REPLACE INTO llm_providers
+           (id, provider_type, display_name, api_key, base_url, models, is_connected, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        row.id,
+        row.id === 'ark' ? 'ark' : row.id,
+        row.id,
+        row.apiKey === undefined ? 'sk-test' : row.apiKey,
+        'https://example.test/v1',
+        JSON.stringify(row.models ?? ['deepseek-flash', 'deepseek-v4-pro']),
+        row.connected === false ? 0 : 1,
+        now,
+        now,
+      )
+  }
+
+  function readAssignments(sqlite: Database.Database) {
+    return sqlite
+      .prepare(
+        'SELECT id, scope, capability_key, provider_id, model_name, priority, use_global FROM llm_model_assignments ORDER BY capability_key',
+      )
+      .all() as Array<{
+      id: string
+      scope: string
+      capability_key: string
+      provider_id: string | null
+      model_name: string | null
+      priority: number
+      use_global: number
+    }>
+  }
+
+  function hasMigration(sqlite: Database.Database): boolean {
+    return Boolean(
+      sqlite.prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?').get(MIGRATION),
+    )
+  }
+
+  it('seeds every capability onto the usable provider once one exists', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      // 全新实例：还没有任何供应商 ⇒ 既不该写分配，也不该记账（否则以后补了 key 也不会再补）
+      expect(readAssignments(sqlite)).toEqual([])
+      expect(hasMigration(sqlite)).toBe(false)
+
+      insertProvider(sqlite, { id: 'deepseek' })
+      bootstrapDatabase(sqlite)
+
+      const rows = readAssignments(sqlite)
+      const keys = rows.map((row) => row.capability_key)
+      expect(keys).toEqual([
+        'agent:code',
+        'agent:image',
+        'agent:text',
+        'agent:vision',
+        'context_summary',
+        'global:default',
+        'global:default_provider',
+        'global:fallback_provider',
+        'prompt_optimize',
+        'system_chat',
+        'task_planning',
+      ])
+
+      for (const row of rows) {
+        expect(row.provider_id).toBe('deepseek')
+        expect(row.model_name).toBe('deepseek-flash')
+        expect(row.priority).toBe(0)
+        expect(row.use_global).toBe(0)
+      }
+      // scope 归类：global:* → global，系统能力 → system，agent:<模态> → agent
+      expect(rows.find((row) => row.capability_key === 'global:default')?.scope).toBe('global')
+      expect(rows.find((row) => row.capability_key === 'prompt_optimize')?.scope).toBe('system')
+      expect(rows.find((row) => row.capability_key === 'agent:vision')?.scope).toBe('agent')
+      expect(hasMigration(sqlite)).toBe(true)
+    })
+  })
+
+  it('skips providers without an api key', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'deepseek', apiKey: null })
+      insertProvider(sqlite, { id: 'openai', apiKey: '   ' })
+
+      bootstrapDatabase(sqlite)
+
+      expect(readAssignments(sqlite)).toEqual([])
+      expect(hasMigration(sqlite)).toBe(false)
+    })
+  })
+
+  it('prefers deepseek, and a connected provider over an unconnected one', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'openai', models: ['gpt-4o-mini'] })
+      insertProvider(sqlite, { id: 'deepseek', connected: false })
+
+      bootstrapDatabase(sqlite)
+
+      const rows = readAssignments(sqlite)
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        expect(row.provider_id).toBe('deepseek')
+        expect(row.model_name).toBe('deepseek-flash')
+      }
+    })
+  })
+
+  it('never touches an instance that already has assignments', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'deepseek' })
+      // 模拟用户 / UI 已经配过：只有一条，且指向别处
+      sqlite
+        .prepare(
+          `INSERT INTO llm_model_assignments
+             (id, scope, capability_key, provider_id, model_name, priority, created_at, updated_at, use_global)
+           VALUES ('assign_user_made', 'system', 'prompt_optimize', 'deepseek', 'custom-model', 0, 1, 1, 0)`,
+        )
+        .run()
+
+      bootstrapDatabase(sqlite)
+
+      const rows = readAssignments(sqlite)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ id: 'assign_user_made', model_name: 'custom-model' })
+      // 已配置 ⇒ 记账，但一条都不补
+      expect(hasMigration(sqlite)).toBe(true)
+    })
+  })
+
+  it('is a one-shot: clearing the assignments later does not resurrect them', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'deepseek' })
+      bootstrapDatabase(sqlite)
+      expect(readAssignments(sqlite).length).toBeGreaterThan(0)
+
+      // 用户随后在「设置 → 模型分配」里全部清空
+      sqlite.prepare('DELETE FROM llm_model_assignments').run()
+      bootstrapDatabase(sqlite)
+      bootstrapDatabase(sqlite)
+
+      expect(readAssignments(sqlite)).toEqual([])
+    })
+  })
+
+  it('leaves the model name null when the provider lists no usable model', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'deepseek', models: [] })
+
+      bootstrapDatabase(sqlite)
+
+      const rows = readAssignments(sqlite)
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        expect(row.provider_id).toBe('deepseek')
+        // 模型名为空不是错误：route 侧有 DEFAULT_MODELS[providerType] 兜底
+        expect(row.model_name).toBeNull()
+      }
+    })
+  })
+})

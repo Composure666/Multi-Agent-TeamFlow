@@ -19,6 +19,12 @@
 import type Database from 'better-sqlite3'
 
 import { BRAND_NAME } from '@/lib/brand'
+import {
+  GLOBAL_KEYS,
+  GLOBAL_PRIORITY_KEY,
+  MODALITY_CAPABILITIES,
+  SYSTEM_CAPABILITIES,
+} from '@/lib/llm-shared'
 import { BUILTIN_AGENTS, UI_DESIGNER_ARTIFACT_PROMPT_HINT } from './builtin-agents'
 import { MESSAGE_SEARCH_BACKFILL, MESSAGE_SEARCH_DDL } from './message-search-schema'
 
@@ -719,6 +725,135 @@ function renameLegacyBrandOnce(sqlite: Database.Database): void {
   tx()
 }
 
+/**
+ * 存量安装的一次性 seed：把「模型分配」补回空库。
+ *
+ * 背景（2026-09-19 线上实测）：09-17 弃用百炼时清理供应商，把 `llm_model_assignments`
+ * 一起清空了。而 `resolveProvider(capability)` 在「该能力没记录 → 回落 global:default →
+ * 也没有」时返回 null ⇒ 所有走能力优先级链的功能（提示词增强、团队成员「重新生成」）
+ * 在线上永远只能落到本地兜底，用户看到的就是「点了一下，内容没变化」。
+ *
+ * 三条口径（改动前先读）：
+ *  1. **只补空表。** 只要库里已经有过任何一条分配就一律不碰 —— 用户 / UI 配过的不能被迁移
+ *     改写；用户后来手动清空也不能被重新塞回来。空表 = 全新实例，或「分配被一起清掉了」。
+ *  2. **供应商只挑能用的。** 优先「deepseek 且已连接」→「deepseek 有 key」→「任一已连接且有 key」
+ *     →「任一有 key」。一条都没有时**不记账**，下次启动再判断（新装实例补上 key 就自动补）。
+ *  3. 每个能力只写一行：priority 0 + use_global 0（显式走能力链，运行时不再回落全局）。
+ */
+const LLM_ASSIGNMENT_SEED_MIGRATION = 'seed_default_llm_assignments_v1'
+
+type LlmAssignmentSeedScope = 'global' | 'system' | 'agent'
+
+/** 要补的能力键与各自落在哪个 scope 下；顺序即插入顺序。 */
+function llmAssignmentSeedTargets(): Array<{ scope: LlmAssignmentSeedScope; key: string }> {
+  return [
+    // 全局策略：任何「自己没配」的能力都会回落到 global:default 这条链，
+    // 所以这三条是「其他能力全空也还能跑」的最后一道保险。
+    { scope: 'global', key: GLOBAL_PRIORITY_KEY },
+    { scope: 'global', key: GLOBAL_KEYS.defaultProvider },
+    { scope: 'global', key: GLOBAL_KEYS.fallbackProvider },
+    // 系统能力（提示词增强 / 任务规划 / 上下文摘要 / 系统对话）
+    ...SYSTEM_CAPABILITIES.map((capability) => ({ scope: 'system' as const, key: capability.key })),
+    // Agent 四类模态（代码 / 文本 / 视觉 / 生图）
+    ...MODALITY_CAPABILITIES.map((capability) => ({ scope: 'agent' as const, key: capability.key })),
+  ]
+}
+
+/** 从 llm_providers 里挑一个「真能用」的供应商；没有就返回 null（此时不 seed）。 */
+function pickLlmAssignmentSeedProvider(
+  sqlite: Database.Database,
+): { id: string; modelName: string | null } | null {
+  const rows = sqlite
+    .prepare('SELECT id, api_key, models, is_connected FROM llm_providers')
+    .all() as Array<{ id: string; api_key: string | null; models: string | null; is_connected: number }>
+
+  const usable = rows.filter((row) => Boolean(row.api_key && row.api_key.trim()))
+  if (usable.length === 0) return null
+
+  const chosen =
+    usable.find((row) => row.id === 'deepseek' && row.is_connected) ??
+    usable.find((row) => row.id === 'deepseek') ??
+    usable.find((row) => row.is_connected) ??
+    usable[0]
+
+  return { id: chosen.id, modelName: firstModelNameOf(chosen.models) }
+}
+
+/** llm_providers.models 是 JSON 数组文本；取第一条非空字符串，解析不了就返回 null。 */
+function firstModelNameOf(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    const first = parsed.find((item) => typeof item === 'string' && item.trim())
+    return typeof first === 'string' ? first.trim() : null
+  } catch {
+    return null
+  }
+}
+
+/** capabilityKey → 稳定的分配 id（沿用历史 seed 的命名：`assign_prompt_optimize_0`）。 */
+function llmAssignmentSeedId(capabilityKey: string): string {
+  return `assign_${capabilityKey.replace(/[^a-zA-Z0-9]+/g, '_')}_0`
+}
+
+function markLlmAssignmentSeed(sqlite: Database.Database): void {
+  sqlite
+    .prepare('INSERT OR REPLACE INTO bootstrap_migrations (key, applied_at) VALUES (?, ?)')
+    .run(LLM_ASSIGNMENT_SEED_MIGRATION, Date.now())
+}
+
+function seedDefaultLlmAssignmentsOnce(sqlite: Database.Database): void {
+  const tx = sqlite.transaction(() => {
+    // 守卫读必须放在事务内、且用 BEGIN IMMEDIATE：`next build` 会并发起多个 worker，
+    // 每个 worker 都会跑一次 bootstrap。若在事务外读标记，多个 worker 会同时认为
+    // 「还没跑过」而各写一份（甚至撞主键 / 撞 SQLITE_BUSY）。IMMEDIATE 让后到者先等写锁，
+    // 拿到锁时快照已刷新，就能读到标记并直接跳过。
+    const applied = sqlite
+      .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+      .get(LLM_ASSIGNMENT_SEED_MIGRATION)
+    if (applied) return
+
+    const existing = sqlite.prepare('SELECT COUNT(*) AS n FROM llm_model_assignments').get() as { n: number }
+    if (existing.n > 0) {
+      // 已经有配置（用户配的，或历史 seed 留下的）⇒ 一条都不动，只记账，省掉以后的重复判断。
+      markLlmAssignmentSeed(sqlite)
+      return
+    }
+
+    const provider = pickLlmAssignmentSeedProvider(sqlite)
+    if (!provider) {
+      // 一条带 key 的供应商都没有（新装实例还没接供应商）⇒ 不记账，下次启动再看。
+      console.warn('[bootstrap] 跳过模型分配 seed：llm_providers 里没有任何带 key 的供应商')
+      return
+    }
+
+    const insert = sqlite.prepare(
+      `INSERT OR IGNORE INTO llm_model_assignments
+         (id, scope, capability_key, provider_id, model_name, priority, created_at, updated_at, use_global)
+       VALUES (@id, @scope, @capabilityKey, @providerId, @modelName, 0, @now, @now, 0)`,
+    )
+
+    const now = Date.now()
+    for (const target of llmAssignmentSeedTargets()) {
+      insert.run({
+        id: llmAssignmentSeedId(target.key),
+        scope: target.scope,
+        capabilityKey: target.key,
+        providerId: provider.id,
+        modelName: provider.modelName,
+        now,
+      })
+    }
+
+    markLlmAssignmentSeed(sqlite)
+    console.info(
+      `[bootstrap] 已 seed 模型分配：${llmAssignmentSeedTargets().length} 个能力 → ${provider.id}/${provider.modelName ?? '(供应商默认模型)'}`,
+    )
+  })
+  tx.immediate()
+}
+
 function ensureSchema(sqlite: Database.Database): void {
   for (const stmt of DDL) {
     sqlite.exec(stmt)
@@ -1128,5 +1263,6 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   // 品牌改名的一次性提示词迁移放在 builtin agent 升级之后，
   // 这样 upgradeBuiltinAgents 追加的提示词片段也能被一起扫到。
   renameLegacyBrandOnce(sqlite)
+  seedDefaultLlmAssignmentsOnce(sqlite)
   ensureDemoAutomations(sqlite)
 }
