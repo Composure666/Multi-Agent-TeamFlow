@@ -1,0 +1,45 @@
+[Unit]
+Description=AgentHub — Next.js standalone server (multi-agent workspace)
+Documentation=https://gitee.com/Composure666/agent-hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agenthub
+Group=agenthub
+
+# server.js 第一行会 process.chdir(__dirname)，所以这里只是给 systemd 一个起点，
+# 真正的工作目录是 /opt/agenthub/src/.next/standalone
+WorkingDirectory=/opt/agenthub/src/.next/standalone
+
+# 密钥（ANTHROPIC_API_KEY 等）。先加载文件，再用下面的 Environment= 覆盖，保证监听地址不被改错。
+EnvironmentFile=-/etc/agenthub/agenthub.env
+
+# HOSTNAME 必须显式设：systemd 默认会往服务里注入机器主机名，
+# 一旦 Next 读到它就会去绑定那个名字而不是 127.0.0.1。
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=NEXT_TELEMETRY_DISABLED=1
+# 2G 物理内存，给 node 主进程一个明确堆上界，避免和 agent 子进程抢爆内存
+Environment=NODE_OPTIONS=--max-old-space-size=1024
+
+ExecStart=/usr/local/bin/node /opt/agenthub/src/.next/standalone/server.js
+
+Restart=always
+RestartSec=5
+# 构建/首次启动较慢，给足优雅退出时间
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+StandardOutput=append:/var/log/agenthub/out.log
+StandardError=append:/var/log/agenthub/err.log
+
+# 说明：这里刻意不做激进加固（ProtectSystem / NoNewPrivileges / PrivateTmp）。
+# 本服务的核心能力之一就是通过 node-pty 给使用者一个真实 shell，
+# 过度加固会直接把功能锁死。安全边界请放在 Nginx 鉴权 + 云安全组那一层
+# （见 deploy/nginx-agenthub.conf 里的 auth_basic）。
+
+[Install]
+WantedBy=multi-user.target

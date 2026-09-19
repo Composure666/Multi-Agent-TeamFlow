@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentHub 部署 · 点击式操作图册</title>
+<style>
+  :root{
+    --bg:#F7F8FB; --card:#FFFFFF; --line:#E5E7EB; --line2:#D7DAE0;
+    --ink:#1A1D24; --ink2:#5A6172; --ink3:#8A91A0;
+    --blue:#0B6BFF; --blue-bg:#EAF2FF; --blue-line:#B7D3FF;
+    --green:#0F8A4D; --green-bg:#E9F7EF; --green-line:#B4E0C7;
+    --amber:#A86400; --amber-bg:#FFF6E5; --amber-line:#FFD699;
+    --red:#C0392B; --red-bg:#FDECEA; --red-line:#F5B7B1;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:40px 22px 90px}
+
+  /* ---------- 头部 ---------- */
+  .hero{background:linear-gradient(135deg,#0B6BFF,#2E86FF);border-radius:16px;padding:28px 30px;color:#fff;box-shadow:0 8px 26px rgba(11,107,255,.18)}
+  .hero h1{margin:0 0 6px;font-size:25px;letter-spacing:.3px}
+  .hero p{margin:0;opacity:.94;font-size:14.5px}
+  .hero .facts{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .hero .fact{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:7px 13px;font-size:13px}
+  .hero .fact b{font-family:var(--mono);font-weight:600}
+
+  /* ---------- 总览 ---------- */
+  .overview{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0 34px}
+  .ov{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:12px 13px;font-size:13px;position:relative}
+  .ov b{display:block;color:var(--ink3);font-weight:500;font-size:11.5px;letter-spacing:.6px;margin-bottom:3px}
+  .ov span{font-weight:600}
+
+  /* ---------- 步骤卡 ---------- */
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:20px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.04)}
+  .step-head{display:flex;align-items:flex-start;gap:14px;padding:19px 22px;border-bottom:1px solid var(--line)}
+  .num{flex:0 0 34px;height:34px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15.5px}
+  .step-head h2{margin:1px 0 3px;font-size:17.5px}
+  .step-head .sub{color:var(--ink3);font-size:12.5px;font-family:var(--mono)}
+  .step-body{padding:20px 22px}
+  .step-body>*:first-child{margin-top:0}
+  .step-body>*:last-child{margin-bottom:0}
+
+  h3{font-size:14px;margin:22px 0 9px;color:var(--ink2);letter-spacing:.3px;display:flex;align-items:center;gap:7px}
+  h3::before{content:'';width:3px;height:14px;background:var(--blue);border-radius:2px}
+
+  /* ---------- 代码块 ---------- */
+  .code{position:relative;background:#1C2029;border-radius:10px;margin:11px 0;overflow:hidden}
+  .code pre{margin:0;padding:15px 16px;overflow-x:auto;color:#E6E9EF;font-family:var(--mono);font-size:12.8px;line-height:1.68}
+  .code .c{color:#7C869B}
+  .code .k{color:#7FC4FF}
+  .code .s{color:#9BE49B}
+  .copy{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.1);color:#C9D1DE;border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:3px 10px;font-size:11.5px;cursor:pointer;transition:.15s;font-family:inherit}
+  .copy:hover{background:rgba(255,255,255,.2);color:#fff}
+  .copy.done{background:var(--green);border-color:var(--green);color:#fff}
+
+  code.inl{background:#F0F2F6;border:1px solid var(--line);border-radius:5px;padding:1.5px 6px;font-family:var(--mono);font-size:12.6px;color:#B4315A}
+
+  /* ---------- 提示条 ---------- */
+  .note{border-radius:10px;padding:12px 15px;font-size:13.6px;margin:13px 0;border:1px solid;display:flex;gap:10px}
+  .note .ico{flex:0 0 auto;font-size:15px;line-height:1.55}
+  .note.info{background:var(--blue-bg);border-color:var(--blue-line)}
+  .note.ok{background:var(--green-bg);border-color:var(--green-line)}
+  .note.warn{background:var(--amber-bg);border-color:var(--amber-line)}
+  .note.danger{background:var(--red-bg);border-color:var(--red-line)}
+  .note b{font-weight:650}
+  .note ul{margin:6px 0 0;padding-left:18px}
+  .note li{margin:3px 0}
+
+  /* ---------- 模拟控制台 UI ---------- */
+  .mock{border:1px solid var(--line2);border-radius:11px;overflow:hidden;margin:14px 0;background:#fff;box-shadow:0 2px 8px rgba(16,24,40,.06)}
+  .mock-bar{background:#F1F3F7;border-bottom:1px solid var(--line);padding:8px 13px;font-size:12px;color:var(--ink3);display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#D3D7E0}
+  .mock-in{padding:15px}
+  .mock-title{font-size:13px;color:var(--ink3);margin-bottom:10px;font-weight:600;letter-spacing:.3px}
+
+  .tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .tbl th{text-align:left;color:var(--ink3);font-weight:500;font-size:11.5px;letter-spacing:.5px;padding:0 10px 8px;border-bottom:1px solid var(--line)}
+  .tbl td{padding:11px 10px;border-bottom:1px solid #F1F3F7;vertical-align:middle}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl .mono{font-family:var(--mono);font-size:12.3px}
+  .pill{display:inline-flex;align-items:center;gap:5px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-line);border-radius:20px;padding:2px 9px;font-size:11.5px;font-weight:600}
+  .pill::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+  .btn{display:inline-block;border:1px solid var(--line2);border-radius:6px;padding:3.5px 11px;font-size:12.5px;color:var(--ink2);background:#fff;margin-right:6px}
+  .btn.primary{border-color:var(--blue);color:var(--blue);background:var(--blue-bg);font-weight:600}
+  .btn.hot{position:relative;box-shadow:0 0 0 0 rgba(11,107,255,.5);animation:ring 1.9s infinite}
+  @keyframes ring{
+    0%{box-shadow:0 0 0 0 rgba(11,107,255,.45)}
+    70%{box-shadow:0 0 0 9px rgba(11,107,255,0)}
+    100%{box-shadow:0 0 0 0 rgba(11,107,255,0)}
+  }
+  .ba{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;background:#E53935;color:#fff;font-size:11.5px;font-weight:700;margin-left:6px;vertical-align:middle;flex:0 0 auto}
+
+  .arrow{text-align:center;color:var(--ink3);font-size:18px;line-height:1;margin:4px 0}
+
+  .ol{margin:8px 0;padding-left:22px;font-size:13.8px}
+  .ol li{margin:6px 0}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:13.5px;margin:10px 0}
+  .kv dt{color:var(--ink3)}
+  .kv dd{margin:0}
+
+  .expect{background:#FBFCFE;border:1px dashed var(--line2);border-radius:9px;padding:11px 14px;font-family:var(--mono);font-size:12.4px;color:var(--ink2);margin:10px 0;white-space:pre-wrap}
+  .expect .hl{color:var(--green);font-weight:700}
+  .expect .lb{color:var(--ink3)}
+
+  .final{background:linear-gradient(135deg,#0F8A4D,#22A55E);border-radius:14px;padding:22px 24px;color:#fff;margin-top:8px}
+  .final h2{margin:0 0 8px;font-size:18px}
+  .final a{color:#fff;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:7px;padding:3px 10px;text-decoration:none;font-family:var(--mono);font-size:13.5px}
+
+  details{background:#FBFCFE;border:1px solid var(--line);border-radius:10px;padding:0;margin:9px 0;overflow:hidden}
+  summary{cursor:pointer;padding:12px 15px;font-size:13.6px;font-weight:600;color:var(--ink2);list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:'▸ ';color:var(--blue);font-weight:700}
+  details[open] summary::before{content:'▾ '}
+  details .inner{padding:0 15px 15px;font-size:13.5px;color:var(--ink2)}
+
+  .hr{height:1px;background:var(--line);margin:30px 0}
+
+  .foot{color:var(--ink3);font-size:12.5px;text-align:center;margin-top:26px;line-height:1.9}
+
+  @media (max-width:720px){
+    .overview{grid-template-columns:repeat(2,1fr)}
+    .wrap{padding:24px 14px 70px}
+    .hero{padding:22px 20px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 头部 ============ -->
+  <div class="hero">
+    <h1>AgentHub 部署 · 点击式操作图册</h1>
+    <p>照着顺序点，命令全部复制粘贴。不需要装任何软件，全程在浏览器里完成。</p>
+    <div class="facts">
+      <div class="fact">服务器 <b>101.42.94.222</b></div>
+      <div class="fact">实例 <b>lhins-8caaphmu</b></div>
+      <div class="fact">配置 <b>2 核 2G</b></div>
+      <div class="fact">预计总耗时 <b>30–50 分钟</b>（大头是构建）</div>
+    </div>
+  </div>
+
+  <!-- ============ 总览 ============ -->
+  <div class="overview">
+    <div class="ov"><b>第 1 步</b><span>打开网页终端</span></div>
+    <div class="ov"><b>第 2 步</b><span>上传源码包</span></div>
+    <div class="ov"><b>第 3 步</b><span>解压 + 初始化</span></div>
+    <div class="ov"><b>第 4 步</b><span>填 API 密钥</span></div>
+    <div class="ov"><b>第 5 步</b><span>构建（20–40 分钟）</span></div>
+    <div class="ov"><b>第 6 步</b><span>装服务并启动</span></div>
+    <div class="ov"><b>第 7 步</b><span>浏览器验收</span></div>
+    <div class="ov"><b>结果</b><span>http://101.42.94.222/</span></div>
+  </div>
+
+  <!-- ============ 开工前 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num" style="background:#5A6172">0</div>
+      <div>
+        <h2>开工前先确定两件事</h2>
+        <div class="sub">1 分钟</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <h3>确认 80 端口已放行（大概率已经是了）</h3>
+      <p style="margin:0;font-size:13.8px">我探测过你这台机器：<code class="inl">80</code> 端口云安全组<b>已经放行</b>（能连通但还没服务在听）。所以你只需要去确认一眼，不用改。</p>
+      <div class="mock">
+        <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:6px">console.cloud.tencent.com/lighthouse/instance</span></div>
+        <div class="mock-in">
+          <div class="mock-title">点击实例行上方/左侧的「防火墙」标签页</div>
+          <div style="font-size:13px;color:var(--ink2)">
+            标签页顺序一般是：<b>概要</b> · <b>防火墙</b> · 快照 · 镜像 · 域名 · 密钥 · 监控
+            <span class="ba">1</span>
+          </div>
+          <div class="arrow">▼</div>
+          <div class="mock-title">看规则列表里有没有这一条</div>
+          <table class="tbl">
+            <tr><th>应用类型</th><th>协议</th><th>端口</th><th>来源</th><th>备注</th></tr>
+            <tr><td>HTTP (80)</td><td class="mono">TCP</td><td class="mono">80</td><td class="mono">0.0.0.0/0</td><td>已有 ✓</td></tr>
+            <tr><td>SSH (22)</td><td class="mono">TCP</td><td class="mono">22</td><td class="mono">0.0.0.0/0</td><td>已有 ✓</td></tr>
+          </table>
+          <div class="note ok" style="margin-top:12px;font-size:13px">
+            <span class="ico">✓</span>
+            <div>有这两条就够了。<b>不要</b>去加 3000 或 60646 —— 服务只监听本机，加开放反而危险。</div>
+          </div>
+        </div>
+      </div>
+
+      <h3>确认系统是 Ubuntu（不是宝塔之类的应用镜像）</h3>
+      <p style="margin:0;font-size:13.8px">这一步在你打开网页终端后顺手看一眼就行（见第 3 步的命令）。如果是「宝塔面板 / WordPress / 应用镜像」，需要先重装系统：</p>
+      <div class="mock">
+        <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:6px">实例列表 · 操作列</span></div>
+        <div class="mock-in">
+          <div style="font-size:13px;color:var(--ink2)">
+            点实例行右侧的 <span class="btn">更多 <span style="font-size:9px">▾</span></span> → 下拉里选 <b>「重装系统」</b>
+            <span class="ba">2</span>
+          </div>
+          <div class="arrow">▼</div>
+          <div style="font-size:13px;color:var(--ink2)">
+            弹窗里选 <b>「系统镜像」</b> → <b>Ubuntu Server 22.04 LTS 64bit</b>（或 24.04）→ 设置 root 密码 → 勾选确认 → 提交
+          </div>
+          <div class="note danger" style="margin-top:12px;font-size:13px">
+            <span class="ico">⚠</span>
+            <div><b>重装会清空服务器上一切数据。</b>如果这台机器上已经有你在意的东西，<b>不要</b>点，先把这个页面关掉跟我说。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 1 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">1</div>
+      <div>
+        <h2>打开网页终端</h2>
+        <div class="sub">就是你现在这个页面 · 1 分钟</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="mock">
+        <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:6px">腾讯云轻量应用服务器 · 实例详情</span></div>
+        <div class="mock-in">
+          <table class="tbl">
+            <tr><th>实例 ID</th><th>IP</th><th>状态</th><th style="text-align:right">操作</th></tr>
+            <tr>
+              <td class="mono">lhins-8caaphmu</td>
+              <td class="mono">101.42.94.222</td>
+              <td><span class="pill">运行中</span></td>
+              <td style="text-align:right;white-space:nowrap">
+                <span class="btn primary hot">登录</span>
+                <span class="btn">更多 ▾</span>
+              </td>
+            </tr>
+          </table>
+          <div style="font-size:12.5px;color:var(--ink3);margin-top:11px">
+            ↑ 点这个蓝框的 <b>「登录」</b> 按钮
+          </div>
+        </div>
+      </div>
+      <p style="font-size:13.8px">会弹出 / 跳转到一个<b>黑色终端窗口</b>（腾讯云叫 OrcaTerm，网页版 SSH）。首次可能让你：</p>
+      <ul class="ol">
+        <li>选择 <b>「密码登录」</b> 或 <b>「密钥登录」</b> → 选<b>密码登录</b></li>
+        <li>用户名填 <code class="inl">root</code>，密码填你买机器时设的密码</li>
+        <li>忘了密码？回控制台 → <span class="btn">更多 ▾</span> → <b>「重置密码」</b> → 重设后<b>回到控制台把实例「关机」再「开机」</b>（重启有时不生效）</li>
+      </ul>
+      <div class="note info">
+        <span class="ico">💡</span>
+        <div>看到提示符变成 <code class="inl">root@VM-xxx:~#</code> 就说明进去了。接下来所有命令都粘在这个窗口里。</div>
+      </div>
+
+      <h3>⚠️ 如果你的提示符是 <code class="inl">ubuntu@VM-0-9-ubuntu:~$</code></h3>
+      <div class="note warn">
+        <span class="ico">👤</span>
+        <div>
+          <b>这是正常的，不是出错。</b>腾讯云的 <b>Ubuntu 镜像默认登录用户就是 <code class="inl">ubuntu</code></b>，
+          root 默认不允许直连 —— 这是 Ubuntu 官方的安全设计。<br>
+          但它会影响后面几步（权限、上传路径），所以<b>先做一次切换</b>：
+          <div class="code" style="margin-top:10px"><pre><button class="copy">复制</button>sudo -i</pre></div>
+          <ul>
+            <li>提示符变成 <code class="inl">root@VM-0-9-ubuntu:~#</code> → <b>成功</b>，后面按图册原样走，不用改任何东西</li>
+            <li>要密码 → 输 <b>root 密码</b>（买机器 / 重置密码时设的那个）</li>
+            <li><code class="inl">sudo</code> 用不了 → 改用 <code class="inl">su -</code>，同样输 root 密码</li>
+          </ul>
+          <b>10 秒自查</b>（在 <code class="inl">ubuntu</code> 提示符下直接敲）：
+          <div class="code" style="margin-top:10px"><pre><button class="copy">复制</button>id
+sudo -n true 2>/dev/null && echo 'sudo: 免密可用' || echo 'sudo: 需要密码'</pre></div>
+          如果两条路都进不去 root，去控制台「更多 ▾ → 重置密码」设一个，重启实例后重试。
+        </div>
+      </div>
+      <div class="note ok">
+        <span class="ico">✓</span>
+        <div>我已经探测过你这台机器：<b><code class="inl">root</code> 和 <code class="inl">ubuntu</code> 两个账号都允许密码登录</b>。
+        所以 scp 用哪个用户都行 —— 用 <code class="inl">root@</code> 最省事（路径保持 <code class="inl">/root/</code> 不变）。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 2 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">2</div>
+      <div>
+        <h2>把源码包传上去</h2>
+        <div class="sub">8.8 MB · 788 个文件 · 2 分钟</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p style="margin-top:0;font-size:13.8px">要传的文件在你本机这个位置：</p>
+      <div class="code"><pre><span class="c"># 你电脑上的这个文件（8.8 MB，已经打好包并逐文件校验过）</span>
+C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz</pre></div>
+
+      <h3>方式 A：用网页终端的文件上传（推荐，纯点击）</h3>
+      <div class="mock">
+        <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:6px">OrcaTerm 网页终端</span></div>
+        <div class="mock-in">
+          <div style="display:flex;gap:14px;align-items:stretch">
+            <div style="flex:0 0 54px;background:#F1F3F7;border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px 0;font-size:20px">
+              <span title="文件">📁<span class="ba" style="position:relative;top:-14px;left:9px;margin:0">1</span></span>
+              <span style="opacity:.35">⌨️</span>
+              <span style="opacity:.35">⚙️</span>
+            </div>
+            <div style="flex:1;background:#1C2029;border-radius:8px;padding:14px;font-family:var(--mono);font-size:12.2px;color:#9BE49B;line-height:1.7">
+              root@VM-4-13-ubuntu:~#<br>
+              <span style="color:#E6E9EF">_</span><br><br>
+              <span style="color:#7C869B">← 点左侧竖排工具栏第一个「文件」图标，<br>&nbsp;&nbsp;打开文件面板后，把 tar.gz <b>拖进去</b>（或点上传按钮选文件）</span>
+            </div>
+          </div>
+          <div class="note warn" style="margin-top:13px;font-size:13px">
+            <span class="ico">⚠</span>
+            <div>不同版本的 OrcaTerm 工具栏位置略有差异 —— 如果<b>左侧没有</b>图标栏，找<b>右上角</b>的工具按钮 / <code class="inl">⋯</code> 菜单里的「文件管理」。实在找不到就走 <b>方式 B</b>。</div>
+          </div>
+        </div>
+      </div>
+      <div class="note info">
+        <span class="ico">💡</span>
+        <div>上传目标目录默认就是 <code class="inl">/root</code>，正好是我们要的位置。传完在终端里敲 <code class="inl">ls -lh /root/*.tar.gz</code> 应该能看到这个文件，大约 8.8M。</div>
+      </div>
+
+      <h3>方式 B：本地 PowerShell 一条命令（找不到上传按钮就用这个）</h3>
+      <p style="margin:0;font-size:13.8px">在你<b>自己电脑</b>上按 <code class="inl">Win + X</code> → 选「终端 / PowerShell」，粘贴：</p>
+      <div class="code"><pre><button class="copy">复制</button>scp -o StrictHostKeyChecking=accept-new "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@101.42.94.222:/root/</pre></div>
+      <p style="font-size:13.5px;color:var(--ink2);margin:6px 0 0">
+        <code class="inl">accept-new</code> 的意思是「第一次见到的服务器自动接受指纹，省掉手输 yes」。<br>
+        密码提示处<b>不显示任何字符是正常的</b>；如果敲了没反应，改用<b>粘贴</b>（见 §卡住了 的第 1 条）。
+      </p>
+      <div class="note info">
+        <span class="ico">👤</span>
+        <div><b>只记得 ubuntu 密码？</b>把命令里的 <code class="inl">root@</code> 换成 <code class="inl">ubuntu@</code>，
+        路径从 <code class="inl">:/root/</code> 换成 <code class="inl">:/tmp/</code>（ubuntu 无权重写 /root）。
+        然后在服务器的 <b>root 提示符</b>下把包挪过去：
+          <div class="code" style="margin-top:8px"><pre><button class="copy">复制</button>sudo mv /tmp/agenthub-src.tar.gz /root/</pre></div>
+        </div>
+      </div>
+      <div class="note warn">
+        <span class="ico">⚠</span>
+        <div>如果你<b>重装过系统</b>，服务器指纹会变，scp 会报 <code class="inl">REMOTE HOST IDENTIFICATION HAS CHANGED</code>。清掉旧记录即可：
+          <div class="code" style="margin-top:8px"><pre><button class="copy">复制</button>ssh-keygen -R 101.42.94.222</pre></div>
+        </div>
+      </div>
+
+      <h3>方式 B 的密钥版：彻底告别输密码（推荐，一次性设置）</h3>
+      <p style="margin:0;font-size:13.8px">密钥已经为你生成好了（<code class="inl">C:\Users\he\.ssh\agenthub_lighthouse</code>）。
+      只要把<b>公钥</b>装到服务器上一次，之后 <code class="inl">scp</code> / <code class="inl">ssh</code> 全程不再问密码 ——
+      也彻底绕开上面那个「密码打不进去」的毛病。</p>
+      <p style="font-size:13.8px;margin:12px 0 4px"><b>① 在网页终端里粘贴这一段</b>（它会把公钥追加到服务器的 authorized_keys）：</p>
+      <div class="code"><pre><button class="copy">复制</button>mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ5ZuyUnwHTawarBMgomjo/Imn4w5zu6Arilap6i5uo2 agenthub-lighthouse-deploy' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && wc -l ~/.ssh/authorized_keys</pre></div>
+      <p style="font-size:13.5px;color:var(--ink2);margin:6px 0 14px">末尾会打印 <code class="inl">1</code>（或更多），说明写进去了。</p>
+      <p style="font-size:13.8px;margin:0 0 4px"><b>② 回到本地，用带 <code class="inl">-i</code> 的命令传文件：</b></p>
+      <div class="code"><pre><button class="copy">复制</button>scp -i "C:\Users\he\.ssh\agenthub_lighthouse" -o IdentitiesOnly=yes "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@101.42.94.222:/root/</pre></div>
+      <div class="note info">
+        <span class="ico">🔑</span>
+        <div>私钥保存在你本机 <code class="inl">C:\Users\he\.ssh\agenthub_lighthouse</code>，<b>没有设密码短语</b>（方便脚本调用）。
+        这个文件等于服务器的钥匙，别外传、别提交进 git。想更保险可以给它加个密码短语：
+        <code class="inl">ssh-keygen -p -f C:\Users\he\.ssh\agenthub_lighthouse</code>（加了之后每次用都要输一次，脚本就不能自动跑了）。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 3 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">3</div>
+      <div>
+        <h2>解压 + 初始化系统</h2>
+        <div class="sub">3–6 分钟 · 装 4G swap / Node 22 / pnpm / Nginx</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p style="margin-top:0;font-size:13.8px">回到<b>网页终端</b>，把下面整块复制粘贴进去，回车：</p>
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 先看一眼系统版本（应该是 Ubuntu 20/22/24）</span>
+cat /etc/os-release | head -3
+
+<span class="c"># 解压源码（顺序不能反：要先解压，第 4 步的初始化脚本会把 /opt/agenthub 的属主改掉）</span>
+mkdir -p /opt/agenthub/src
+tar -xzf /root/agenthub-src.tar.gz -C /opt/agenthub/src
+ls /opt/agenthub/src
+
+<span class="c"># 初始化：4G swap + Node 22.22.2 + pnpm 11 + 编译工具链 + agenthub 用户 + Nginx</span>
+bash /opt/agenthub/src/deploy/01-server-init.sh</pre></div>
+
+      <div class="note warn">
+        <span class="ico">⏳</span>
+        <div>中间会滚动很多行。<b>中途别关窗口。</b>如果网络断了导致终端掉线，重新「登录」进来，把上面那行 <code class="inl">bash .../01-server-init.sh</code> 再跑一遍即可（脚本是幂等的）。</div>
+      </div>
+
+      <h3>成功的标志</h3>
+      <p style="margin:0;font-size:13.8px">脚本最后会打印一段内存状态，必须看到 <b>Swap 是 4.0Gi</b>：</p>
+      <div class="expect"><span class="lb">               total        used        free</span>
+Mem:           <span class="lb">1.9Gi</span>      <span class="lb">0.3Gi</span>      <span class="lb">1.1Gi</span>
+<span class="hl">Swap:         4.0Gi          0B       4.0Gi</span>   ← 有这个才算过</div>
+      <div class="note danger">
+        <span class="ico">❗</span>
+        <div><b>没有这 4G swap，下一步的构建 100% 会被系统杀掉（OOM）。</b>如果 swap 没起来，先别往下走，把终端里的报错发我。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 4 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">4</div>
+      <div>
+        <h2>填 API 密钥（别跳过）</h2>
+        <div class="sub">2 分钟 · 没有它 Agent 跑不起来</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p style="margin-top:0;font-size:13.8px">你本机的 <code class="inl">.env.local</code> 里正好就是服务器需要的那 7 项（<code class="inl">DEEPSEEK_API_KEY</code>、<code class="inl">ORCHESTRATOR_PROVIDER</code>、<code class="inl">ORCHESTRATOR_MODEL_ID</code>、4 个 <code class="inl">OSS_*</code>，共约 10 行）。两种填法，选一个：
+
+      <h3>方式 A：在终端里直接粘贴（文件很小，最省事）</h3>
+      <ol class="ol">
+        <li>在<b>你电脑</b>上用记事本打开 <code class="inl">C:\Users\he\Documents\bitdance-agenthub\.env.local</code>，<b>全选复制</b>里面的内容</li>
+        <li>在网页终端里敲下面第一行，回车：</li>
+      </ol>
+      <div class="code"><pre><button class="copy">复制</button>mkdir -p /etc/agenthub && nano /etc/agenthub/agenthub.env</pre></div>
+      <ol class="ol" start="3">
+        <li>在 nano 里<b>粘贴</b>（网页终端一般用 <code class="inl">Ctrl + Shift + V</code>，或直接<b>右键</b>选粘贴）</li>
+        <li>按 <code class="inl">Ctrl + O</code> → 回车（保存）→ <code class="inl">Ctrl + X</code>（退出）</li>
+        <li>敲下面这行加固权限并核对：</li>
+      </ol>
+      <div class="code"><pre><button class="copy">复制</button>chmod 600 /etc/agenthub/agenthub.env
+awk -F= '/^[A-Z]/{print $1}' /etc/agenthub/agenthub.env</pre></div>
+      <p style="font-size:13.5px;color:var(--ink2)">最后一行会只打印<b>键名</b>（不显示密钥），应该看到 7 个名字。看到 7 个就对了。</p>
+
+      <h3>方式 B：跟源码包一起传（会 scp 的话）</h3>
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 在你自己电脑的 PowerShell 里跑</span>
+scp "C:\Users\he\Documents\bitdance-agenthub\.env.local" root@101.42.94.222:/etc/agenthub/agenthub.env</pre></div>
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 回到服务器的网页终端</span>
+chmod 600 /etc/agenthub/agenthub.env</pre></div>
+
+      <div class="note info">
+        <span class="ico">💡</span>
+        <div>打包源码时我<b>故意没有</b>把 <code class="inl">.env.local</code> 打进去（避免密钥在服务器上多留副本），所以这一步必须手工做。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 5 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">5</div>
+      <div>
+        <h2>构建（最慢的一步，去泡杯咖啡）</h2>
+        <div class="sub">20–40 分钟 · 2 核 2G 会跑 swap，慢是正常的</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <p style="margin-top:0;font-size:13.8px">复制这一整块：</p>
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 装 tmux（断线也不怕构建中断）</span>
+apt-get install -y tmux
+
+<span class="c"># 切到 agenthub 用户，开一个 tmux 会话</span>
+sudo -iu agenthub
+cd /opt/agenthub/src
+tmux new -s build
+
+<span class="c"># 开始构建（SKIP_GIT=1 = 用上传的源码，不去 git clone）</span>
+SKIP_GIT=1 bash deploy/02-deploy.sh</pre></div>
+
+      <div class="note warn">
+        <span class="ico">⚠</span>
+        <div><b>如果提示找不到 node / pnpm</b>，先敲这行再重试：
+          <div class="code" style="margin-top:8px"><pre><button class="copy">复制</button>export PATH=/usr/local/bin:$PATH</pre></div>
+        </div>
+      </div>
+
+      <h3>构建期间你会看到什么</h3>
+      <ul class="ol">
+        <li>先装依赖（几分钟），然后 <code class="inl">next build</code> 开始编译 —— <b>这一段最慢，可能要 15–30 分钟</b></li>
+        <li>风扇/负载高、内存吃满、swap 被用掉一大半：<b>都是正常现象</b></li>
+        <li>脚本会自动跳过 Electron / Playwright 的二进制下载（省 400MB），并排除手机端 <code class="inl">apps/mobile</code></li>
+      </ul>
+
+      <h3>中途想干别的 / 怕断线</h3>
+      <dl class="kv">
+        <dt>暂时离开</dt><dd>按 <code class="inl">Ctrl + B</code> 松手再按 <code class="inl">D</code>（脱离，构建继续跑）</dd>
+        <dt>回来看</dt><dd>重新登录网页终端 → <code class="inl">sudo -iu agenthub</code> → <code class="inl">tmux attach -t build</code></dd>
+      </dl>
+
+      <h3>成功的标志</h3>
+      <div class="expect"><span class="lb">============================ </span><span class="hl">构建完成</span><span class="lb"> ============================</span>
+  commit        （源码为上传包，无 git 元数据）
+  运行入口      /opt/agenthub/src/.next/standalone/server.js</div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 6 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">6</div>
+      <div>
+        <h2>装服务并启动</h2>
+        <div class="sub">1 分钟 · 会给你一个登录账号，立刻记下</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 先退出 agenthub 用户，回到 root</span>
+exit
+
+<span class="c"># 装 systemd 服务 + Nginx 反代 + 访问鉴权，并启动</span>
+bash /opt/agenthub/src/deploy/03-install-service.sh</pre></div>
+
+      <p style="font-size:13.8px">脚本最后会打印一个方框，里面是<b>访问用的用户名和密码</b>：</p>
+      <div class="expect">┌──────────────────────────────────────────────────────────┐
+│  你的访问账号（<span class="hl">只显示这一次</span>，请立刻记下来）              │
+│     用户名 / 密码：  <span class="hl">admin / xxxxxxxxxx</span>                     │
+└──────────────────────────────────────────────────────────┘</div>
+      <div class="note danger">
+        <span class="ico">🔑</span>
+        <div><b>马上截图或抄到备忘录里。</b>忘了密码可以重设：
+          <div class="code" style="margin-top:8px"><pre><button class="copy">复制</button>htpasswd /etc/nginx/.htpasswd admin</pre></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 步骤 7 ============ -->
+  <div class="step">
+    <div class="step-head">
+      <div class="num">7</div>
+      <div>
+        <h2>验收</h2>
+        <div class="sub">2 分钟</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 服务在不在跑</span>
+systemctl status agenthub --no-pager        <span class="c"># 期望 active (running)</span>
+
+<span class="c"># 本机直连后端</span>
+curl -I http://127.0.0.1:3000/              <span class="c"># 期望 200 或 307</span>
+
+<span class="c"># 走 Nginx（应该被鉴权拦住，这是对的）</span>
+curl -I http://127.0.0.1/                   <span class="c"># 期望 401</span>
+
+<span class="c"># 有没有报错</span>
+tail -n 50 /var/log/agenthub/err.log</pre></div>
+
+      <div class="final">
+        <h2>最后一步：用浏览器打开</h2>
+        <p style="margin:0 0 12px;opacity:.95;font-size:14px">弹出账号密码框 → 输入第 6 步记下的 <b>admin / 密码</b>。</p>
+        <a href="http://101.42.94.222/" target="_blank" rel="noopener noreferrer">http://101.42.94.222/</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="hr"></div>
+
+  <!-- ============ 常见问题 ============ -->
+  <h2 style="font-size:17px;margin:0 0 12px">卡住了？先看这里</h2>
+
+  <details>
+    <summary>构建跑到一半失败 / 服务器卡死</summary>
+    <div class="inner">
+      多半是内存不够被系统杀了。回到网页终端（root）确认：
+      <div class="code"><pre><button class="copy">复制</button>free -h                      <span class="c"># 确认 Swap 还是 4.0Gi</span>
+dmesg | tail -20             <span class="c"># 找 "killed process" 字样</span></pre></div>
+      如果 swap 在但还是被杀，把 V8 堆上限<b>调大</b>再重跑：
+      <div class="code"><pre><button class="copy">复制</button>sudo -iu agenthub bash -lc 'cd /opt/agenthub/src && NODE_OPTIONS="--max-old-space-size=2048" SKIP_GIT=1 bash deploy/02-deploy.sh'</pre></div>
+      （是调<b>大</b>，不是调小 —— 调小会让频繁 GC，反而更容易挂。）
+    </div>
+  </details>
+
+  <details>
+    <summary>网页终端断线了，构建还在跑吗？</summary>
+    <div class="inner">
+      用了 <code class="inl">tmux</code> 就还在。重新登录后：
+      <div class="code"><pre><button class="copy">复制</button>sudo -iu agenthub
+tmux attach -t build</pre></div>
+      没用 tmux 也大概率还在后台跑（进程不会因为 SSH 断开就死），敲 <code class="inl">ps aux | grep -c next</code> 能看到进程。
+    </div>
+  </details>
+
+  <details>
+    <summary>服务起来了，但浏览器打开是白屏 / 500</summary>
+    <div class="inner">
+      看日志定位：
+      <div class="code"><pre><button class="copy">复制</button>tail -50 /var/log/agenthub/err.log</pre></div>
+      最常见两个原因：① 第 4 步密钥没配（<code class="inl">/etc/agenthub/agenthub.env</code> 不存在或为空）；② 构建产物不完整 —— 重跑一次 <code class="inl">02-deploy.sh</code> 再 <code class="inl">systemctl restart agenthub</code>。
+    </div>
+  </details>
+
+  <details>
+    <summary>⚠️ 在终端里敲 scp / ssh，密码提示处「字打不进去」</summary>
+    <div class="inner">
+      <b>这是 Windows OpenSSH 的老毛病，跟服务器、跟你的操作都没关系。</b>
+      <br><br>
+      根因：ssh/scp 要密码时，会把控制台从「处理输入模式」切成<b>裸模式</b>直接读键盘。
+      这个模式下 <b>输入法（IME）的按键送不进去</b>，而且控制台自己的一些快捷键也失效 ——
+      所以你敲了等于没敲，回车只发出一个空行。<br>
+      另外还有一个经典陷阱：<b>无回显</b>。密码提示下本来就不显示任何字符（连 <code class="inl">*</code> 都没有），
+      光标也不动 —— 很多人以为坏了，其实输进去了。
+      <br><br>
+      <b>按顺序试，第 1 条通常就够了：</b>
+      <ol class="ol">
+        <li><b>用「粘贴」代替「打字」（最有效）。</b>
+          打开记事本把密码打出来 → <code class="inl">Ctrl+A</code> + <code class="inl">Ctrl+C</code> →
+          回到终端，在密码提示处 <b>右键</b>（或 <code class="inl">Ctrl+Shift+V</code>）粘贴 → 回车。
+          粘贴走的是另一条通道，绕开了裸模式的输入限制。</li>
+        <li><b>输入法切英文</b>：按 <code class="inl">Shift</code> 或 <code class="inl">Win + 空格</code>。裸模式下中文输入法的按键会被吞掉。</li>
+        <li><b>NumLock 按 3 下</b>（奇数次，末态不变）。这是控制台的 NumLock 状态不同步 bug，触发一次重新同步。</li>
+        <li><b>换用传统控制台</b>：Windows 设置 → 终端 → 把「默认终端应用程序」改成 <b>Windows 控制台主机</b>。
+          在 Win11 上 cmd 和 PowerShell 默认都由 Windows Terminal 托管，所以「换 cmd 也一样卡」是正常的，不是两个都坏了。</li>
+      </ol>
+      <b>永久解法（一次性，之后 scp / ssh 全程免密）：</b>
+      用 SSH 密钥。已为本机生成好一对密钥：
+      <code class="inl">C:\Users\he\.ssh\agenthub_lighthouse</code>，
+      把它的公钥粘进服务器（见下方「方式 B 的密钥版」）。
+    </div>
+  </details>
+
+  <details>
+    <summary>80 端口访问不了 / 连接超时</summary>
+    <div class="inner">
+      三处逐一确认：① 控制台「防火墙」里 80 在不在（见第 0 步）；② 服务器上 <code class="inl">systemctl status nginx</code> 是不是 running；③ <code class="inl">curl -I http://127.0.0.1/</code> 本机通不通（通 = 问题在云安全组，不通 = 问题在服务器上）。
+    </div>
+  </details>
+
+  <details>
+    <summary>以后改了代码，怎么更新？</summary>
+    <div class="inner">
+      本地电脑上一条命令打包 + 上传：
+      <div class="code"><pre><button class="copy">复制</button>powershell -ExecutionPolicy Bypass -File "C:\Users\he\Documents\bitdance-agenthub\deploy\00-pack-upload.ps1" -RemoteExtract</pre></div>
+      然后在服务器上重新构建 + 重启：
+      <div class="code"><pre><button class="copy">复制</button>sudo -iu agenthub bash -lc 'cd /opt/agenthub/src && SKIP_GIT=1 bash deploy/02-deploy.sh'
+sudo systemctl restart agenthub</pre></div>
+      数据在 <code class="inl">/opt/agenthub/data</code>，<b>重新构建不会丢</b>。
+    </div>
+  </details>
+
+  <div class="hr"></div>
+
+  <!-- ============ 安全 ============ -->
+  <div class="note danger" style="display:block;padding:18px 20px">
+    <div style="font-weight:700;font-size:15px;margin-bottom:9px">🔒 三句必须记住的话</div>
+    <ol style="margin:0;padding-left:20px;font-size:13.8px" class="ol">
+      <li>这个项目里的终端功能是 <b>真的给你一个服务器 shell</b>，不是沙箱。所以 <b>Nginx 的密码鉴权绝对不要关</b>。</li>
+      <li>服务只监听本机 3000，公网只开 80 —— <b>不要</b>去防火墙放行 3000 / 60646。</li>
+      <li><code class="inl">/etc/agenthub/agenthub.env</code> 里是真金白银的 API Key，权限必须是 <b>600</b>，不要提交到 git、不要发给别人。</li>
+    </ol>
+  </div>
+
+  <div class="foot">
+    操作图册 · 生成于 2026-09-15 · 配套脚本见 <code class="inl">deploy/</code> 目录<br>
+    服务器实测：22 通 · 80 已放行（无服务）· 443 / 3000 / 60646 关闭
+  </div>
+
+</div>
+
+<script>
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = btn.parentNode;
+    var text = pre.innerText.replace(btn.innerText, '').trim();
+    var done = function(){
+      btn.textContent = '已复制 ✓';
+      btn.classList.add('done');
+      setTimeout(function(){ btn.textContent = '复制'; btn.classList.remove('done'); }, 1600);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(function(){ fallback(text, done); });
+    } else {
+      fallback(text, done);
+    }
+  });
+});
+function fallback(text, cb){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); cb(); } catch(e){}
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>
