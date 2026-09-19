@@ -2053,7 +2053,7 @@ export function AutomationWorkspace({
       return
     }
     const originalPrompt = form.prompt.trim()
-    const originalText = originalPrompt || '未输入原始提示词，AI 将根据任务标题、描述、分类和触发计划生成。'
+    const originalText = originalPrompt || '未输入原始提示词，AI 将根据任务标题、描述和触发计划生成。'
     setPromptFilling(true)
     setPromptEnhanceOriginal(originalText)
     setPromptEnhanceResult('')
@@ -2061,7 +2061,8 @@ export function AutomationWorkspace({
     setPromptEnhanceOpen(true)
     setDialogError(null)
     try {
-      const result = await optimizePrompt(buildAutomationPromptEnhanceInput(form))
+      const { prompt, context } = buildAutomationPromptEnhanceInput(form)
+      const result = await optimizePrompt(prompt, context)
       setPromptEnhanceResult(result.enhancedText.trim())
     } catch (err) {
       const message = err instanceof Error ? err.message : 'AI 优化提示词失败'

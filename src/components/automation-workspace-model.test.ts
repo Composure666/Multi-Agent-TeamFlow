@@ -61,13 +61,29 @@ describe('automation workspace model', () => {
     const input = buildAutomationPromptEnhanceInput({
       ...automationFormFromTask(),
       title: '周一例会准备',
+      prompt: '把本周进展整理成例会材料',
       scheduleType: 'weekly',
       dayOfWeek: '1',
       timeOfDay: '08:30',
     })
 
-    expect(input).toContain('触发方式：每周 周一 08:30 执行')
-    expect(input).toContain('任务标题：周一例会准备')
+    // 用户原文与背景分开:草稿进 prompt,标题/触发方式只作背景
+    expect(input.prompt).toBe('把本周进展整理成例会材料')
+    expect(input.context.title).toBe('周一例会准备')
+    expect(input.context.schedule).toBe('每周 周一 08:30 执行')
+  })
+
+  it('falls back to title + description as the raw prompt when no draft exists', () => {
+    const input = buildAutomationPromptEnhanceInput({
+      ...automationFormFromTask(),
+      title: '每日舆情简报',
+      description: '汇总当天行业新闻',
+      prompt: '   ',
+    })
+
+    expect(input.prompt).toBe('每日舆情简报\n汇总当天行业新闻')
+    // 系统上下文(分类/审批)不再随请求下发
+    expect(JSON.stringify(input)).not.toContain('任务分类')
   })
 
   it('maps running and paused states to user-facing labels', () => {

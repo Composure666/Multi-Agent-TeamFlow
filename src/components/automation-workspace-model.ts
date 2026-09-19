@@ -1,4 +1,5 @@
 import type { AutomationScheduleType, AutomationStatus, SaveAutomationBody } from '@/lib/api'
+import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
 
 export type AutomationTaskView = {
   title: string
@@ -107,7 +108,17 @@ export function buildAutomationSaveBody(form: AutomationFormState): SaveAutomati
   }
 }
 
-export function buildAutomationPromptEnhanceInput(form: AutomationFormState): string {
+/**
+ * 自动化任务的「AI 优化提示词」入参。
+ *
+ * 这里和其它入口不同:自动化提示词本身就是由表单字段定义的,所以标题/说明/触发方式
+ * 属于**任务内容**,要随请求一起给出;分类只作为意图线索,同样不进最终提示词的正文。
+ * 返回用户原文 + 背景素材两段,由服务端决定怎么用(详见 `@/server/prompt-enhance`)。
+ */
+export function buildAutomationPromptEnhanceInput(form: AutomationFormState): {
+  prompt: string
+  context: PromptEnhanceContext
+} {
   const scheduleLabel =
     form.scheduleType === 'interval'
       ? `每 ${form.intervalMinutes || '60'} 分钟执行一次`
@@ -117,13 +128,17 @@ export function buildAutomationPromptEnhanceInput(form: AutomationFormState): st
           ? `每周 ${WEEKDAY_LABELS[Number(form.dayOfWeek || 1)] ?? '周一'} ${form.timeOfDay || '09:00'} 执行`
           : '手动触发'
 
-  return [
-    '请根据以下信息，改写或生成一段适合自动化任务执行的提示词。',
-    `任务标题：${form.title.trim() || '未命名自动化任务'}`,
-    `任务分类：${form.category.trim() || '自定义任务'}`,
-    form.description.trim() ? `任务说明：${form.description.trim()}` : '',
-    `触发方式：${scheduleLabel}`,
-    form.prompt.trim() ? `现有草稿：${form.prompt.trim()}` : '',
-    '请直接输出可保存的最终提示词，语气自然、简洁、专业；补足必要的目标、上下文、边界和结果要求，但不要强行套用固定模板，也不要解释你做了什么。',
-  ].filter((line) => line.length > 0).join('\n')
+  const draft = form.prompt.trim()
+  const description = form.description.trim()
+  const title = form.title.trim()
+
+  return {
+    // 用户原文:优先用已有草稿;没有草稿时用标题+说明作为任务定义,不拼任何系统上下文。
+    prompt: draft || [title || '未命名自动化任务', description].filter(Boolean).join('\n'),
+    context: {
+      title: title || undefined,
+      description: description || undefined,
+      schedule: scheduleLabel,
+    },
+  }
 }

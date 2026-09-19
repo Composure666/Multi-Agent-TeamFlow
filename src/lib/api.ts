@@ -28,6 +28,7 @@ import type {
   TerminalSessionRecord,
 } from '@/shared/types'
 import type { AgentDraftRequest, AgentDraftResponse } from '@/shared/agent-builder-config'
+import type { PromptEnhanceContext, PromptEnhanceResponse } from '@/shared/prompt-enhance'
 import type { AgentModality } from '@/lib/llm-shared'
 
 export interface ArtifactListItem {
@@ -585,12 +586,21 @@ export async function writeTerminalInput(
   return event
 }
 
-export async function optimizePrompt(prompt: string): Promise<{ enhancedText: string }> {
-  return json<{ enhancedText: string }>(
+/**
+ * 提示词增强。
+ *
+ * `prompt` 只放用户原始输入;会话/附件/协作方等背景走 `context`,由服务端判断是否真的
+ * 影响执行 —— 背景不会被复述进最终提示词(详见 `@/server/prompt-enhance`)。
+ */
+export async function optimizePrompt(
+  prompt: string,
+  context?: PromptEnhanceContext,
+): Promise<PromptEnhanceResponse> {
+  return json<PromptEnhanceResponse>(
     fetch('/api/prompt/optimize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, context }),
     }),
   )
 }

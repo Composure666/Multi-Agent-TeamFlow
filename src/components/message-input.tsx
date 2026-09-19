@@ -54,6 +54,7 @@ import { getToolDisplayName } from '@/lib/tool-display'
 import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAppStore, usePendingAttachments, usePendingPlanReviewForConversation, useTopLevelRunningRuns } from '@/stores/app-store'
+import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
 
 interface MentionTrigger {
   start: number // textarea 中 @ 字符的 index
@@ -712,37 +713,25 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     }
   }
 
-  const buildEnhancePromptInput = (text: string) => {
-    const contextLines = [
-      '## 当前上下文',
-      `- 会话模式：${conversation?.mode === 'group' ? '群聊' : '单聊'}`,
-      `- 会话标题：${conversation?.title ?? conversationId}`,
-      `- 写入审批模式：${approvalMode === 'review' ? 'Review（写入需审批）' : 'Auto（写入直接生效）'}`,
-    ]
+  /**
+   * 只收集**会改变任务怎么执行**的背景:协作方、附件、是否在对计划提修改意见、引用了什么。
+   * 「会话模式 / 会话标题 / 写入审批模式」属于系统状态,不改变任务本身,因此不再往请求里塞 ——
+   * 它们正是过去被拼进提示词、把结果撑长又不提升可执行性的那部分内容。
+   */
+  const buildEnhanceContext = (): PromptEnhanceContext => {
+    const context: PromptEnhanceContext = {}
     if (mentionedAgents.length > 0) {
-      contextLines.push(`- 已 @ Agent：${mentionedAgents.map((agent) => agent.name).join('、')}`)
+      context.participants = mentionedAgents.map((agent) => agent.name)
     }
-    if (pending.length > 0) {
-      contextLines.push(`- 待发送附件：${pending.map((item) => item.fileName).join('、')}`)
-    }
-    if (uploading.length > 0) {
-      contextLines.push(`- 上传中附件：${uploading.map((item) => item.name).join('、')}`)
-    }
+    const files = [...pending.map((item) => item.fileName), ...uploading.map((item) => item.name)]
+    if (files.length > 0) context.attachments = files
     if (planReview) {
-      contextLines.push('- 当前处于计划审批修改场景：用户输入将作为对执行计划的修改意见')
+      context.planRevision = true
     }
     if (pendingQuote) {
-      contextLines.push(`- 当前引用：${pendingQuote.kind === 'ask' ? '提问' : '改写'} · ${pendingQuote.sourceLabel}`)
+      context.quote = `${pendingQuote.kind === 'ask' ? '提问' : '改写'} · ${pendingQuote.sourceLabel}`
     }
-
-    return [
-      '请结合上下文增强用户提示词。',
-      '',
-      ...contextLines,
-      '',
-      '## 用户原始输入',
-      text,
-    ].join('\n').slice(0, 4000)
+    return context
   }
 
   const enhancePrompt = async () => {
@@ -762,7 +751,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     setEnhancedText('')
     setEnhanceOpen(true)
     try {
-      const result = await optimizePrompt(buildEnhancePromptInput(text))
+      const result = await optimizePrompt(text, buildEnhanceContext())
       setEnhancedText(result.enhancedText)
     } catch (err) {
       console.error('[MessageInput] optimize prompt failed', err)

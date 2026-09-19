@@ -84,6 +84,7 @@ import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
+import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
 
 type WorkbenchView = AppWorkbenchView
 
@@ -1044,20 +1045,18 @@ function NewTaskView({
     }
   }
 
-  const buildNewTaskEnhanceInput = (text: string) => {
-    const lines = [
-      '请结合新建任务上下文增强用户提示词。',
-      '',
-      '## 当前上下文',
-      `- 场景分类：${activeCategoryMeta.label}`,
-      selectedTeam ? `- 已选择小队：${selectedTeam.name}（${activeAgents.length} 位协作）` : `- 当前 Agent：${activeAgents.map((agent) => getAgentDisplayName(agent)).join('、') || '未选择'}`,
-      `- 写入审批模式：${approvalMode === 'review' ? 'Review（写入需审批）' : 'Auto（写入直接生效）'}`,
-      pendingFiles.length > 0 ? `- 待上传附件：${pendingFiles.map((file) => file.name).join('、')}` : '',
-      '',
-      '## 用户原始输入',
-      text,
-    ].filter((line) => line.length > 0)
-    return lines.join('\n').slice(0, 4000)
+  /**
+   * 只带「会改变任务怎么执行」的背景:选了小队或指定了 Agent(可能涉及分工)、待上传附件。
+   * 「场景分类」只是当前页面的筛选器、审批模式是系统状态,都跟任务本身无关,不再传给优化器。
+   */
+  const buildNewTaskEnhanceContext = (): PromptEnhanceContext => {
+    const context: PromptEnhanceContext = {}
+    const names = selectedTeam
+      ? [selectedTeam.name, ...activeAgents.map((agent) => getAgentDisplayName(agent))]
+      : activeAgents.map((agent) => getAgentDisplayName(agent))
+    if (names.length > 0) context.participants = names
+    if (pendingFiles.length > 0) context.attachments = pendingFiles.map((file) => file.name)
+    return context
   }
 
   const enhancePrompt = async () => {
@@ -1077,7 +1076,7 @@ function NewTaskView({
     setEnhancedText('')
     setEnhanceOpen(true)
     try {
-      const result = await optimizePrompt(buildNewTaskEnhanceInput(text))
+      const result = await optimizePrompt(text, buildNewTaskEnhanceContext())
       setEnhancedText(result.enhancedText)
     } catch (err) {
       console.error('[NewTaskView] optimize prompt failed', err)
