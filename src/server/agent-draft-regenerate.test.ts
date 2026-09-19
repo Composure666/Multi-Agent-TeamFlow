@@ -19,6 +19,7 @@ import { AgentDraftRequestSchema, AgentDraftResponseSchema } from './agent-draft
 const mocks = vi.hoisted(() => ({
   resolveProvider: vi.fn(),
   getProvider: vi.fn(),
+  listProviders: vi.fn(),
   createCompletion: vi.fn(),
 }))
 
@@ -33,6 +34,7 @@ vi.mock('@/server/provider-router', () => ({
 
 vi.mock('@/server/provider-service', () => ({
   getProvider: mocks.getProvider,
+  listProviders: mocks.listProviders,
 }))
 
 vi.mock('openai', () => ({
@@ -73,7 +75,10 @@ describe('agent draft regenerate', () => {
   beforeEach(() => {
     mocks.resolveProvider.mockReset()
     mocks.getProvider.mockReset()
+    mocks.listProviders.mockReset()
     mocks.createCompletion.mockReset()
+    // 缺省：库里没有任何可用供应商
+    mocks.listProviders.mockResolvedValue([])
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
   })
@@ -90,13 +95,38 @@ describe('agent draft regenerate', () => {
     expect(mocks.resolveProvider).not.toHaveBeenCalled()
   })
 
-  it('falls back to heuristic when no provider is configured', async () => {
+  it('falls back to heuristic when neither a capability chain nor a usable provider exists', async () => {
     mocks.resolveProvider.mockResolvedValue(null)
+    mocks.listProviders.mockResolvedValue([{ id: 'openai', apiKey: null, isConnected: false, models: ['gpt-5'] }])
 
     const result = await createAgentConfigDraft({ intent: INTENT, regenerate: true, previous: { name: '旧版角色' } })
 
     expect(result.source).toBe('heuristic')
     expect(result.draft.systemPrompt.length).toBeGreaterThan(0)
+    expect(mocks.createCompletion).not.toHaveBeenCalled()
+  })
+
+  // 线上（2026-09-19）llm_model_assignments 整表为空 —— 没有这条兜底，
+  // 「重新生成」在零配置实例上仍然只会产出与上一版相同的启发式结果。
+  it('uses the platform default provider when the capability chain is empty', async () => {
+    mocks.resolveProvider.mockResolvedValue(null)
+    mocks.listProviders.mockResolvedValue([
+      { id: 'openai', apiKey: null, isConnected: false, models: ['gpt-5'] },
+      { id: 'deepseek', apiKey: 'sk-test', isConnected: true, models: ['deepseek-flash'] },
+    ])
+    mocks.getProvider.mockResolvedValue({
+      id: 'deepseek',
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.deepseek.com/v1',
+      models: ['deepseek-flash'],
+    })
+    replyWith(JSON.stringify(VALID_MODEL_DRAFT))
+
+    const result = await createAgentConfigDraft({ intent: INTENT, regenerate: true })
+
+    expect(result.source).toBe('model')
+    expect(result.draft.name).toBe('竞品情报官')
+    expect(mocks.createCompletion.mock.calls[0][0].model).toBe('deepseek-flash')
   })
 
   it('falls back when the provider has no api key', async () => {

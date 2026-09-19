@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 
 import { normalizeModality } from '@/lib/llm-shared'
-import { getProvider } from '@/server/provider-service'
+import { getProvider, listProviders } from '@/server/provider-service'
 import {
   classifyError,
   getFailoverConfig,
@@ -137,7 +137,9 @@ async function completeWithFailover(userPrompt: string): Promise<string | null> 
   let previousProviderId: string | null = null
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const resolved = await resolveProvider(CAPABILITY_KEY)
+    // 先按「能力优先级」配置选；整条链没配（全新实例，或清空供应商时把分配一起清了）
+    // 时用平台默认供应商兜底，否则这里恒为 null，「重新生成」永远只能回落启发式。
+    const resolved = (await resolveProvider(CAPABILITY_KEY)) ?? (await resolveDefaultDraftProvider())
     if (!resolved) break
 
     const provider = await getProvider(resolved.providerId)
@@ -198,6 +200,28 @@ async function completeWithFailover(userPrompt: string): Promise<string | null> 
 
   if (lastError) console.error('[agent-draft] all providers failed:', lastError)
   return null
+}
+
+/**
+ * 零配置兜底：能力优先级链为空时挑一个可用的供应商。
+ *
+ * 现实场景（2026-09-19 线上实测）：`llm_model_assignments` 整表为空 —— 清空供应商时
+ * 分配被一并清掉，于是 `resolveProvider` 对任何能力都返回 null。此时按
+ * 「deepseek 且已连接 → 任一已连接 → deepseek → 任一有 key」挑一条，
+ * 与 team-draft-service 直接用已连接 deepseek 的口径一致，保证开箱可用。
+ */
+async function resolveDefaultDraftProvider(): Promise<{ providerId: string; modelName: string | null } | null> {
+  const providers = await listProviders()
+  const usable = providers.filter((provider) => Boolean(provider.apiKey && provider.apiKey.trim()))
+  if (usable.length === 0) return null
+
+  const chosen =
+    usable.find((provider) => provider.id === 'deepseek' && provider.isConnected) ??
+    usable.find((provider) => provider.isConnected) ??
+    usable.find((provider) => provider.id === 'deepseek') ??
+    usable[0]
+
+  return { providerId: chosen.id, modelName: chosen.models?.[0] ?? null }
 }
 
 /** 容错解析模型输出：直接 JSON、```json 围栏、首尾大括号截取三种都试。 */
