@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/markdown'
+import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 
 export function PromptEnhanceModal({
@@ -64,7 +64,7 @@ export function PromptEnhanceModal({
             <div className="min-h-[260px] overflow-y-auto rounded-md border border-input bg-slate-50 px-3 py-2 text-sm dark:bg-neutral-900">
               {loading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
+                  <Spinner size="sm" className="size-4" />
                   {loadingText}
                 </div>
               ) : enhancedText.trim() ? (

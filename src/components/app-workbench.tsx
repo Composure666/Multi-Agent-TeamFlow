@@ -62,6 +62,7 @@ import { Meta } from '@/components/workbench-detail-primitives'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow } from '@/db/schema'
 import {
@@ -1356,7 +1357,11 @@ function NewTaskView({
                   disabled={enhancingPrompt || sending || uploading}
                   className="size-10 rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
                 >
-                  <Sparkles className="size-[18px]" />
+                  {enhancingPrompt ? (
+                    <Spinner size="sm" className="size-[18px]" />
+                  ) : (
+                    <Sparkles className="size-[18px]" />
+                  )}
                 </Button>
                 <Button
                   onClick={() => void submit()}

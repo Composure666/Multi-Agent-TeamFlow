@@ -1,6 +1,6 @@
 'use client'
 
-import { AtSign, CornerUpLeft, Loader2, Pencil, Pin, RotateCcw, Star, Trash2 } from 'lucide-react'
+import { AtSign, CornerUpLeft, Pencil, Pin, RotateCcw, Star, Trash2 } from 'lucide-react'
 import { memo, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
@@ -11,6 +11,7 @@ import { PartList } from '@/components/message-parts'
 import { QuotedMessage } from '@/components/quoted-message'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Dialog,
   DialogContent,
@@ -202,7 +203,7 @@ function MessageItemImpl({ message }: { message: MessageRow }) {
             </span>
           )}
           {message.status === 'streaming' && (
-            <Loader2 className="size-3 animate-spin text-muted-foreground/70" />
+            <Spinner size="xs" className="text-primary/80" />
           )}
           {/* Agent 消息的 token 用量小标，hover 看拆分 */}
           {!isUser && message.usage && (

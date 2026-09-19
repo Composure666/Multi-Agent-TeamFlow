@@ -62,6 +62,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { Meta } from '@/components/workbench-detail-primitives'
 import {
@@ -1554,7 +1555,7 @@ function TaskFormDialog({
                     disabled={promptFilling || submitting}
                     className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--agenthub-accent)] transition hover:opacity-80 disabled:cursor-wait disabled:opacity-60"
                   >
-                    <Sparkles className={cn('size-3', promptFilling && 'animate-pulse')} />
+                    {promptFilling ? <Spinner size="xs" inheritColor /> : <Sparkles className="size-3" />}
                     {promptFilling ? 'AI 优化中…' : 'AI 优化'}
                   </button>
                 </div>

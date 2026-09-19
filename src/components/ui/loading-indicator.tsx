@@ -1,8 +1,8 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
-
 import { cn } from '@/lib/utils'
+
+import { Spinner, type SpinnerSize } from '@/components/ui/spinner'
 
 /**
  * 统一加载指示器。
@@ -12,27 +12,13 @@ import { cn } from '@/lib/utils'
  * 用户看到的是「进度条卡在一半」—— 观感上就是「加载动画不动」。
  *
  * 三种形态：
- *  - spinner：自转弧线，适合按钮内、行内、卡片角标
+ *  - spinner：自转弧线（带 90° 可见缺口的统一 Spinner），适合按钮内、行内、卡片角标
  *  - bar：不确定性进度条（滑块来回跑），适合"不知道要多久"的等待态
  *  - both：弧线 + 进度条 + 文案，适合整块区域的加载占位
  */
 
 export type LoadingIndicatorVariant = 'spinner' | 'bar' | 'both'
-export type LoadingIndicatorSize = 'xs' | 'sm' | 'md' | 'lg'
-
-const SPINNER_SIZE: Record<LoadingIndicatorSize, string> = {
-  xs: 'size-3',
-  sm: 'size-3.5',
-  md: 'size-5',
-  lg: 'size-8',
-}
-
-const STROKE_WIDTH: Record<LoadingIndicatorSize, number> = {
-  xs: 2.5,
-  sm: 2.5,
-  md: 2.5,
-  lg: 2,
-}
+export type LoadingIndicatorSize = SpinnerSize
 
 const BAR_WIDTH: Record<LoadingIndicatorSize, string> = {
   xs: 'w-16',
@@ -74,11 +60,7 @@ export function LoadingIndicator({
   const showBar = variant === 'bar' || variant === 'both'
 
   const spinner = showSpinner ? (
-    <Loader2
-      className={cn('agenthub-orbit shrink-0', SPINNER_SIZE[size], !inheritColor && 'text-primary/70')}
-      strokeWidth={STROKE_WIDTH[size]}
-      aria-hidden
-    />
+    <Spinner size={size} inheritColor={inheritColor} />
   ) : null
 
   const bar = showBar ? (

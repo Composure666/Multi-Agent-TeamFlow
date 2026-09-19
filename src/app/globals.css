@@ -485,6 +485,10 @@
   animation: theme-toggle-in 260ms ease-out;
 }
 
+/* 全局：系统关掉动效时，把所有动画 / 过渡压到最小。
+   注意：加载指示器（.agenthub-spinner / .agenthub-orbit / .animate-spin）会在本文件
+   下方同名的媒体查询里用**更高特异性的 !important** 恢复旋转 —— 那是「状态传达动效」，
+   必须保留，否则用户无法区分「运行中」和「已停止」。详见下方说明。 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -551,6 +555,21 @@
 }
 
 /**
+ * 统一 Spinner(components/ui/spinner.tsx)的自转。
+ * 与 agenthub-orbit 的区别:纯匀速顺时针、无呼吸,配合 270° 可见缺口弧,
+ * 旋转清晰可辨 —— 解决 Loader2「近整圆转了也看不出来」的静态观感。
+ */
+.agenthub-spinner {
+  animation: agenthub-spinner-rotate 0.8s linear infinite;
+  will-change: transform;
+}
+
+@keyframes agenthub-spinner-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/**
  * 调试面板终端字体 —— 用真正的系统等宽栈，保证命令 / 路径 / 表格对齐稳定。
  * Tailwind 的 font-mono 走的是 Geist Mono（可变字体），在终端这种
  * 「靠列对齐读内容」的场景反而容易抖，这里单独指定。
@@ -575,17 +594,48 @@
   animation: agenthub-caret 1.05s steps(1) infinite;
 }
 
-/* 无障碍：系统级「减少动态效果」时，进度条改为缓慢的明暗呼吸，弧线停转但仍可见 */
+/*
+ * 无障碍：系统级「减少动态效果」时的降级策略。
+ *
+ * 关键区分（2026-09-19 修复「加载圆环不转」）：
+ *  - 「装饰性动效」——入场、辉光、主题切换、光标闪烁——在 reduce 下关闭，符合预期；
+ *  - 「状态传达动效」——**加载指示器的旋转**——必须保留。它是用户判断
+ *    「Agent 还在跑 / 已经停了」的唯一视觉信号，属于 WCAG 2.3.3 明确豁免的
+ *    essential motion；停掉它会让「运行中」和「已停止」在观感上无法区分。
+ *
+ * 为什么用户以前看到的是「完全不转」：
+ *  1) 上面第 488 行的 `* { animation-duration: 1ms !important; animation-iteration-count: 1 !important }`
+ *     会把所有动画压成「只播 1ms 的一次性动画」；
+ *  2) 本块原先把 .agenthub-spinner / .agenthub-orbit 直接设成 `animation: none`。
+ *  两条叠加后，凡是关掉了系统动效的机器（如 Windows「最佳性能」，
+ *  SPI_GETCLIENTAREAANIMATION=0 → Chromium 上报 prefers-reduced-motion: reduce），
+ *  全站 loading 一律静止。
+ *
+ * 这里用「特异性更高的 !important」把它们恢复回来：`*` 的特异性是 (0,0,0)，
+ * `.agenthub-spinner` 是 (0,1,0)，同源同层下后者胜，因此这些规则能覆盖上面的全局压制。
+ */
 @media (prefers-reduced-motion: reduce) {
+  /* 进度条：改为缓慢的明暗呼吸（保留「在推进」的感知，但去掉位移） */
   .agenthub-indeterminate-bar {
     animation: agenthub-pulse-ring 2.4s ease-in-out infinite alternate !important;
     transform: none !important;
     inset-inline-start: 33% !important;
   }
+
+  /* 加载指示器：保持匀速顺时针自转 —— 见上方说明，这是必要动效，不随系统设置关闭 */
+  .agenthub-spinner {
+    animation: agenthub-spinner-rotate 0.8s linear infinite !important;
+  }
   .agenthub-orbit {
-    animation: none !important;
+    animation: agenthub-orbit 0.9s linear infinite !important;
     opacity: 1 !important;
   }
+  /* Tailwind 内置旋转（历史遗留的 `Loader2 + animate-spin` 用法）：同属加载指示，一并恢复 */
+  .animate-spin {
+    animation: spin 1s linear infinite !important;
+  }
+
+  /* 光标闪烁属装饰性动效，关闭后保持常亮即可 */
   .agenthub-terminal-caret {
     animation: none !important;
     opacity: 1 !important;

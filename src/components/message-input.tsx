@@ -35,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow, ConversationWithMeta, MessageRow } from '@/db/schema'
 import {
@@ -1108,9 +1109,14 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
             onClick={() => void enhancePrompt()}
             disabled={enhancingPrompt || composerLocked}
             title={enhancingPrompt ? '提示词增强中' : '增强提示词'}
+            aria-busy={enhancingPrompt}
             className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
           >
-            <Sparkles className="size-4" />
+            {enhancingPrompt ? (
+              <Spinner size="sm" className="size-4" />
+            ) : (
+              <Sparkles className="size-4" />
+            )}
           </Button>
           {/* fs_write 审批模式开关：绿色 = Review（默认安全），红色 = Auto（直写） */}
           <Button

@@ -1,7 +1,8 @@
-import { CheckCircle2, CircleAlert, Loader2, MessageCircleQuestion, ShieldAlert } from 'lucide-react'
+import { CheckCircle2, CircleAlert, MessageCircleQuestion, ShieldAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/spinner'
 import {
   usePendingBashCommands,
   usePendingMcpToolApprovals,
@@ -102,7 +103,7 @@ export function RunStatusSummary({ conversationId }: { conversationId: string })
   const Icon = summary.tone === 'warning'
     ? pendingQuestions.length > 0 ? MessageCircleQuestion : ShieldAlert
     : summary.tone === 'info'
-      ? running.length > 0 ? Loader2 : CircleAlert
+      ? CircleAlert
       : CheckCircle2
 
   // 运行中：单独一种版式 —— 自转弧线（比 animate-spin 多一层呼吸）+ 当前动作 +
@@ -116,7 +117,7 @@ export function RunStatusSummary({ conversationId }: { conversationId: string })
         aria-live="polite"
       >
         <div className="flex items-center gap-2 px-4 py-1.5">
-          <Loader2 className="agenthub-orbit size-3.5 shrink-0" aria-hidden />
+          <Spinner size="sm" inheritColor />
           <span className="shrink-0 font-semibold">正在运行</span>
           <span className="min-w-0 truncate opacity-80">{activity ?? summary.detail}</span>
           {taskProgress && (
