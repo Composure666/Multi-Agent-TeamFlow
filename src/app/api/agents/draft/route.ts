@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const draft = await createAgentConfigDraft(parsed.data)
-    return NextResponse.json(AgentDraftResponseSchema.parse({ draft }))
+    const result = await createAgentConfigDraft(parsed.data)
+    return NextResponse.json(AgentDraftResponseSchema.parse(result))
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: message }, { status: 400 })

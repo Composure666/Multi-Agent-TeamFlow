@@ -31,7 +31,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow } from '@/db/schema'
 import { createAgent, createAgentDraft } from '@/lib/api'
 import { normalizeModality } from '@/lib/llm-shared'
-import type { AgentConfigDraft } from '@/shared/agent-builder-config'
+import type { AgentConfigDraft, AgentDraftSource } from '@/shared/agent-builder-config'
 import { useAppStore } from '@/stores/app-store'
 import type { TeamDraft, TeamMemberDraft } from '@/server/team-draft-service'
 
@@ -73,7 +73,6 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
   const [createdTeamId, setCreatedTeamId] = useState<string | null>(null)
   const [configMemberIndex, setConfigMemberIndex] = useState<number | null>(null)
   const [hydratingConfigs, setHydratingConfigs] = useState(false)
-  const [regeneratingMember, setRegeneratingMember] = useState(false)
 
   // 手动模式
   const [manualName, setManualName] = useState('')
@@ -107,7 +106,6 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
     setCreatedTeamId(null)
     setConfigMemberIndex(null)
     setHydratingConfigs(false)
-    setRegeneratingMember(false)
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -129,7 +127,7 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
       const configs = await Promise.all(
         target.members.map(async (m) => {
           try {
-            const draft = await createAgentDraft({
+            const { draft } = await createAgentDraft({
               intent: memberIntent(target.name, m),
               followUp: m.systemPrompt || undefined,
             })
@@ -179,22 +177,31 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
     }
   }
 
-  const regenerateMemberConfig = async (index: number) => {
-    if (!plan) return
+  /**
+   * 重新生成某个成员的配置。
+   *
+   * 必须带 `regenerate` 与上一版草稿：`/api/agents/draft` 的启发式实现是确定性函数，
+   * 同样的 intent 必然产出逐字节相同的配置 —— 这正是「点了按钮毫无变化」的根因。
+   * 服务端收到 regenerate 后会走模型通道，并回传真实来源，由弹窗如实提示用户。
+   * 失败时抛给调用方（弹窗）就地显示，而不是写进被遮挡的外层 error。
+   */
+  const regenerateMemberConfig = async (index: number): Promise<AgentDraftSource> => {
+    if (!plan) throw new Error('团队草稿已失效，请关闭后重新生成团队结构')
     const member = plan.members[index]
-    setRegeneratingMember(true)
-    setError(null)
-    try {
-      const draft = await createAgentDraft({
-        intent: memberIntent(plan.name, member),
-        followUp: member.systemPrompt || undefined,
-      })
-      updateMember(index, { config: applyMemberIdentity(draft, member) })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setRegeneratingMember(false)
-    }
+    const res = await createAgentDraft({
+      intent: memberIntent(plan.name, member),
+      followUp: member.systemPrompt || undefined,
+      regenerate: true,
+      previous: member.config
+        ? {
+            name: member.config.name,
+            description: member.config.description,
+            systemPrompt: member.config.systemPrompt,
+          }
+        : undefined,
+    })
+    updateMember(index, { config: applyMemberIdentity(res.draft, member) })
+    return res.source
   }
 
   const handleCreateAuto = async () => {
@@ -563,9 +570,8 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
           key={configMemberIndex}
           member={plan.members[configMemberIndex]}
           hydrating={hydratingConfigs && !plan.members[configMemberIndex].config}
-          regenerating={regeneratingMember}
           onClose={() => setConfigMemberIndex(null)}
-          onRegenerate={() => void regenerateMemberConfig(configMemberIndex)}
+          onRegenerate={() => regenerateMemberConfig(configMemberIndex)}
           onSave={(patch) => {
             updateMember(configMemberIndex, patch)
             setConfigMemberIndex(null)
@@ -585,21 +591,23 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
 function TeamMemberConfigDialog({
   member,
   hydrating,
-  regenerating,
   onClose,
   onRegenerate,
   onSave,
 }: {
   member: TeamMemberPlan
   hydrating: boolean
-  regenerating: boolean
   onClose: () => void
-  onRegenerate: () => void
+  /** 让服务端重新生成一版配置（走模型通道），返回本次真实来源。 */
+  onRegenerate: () => Promise<AgentDraftSource>
   onSave: (patch: Partial<TeamMemberPlan>) => void
 }) {
   const [step, setStep] = useState<'preview' | 'detail'>('preview')
   const [activeTab, setActiveTab] = useState<AgentTab>('basic')
   const [error, setError] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+  const [regenerateError, setRegenerateError] = useState<string | null>(null)
+  const [regenerateNotice, setRegenerateNotice] = useState<string | null>(null)
   const [form, setForm] = useState<AgentFormValue>(() =>
     member.config
       ? agentFormValueFromDraft(member.config)
@@ -612,6 +620,32 @@ function TeamMemberConfigDialog({
     setError(null)
     setActiveTab('basic')
     setStep('detail')
+  }
+
+  /**
+   * 重新生成：运行态与结果提示都留在本弹窗内。
+   *
+   * 结果由外层写回团队草稿（member.config 变化会直接刷新下方预览）；
+   * 这里额外把「本次是谁生成的」讲清楚 —— 模型不可用时内容不会变化，
+   * 不说明的话用户只会看到「按钮没反应」。
+   */
+  const handleRegenerate = async () => {
+    if (regenerating) return
+    setRegenerating(true)
+    setRegenerateError(null)
+    setRegenerateNotice(null)
+    try {
+      const source = await onRegenerate()
+      setRegenerateNotice(
+        source === 'model'
+          ? '已由模型重新设计一版配置，下方内容已更新。'
+          : '没有可用的模型供应商，本次按本地规则生成 —— 内容与上一版相同。请在「设置 → 模型」中配置供应商后重试。',
+      )
+    } catch (err) {
+      setRegenerateError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRegenerating(false)
+    }
   }
 
   const saveDetails = () => {
@@ -664,11 +698,26 @@ function TeamMemberConfigDialog({
                 ))}
               </div>
             </div>
-            {member.config ? (
+            {regenerateError && (
+              <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+                重新生成失败：{regenerateError}
+              </div>
+            )}
+            {regenerateNotice && !regenerateError && (
+              <div className="mb-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                {regenerateNotice}
+              </div>
+            )}
+            {regenerating ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16">
+                <LoadingIndicator variant="spinner" size="md" />
+                <div className="text-xs text-muted-foreground">正在重新生成配置…</div>
+              </div>
+            ) : member.config ? (
               <AgentDraftPreview draft={member.config} />
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
-                {hydrating || regenerating ? (
+                {hydrating ? (
                   <>
                     <LoadingIndicator variant="spinner" size="md" />
                     <div className="text-xs text-muted-foreground">正在生成成员配置…</div>
@@ -698,15 +747,15 @@ function TeamMemberConfigDialog({
                 <ArrowLeft className="size-3.5" />
                 返回
               </Button>
-              <Button variant="outline" onClick={onRegenerate} disabled={regenerating}>
+              <Button variant="outline" onClick={() => void handleRegenerate()} disabled={regenerating}>
                 {regenerating ? <LoadingIndicator variant="spinner" size="sm" inheritColor /> : <RefreshCw className="size-3.5" />}
                 重新生成
               </Button>
-              <Button variant="outline" onClick={openDetails} disabled={!member.config}>
+              <Button variant="outline" onClick={openDetails} disabled={!member.config || regenerating}>
                 <Pencil className="size-3.5" />
                 编辑详细配置
               </Button>
-              <Button onClick={() => onSave({ avatar })} disabled={!member.config}>
+              <Button onClick={() => onSave({ avatar })} disabled={!member.config || regenerating}>
                 <Save className="size-3.5" />
                 保存
               </Button>
@@ -754,7 +803,7 @@ function memberIntent(teamName: string, member: TeamMemberDraft): string {
 async function resolveMemberConfig(teamName: string, member: TeamMemberPlan): Promise<AgentConfigDraft> {
   if (member.config) return member.config
   try {
-    const draft = await createAgentDraft({
+    const { draft } = await createAgentDraft({
       intent: memberIntent(teamName, member),
       followUp: member.systemPrompt || undefined,
     })
@@ -800,7 +849,7 @@ function ManualMemberCreateDialog({
     setGenerating(true)
     setError(null)
     try {
-      const next = await createAgentDraft({ intent })
+      const { draft: next } = await createAgentDraft({ intent })
       setDraft(next)
       setForm(agentFormValueFromDraft(next))
       setStep('preview')

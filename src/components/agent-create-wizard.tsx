@@ -37,8 +37,15 @@ export function AgentCreateWizard({
   const [draft, setDraft] = useState<AgentConfigDraft | null>(null)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
-  const generateDraft = async () => {
+  /**
+   * 生成草稿；`regenerate` 为真时表示草稿已存在、用户在点「重新生成」。
+   *
+   * 这一区分很关键：服务端草稿生成是确定性启发式，不带 regenerate 时同样输入
+   * 必然返回逐字节相同的草稿 —— 用户看到的就是「按钮没反应」。
+   */
+  const generateDraft = async (options?: { regenerate?: boolean }) => {
     const trimmedIntent = intent.trim()
     if (trimmedIntent.length < 6) {
       setError('请稍微多描述一点你想创建的 Agent。')
@@ -47,12 +54,25 @@ export function AgentCreateWizard({
 
     setGenerating(true)
     setError(null)
+    setNotice(null)
     try {
-      const next = await createAgentDraft({
+      const { draft: next, source } = await createAgentDraft({
         intent: trimmedIntent,
         followUp: followUp.trim() || undefined,
+        regenerate: options?.regenerate,
+        previous:
+          options?.regenerate && draft
+            ? { name: draft.name, description: draft.description, systemPrompt: draft.systemPrompt }
+            : undefined,
       })
       setDraft(next)
+      if (options?.regenerate) {
+        setNotice(
+          source === 'model'
+            ? '已由模型重新设计一版草稿。'
+            : '没有可用的模型供应商，本次按本地规则生成 —— 内容与上一版相同。请在「设置 → 模型」中配置供应商后重试。',
+        )
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -83,13 +103,21 @@ export function AgentCreateWizard({
           </div>
         )}
 
+        {notice && !error && (
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{notice}</div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button variant="outline" onClick={onBack}>
             <ArrowLeft className="size-4" />
             返回
           </Button>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={() => void generateDraft()} disabled={generating || creating}>
+            <Button
+              variant="outline"
+              onClick={() => void generateDraft({ regenerate: true })}
+              disabled={generating || creating}
+            >
               {generating ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
               重新生成
             </Button>

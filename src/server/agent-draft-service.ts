@@ -5,14 +5,24 @@ import {
   inferAgentToolPreset,
   type AgentConfigDraft,
   type AgentDraftRequest,
+  type AgentDraftResponse,
   type AgentToolPresetId,
 } from '@/shared/agent-builder-config'
 import { resolveModelForCapability } from '@/server/model-assignment-service'
 import { normalizeModality, type AgentModality } from '@/lib/llm-shared'
 
+import { regenerateAgentDraftWithModel } from './agent-draft-model'
 import { AgentConfigDraftSchema } from './agent-draft-schema'
 
-export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<AgentConfigDraft> {
+export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<AgentDraftResponse> {
+  // 「重新生成」走模型通道：启发式实现是确定性函数，同样输入必然产出逐字节相同的草稿，
+  // 直接返回会让用户以为按钮没反应。模型不可用或输出不合规时回落启发式，
+  // 并把真实来源回传给 UI，由 UI 如实提示。
+  if (input.regenerate) {
+    const modelDraft = await regenerateAgentDraftWithModel(input)
+    if (modelDraft) return { draft: modelDraft, source: 'model' }
+  }
+
   const draft = buildHeuristicAgentConfigDraft(input)
   // SDK adapter（claude-code / codex）的模型由各自端点决定，不参与「按模态挑供应商模型」——
   // cc adapter 走 DeepSeek 的 Anthropic 兼容端点，只接受 deepseek-flash / deepseek-v4-pro。
@@ -32,7 +42,7 @@ export async function createAgentConfigDraft(input: AgentDraftRequest): Promise<
       ]
     }
   }
-  return AgentConfigDraftSchema.parse(draft)
+  return { draft: AgentConfigDraftSchema.parse(draft), source: 'heuristic' }
 }
 
 /** llm_providers.id → ModelProvider 类型映射 */

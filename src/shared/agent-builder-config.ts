@@ -122,13 +122,27 @@ export interface AgentConfigDraft {
   toolPermissionSummaries: AgentToolPermissionSummary[]
 }
 
+/** 上一版草稿：用户点「重新生成」时带上，用来要求模型给出一版明显不同的设计。 */
+export interface AgentDraftPrevious {
+  name?: string
+  description?: string
+  systemPrompt?: string
+}
+
 export interface AgentDraftRequest {
   intent: string
   followUp?: string
+  /** 用模型重新设计一版（成员详情与草稿预览的「重新生成」入口）；缺省走本地启发式。 */
+  regenerate?: boolean
+  previous?: AgentDraftPrevious
 }
+
+/** 草稿来源：模型重新生成 / 本地规则。UI 据此如实告知用户本次重新生成是否奏效。 */
+export type AgentDraftSource = 'model' | 'heuristic'
 
 export interface AgentDraftResponse {
   draft: AgentConfigDraft
+  source: AgentDraftSource
 }
 
 export function normalizeAgentToolNames(toolNames: readonly string[]): AgentToolName[] {

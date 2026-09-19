@@ -14,6 +14,14 @@ const AdapterSchema = z.enum(['custom', 'claude-code', 'codex'])
 export const AgentDraftRequestSchema = z.object({
   intent: z.string().trim().min(6).max(4000),
   followUp: z.string().trim().max(2000).optional(),
+  regenerate: z.boolean().optional(),
+  previous: z
+    .object({
+      name: z.string().trim().max(64).optional(),
+      description: z.string().trim().max(280).optional(),
+      systemPrompt: z.string().trim().max(4000).optional(),
+    })
+    .optional(),
 }) satisfies z.ZodType<AgentDraftRequest>
 
 export const AgentConfigDraftSchema = z
@@ -60,4 +68,5 @@ export const AgentConfigDraftSchema = z
 
 export const AgentDraftResponseSchema = z.object({
   draft: AgentConfigDraftSchema,
+  source: z.enum(['model', 'heuristic']),
 }) satisfies z.ZodType<AgentDraftResponse>

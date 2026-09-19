@@ -27,7 +27,7 @@ import type {
   TerminalEventRecord,
   TerminalSessionRecord,
 } from '@/shared/types'
-import type { AgentConfigDraft, AgentDraftRequest } from '@/shared/agent-builder-config'
+import type { AgentDraftRequest, AgentDraftResponse } from '@/shared/agent-builder-config'
 import type { AgentModality } from '@/lib/llm-shared'
 
 export interface ArtifactListItem {
@@ -202,15 +202,14 @@ export async function createAgent(body: CreateAgentBody): Promise<AgentRow> {
   return agent
 }
 
-export async function createAgentDraft(body: AgentDraftRequest): Promise<AgentConfigDraft> {
-  const { draft } = await json<{ draft: AgentConfigDraft }>(
+export async function createAgentDraft(body: AgentDraftRequest): Promise<AgentDraftResponse> {
+  return json<AgentDraftResponse>(
     fetch('/api/agents/draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
   )
-  return draft
 }
 
 export type UpdateAgentBody = Partial<
