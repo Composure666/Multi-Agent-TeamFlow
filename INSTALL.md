@@ -201,5 +201,4 @@ pnpm mobile:build        # 构建移动伴随端
 - `README.zh-CN.md`：中文项目说明
 - `OVERVIEW.md`：代码地图与当前实现状态
 - `CLAUDE.md`：项目规则与协作约定
-- `docs/AI-COLLABORATION.md`：协作记录与方法
 - `specs/`：详细技术规格

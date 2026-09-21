@@ -18,7 +18,7 @@ Multi-Agent TeamFlow 是一个本地优先的多 Agent 协作工作空间，把 
 它把会话、Agent、产物、审批和工作目录放在同一个界面里。你可以让不同 Agent 分工处理任务，也可以在同一个工作空间里查看文件改动、命令输出和产物预览。
 
 <p align="center">
-  <img src="docs/images/agenthub-preview.png" alt="Multi-Agent TeamFlow 多 Agent 协作与产物预览" width="100%" />
+  <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow 新建任务入口与多 Agent 协作" width="100%" />
 </p>
 
 > **当前版本：v0.2.0-rc.1**（2026-09-12）—— 经过完整上线前全检后的首个 release-candidate。
@@ -191,5 +191,4 @@ pnpm mobile:build        # 构建移动伴随端
 - `INSTALL.md`：安装与启动指南
 - `OVERVIEW.md`：项目全貌和代码地图
 - `CLAUDE.md`：项目规则与 AI 协作约定
-- `docs/AI-COLLABORATION.md`：协作记录与方法
 - `specs/`：编号版详细规格

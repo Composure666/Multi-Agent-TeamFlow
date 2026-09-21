@@ -18,7 +18,7 @@ Multi-Agent TeamFlow is a local-first multi-agent workspace for IM-style AI coll
 It keeps conversations, agents, artifacts, approvals, and workspace files in one place so you can manage real work instead of juggling separate prompts and terminals.
 
 <p align="center">
-  <img src="docs/images/agenthub-preview.png" alt="Multi-Agent TeamFlow collaboration and artifact preview" width="100%" />
+  <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow new-task entry with multi-agent collaboration" width="100%" />
 </p>
 
 > **Current release: v0.2.0-rc.1** (2026-09-12) — first ship-candidate after security audit & QA pass.
@@ -177,5 +177,4 @@ pnpm mobile:build
 - `README.zh-CN.md` — Chinese project overview
 - `OVERVIEW.md` — code map and current implementation status
 - `CLAUDE.md` — project rules for AI-assisted work
-- `docs/AI-COLLABORATION.md` — collaboration notes and workflow
 - `specs/` — numbered technical specs
