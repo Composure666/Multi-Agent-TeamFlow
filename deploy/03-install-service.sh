@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# AgentHub 服务安装 —— 在服务器上、以 root 运行
+# Multi-Agent TeamFlow 服务安装 —— 在服务器上、以 root 运行
 #
 # 做四件事：
 #   1) 装 systemd unit 并设为开机自启
@@ -15,7 +15,9 @@
 #
 # 可选环境变量：
 #   AGENTHUB_USER=admin             Basic 鉴权用户名（默认 admin）
-#   AGENTHUB_PASSWORD=xxx           指定密码（默认随机生成并打印一次）
+#   AGENTHUB_PASSWORD=xxx           指定密码。**不推荐**：`VAR=值 命令` 这种写法会进 shell 历史，
+#                                   等于把密码留在磁盘上。默认行为已是随机生成 + 只打印一次 ——
+#                                   留空最安全；之后要改密码用：sudo htpasswd -B /etc/nginx/.htpasswd 用户名
 #   AGENTHUB_PORT=3000              服务端口（默认 3000）
 #
 set -euo pipefail
@@ -141,7 +143,9 @@ else
       BASIC_PASS="$(head -c 9 /dev/urandom | base64 | tr -d '/+=')"
       GENERATED=1
     fi
-    htpasswd -bc /etc/nginx/.htpasswd "${BASIC_USER}" "${BASIC_PASS}" >/dev/null
+    # -i 从 stdin 读密码（用 here-string 传值，不进 argv）；-B 用 bcrypt，别用默认的弱 MD5。
+    # 密码只经管道流入 htpasswd，不会出现在 `ps` 或 shell 历史里。
+    htpasswd -ic -B /etc/nginx/.htpasswd "${BASIC_USER}" <<<"${BASIC_PASS}" >/dev/null
     chmod 640 /etc/nginx/.htpasswd
     chown root:www-data /etc/nginx/.htpasswd 2>/dev/null || true
     if [[ "${GENERATED}" == "1" ]]; then

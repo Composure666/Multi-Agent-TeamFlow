@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 #
-# AgentHub 访问鉴权开关 —— 答辩 / 参赛演示期间临时使用
+# Multi-Agent TeamFlow 访问鉴权开关 —— 答辩 / 参赛演示期间临时使用
 #
 # 用法：
 #   sudo bash auth-toggle.sh status                    查看当前状态
-#   sudo bash auth-toggle.sh adduser 用户名 密码         给评委开独立账号（最安全，推荐）
+#   sudo bash auth-toggle.sh adduser 用户名             给评委开独立账号（密码在提示后输入，最安全，推荐）
 #   sudo bash auth-toggle.sh deluser 用户名             答辩后删掉
 #   sudo bash auth-toggle.sh off [时长]                临时关闭鉴权（默认 2h，到点自动恢复）
 #   sudo bash auth-toggle.sh on                        立即恢复鉴权
+#
+# ⚠️ adduser **不接受把密码写在命令行**：命令行会进 shell 历史、也会出现在进程列表里，
+#    等于明文。密码一律在提示后输入（不回显、不进 argv）。
 #
 # ⚠️  off 期间任何能访问到这个 IP 的人，都能在服务器上执行命令（应用自带终端功能）。
 #     所以 off 一律带自动恢复定时器 —— 就算你忘了开回来，它也会自己恢复。
@@ -27,7 +30,7 @@ ok()  { echo "${GRN}[ok]${NC} $*"; }
 warn(){ echo "${YEL}[!]${NC} $*"; }
 
 [[ ${EUID:-$(id -u)} -eq 0 ]] || die "请用 sudo 运行：sudo bash auth-toggle.sh $*"
-[[ -f "$CONF" ]] || die "找不到 $CONF（AgentHub 的 nginx 站点配置）"
+[[ -f "$CONF" ]] || die "找不到 $CONF（Multi-Agent TeamFlow 的 nginx 站点配置）"
 
 reload_nginx() {
   if ! nginx -t >/dev/null 2>&1; then
@@ -39,7 +42,8 @@ reload_nginx() {
 }
 
 # 关掉鉴权：把 server 块顶层那两行加上标记注释掉
-# （只匹配带 "AgentHub" 的那两行，不会误伤 /_next/static/ 里的 auth_basic off;）
+# （只匹配 server 块顶层那两行：按 auth_basic 指令行匹配、不写死 realm，
+#   不会误伤 /_next/static/ 里的 auth_basic off;）
 auth_off_edit() {
   # 匹配任意 realm（不写死品牌名），品牌再改也不会让 off 静默失效
   sed -i -E "s|^([[:space:]]*)(auth_basic[[:space:]]+\"[^\"]*\");|\1${MARK} \2;|" "$CONF"
@@ -134,13 +138,20 @@ cmd_on() {
 
 # ── adduser / deluser ─────────────────────────────────────────────────
 cmd_adduser() {
-  local u="${1:-}" p="${2:-}"
-  [[ -n "$u" && -n "$p" ]] || die "用法：sudo bash auth-toggle.sh adduser 用户名 密码"
+  local u="${1:-}" p="" p2=""
+  [[ -n "$u" ]] || die "用法：sudo bash auth-toggle.sh adduser 用户名（密码在提示后输入）"
+  [[ -z "${2:-}" ]] || die "不要再把密码写在命令行上（会进 shell 历史与进程列表）。只给用户名：sudo bash auth-toggle.sh adduser $u"
   command -v htpasswd >/dev/null 2>&1 || die "缺 htpasswd，先装：apt-get install -y apache2-utils"
-  htpasswd -b "$HTPASSWD" "$u" "$p" >/dev/null
+  read -rsp "为 ${u} 设置密码："  p;  echo
+  read -rsp "再输一次确认："       p2; echo
+  [[ -n "$p" ]] || die "密码不能为空，未做任何改动"
+  [[ "$p" == "$p2" ]] || die "两次输入不一致，未做任何改动"
+  # -i 从 stdin 读密码、-B 用 bcrypt：密码不进 argv、不落 shell 历史
+  htpasswd -i -B "$HTPASSWD" "$u" <<<"$p" >/dev/null
+  unset p p2
   chmod 640 "$HTPASSWD"; chown root:www-data "$HTPASSWD" 2>/dev/null || true
   reload_nginx
-  ok "已添加账号 ${GRN}${u}${NC}（当前账号：$(cut -d: -f1 "$HTPASSWD" | tr '\n' ' '))"
+  ok "已设置账号 ${GRN}${u}${NC}（当前账号：$(cut -d: -f1 "$HTPASSWD" | tr '\n' ' '))"
   echo "  答辩时给评委这个账号即可，不影响你的 admin 密码。"
 }
 
@@ -160,7 +171,7 @@ case "${1:-status}" in
   adduser) shift; cmd_adduser "${1:-}" "${2:-}" ;;
   deluser) shift; cmd_deluser "${1:-}" ;;
   -h|--help|help)
-    sed -n '3,13p' "$SCRIPT" | sed 's/^# \?//'
+    sed -n '3,16p' "$SCRIPT" | sed 's/^# \?//'
     ;;
   *) die "未知命令：$1（可用：status / off [时长] / on / adduser / deluser）" ;;
 esac

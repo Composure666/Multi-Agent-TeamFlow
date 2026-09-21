@@ -9,10 +9,18 @@
 | 项 | 值 |
 |---|---|
 | 网址 | **http://101.42.94.222/** |
-| 用户名 | `admin` |
-| 密码 | `Qi5t4ouFYo` |
+| 你自己的账号 | `admin` |
+| 评委账号 | `judge`（答辩演示用，演示结束可删） |
+| 密码 | **不在仓库中保存** —— 由部署者单独保管 |
 
-> 换密码：`sudo htpasswd /etc/nginx/.htpasswd admin`
+> ⚠️ **不要把密码写回本文件。** `deploy/` 已纳入版本管理，写进来等于随仓库发布；即使日后删除，提交历史里仍可查到。
+>
+> 重设密码（会提示输入两次 —— 密码不进 shell 历史、不进进程列表）：
+>
+> ```bash
+> sudo htpasswd -B /etc/nginx/.htpasswd admin     # 或 judge
+> sudo systemctl reload nginx
+> ```
 
 ---
 
@@ -40,11 +48,17 @@
 
 ### 模式 A · 给评委单独开账号（**最推荐**）
 
+`judge` 账号**已开通**（用户名 `judge`，密码由部署者保管）。要新增或重设：
+
 ```bash
-sudo bash /opt/agenthub/src/deploy/auth-toggle.sh adduser judge Demo2026
+# 密码在提示后输入 —— 不要写在命令行上（会进 shell 历史，也会出现在进程列表里）
+sudo bash /opt/agenthub/src/deploy/auth-toggle.sh adduser judge
+
+# 或者直接用 htpasswd（-B = bcrypt；别用默认的弱 MD5）
+sudo htpasswd -B /etc/nginx/.htpasswd judge
 ```
 
-- 评委用 `judge` / `Demo2026` 进去，**你的 admin 密码不受影响**
+- 评委用 `judge` 进去，**你的 admin 密码不受影响**
 - 答辩结束删掉：`sudo bash /opt/agenthub/src/deploy/auth-toggle.sh deluser judge`
 - 零暴露风险，还能体现"多账号权限管理"
 
@@ -80,8 +94,9 @@ sudo bash /opt/agenthub/src/deploy/auth-toggle.sh status
 # 1. 服务活着吗
 sudo systemctl is-active agenthub nginx          # 期望：active / active
 
-# 2. 应用本机通不通
-curl -s -o /dev/null -w '%{http_code}\n' -u admin:Qi5t4ouFYo http://127.0.0.1:3000/
+# 2. 应用本机通不通（密码走环境变量，别写死在命令里 —— 写死会进 shell 历史）
+read -rsp '演示密码: ' AGENTHUB_DEMO_PASS; echo
+curl -s -o /dev/null -w '%{http_code}\n' -u "admin:${AGENTHUB_DEMO_PASS:?先设置 AGENTHUB_DEMO_PASS}" http://127.0.0.1:3000/
                                                  # 期望：200
 
 # 3. 公网入口对不对（在你自己电脑上开浏览器更直观）
@@ -122,7 +137,7 @@ sudo bash /opt/agenthub/src/deploy/auth-toggle.sh status
 |---|---|
 | 公网打不开 | 检查 `sudo systemctl restart nginx agenthub`；确认你所在网络没被墙 |
 | 拒绝访问 / 一直弹框 | 密码输错了几次？浏览器清一下缓存，或用无痕窗口 |
-| **浏览器不自动填密码了 / 又弹一次框** | 2026-09-17 改过 Basic realm（就是弹框标题，`AgentHub` → `Multi-Agent TeamFlow`）。浏览器保存的 Basic 凭据是**按 realm 缓存**的，realm 一变旧凭据就不再自动带上 ⇒ **重新输一次密码即可**，属预期，不是配置坏了 |
+| **浏览器不自动填密码了 / 又弹一次框** | 2026-09-17 随品牌改名调整过 Basic realm（就是弹框标题）。浏览器保存的 Basic 凭据是**按 realm 缓存**的，realm 一变旧凭据就不再自动带上 ⇒ **重新输一次密码即可**，属预期，不是配置坏了 |
 | Agent 一直转圈 | 多半是 LLM 网关慢。先切到已完成的产物/经验页面继续讲 |
 | **完全没网 / 服务器挂了** | **提前准备录屏**。这是最稳的兜底，强烈建议录一份 3 分钟演示视频 |
 | 担心被搞坏 | 答辩前在腾讯云控制台**创建一个实例快照**，出事能回滚 |
