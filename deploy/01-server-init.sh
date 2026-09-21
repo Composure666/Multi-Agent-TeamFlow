@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# AgentHub 服务器初始化 —— 腾讯云轻量应用服务器 2 核 2G
+# Multi-Agent TeamFlow 服务器初始化 —— 腾讯云轻量应用服务器 2 核 2G
 # 目标系统：Ubuntu 22.04 LTS / 24.04 LTS
 #
 # 幂等：重复执行安全，已完成的步骤会跳过。

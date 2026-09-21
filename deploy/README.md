@@ -1,6 +1,6 @@
-# AgentHub 服务器部署（腾讯云轻量 2 核 2G / Ubuntu）
+# Multi-Agent TeamFlow 服务器部署（腾讯云轻量 2 核 2G / Ubuntu）
 
-一套脚本，把 AgentHub 的 **Web 服务**部署到公网服务器上，用手机或别的电脑访问。
+一套脚本，把 Multi-Agent TeamFlow 的 **Web 服务**部署到公网服务器上，用手机或别的电脑访问。
 
 ---
 
