@@ -8,10 +8,10 @@ Defines cross-platform shell, path, sandbox, and process safety rules. Detailed 
 
 ### Requirement: Platform detection SHALL drive shell behavior
 
-AgentHub MUST select shell command conventions and tool descriptions based on the current host platform.
+Multi-Agent TeamFlow MUST select shell command conventions and tool descriptions based on the current host platform.
 
 #### Scenario: Host is POSIX
-- **WHEN** AgentHub executes an AgentHub-managed bash command
+- **WHEN** Multi-Agent TeamFlow executes an Multi-Agent TeamFlow-managed bash command
 - **THEN** it SHOULD use the user's login zsh/bash shell when available
 - **AND** it MUST fall back to a POSIX-compatible shell invocation when the user shell cannot be resolved safely.
 
@@ -20,7 +20,7 @@ AgentHub MUST select shell command conventions and tool descriptions based on th
 - **THEN** they use PowerShell-oriented examples and Windows blacklist language.
 
 #### Scenario: Managed bash executes through PTY
-- **WHEN** AgentHub executes an AgentHub-managed bash command after safety checks
+- **WHEN** Multi-Agent TeamFlow executes an Multi-Agent TeamFlow-managed bash command after safety checks
 - **THEN** the PTY layer uses the platform-selected shell and arguments
 - **AND** it does not bypass blacklist, approval, or workspace cwd checks.
 

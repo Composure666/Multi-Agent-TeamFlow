@@ -65,7 +65,7 @@ The database SHALL persist run debug events in an append-only table scoped by co
 
 ### Requirement: Terminal sessions SHALL persist lifecycle and bounded stream events
 
-The database SHALL persist `terminal_sessions` and append-only `terminal_events` for AgentHub-managed bash PTY executions. Terminal events SHALL be scoped by conversation id and session id, ordered by `seq`, and bounded to avoid unbounded SQLite growth.
+The database SHALL persist `terminal_sessions` and append-only `terminal_events` for Multi-Agent TeamFlow-managed bash PTY executions. Terminal events SHALL be scoped by conversation id and session id, ordered by `seq`, and bounded to avoid unbounded SQLite growth.
 
 #### Scenario: Debugger reloads a terminal session
 - **WHEN** the client requests terminal sessions for a run under its conversation

@@ -1,6 +1,6 @@
 # Spec 11 — 平台抽象（Platform）
 
-> AgentHub 在本地运行，宿主可能是 macOS / Linux / Windows。本 spec 定义跨平台差异的处理契约：shell 选择、命令黑名单、路径校验、子进程清理。
+> Multi-Agent TeamFlow 在本地运行，宿主可能是 macOS / Linux / Windows。本 spec 定义跨平台差异的处理契约：shell 选择、命令黑名单、路径校验、子进程清理。
 
 源文件：`src/server/platform.ts`（platform 检测与常量），`src/server/security.ts`（双平台黑名单），`src/server/tools/bash.ts`（shell 执行）。
 
@@ -31,10 +31,10 @@ export function currentPlatform(): Platform {
 - 优先从 `process.env.SHELL` 解析用户 shell；缺失时回退 `os.userInfo().shell`
 - 仅当解析到的绝对路径存在且 shell basename 是 `zsh` 或 `bash` 时，使用 `-l -i -c <command>`。这样桌面版从 Finder / Dock 启动时，也能加载用户 `.zprofile` / `.zshrc` / `.bash_profile` / `.bashrc` 中配置的 Node、pnpm、Homebrew、nvm 等 PATH
 - 其它 shell 或无法解析用户 shell 时回退 `sh -c <command>`，保持 POSIX 命令语法稳定
-- AgentHub 自管 `bash` 通过 `node-pty` 启动上述 shell，不使用 `shell: true`
+- Multi-Agent TeamFlow 自管 `bash` 通过 `node-pty` 启动上述 shell，不使用 `shell: true`
 
 **Windows 细节**：
-- AgentHub 自管 `bash` 通过 `node-pty` / ConPTY 启动 PowerShell，避免把命令直接交给 `shell: true`
+- Multi-Agent TeamFlow 自管 `bash` 通过 `node-pty` / ConPTY 启动 PowerShell，避免把命令直接交给 `shell: true`
 - 命令前 prepend `$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); ` 强制 stdout / stderr 为 UTF-8（Windows 默认 codepage 936 / cp1252 会导致中文乱码 / LLM 上下文污染）。**不**用 `chcp 65001`——chcp 在 PowerShell 初始化输出流之后才生效，命令本身的错误信息仍是 GBK
 - 用系统自带 PS 5.1（不依赖 pwsh 7）
 
@@ -133,7 +133,7 @@ const SHARED_BANNED: RegExp[] = [
 
 ## 进程清理
 
-**AgentHub 自管 bash**：`terminal-session-service` 负责 PTY 生命周期。超时或 run abort 时调用 PTY kill，并把 `terminal_sessions.status` 更新为 `failed` 或 `aborted`，随后发布 `terminal.exited`。
+**Multi-Agent TeamFlow 自管 bash**：`terminal-session-service` 负责 PTY 生命周期。超时或 run abort 时调用 PTY kill，并把 `terminal_sessions.status` 更新为 `failed` 或 `aborted`，随后发布 `terminal.exited`。
 
 **SDK 命令钩子**：Claude/Codex SDK 内部命令执行路径暂不纳入 TerminalSession v1；若 SDK 暴露 pre-execution permission callback，仍复用同一份黑名单和审批规则。
 
@@ -242,13 +242,13 @@ Drives 列表通过 `statSync('A:\\')` … `statSync('Z:\\')` 探测可用盘符
 
 服务器平台通过 `GET /api/platform` 一次性获取（返回 `{ platform: 'posix' | 'windows' }`），前端 useEffect 缓存。
 
-**Why 不用 `navigator.userAgent`**：用户可能从 Mac 浏览器访问 Windows 上跑的 AgentHub，浏览器侧推断会与实际 host 不一致；服务器才是 bash 工具实际跑的地方。
+**Why 不用 `navigator.userAgent`**：用户可能从 Mac 浏览器访问 Windows 上跑的 Multi-Agent TeamFlow，浏览器侧推断会与实际 host 不一致；服务器才是 bash 工具实际跑的地方。
 
 ---
 
 ## 网络请求安全（web_fetch）
 
-`src/server/tools/web-fetch.ts` 提供 AgentHub-managed `web_fetch`，用于读取公开 HTTPS 文本页面。该工具不是通用 HTTP client，不能访问本机服务、内网服务、metadata endpoint 或需要认证的页面。
+`src/server/tools/web-fetch.ts` 提供 Multi-Agent TeamFlow-managed `web_fetch`，用于读取公开 HTTPS 文本页面。该工具不是通用 HTTP client，不能访问本机服务、内网服务、metadata endpoint 或需要认证的页面。
 
 ### URL / 主机校验
 
@@ -269,7 +269,7 @@ Drives 列表通过 `statSync('A:\\')` … `statSync('Z:\\')` 探测可用盘符
 
 ### 已知边界
 
-DNS rebinding 无法在当前 `fetch` 抽象下完全消除；AgentHub 通过 IP literal 检查、DNS 预解析、redirect 重校验和禁止非公开地址降低 SSRF 风险。外部 MCP server 自带的 fetch/search 工具不继承这些策略，只受外部 MCP 显式 opt-in 与 trust 模型约束。
+DNS rebinding 无法在当前 `fetch` 抽象下完全消除；Multi-Agent TeamFlow 通过 IP literal 检查、DNS 预解析、redirect 重校验和禁止非公开地址降低 SSRF 风险。外部 MCP server 自带的 fetch/search 工具不继承这些策略，只受外部 MCP 显式 opt-in 与 trust 模型约束。
 
 ---
 

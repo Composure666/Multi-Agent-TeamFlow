@@ -2,7 +2,7 @@
 
 > 把「跑完的任务」变成可复用的资产：run 收尾后自动反思并沉淀做法 / 画像，后续 run 按需检索注入，让多 Agent 协作「越跑越懂你」。
 >
-> **状态：设计提案（未实现）。** 设计思路参考 EvoFlow「资产中心」（画像 / 记忆 / 经验 / 反思 / 统计 / 导出）的产品化做法；EvoFlow 为 PolyForm 非商业许可（源码可见、非 OSI 开源），本 spec **只借鉴设计、不拷贝代码**。所有落点对齐 AgentHub 现有五层架构与既有机制（workspace_memories / context_summaries / skills / agent_run_debug_*），避免重复造轮子。
+> **状态：设计提案（未实现）。** 设计思路参考 EvoFlow「资产中心」（画像 / 记忆 / 经验 / 反思 / 统计 / 导出）的产品化做法；EvoFlow 为 PolyForm 非商业许可（源码可见、非 OSI 开源），本 spec **只借鉴设计、不拷贝代码**。所有落点对齐 Multi-Agent TeamFlow 现有五层架构与既有机制（workspace_memories / context_summaries / skills / agent_run_debug_*），避免重复造轮子。
 
 源文件（待建）：`src/server/experience-service.ts` · 改动 `src/server/agent-runner.ts` · `src/db/schema.ts` · `src/server/search-service.ts`（FTS 参照）
 

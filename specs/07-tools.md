@@ -106,14 +106,14 @@ export const toolRegistry = buildRegistry()
 
 ### 外部 MCP 工具边界
 
-外部 MCP server 提供的工具不是 AgentHub-managed tools：
+外部 MCP server 提供的工具不是 Multi-Agent TeamFlow-managed tools：
 
 - 不注册进 `toolRegistry`，也不使用 `ToolDef.handler`。
 - 配置存于 `mcp_servers`，Agent 通过 `agents.mcp_server_ids` 显式 opt-in。
 - 首版只支持 stdio MCP，并只接入 Claude Code / Codex SDK adapter；Custom adapter 的 MCP client 延后。
 - 外部 MCP 调用复用 `tool.call` / `tool.result` 事件；`trust='ask'` 的审批生命周期使用 `mcp_tool.pending` / `mcp_tool.resolved`。
 - 外部 MCP 审批粒度是 `conversationId + mcp__server__tool`；Claude Code 首次调用时等待用户批准，批准后同会话同工具免再次询问，拒绝只阻断本次调用。Codex 仅接收 `trust='always'` server，避免在缺少 pre-call hook 时执行 `ask` server。
-- 外部 stdio MCP server 以本机 AgentHub 进程权限启动，不继承 AgentHub 内置 `bash` / `fs_write` 的 workspace 沙箱与审批保证；UI/API 必须要求用户显式配置和 opt-in。
+- 外部 stdio MCP server 以本机 Multi-Agent TeamFlow 进程权限启动，不继承 Multi-Agent TeamFlow 内置 `bash` / `fs_write` 的 workspace 沙箱与审批保证；UI/API 必须要求用户显式配置和 opt-in。
 
 **重要**：`toolRegistry` 是**模块级单例**，但**不**用 `globalThis` 跨 HMR 缓存。原因：工具集是静态的（不持有 DB 连接、不订阅事件、无内存状态），每次模块重载重建即可，新增工具在 dev 模式自动生效。这与 `EventBus`（需要跨 HMR 保持订阅）的处理不同，详见 Spec 02 注。
 
@@ -181,7 +181,7 @@ write_artifact({
 
 **本地发布目录**：`src/server/deployment-service.ts` 把 `web_app` 写入 `.agenthub-data/deployments/dep_xxx/`，对外根目录保存可运行静态文件，私有 `.agenthub/source` 保存原始 source 供源码包下载。发布路由拒绝 `.agenthub` 私有目录与路径逃逸。
 
-**外部静态发布目录**：`deployment_publish_dir` 必须是绝对路径且不能是文件系统根目录。发布时只删除 / 覆盖 `<publishDir>/<deploymentId>` 子目录，且复制公开文件时不会带上 `.agenthub` 私有目录。`deployment_public_base_url` 是用户已有静态服务的公开根 URL，AgentHub 只负责写文件，不启动托管服务。
+**外部静态发布目录**：`deployment_publish_dir` 必须是绝对路径且不能是文件系统根目录。发布时只删除 / 覆盖 `<publishDir>/<deploymentId>` 子目录，且复制公开文件时不会带上 `.agenthub` 私有目录。`deployment_public_base_url` 是用户已有静态服务的公开根 URL，Multi-Agent TeamFlow 只负责写文件，不启动托管服务。
 
 ### deploy_workspace
 
@@ -248,7 +248,7 @@ write_artifact({
 
 源文件：`src/server/tools/web-fetch.ts`
 
-**用途**：读取公开 HTTPS 网页或文档 URL 的文本内容。`web_fetch` 是 AgentHub-managed tool，不是 Adapter 私有联网能力；Custom Agent 通过 `toolRegistry` 调用，Claude Code / Codex 通过 internal `agenthub` MCP 暴露，最终仍走 `toolRegistry.executeStructured()`。
+**用途**：读取公开 HTTPS 网页或文档 URL 的文本内容。`web_fetch` 是 Multi-Agent TeamFlow-managed tool，不是 Adapter 私有联网能力；Custom Agent 通过 `toolRegistry` 调用，Claude Code / Codex 通过 internal `agenthub` MCP 暴露，最终仍走 `toolRegistry.executeStructured()`。
 
 **入参**：
 
@@ -290,7 +290,7 @@ write_artifact({
 **Adapter 暴露**：
 
 - Custom Agent：只有 `agent.toolNames` 包含 `web_fetch` 才暴露。
-- Claude Code：internal AgentHub MCP 暴露 `web_fetch`；原生 `WebFetch` 禁用（提示走 `mcp__agenthub__web_fetch`，以免绕过 AgentHub 安全策略）。原生 `WebSearch` **保留可用**，是平台唯一的联网搜索入口。
+- Claude Code：internal Multi-Agent TeamFlow MCP 暴露 `web_fetch`；原生 `WebFetch` 禁用（提示走 `mcp__agenthub__web_fetch`，以免绕过 Multi-Agent TeamFlow 安全策略）。原生 `WebSearch` **保留可用**，是平台唯一的联网搜索入口。
 - Codex：internal stdio MCP bridge 暴露 `web_fetch`；Codex 原生 `networkAccessEnabled=false`、`webSearchMode='disabled'` 保持不变。
 - Orchestrator plan stage：可用 `web_fetch` 读取公开 HTTPS 需求 / 文档 URL，但不能用它访问本地服务或私有网络。
 
@@ -325,7 +325,7 @@ write_artifact({
 
 **装备与注入**：
 - Custom agent 只有 `toolNames` 包含 `ask_user` 才能调用；内置 agents 与新建自定义 agent 默认装备。
-- Claude Code / Codex adapter 通过 AgentHub MCP 暴露 `ask_user`，不依赖 `Agent.toolNames`。
+- Claude Code / Codex adapter 通过 Multi-Agent TeamFlow MCP 暴露 `ask_user`，不依赖 `Agent.toolNames`。
 - Orchestrator 计划阶段会强制注入 `ask_user`，用于关键歧义澄清；聚合阶段不带该工具，避免最终总结前再次打断用户。
 
 ### plan_tasks
@@ -529,14 +529,14 @@ LLM 决定调用 →  Adapter emit  tool.call (StreamEvent)
 
 ## 工具提示注入
 
-AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生成的 `AgentHub 工具调用规范`。这段提示只注入当前 run 实际可用的工具，避免让 LLM 调用不存在的能力。
+AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生成的 `Multi-Agent TeamFlow 工具调用规范`。这段提示只注入当前 run 实际可用的工具，避免让 LLM 调用不存在的能力。
 
 `write_artifact` 注入必须包含：
 - 禁止 `write_artifact({})` 等空参数调用
 - 调用前自检 `type` / `title` / `content` 必填字段是否齐全
 - 至少一个完整 document 模板，避免模型只记住工具名却漏传必填字段
 
-当 `workspace.mode === 'local'` 且 agent 具备 AgentHub 文件工具（`fs_read` / `fs_write` / `bash`）或 SDK 本地文件工具（Claude Code / Codex）时，会额外注入「本地项目模式」：
+当 `workspace.mode === 'local'` 且 agent 具备 Multi-Agent TeamFlow 文件工具（`fs_read` / `fs_write` / `bash`）或 SDK 本地文件工具（Claude Code / Codex）时，会额外注入「本地项目模式」：
 
 - 用户要求创建 / 修改 / 初始化 / 调试 / 构建前后端项目或源码文件时，优先直接操作 workspace 文件。
 - Custom agent 使用 `fs_read` / `fs_write` / `bash`；SDK agent 使用各自内置 Read / Write / Edit / Bash / shell 工具。
@@ -616,11 +616,11 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 ---
 
-## Claude Code agent 的工具集（不走 AgentHub 工具表）
+## Claude Code agent 的工具集（不走 Multi-Agent TeamFlow 工具表）
 
-`adapterName === 'claude-code'` 的 agent 不消费上面的「内置工具清单」。它通过 Claude Agent SDK 直接使用 SDK preset 工具集：`Bash` / `Read` / `Write` / `Edit` / `Grep` / `Glob` / `WebFetch` / `WebSearch` / `Task` / `TodoWrite` / `NotebookEdit` / `Mcp` 等（命名为 PascalCase，与 AgentHub 的 snake_case 区分）。
+`adapterName === 'claude-code'` 的 agent 不消费上面的「内置工具清单」。它通过 Claude Agent SDK 直接使用 SDK preset 工具集：`Bash` / `Read` / `Write` / `Edit` / `Grep` / `Glob` / `WebFetch` / `WebSearch` / `Task` / `TodoWrite` / `NotebookEdit` / `Mcp` 等（命名为 PascalCase，与 Multi-Agent TeamFlow 的 snake_case 区分）。
 
-**审批 / 沙箱 / 黑名单仍由 AgentHub 接管**，但接缝在 adapter 的 `canUseTool` 钩子（详见 Spec 05 「ClaudeCodeAdapter / canUseTool 桥」一节）：
+**审批 / 沙箱 / 黑名单仍由 Multi-Agent TeamFlow 接管**，但接缝在 adapter 的 `canUseTool` 钩子（详见 Spec 05 「ClaudeCodeAdapter / canUseTool 桥」一节）：
 
 - 路径检查走 `assertPathWithinWorkspace`（共享）
 - Bash 黑名单走 `findBannedPattern`（共享）
@@ -628,24 +628,24 @@ AgentRunner 在构造 `AdapterInput.systemPrompt` 时会追加按可用工具生
 
 **副作用**：sandbox 模式 quota（`SANDBOX_TOTAL_BYTES` / `SANDBOX_TOTAL_FILES`）对 Claude Code agent 失效（SDK 自己写盘绕过 quota 检查）。Claude Code agent 实际场景都是 `workspace.mode === 'local'`（绑真实项目），quota 不适用，可接受。
 
-**AgentHub MCP 工具**：Claude Code adapter 通过 SDK in-process MCP server 暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。其中 `write_artifact` 的结果会被 adapter 翻译为 `artifact.create`，`deploy_artifact` / `deploy_workspace` 的结果会被翻译为 `deploy.status`。`web_fetch` 是受管控的联网读取路径（SSRF / content-type / 私网拦截）；原生 `WebFetch` 已禁用，但原生 `WebSearch` **保留可用**（平台唯一的联网搜索入口，服务端执行）。
+**Multi-Agent TeamFlow MCP 工具**：Claude Code adapter 通过 SDK in-process MCP server 暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。其中 `write_artifact` 的结果会被 adapter 翻译为 `artifact.create`，`deploy_artifact` / `deploy_workspace` 的结果会被翻译为 `deploy.status`。`web_fetch` 是受管控的联网读取路径（SSRF / content-type / 私网拦截）；原生 `WebFetch` 已禁用，但原生 `WebSearch` **保留可用**（平台唯一的联网搜索入口，服务端执行）。
 
-**工具可见性**：cc agent 的 AgentHub MCP 工具由 `filterAgentHubMcpToolsForRun(input.toolNames, tools)` 决定 —— `toolNames` 含 `plan_tasks` 时只给计划阶段白名单，否则给**除 `plan_tasks` 外的全部** AgentHub 工具。因此 `agent.toolNames` 对 cc agent 不构成裁剪，但**仍要保留**：Orchestrator 的计划阶段靠它过滤出 `fs_list` / `web_fetch` / `read_artifact` 等上下文工具，置空会让计划阶段失去这些能力。
+**工具可见性**：cc agent 的 Multi-Agent TeamFlow MCP 工具由 `filterAgentHubMcpToolsForRun(input.toolNames, tools)` 决定 —— `toolNames` 含 `plan_tasks` 时只给计划阶段白名单，否则给**除 `plan_tasks` 外的全部** Multi-Agent TeamFlow 工具。因此 `agent.toolNames` 对 cc agent 不构成裁剪，但**仍要保留**：Orchestrator 的计划阶段靠它过滤出 `fs_list` / `web_fetch` / `read_artifact` 等上下文工具，置空会让计划阶段失去这些能力。
 
 ---
 
-## Codex agent 的工具集（不走 AgentHub 工具表）
+## Codex agent 的工具集（不走 Multi-Agent TeamFlow 工具表）
 
 `adapterName === 'codex'` 的 agent 不消费上面的「内置工具清单」。它通过 `@openai/codex-sdk` 暴露 Codex 自身的本地命令、文件变更、MCP、web search、todo/plan 等事件。
 
-AgentHub 额外给 Codex 注入一个 stdio MCP bridge，只暴露 allowlist：`write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。bridge 通过受保护的内部 API 调用 `toolRegistry`，不会把 `bash` / `fs_write` 等 AgentHub 工具开放给 Codex。
+Multi-Agent TeamFlow 额外给 Codex 注入一个 stdio MCP bridge，只暴露 allowlist：`write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result` / `web_fetch`。bridge 通过受保护的内部 API 调用 `toolRegistry`，不会把 `bash` / `fs_write` 等 Multi-Agent TeamFlow 工具开放给 Codex。
 
-**审批策略**：当前 Codex TypeScript SDK 没有 Claude `canUseTool` 等价 hook。AgentHub 因此不在 Review 模式下开放自动写盘：
+**审批策略**：当前 Codex TypeScript SDK 没有 Claude `canUseTool` 等价 hook。Multi-Agent TeamFlow 因此不在 Review 模式下开放自动写盘：
 
 - Review 模式：`sandboxMode='read-only'`
 - Auto 模式：`sandboxMode='workspace-write'`
 - 所有模式：`approvalPolicy='never'`、`networkAccessEnabled=false`、`webSearchMode='disabled'`
-- 运行时：使用 AgentHub 隔离的 `CODEX_HOME=<dataDir>/codex-home`，不读取用户本机 `~/.codex` 配置 / 登录态
+- 运行时：使用 Multi-Agent TeamFlow 隔离的 `CODEX_HOME=<dataDir>/codex-home`，不读取用户本机 `~/.codex` 配置 / 登录态
 
 后续若 SDK 暴露 patch / exec approval hook，再桥到 `pendingWrites`、`assertPathWithinWorkspace` 和 `findBannedPattern`。
 

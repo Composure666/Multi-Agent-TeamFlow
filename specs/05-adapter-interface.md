@@ -77,8 +77,8 @@ interface AdapterInput {
   apiKey: string | null
 
   // 当前 agent 可用的工具名。Custom adapter 用 toolRegistry.resolve(toolNames) 拿 ToolDef；
-  // Claude Code / Codex adapter 用它限定内部 AgentHub MCP 工具和 Orchestrator plan-stage 工具。
-  // AgentHub-managed web_fetch 也由这里控制：Custom 需显式装备，SDK adapter 经 internal agenthub MCP 暴露。
+  // Claude Code / Codex adapter 用它限定内部 Multi-Agent TeamFlow MCP 工具和 Orchestrator plan-stage 工具。
+  // Multi-Agent TeamFlow-managed web_fetch 也由这里控制：Custom 需显式装备，SDK adapter 经 internal agenthub MCP 暴露。
   toolNames: string[]
 
   // 用户显式启用的外部 stdio MCP server。首版只由 Claude Code / Codex SDK adapter 消费；Custom 暂不消费
@@ -236,13 +236,13 @@ const result = await toolRegistry.execute(name, args, ctx)
 
 ## Adapter 联网能力与 `web_fetch`
 
-AgentHub-managed `web_fetch` 是统一的公开网页读取路径：
+Multi-Agent TeamFlow-managed `web_fetch` 是统一的公开网页读取路径：
 
 - CustomAgentAdapter：当 `AdapterInput.toolNames` 包含 `web_fetch` 时，通过 `toolRegistry.resolve()` 暴露给 OpenAI-compatible function calling，工具执行走 `executeStructured()`。
-- ClaudeCodeAdapter：通过 internal `agenthub` MCP server 暴露 `web_fetch`，要求 agent 使用 `mcp__agenthub__web_fetch` 读取公开 HTTPS 页面；原生 `WebFetch` 在 `disallowedTools` 中禁用（它不受 `web_fetch` 的 SSRF / content-type 策略管控）。原生 **`WebSearch` 保留可用**：它是平台当前唯一的联网搜索路径（AgentHub 工具表里没有搜索工具），由 DeepSeek 的 Anthropic 兼容端点服务端执行，费用并入模型 token 账单、不产生独立搜索账单。平台默认把 `anthropic` 供应商行指向 `https://api.deepseek.com/anthropic`，故 cc adapter 的默认模型是 DeepSeek 的模型 ID。
+- ClaudeCodeAdapter：通过 internal `agenthub` MCP server 暴露 `web_fetch`，要求 agent 使用 `mcp__agenthub__web_fetch` 读取公开 HTTPS 页面；原生 `WebFetch` 在 `disallowedTools` 中禁用（它不受 `web_fetch` 的 SSRF / content-type 策略管控）。原生 **`WebSearch` 保留可用**：它是平台当前唯一的联网搜索路径（Multi-Agent TeamFlow 工具表里没有搜索工具），由 DeepSeek 的 Anthropic 兼容端点服务端执行，费用并入模型 token 账单、不产生独立搜索账单。平台默认把 `anthropic` 供应商行指向 `https://api.deepseek.com/anthropic`，故 cc adapter 的默认模型是 DeepSeek 的模型 ID。
 - CodexAdapter：通过 `scripts/agenthub-codex-mcp.mjs` 暴露 `web_fetch`，实际调用内部 `/api/internal/agenthub-tools`，仍由 `toolRegistry.executeStructured()` 执行。
-- Codex 原生网络保持关闭：`networkAccessEnabled=false`、`webSearchMode='disabled'`。Codex 需要网页文本时只能经 AgentHub MCP `web_fetch`。
-- 外部 MCP server 若自行提供 fetch/search 工具，不继承 AgentHub `web_fetch` 的 SSRF 与 content-type 策略；它们受外部 MCP opt-in / trust 模型约束。
+- Codex 原生网络保持关闭：`networkAccessEnabled=false`、`webSearchMode='disabled'`。Codex 需要网页文本时只能经 Multi-Agent TeamFlow MCP `web_fetch`。
+- 外部 MCP server 若自行提供 fetch/search 工具，不继承 Multi-Agent TeamFlow `web_fetch` 的 SSRF 与 content-type 策略；它们受外部 MCP opt-in / trust 模型约束。
 
 ---
 
@@ -335,7 +335,7 @@ class MockAdapter implements AgentPlatformAdapter {
 
 **Adapter 视角**：
 - **ClaudeCodeAdapter**：把 `input.apiKey` 通过 `options.env.ANTHROPIC_API_KEY` 传 SDK 子进程；为空时落到第 4 层 OAuth
-- **CodexAdapter**：把 `input.apiKey` 通过 SDK `apiKey` 注入 `CODEX_API_KEY`；默认使用 AgentHub 隔离的 `CODEX_HOME`，不读取用户本机 `~/.codex`。`baseUrl` 对应 Codex runtime 的 `openai_base_url`，要求后端支持 `/responses`
+- **CodexAdapter**：把 `input.apiKey` 通过 SDK `apiKey` 注入 `CODEX_API_KEY`；默认使用 Multi-Agent TeamFlow 隔离的 `CODEX_HOME`，不读取用户本机 `~/.codex`。`baseUrl` 对应 Codex runtime 的 `openai_base_url`，要求后端支持 `/responses`
 - **CustomAgentAdapter**：命名 provider 把 `input.apiKey` 传 `new OpenAI({ apiKey })` 或 provider 默认 `baseURL`；`openai-compatible` 传 `new OpenAI({ apiKey, baseURL: input.apiBaseUrl })`，缺 key/base URL 时在调用上游前抛清晰错误
 - **MockAdapter**：忽略
 
@@ -347,7 +347,7 @@ class MockAdapter implements AgentPlatformAdapter {
 
 源文件：`src/server/adapters/claude-code-adapter.ts`
 
-封装 `@anthropic-ai/claude-agent-sdk` 的 `query()` API。SDK 自身就是 Claude Code CLI 的底层（同一 codebase 拆出的库），所以 ClaudeCodeAdapter 等价于把整个 Claude Code 接进来当一个 AgentHub agent。
+封装 `@anthropic-ai/claude-agent-sdk` 的 `query()` API。SDK 自身就是 Claude Code CLI 的底层（同一 codebase 拆出的库），所以 ClaudeCodeAdapter 等价于把整个 Claude Code 接进来当一个 Multi-Agent TeamFlow agent。
 
 ```typescript
 import { AbortError, query, type Options } from '@anthropic-ai/claude-agent-sdk'
@@ -398,7 +398,7 @@ class ClaudeCodeAdapter implements AgentPlatformAdapter {
 
 ### canUseTool 桥（审批 / 沙箱 / 黑名单）
 
-SDK 提供 `canUseTool(toolName, toolInput, options) => PermissionResult` 钩子，每次工具调用前回调。AgentHub 在这里集中处理所有安全策略：
+SDK 提供 `canUseTool(toolName, toolInput, options) => PermissionResult` 钩子，每次工具调用前回调。Multi-Agent TeamFlow 在这里集中处理所有安全策略：
 
 1. **路径沙箱**（Read / Write / Edit / NotebookEdit）：`assertPathWithinWorkspace(workspace, toolInput.file_path)`，越界 `{ behavior: 'deny', message }`
 2. **Bash 黑名单与关键命令审批**（Bash）：`findBannedPattern(toolInput.command)` 命中 deny；未命中但 `classifyBashApproval(toolInput.command)` 命中时，注册 `PendingBashCommand` 并等待用户批准；通过后 allow（cwd 已限定）
@@ -413,7 +413,7 @@ SDK 提供 `canUseTool(toolName, toolInput, options) => PermissionResult` 钩子
 
 ### 工具集
 
-完全用 SDK preset `'claude_code'`（即 Claude Code CLI 自带的全套），不消费 `AdapterInput.toolNames`。AgentHub 通过 SDK in-process MCP server 额外暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result`。`fs_write` 审批流通过 `pendingWrites` store 共享，关键 Bash 命令审批通过 `pendingBashCommands` store 共享，UI 层（`PendingWritesPanel` / `PendingWriteDiffTab` / `PendingBashCommandsPanel`）、`bash.ts` 和 `claude-code-adapter.ts` 共享命令安全策略（`src/server/security.ts`、`src/server/bash-command-approval.ts`）。
+完全用 SDK preset `'claude_code'`（即 Claude Code CLI 自带的全套），不消费 `AdapterInput.toolNames`。Multi-Agent TeamFlow 通过 SDK in-process MCP server 额外暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result`。`fs_write` 审批流通过 `pendingWrites` store 共享，关键 Bash 命令审批通过 `pendingBashCommands` store 共享，UI 层（`PendingWritesPanel` / `PendingWriteDiffTab` / `PendingBashCommandsPanel`）、`bash.ts` 和 `claude-code-adapter.ts` 共享命令安全策略（`src/server/security.ts`、`src/server/bash-command-approval.ts`）。
 
 ### Subagent (Task)
 
@@ -423,7 +423,7 @@ SDK Task 工具开子 agent 后，子 agent 的 `tool_use` / `tool_result` 块�
 
 详见上方顶级章节「API key 解析（共四层）」。ClaudeCodeAdapter 视角：
 - 第 1-3 层由 `AgentRunner.buildAdapterInput` 解析后塞进 `AdapterInput.apiKey`，adapter 把它注入 `options.env.ANTHROPIC_API_KEY` 传 SDK 子进程
-- 第 4 层（OAuth `~/.claude/.credentials.json`）是 SDK 自动 fallback，AgentHub 不参与
+- 第 4 层（OAuth `~/.claude/.credentials.json`）是 SDK 自动 fallback，Multi-Agent TeamFlow 不参与
 
 ### Abort
 
@@ -457,7 +457,7 @@ CodexAdapter 不是「任意 OpenAI-compatible Chat Completions」入口。Codex
 
 官方 Codex SDK 形态：
 - TypeScript：`@openai/codex-sdk`，服务端 Node.js 18+ 使用；支持 `Codex().startThread()` / `resumeThread(threadId)` / `thread.runStreamed(prompt)`。
-- Python：`openai-codex`，通过本地 Codex app-server / JSON-RPC 控制 Codex。AgentHub 是 Next.js/Node 服务端，除非后续有明确理由，不走 Python SDK。
+- Python：`openai-codex`，通过本地 Codex app-server / JSON-RPC 控制 Codex。Multi-Agent TeamFlow 是 Next.js/Node 服务端，除非后续有明确理由，不走 Python SDK。
 
 ```typescript
 import { Codex } from '@openai/codex-sdk'
@@ -479,19 +479,19 @@ const { events } = await thread.runStreamed(input.prompt, { signal })
 
 1. **SDK first**：CodexAdapter 使用 `@openai/codex-sdk`。`codex exec --json` 或 `codex mcp-server` 只作为自动化 / MCP 参考，不是主路径。
 2. **线程续接**：按 `conversationId + agentId` 缓存 Codex threadId；撤回 / 编辑重发 / 重新生成 / 删除会话 / context compact 时清理对应 thread，模式参考 `ClaudeCodeAdapter` 的 session 缓存。
-3. **运行时环境隔离**：Codex 子进程使用 AgentHub 管理的 `CODEX_HOME=<dataDir>/codex-home` 和 `CODEX_SQLITE_HOME=<dataDir>/codex-home`。继承 PATH / HOME / 代理等普通环境，但剥离外部 `CODEX_*`（保留 `CODEX_CA_CERTIFICATE`），避免 CC Switch 或用户 `~/.codex/config.toml` 影响 AgentHub 调试。
-4. **AgentHub MCP bridge**：Codex config 注入 `mcp_servers.agenthub`，启动 `scripts/agenthub-codex-mcp.mjs` stdio server。bridge 只暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result`，通过带 token 的内部 API 调用 `toolRegistry`。
+3. **运行时环境隔离**：Codex 子进程使用 Multi-Agent TeamFlow 管理的 `CODEX_HOME=<dataDir>/codex-home` 和 `CODEX_SQLITE_HOME=<dataDir>/codex-home`。继承 PATH / HOME / 代理等普通环境，但剥离外部 `CODEX_*`（保留 `CODEX_CA_CERTIFICATE`），避免 CC Switch 或用户 `~/.codex/config.toml` 影响 Multi-Agent TeamFlow 调试。
+4. **Multi-Agent TeamFlow MCP bridge**：Codex config 注入 `mcp_servers.agenthub`，启动 `scripts/agenthub-codex-mcp.mjs` stdio server。bridge 只暴露 `write_artifact` / `read_artifact` / `deploy_artifact` / `deploy_workspace` / `ask_user` / `report_task_result`，通过带 token 的内部 API 调用 `toolRegistry`。
 5. **Base URL 兼容性**：`apiBaseUrl` 只接受 Codex/Responses 兼容 endpoint。运行前拦截已知不支持的 DeepSeek host；如果运行时出现 `/responses` 404 / Not Found，也归因为协议不兼容并提示用户改用 Custom adapter。
 6. **Workspace 与 sandbox**：`workingDirectory = AdapterInput.workspacePath`，`skipGitRepoCheck=true`（sandbox workspace 可能不是 git repo）。Review 模式用 `sandboxMode='read-only'`；Auto 模式用 `sandboxMode='workspace-write'`。不启用 `danger-full-access`。
-7. **审批与安全**：当前 TypeScript SDK 没有 Claude `canUseTool` 等价 hook，所以 Review 模式不允许自动写盘。Auto 模式下由 Codex 自己的 workspace-write sandbox 限制边界；`approvalPolicy='never'`、`networkAccessEnabled=false`、`webSearchMode='disabled'`，避免产生 AgentHub 无法接管的交互式审批请求。
-8. **事件翻译**：SDK 的 `thread.started` 缓存 threadId；`agent_message` → text part；`reasoning` / `todo_list` → thinking part；`command_execution` / `file_change` / `mcp_tool_call` / `web_search` → tool call/result；`turn.completed.usage` → `message.usage` + `run.usage`。AgentHub MCP 的 `write_artifact` / `deploy_artifact` / `deploy_workspace` 结果额外翻译成 `artifact.create` / `deploy.status`。
-9. **图片附件**：`kind='image'` 的 attachment 通过 SDK `local_image` 输入传给 Codex。普通文件附件暂不直传；需要文件内容时让 Codex 在 workspace 里读取，或后续通过 AgentHub MCP 工具扩展。
+7. **审批与安全**：当前 TypeScript SDK 没有 Claude `canUseTool` 等价 hook，所以 Review 模式不允许自动写盘。Auto 模式下由 Codex 自己的 workspace-write sandbox 限制边界；`approvalPolicy='never'`、`networkAccessEnabled=false`、`webSearchMode='disabled'`，避免产生 Multi-Agent TeamFlow 无法接管的交互式审批请求。
+8. **事件翻译**：SDK 的 `thread.started` 缓存 threadId；`agent_message` → text part；`reasoning` / `todo_list` → thinking part；`command_execution` / `file_change` / `mcp_tool_call` / `web_search` → tool call/result；`turn.completed.usage` → `message.usage` + `run.usage`。Multi-Agent TeamFlow MCP 的 `write_artifact` / `deploy_artifact` / `deploy_workspace` 结果额外翻译成 `artifact.create` / `deploy.status`。
+9. **图片附件**：`kind='image'` 的 attachment 通过 SDK `local_image` 输入传给 Codex。普通文件附件暂不直传；需要文件内容时让 Codex 在 workspace 里读取，或后续通过 Multi-Agent TeamFlow MCP 工具扩展。
 
 ### CLI fallback（当前不实现）
 
 CodexAdapter 当前必须走 `@openai/codex-sdk`。如果后续 SDK 缺少实现必需能力，才另写补充 spec 评估 CLI fallback；不能把 CLI spawn 作为默认 adapter 设计。
 
-**后续增强**：如果 Codex SDK 暴露可拦截的 patch / exec approval hook，再把 Review 模式桥到 AgentHub `pendingWrites` 和命令黑名单。否则可做 shadow workspace：Codex 在临时副本里写，run 结束后把 diff 转成 `pendingWrites` 给用户审批。
+**后续增强**：如果 Codex SDK 暴露可拦截的 patch / exec approval hook，再把 Review 模式桥到 Multi-Agent TeamFlow `pendingWrites` 和命令黑名单。否则可做 shadow workspace：Codex 在临时副本里写，run 结束后把 diff 转成 `pendingWrites` 给用户审批。
 
 ---
 

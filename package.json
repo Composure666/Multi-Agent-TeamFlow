@@ -1,5 +1,5 @@
 {
-  "name": "bytedance-agenthub",
+  "name": "multi-agent-teamflow",
   "version": "0.1.0",
   "description": "Local-first multi-agent workspace with IM-style collaboration, artifacts, approvals, and Electron desktop support.",
   "keywords": [

@@ -1,4 +1,4 @@
-# AgentHub Shared
+# Multi-Agent TeamFlow Shared
 
 Shared package placeholder for desktop and mobile contracts.
 

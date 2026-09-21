@@ -1,6 +1,6 @@
-@startuml AgentHub Architecture
+@startuml Multi-Agent TeamFlow Architecture
 ' ============================================================
-' AgentHub — 整体架构模块图
+' Multi-Agent TeamFlow — 整体架构模块图
 ' ============================================================
 
 skinparam packageStyle rectangle
@@ -14,7 +14,7 @@ skinparam component {
   FontSize 11
 }
 
-title AgentHub 整体架构模块图
+title Multi-Agent TeamFlow 整体架构模块图
 
 ' ============================================================
 ' L5 — UI 组件层

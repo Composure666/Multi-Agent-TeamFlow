@@ -8,7 +8,7 @@ Defines persistent, conversation-scoped workspace notes that are injected into f
 
 ### Requirement: Workspace memory SHALL be conversation-scoped
 
-Workspace memory entries MUST belong to exactly one conversation and MUST be deleted when that conversation is deleted. AgentHub MUST NOT share workspace memory across conversations or as global user memory.
+Workspace memory entries MUST belong to exactly one conversation and MUST be deleted when that conversation is deleted. Multi-Agent TeamFlow MUST NOT share workspace memory across conversations or as global user memory.
 
 #### Scenario: Conversation is deleted
 - **WHEN** a conversation is deleted

@@ -54,7 +54,7 @@ Adapters SHALL emit `message.usage` and `run.usage` when provider usage data is 
 
 ### Requirement: Deployment events SHALL inject deploy status parts
 
-Adapters SHALL emit `deploy.status` when an AgentHub deploy tool finishes, and AgentRunner MUST convert that event into a `deploy_status` message part.
+Adapters SHALL emit `deploy.status` when an Multi-Agent TeamFlow deploy tool finishes, and AgentRunner MUST convert that event into a `deploy_status` message part.
 
 #### Scenario: Deploy tool returns ready
 - **WHEN** `deploy_artifact` or `deploy_workspace` returns a ready deployment record
@@ -63,15 +63,15 @@ Adapters SHALL emit `deploy.status` when an AgentHub deploy tool finishes, and A
 
 ### Requirement: Bash approval events SHALL drive pending command UI
 
-When a command approval gate is triggered, AgentHub MUST publish a pending command event and a resolved command event so all connected clients can render and clear the approval state.
+When a command approval gate is triggered, Multi-Agent TeamFlow MUST publish a pending command event and a resolved command event so all connected clients can render and clear the approval state.
 
 #### Scenario: Key command waits for approval
 - **WHEN** an agent requests a command that requires approval
-- **THEN** AgentHub publishes `bash_command.pending` with the command, cwd, agent id, run id, and reason.
+- **THEN** Multi-Agent TeamFlow publishes `bash_command.pending` with the command, cwd, agent id, run id, and reason.
 
 #### Scenario: Pending command is resolved
 - **WHEN** the user approves, rejects, or the run is aborted
-- **THEN** AgentHub publishes `bash_command.resolved`
+- **THEN** Multi-Agent TeamFlow publishes `bash_command.resolved`
 - **AND** frontend reducers remove that pending command id.
 
 ### Requirement: Errors SHALL be visible in conversation state
@@ -93,22 +93,22 @@ AgentRunner SHALL publish bounded `run.debug.*` events at run, dispatch, and too
 - **THEN** it publishes `run.debug.tool.started` and `run.debug.tool.completed`
 - **AND** those events include only summary payloads, not raw secrets or full prompt text.
 
-### Requirement: Terminal events SHALL expose real AgentHub-managed bash sessions
+### Requirement: Terminal events SHALL expose real Multi-Agent TeamFlow-managed bash sessions
 
-AgentHub-managed `bash` commands SHALL publish `terminal.started`, `terminal.input`, `terminal.output`, `terminal.error`, and `terminal.exited` through EventBus as the authoritative live terminal stream. `run.debug.terminal.output` MAY continue as a bounded debug summary event, but UI terminal views MUST prefer `terminal.*` records when present.
+Multi-Agent TeamFlow-managed `bash` commands SHALL publish `terminal.started`, `terminal.input`, `terminal.output`, `terminal.error`, and `terminal.exited` through EventBus as the authoritative live terminal stream. `run.debug.terminal.output` MAY continue as a bounded debug summary event, but UI terminal views MUST prefer `terminal.*` records when present.
 
 #### Scenario: A bash command starts a PTY session
-- **WHEN** the AgentHub `bash` tool begins execution
-- **THEN** AgentHub creates a `TerminalSession`
+- **WHEN** the Multi-Agent TeamFlow `bash` tool begins execution
+- **THEN** Multi-Agent TeamFlow creates a `TerminalSession`
 - **AND** publishes `terminal.started` with `sessionId`, `runId`, `agentId`, optional `taskId`, optional `toolCallId`, `shell`, `cwd`, `command`, and `seq`.
 
 #### Scenario: A terminal stream emits output
 - **WHEN** the PTY emits data or receives stdin
-- **THEN** AgentHub persists a `TerminalEvent`
+- **THEN** Multi-Agent TeamFlow persists a `TerminalEvent`
 - **AND** publishes the corresponding `terminal.output`, `terminal.error`, or `terminal.input`
 - **AND** subscribers dedupe and sort by `sessionId + seq`.
 
 #### Scenario: A terminal session exits
 - **WHEN** the PTY exits, times out, or is aborted
-- **THEN** AgentHub updates the session status
+- **THEN** Multi-Agent TeamFlow updates the session status
 - **AND** publishes `terminal.exited` with status, exitCode or signal, and the final sequence number.

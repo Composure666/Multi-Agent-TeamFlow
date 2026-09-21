@@ -20,7 +20,7 @@
 
 - 不执行 Skill 文件。
 - 不读取 `.env.local` 或密钥文件。
-- 不把 Skill 当作 AgentHub-managed tool 或 MCP server。
+- 不把 Skill 当作 Multi-Agent TeamFlow-managed tool 或 MCP server。
 - 不绕过现有工具审批、workspace 沙箱或 adapter 安全边界。
 
 ---

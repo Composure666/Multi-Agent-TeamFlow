@@ -67,7 +67,7 @@ AgentRunner 在 `buildAdapterInput` 中构造 system prompt：
 
 agent.systemPrompt
 
-AgentHub tool guidance
+Multi-Agent TeamFlow tool guidance
 
 群聊说明（如需要）
 ```

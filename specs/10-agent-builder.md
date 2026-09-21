@@ -62,7 +62,7 @@
 **OpenAI-compat 接入说明**：DeepSeek / 火山方舟都对外暴露 OpenAI-compatible Chat Completions API，所以共用 `openai` npm 包 + 改 `baseURL`。通义千问 compatible-mode、智谱、MiniMax、OpenRouter、SiliconFlow、Moonshot 等未内置 provider 应选择 `openai-compatible`，并填写该平台的 Chat Completions Base URL。详见 Spec 05 的「CustomAgentAdapter」一节。
 
 **SDK adapter 说明**：
-- `claude-code`：使用 `@anthropic-ai/claude-agent-sdk`，`toolNames=[]`，SDK 内置工具集；Review 模式通过 `canUseTool` 桥到 AgentHub 审批。
+- `claude-code`：使用 `@anthropic-ai/claude-agent-sdk`，`toolNames=[]`，SDK 内置工具集；Review 模式通过 `canUseTool` 桥到 Multi-Agent TeamFlow 审批。
 - `codex`：使用 `@openai/codex-sdk`，`toolNames=[]`，SDK 内置本地命令 / 文件变更 / MCP / 计划事件；Review 模式以 read-only sandbox 运行，Auto 模式以 workspace-write sandbox 运行；自定义 Base URL 必须支持 Codex/Responses，DeepSeek 没有 `/responses`，不能走 Codex adapter。
 
 **用户选 Anthropic 会发生什么**：创建 / 编辑成功（DB 行写入），但发消息时 Adapter throw → run 失败 → 错误消息显示在对话里。**TODO**：UI 应该在选 Anthropic 时给警告 banner，或者干脆暂时下掉这个选项。
@@ -82,7 +82,7 @@ agent.apiKey (per-agent 自定义)
             openai      → OPENAI_API_KEY
             openai-compatible → 无全局 fallback，必须填 agent.apiKey
             anthropic   → ANTHROPIC_API_KEY
-            codex       → CODEX_API_KEY / OPENAI_API_KEY（AgentHub 隔离 CODEX_HOME，不读 ~/.codex）
+            codex       → CODEX_API_KEY / OPENAI_API_KEY（Multi-Agent TeamFlow 隔离 CODEX_HOME，不读 ~/.codex）
 ```
 
 Custom provider 实现在 `custom-provider-client.ts` 的 `resolveCustomProviderClientConfig(provider, overrideKey, apiBaseUrl)`；SDK adapter 的 key 解析由 `agent-runner.ts:buildAdapterInput` 统一注入。
@@ -129,7 +129,7 @@ UI 当前允许勾选产物、附件、workspace 和安全公开网页读取相�
 
 ## 能力扩展：MCP 与 Skills
 
-除 AgentHub-managed `toolNames` 外，Agent 还可以显式绑定外部 MCP server 与本地 Skills：
+除 Multi-Agent TeamFlow-managed `toolNames` 外，Agent 还可以显式绑定外部 MCP server 与本地 Skills：
 
 - `mcpServerIds`：引用全局 `mcp_servers.id`。Claude Code 可绑定 `trust='ask' | 'always'`；Codex 只可绑定 `trust='always'`；Custom/Mock 在 P1 不支持外部 MCP。服务端必须执行兼容性校验，不能只依赖 UI 禁用。
 - `skillIds`：引用 `skills.id`。所有非 Orchestrator Agent 均可绑定 enabled Skills；运行时只注入 Skill metadata/instructions，不执行 Skill 文件，不绕过工具审批或 workspace 沙箱。
@@ -138,7 +138,7 @@ Agent 创建/编辑 UI 需要加载 enabled MCP servers 与 enabled Skills：
 
 - 编辑已有 Agent 时回填 `mcpServerIds` 与 `skillIds`。
 - adapter 切换时过滤不兼容 MCP server；Skills 保留。
-- UI 必须展示外部 MCP 安全提示：server 是本机进程，权限不等同于 AgentHub 内置 workspace 工具沙箱。
+- UI 必须展示外部 MCP 安全提示：server 是本机进程，权限不等同于 Multi-Agent TeamFlow 内置 workspace 工具沙箱。
 
 统一联网搜索入口可从 GitHub Skills/MCP 搜索结果导入并配置到目标 Agent：
 

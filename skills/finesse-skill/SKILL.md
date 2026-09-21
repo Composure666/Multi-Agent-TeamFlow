@@ -1,11 +1,11 @@
 ---
 name: finesse-skill
-description: Audit and improve AgentHub interfaces for clarity, hierarchy, accessibility, density, and task completion.
+description: Audit and improve Multi-Agent TeamFlow interfaces for clarity, hierarchy, accessibility, density, and task completion.
 ---
 
 # Finesse UI Audit
 
-Use this skill when reviewing or changing AgentHub UI. Start from the user's task, not the component tree.
+Use this skill when reviewing or changing Multi-Agent TeamFlow UI. Start from the user's task, not the component tree.
 
 ## Required context
 
@@ -25,7 +25,7 @@ Use this skill when reviewing or changing AgentHub UI. Start from the user's tas
 
 Report every issue as: priority, evidence, user impact, smallest useful change, affected files, and acceptance check.
 
-## AgentHub constraints
+## Multi-Agent TeamFlow constraints
 
 - Do not bypass Zustand/SSE boundaries or call LLM SDKs from UI.
 - Do not weaken approval, workspace sandbox, iframe sandbox, or security rules.

@@ -1,8 +1,8 @@
-# AgentHub 自动化能力嵌入实施计划书
+# Multi-Agent TeamFlow 自动化能力嵌入实施计划书
 
 ## 1. 目标背景
 
-AgentHub 已具备多 Agent 会话、Orchestrator 调度、工具调用、产物生成、Workspace 沙箱、SSE 事件和 SQLite 持久化能力。当前“自动化”页面仍以静态模拟数据展示任务卡、运行记录和趋势概览，尚未形成后端数据闭环。
+Multi-Agent TeamFlow 已具备多 Agent 会话、Orchestrator 调度、工具调用、产物生成、Workspace 沙箱、SSE 事件和 SQLite 持久化能力。当前“自动化”页面仍以静态模拟数据展示任务卡、运行记录和趋势概览，尚未形成后端数据闭环。
 
 本计划目标是补齐自动化能力的项目内嵌路线，并先落地一个可联调的最小切片：自动化任务定义与运行记录进入 SQLite，前端自动化页面通过后端 API 获取真实数据，后续再接入手动触发、定时调度、事件触发和真实 Agent 执行。
 
@@ -50,7 +50,7 @@ AgentHub 已具备多 Agent 会话、Orchestrator 调度、工具调用、产物
 
 原因：
 
-- AgentHub 是本地运行 + SQLite + Electron 形态，轻量服务更符合部署模型。
+- Multi-Agent TeamFlow 是本地运行 + SQLite + Electron 形态，轻量服务更符合部署模型。
 - 项目已有 AgentRunner、ConversationService、ToolRegistry、审批和沙箱机制，自动化应复用这些能力。
 - 外部工作流引擎会引入额外运行时、权限模型、存储模型和维护成本。
 - 当前最需要的是数据闭环和 UI 联调，而不是复杂 DAG 编排。

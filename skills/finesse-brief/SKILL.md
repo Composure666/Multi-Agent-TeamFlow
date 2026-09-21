@@ -1,6 +1,6 @@
 ---
 name: finesse-brief
-description: Define and refactor AgentHub workbenches through user tasks, domain boundaries, state flows, and observable interfaces.
+description: Define and refactor Multi-Agent TeamFlow workbenches through user tasks, domain boundaries, state flows, and observable interfaces.
 ---
 
 # Finesse Workbench Brief

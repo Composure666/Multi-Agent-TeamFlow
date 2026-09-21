@@ -2,7 +2,7 @@
 
 > Drizzle ORM + SQLite。本 spec 描述核心业务表、自动化表、上下文基础设施表、外部 MCP 表、Workspace Memory 表、Agent Run 调试快照表与全局设置表的字段、索引、外键级联策略，是 Spec 01/16/17 实体及自动化支撑实体的物理映射。**修改字段需先讨论。**
 >
-> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`experiences` 是跨会话经验资产表（Spec 20）；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试摘要事件表；`terminal_sessions` / `terminal_events` 是 AgentHub 自管 bash 的真实 PTY 终端记录；`app_settings` 是单行配置表，不对应实体。
+> 7 张「核心业务表」（agents / conversations / messages / artifacts / workspaces / attachments / agent_runs）映射 Spec 01 的核心实体；`automations` / `automation_runs` 是自动化能力支撑表；`conversation_context_summaries` 是上下文压缩基础设施表；`workspace_memories` 是当前 conversation/workspace 的长期备注表；`experiences` 是跨会话经验资产表（Spec 20）；`agent_run_debug_snapshots` 是 run 调试快照表；`agent_run_debug_events` 是 append-only 运行调试摘要事件表；`terminal_sessions` / `terminal_events` 是 Multi-Agent TeamFlow 自管 bash 的真实 PTY 终端记录；`app_settings` 是单行配置表，不对应实体。
 
 源文件：`src/db/schema.ts`
 
@@ -284,7 +284,7 @@ INDEX idx_terminal_sessions_run_agent_started ON (run_id, agent_id, started_at)
 INDEX idx_terminal_sessions_tool ON (tool_call_id)
 ```
 
-**语义**：一次 AgentHub 自管 `bash` 工具调用对应一个 TerminalSession。v1 只覆盖 AgentHub toolRegistry 的 `bash`，不覆盖 Claude/Codex SDK 内部命令执行。
+**语义**：一次 Multi-Agent TeamFlow 自管 `bash` 工具调用对应一个 TerminalSession。v1 只覆盖 Multi-Agent TeamFlow toolRegistry 的 `bash`，不覆盖 Claude/Codex SDK 内部命令执行。
 
 **约束**：
 - session 创建前必须已经通过 workspace cwd、黑名单和 bash 审批规则。
@@ -458,7 +458,7 @@ INDEX idx_mcp_servers_enabled ON (enabled)
 
 **约束**：
 - 首版只支持 `transport='stdio'`，SSE / HTTP / OAuth 延后。
-- `name='agenthub'` 保留给内部 AgentHub MCP server，外部配置不可覆盖。
+- `name='agenthub'` 保留给内部 Multi-Agent TeamFlow MCP server，外部配置不可覆盖。
 - 外部 MCP server 不进入 `toolRegistry`；Agent 通过 `agents.mcp_server_ids` 显式 opt-in。
 - 从 GitHub 搜索结果导入 MCP 时，服务端必须先拉取并校验 manifest，再创建或更新本地 `mcp_servers` row；导入过程不得执行或自动测试远程 command。
 - `env` 可使用 `${ENV_NAME}` 占位，运行时只解析被引用的环境变量；列表、搜索、debug 与测试接口不返回明文 secret。
@@ -559,10 +559,10 @@ app_settings {
 1. agents.api_key           — per-agent override（最高）
 2. app_settings.<provider>  — 用户在设置面板自填
 3. process.env.<PROVIDER>   — .env.local 兜底
-4. ~/.claude/.credentials.json — 仅 Claude Code adapter 的 OAuth fallback；Codex adapter 默认使用 AgentHub 隔离的 `<dataDir>/codex-home`，不读取用户本机 `~/.codex`
+4. ~/.claude/.credentials.json — 仅 Claude Code adapter 的 OAuth fallback；Codex adapter 默认使用 Multi-Agent TeamFlow 隔离的 `<dataDir>/codex-home`，不读取用户本机 `~/.codex`
 ```
 
-`anthropic_base_url` 的解析同链：`agents.api_base_url` → `app_settings.anthropic_base_url` → `process.env.ANTHROPIC_BASE_URL` → SDK 默认。Codex 不读全局 base URL，只接受 per-agent `agents.api_base_url` 或 SDK 默认 endpoint，避免 CC Switch / 本机 `~/.codex` 配置影响 AgentHub。Custom `openai-compatible` 也不读全局 base URL，必须由 agent 自己携带 `api_base_url`。
+`anthropic_base_url` 的解析同链：`agents.api_base_url` → `app_settings.anthropic_base_url` → `process.env.ANTHROPIC_BASE_URL` → SDK 默认。Codex 不读全局 base URL，只接受 per-agent `agents.api_base_url` 或 SDK 默认 endpoint，避免 CC Switch / 本机 `~/.codex` 配置影响 Multi-Agent TeamFlow。Custom `openai-compatible` 也不读全局 base URL，必须由 agent 自己携带 `api_base_url`。
 
 **索引**：无（单行查询不需要）。
 

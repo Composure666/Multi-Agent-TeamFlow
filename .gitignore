@@ -42,7 +42,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# AgentHub runtime data
+# Multi-Agent TeamFlow runtime data
 /.agenthub-data/
 /.agenthub-data-e2e/
 /.tmp/

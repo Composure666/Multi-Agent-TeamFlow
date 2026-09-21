@@ -13,9 +13,9 @@ let mainUrlPromise: Promise<string> | null = null
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let closeCompanionServer: (() => Promise<void>) | null = null
 
-// Electron 默认用 package.json 的 `name` 字段（'bytedance-agenthub'）作为 app 名，
-// userData 会落在 ~/Library/Application Support/bytedance-agenthub/
-//（Windows: %APPDATA%\bytedance-agenthub\）。这里覆盖成品牌名，让窗口 / 菜单 / 安装后的
+// Electron 默认用 package.json 的 `name` 字段（'multi-agent-teamflow'）作为 app 名，
+// userData 会落在 ~/Library/Application Support/multi-agent-teamflow/
+//（Windows: %APPDATA%\multi-agent-teamflow\）。这里覆盖成品牌名，让窗口 / 菜单 / 安装后的
 // 应用显示名统一；必须在任何 app.getPath('userData') 调用之前完成。
 const APP_DISPLAY_NAME = 'Multi-Agent TeamFlow'
 

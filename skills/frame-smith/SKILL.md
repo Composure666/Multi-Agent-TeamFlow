@@ -1,6 +1,6 @@
 ---
 name: frame-smith
-description: Design and audit AgentHub product motion using visual rhythm, state transitions, performance, and accessibility.
+description: Design and audit Multi-Agent TeamFlow product motion using visual rhythm, state transitions, performance, and accessibility.
 ---
 
 # Frame Smith Product Motion
@@ -28,7 +28,7 @@ This project adaptation focuses on product interaction motion. It does not add R
 4. Check CPU/GPU cost and avoid animating large layout trees.
 5. Validate success, warning, error, abort, reconnect, and approval states consistently.
 
-## AgentHub constraints
+## Multi-Agent TeamFlow constraints
 
 - Use CSS tokens and existing Tailwind/CSS primitives before adding a dependency.
 - Never hide an approval, error, or abort result behind animation.
