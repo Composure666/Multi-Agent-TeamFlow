@@ -131,9 +131,9 @@ swap        4.0Gi
 你本地 `.env.local` 里正好就是这 7 项，直接传上去最省事：
 
 ```powershell
-# 回到本地 PowerShell
+# 回到本地 PowerShell，先 cd 到仓库根（路径不写死，换目录名/换机器都不用改）
 # root 无公钥，用 ubuntu + 免密 sudo（先传 /tmp 再 sudo 落位）
-scp -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" -o IdentitiesOnly=yes "C:\Users\he\Documents\bitdance-agenthub\.env.local" ubuntu@101.42.94.222:/tmp/agenthub.env
+scp -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" -o IdentitiesOnly=yes ".\.env.local" ubuntu@101.42.94.222:/tmp/agenthub.env
 ssh -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" ubuntu@101.42.94.222 "sudo -n install -m 600 -o root -g root /tmp/agenthub.env /etc/agenthub/agenthub.env"
 rm -f /tmp/agenthub.env  # 别让明文 key 留在服务器 /tmp
 ```
@@ -239,10 +239,10 @@ tail -n 50 /var/log/agenthub/err.log       # 期望没有报错
 > `Permission denied (publickey,password)`。`ubuntu` 有免密 sudo，所有特权步骤加 `sudo -n`。
 > 因此 `00-pack-upload.ps1` 的默认值是 `-User ubuntu`，包上传到 `/tmp/`（ubuntu 无权重写 `/root`）。
 
-改完代码后，两条命令搞定（**本地**）：
+改完代码后，两条命令搞定（**本地，先 cd 到仓库根**）：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "C:\Users\he\Documents\bitdance-agenthub\deploy\00-pack-upload.ps1" -RemoteExtract
+powershell -ExecutionPolicy Bypass -File "deploy\00-pack-upload.ps1" -RemoteExtract
 ```
 
 它会：打包（自动排除大目录和 `.env.local`，并校验没混进禁忌项）→ `scp` 上传 → 远端解压到 `/opt/agenthub/src`。

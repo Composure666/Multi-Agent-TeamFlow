@@ -417,7 +417,7 @@ Mem:           <span class="lb">1.9Gi</span>      <span class="lb">0.3Gi</span> 
 
       <h3>方式 A：在终端里直接粘贴（文件很小，最省事）</h3>
       <ol class="ol">
-        <li>在<b>你电脑</b>上用记事本打开 <code class="inl">C:\Users\he\Documents\bitdance-agenthub\.env.local</code>，<b>全选复制</b>里面的内容</li>
+        <li>在<b>你电脑</b>上用记事本打开项目根目录下的 <code class="inl">.env.local</code>，<b>全选复制</b>里面的内容</li>
         <li>在网页终端里敲下面第一行，回车：</li>
       </ol>
       <div class="code"><pre><button class="copy">复制</button>mkdir -p /etc/agenthub && nano /etc/agenthub/agenthub.env</pre></div>
@@ -431,8 +431,8 @@ awk -F= '/^[A-Z]/{print $1}' /etc/agenthub/agenthub.env</pre></div>
       <p style="font-size:13.5px;color:var(--ink2)">最后一行会只打印<b>键名</b>（不显示密钥），应该看到 7 个名字。看到 7 个就对了。</p>
 
       <h3>方式 B：跟源码包一起传（会 scp 的话）</h3>
-      <div class="code"><pre><button class="copy">复制</button><span class="c"># 在你自己电脑的 PowerShell 里跑</span>
-scp "C:\Users\he\Documents\bitdance-agenthub\.env.local" root@101.42.94.222:/etc/agenthub/agenthub.env</pre></div>
+      <div class="code"><pre><button class="copy">复制</button><span class="c"># 在你自己电脑的 PowerShell 里跑（先 cd 到项目根目录）</span>
+scp ".\.env.local" root@101.42.94.222:/etc/agenthub/agenthub.env</pre></div>
       <div class="code"><pre><button class="copy">复制</button><span class="c"># 回到服务器的网页终端</span>
 chmod 600 /etc/agenthub/agenthub.env</pre></div>
 
@@ -627,8 +627,8 @@ tmux attach -t build</pre></div>
   <details>
     <summary>以后改了代码，怎么更新？</summary>
     <div class="inner">
-      本地电脑上一条命令打包 + 上传：
-      <div class="code"><pre><button class="copy">复制</button>powershell -ExecutionPolicy Bypass -File "C:\Users\he\Documents\bitdance-agenthub\deploy\00-pack-upload.ps1" -RemoteExtract</pre></div>
+      本地电脑上（先 cd 到项目根目录）一条命令打包 + 上传：
+      <div class="code"><pre><button class="copy">复制</button>powershell -ExecutionPolicy Bypass -File "deploy\00-pack-upload.ps1" -RemoteExtract</pre></div>
       然后在服务器上重新构建 + 重启：
       <div class="code"><pre><button class="copy">复制</button>sudo -iu agenthub bash -lc 'cd /opt/agenthub/src && SKIP_GIT=1 bash deploy/02-deploy.sh'
 sudo systemctl restart agenthub</pre></div>
