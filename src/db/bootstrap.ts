@@ -25,6 +25,7 @@ import {
   MODALITY_CAPABILITIES,
   SYSTEM_CAPABILITIES,
 } from '@/lib/llm-shared'
+import { CLAUDE_CODE_DEFAULT_MODEL } from '@/shared/agent-builder-config'
 import { BUILTIN_AGENTS, UI_DESIGNER_ARTIFACT_PROMPT_HINT } from './builtin-agents'
 import { MESSAGE_SEARCH_BACKFILL, MESSAGE_SEARCH_DDL } from './message-search-schema'
 
@@ -1116,6 +1117,59 @@ function upgradeBuiltinAgents(sqlite: Database.Database): void {
   }
 }
 
+/**
+ * 存量安装的一次性升级：5 个内置 Agent 从 `custom` 切到 `claude-code` adapter。
+ *
+ * 背景：2026-09-17 起「新建 Agent 默认 claude-code」（UI 表单 + AI 草稿），但那条口径只覆盖
+ * **新建**路径，内置 Agent 的 adapter 只在**新装实例**的 seed 里生效 —— 因为
+ * `ensureBuiltinAgents` 见到任意内置行就整体跳过（不覆盖），而 `upgradeBuiltinAgents` 只追加
+ * toolNames / systemPrompt、从不碰 adapter_name。于是存量库（本地库、以及任何早于 09-17 建库的
+ * 实例）的内置 Agent 仍是 `custom` + `deepseek/deepseek-v4-flash`，与「平台统一走 Claude Agent
+ * SDK」的口径不一致。线上库是手工改的（5 行都是 claude-code / provider NULL / model_id
+ * `deepseek-flash`），本地库没改。
+ *
+ * 口径（与线上现状逐字对齐）：
+ *  - `adapter_name = 'claude-code'`
+ *  - `model_provider = NULL`（SDK adapter 不消费 provider 字段）
+ *  - `model_id = CLAUDE_CODE_DEFAULT_MODEL`（cc adapter 走 DeepSeek 的 Anthropic 兼容端点，
+ *    只认 DeepSeek 系模型 ID；见 `src/shared/agent-builder-config.ts`）
+ *
+ * **不动 `tool_names`**：claude-code adapter 用 `filterAgentHubMcpToolsForRun(toolNames, ...)`
+ * 判断是否处于计划阶段，Orchestrator 的 `plan_tasks` 必须留着，否则计划阶段会失去
+ * fs_list / read_artifact 等上下文工具。`system_prompt` 同理不动（那是 `upgradeBuiltinAgents`
+ * 与 `renameLegacyBrandOnce` 的职责）。
+ *
+ * 只按内置 id 命中，用户自建 Agent 一行不碰；只跑一次（`bootstrap_migrations` 记标记）。
+ */
+const BUILTIN_AGENT_ADAPTER_MIGRATION = 'upgrade_builtin_agents_to_claude_code_v1'
+
+function upgradeBuiltinAgentAdaptersOnce(sqlite: Database.Database): void {
+  const tx = sqlite.transaction(() => {
+    const applied = sqlite
+      .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+      .get(BUILTIN_AGENT_ADAPTER_MIGRATION)
+    if (applied) return
+
+    const update = sqlite.prepare(
+      `UPDATE agents
+       SET adapter_name = 'claude-code', model_provider = NULL, model_id = ?
+       WHERE id = ? AND is_builtin = 1`,
+    )
+    for (const agent of BUILTIN_AGENTS) {
+      update.run(CLAUDE_CODE_DEFAULT_MODEL, agent.id)
+    }
+
+    sqlite
+      .prepare('INSERT OR REPLACE INTO bootstrap_migrations (key, applied_at) VALUES (?, ?)')
+      .run(BUILTIN_AGENT_ADAPTER_MIGRATION, Date.now())
+
+    console.info(
+      `[bootstrap] 已把 ${BUILTIN_AGENTS.length} 个内置 Agent 升级到 claude-code adapter`,
+    )
+  })
+  tx.immediate()
+}
+
 function ensureDemoAutomations(sqlite: Database.Database): void {
   const row = sqlite
     .prepare('SELECT 1 AS one FROM automations LIMIT 1')
@@ -1260,6 +1314,9 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   backfillMessageSearchOnce(sqlite)
   ensureBuiltinAgents(sqlite)
   upgradeBuiltinAgents(sqlite)
+  // 内置 Agent 的 adapter 口径升级（custom → claude-code）。放在 upgradeBuiltinAgents 之后：
+  // 后者只追加 toolNames / systemPrompt，两者不冲突，但顺序固定更好推理。
+  upgradeBuiltinAgentAdaptersOnce(sqlite)
   // 品牌改名的一次性提示词迁移放在 builtin agent 升级之后，
   // 这样 upgradeBuiltinAgents 追加的提示词片段也能被一起扫到。
   renameLegacyBrandOnce(sqlite)

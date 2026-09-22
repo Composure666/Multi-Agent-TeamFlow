@@ -465,3 +465,98 @@ describe('default llm model assignment seed', () => {
     })
   })
 })
+
+/**
+ * 回归：存量库的内置 Agent 必须跟上「平台统一走 claude-code」的口径。
+ *
+ * 背景：`ensureBuiltinAgents` 见到任意内置行就整体跳过，`upgradeBuiltinAgents` 只追加
+ * toolNames / systemPrompt —— 两者都不会改 `adapter_name`。所以改 seed 只影响新装实例，
+ * 老库（本地库就是）会一直停在 `custom` + deepseek，与 UI 新建默认 claude-code 的口径不一致。
+ */
+describe('builtin agent adapter migration', () => {
+  /** 把全部内置 Agent 还原成 09-17 之前的老样子。 */
+  const RESTORE_LEGACY_BUILTINS = `UPDATE agents
+     SET adapter_name = 'custom', model_provider = 'deepseek', model_id = 'deepseek-v4-flash'
+     WHERE is_builtin = 1`
+
+  it('upgrades builtin agents to claude-code and keeps their toolNames', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      sqlite.prepare(RESTORE_LEGACY_BUILTINS).run()
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      const rows = sqlite
+        .prepare(
+          `SELECT id, adapter_name, model_provider, model_id, tool_names, is_orchestrator
+           FROM agents WHERE is_builtin = 1 ORDER BY id`,
+        )
+        .all() as Array<{
+        id: string
+        adapter_name: string
+        model_provider: string | null
+        model_id: string | null
+        tool_names: string
+        is_orchestrator: number
+      }>
+
+      expect(rows).toHaveLength(5)
+      for (const row of rows) {
+        expect({ id: row.id, adapter: row.adapter_name }).toEqual({ id: row.id, adapter: 'claude-code' })
+        expect({ id: row.id, provider: row.model_provider }).toEqual({ id: row.id, provider: null })
+        // cc adapter 走 DeepSeek 的 Anthropic 兼容端点，model_id 必须仍是 DeepSeek 系
+        expect({ id: row.id, model: row.model_id }).toEqual({ id: row.id, model: 'deepseek-flash' })
+      }
+
+      // toolNames 必须原样保留：cc adapter 用 `filterAgentHubMcpToolsForRun(toolNames, ...)`
+      // 判断是否处于计划阶段，Orchestrator 的 plan_tasks 丢了就会失去上下文工具。
+      const orchestrator = rows.find((row) => row.is_orchestrator === 1)
+      expect(orchestrator?.id).toBe('ag_orchestrator')
+      expect(JSON.parse(orchestrator?.tool_names ?? '[]')).toContain('plan_tasks')
+    })
+  })
+
+  it('leaves user-created agents untouched', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      sqlite
+        .prepare(
+          `INSERT INTO agents (id, name, avatar, description, capabilities, system_prompt, adapter_name,
+             model_provider, model_id, tool_names, is_builtin, is_orchestrator, supports_vision, created_at)
+           VALUES ('ag_user_made', '自建 Agent', '🤖', 'd', '[]', 'p', 'custom',
+             'deepseek', 'deepseek-v4-flash', '[]', 0, 0, 0, ?)`,
+        )
+        .run(Date.now())
+      sqlite.prepare(RESTORE_LEGACY_BUILTINS).run()
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare(`SELECT adapter_name, model_provider, model_id FROM agents WHERE id = 'ag_user_made'`)
+        .get() as { adapter_name: string; model_provider: string; model_id: string }
+      expect(row).toEqual({
+        adapter_name: 'custom',
+        model_provider: 'deepseek',
+        model_id: 'deepseek-v4-flash',
+      })
+    })
+  })
+
+  it('is a one-shot: a later manual edit back to custom stays untouched', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      // 迁移已记账（首次 bootstrap 就写了标记）⇒ 之后手工改回 custom 不该被反复覆盖
+      sqlite.prepare(`UPDATE agents SET adapter_name = 'custom' WHERE id = 'ag_pm'`).run()
+      bootstrapDatabase(sqlite)
+
+      const row = sqlite
+        .prepare(`SELECT adapter_name FROM agents WHERE id = 'ag_pm'`)
+        .get() as { adapter_name: string }
+      expect(row.adapter_name).toBe('custom')
+    })
+  })
+})
+
+/**

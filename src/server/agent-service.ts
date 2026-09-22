@@ -12,7 +12,13 @@ import type { AdapterName, ModelProvider } from '@/shared/types'
 /**
  * 用户自建 Agent 的服务。
  *
- * 自建 Agent 默认走 adapterName='custom'，也可选择 Claude Code / Codex SDK adapter。
+ * ⚠️ 这里是 **API 层**，别把「默认」读成产品默认：`adapterName` 不传时兜底 `'custom'`
+ * （`POST /api/agents` 的 zod schema 同样 `.default('custom')`）。
+ * 产品层面的「新建 Agent 默认」是 **`claude-code`**，由 UI 承担 —— 详细配置表单与 AI 草稿
+ * 这两条路径都会显式传 `adapterName`（见 `agent-config-form.tsx` 的
+ * `createEmptyAgentFormValue` / `agentDraftToCreateBody`），所以这个兜底只在
+ * 「非 UI 调用方不传参」时生效。口径详见 Spec 10 / Spec 05。
+ *
  * 内置 Agent (isBuiltin=true) 不可被删除或修改。
  */
 
@@ -22,7 +28,7 @@ export interface CreateAgentArgs {
   description: string
   capabilities: string[]
   systemPrompt: string
-  /** 'custom' (默认) | 'claude-code' | 'codex' | 'image-gen' */
+  /** 'custom'（仅 API 层兜底）| 'claude-code' | 'codex' | 'image-gen' —— UI 新建默认 claude-code */
   adapterName?: AdapterName
   /** custom: required；SDK adapter: 忽略（可不传） */
   modelProvider?: ModelProvider

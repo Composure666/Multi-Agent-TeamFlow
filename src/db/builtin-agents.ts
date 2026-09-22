@@ -6,7 +6,19 @@
  *  - `src/db/bootstrap.ts` —— packaged 应用首次启动时自动 seed
  *
  * 改这里要同步检查两边都还合理（特别是 toolNames / systemPrompt 升级）。
+ *
+ * 适配器口径（2026-09-17 起，与「新建 Agent 默认 claude-code」一致）：5 个内置 Agent 全部走
+ * `claude-code`（Claude Agent SDK，经供应商中心的 `anthropic` 行指向 DeepSeek 的 Anthropic
+ * 兼容端点），因此 `modelProvider` 为 NULL、`modelId` 取 DeepSeek 系模型 ID。
+ *
+ * ⚠️ 改 adapterName / modelId 只对**新装实例**生效：`ensureBuiltinAgents` 见到任意内置行就整体
+ * 跳过，存量库要靠 `bootstrap.ts` 里的 `upgrade_builtin_agents_to_claude_code_v1` 迁移才跟上。
+ *
+ * `toolNames` 必须保留 —— claude-code adapter 用 `filterAgentHubMcpToolsForRun(toolNames, ...)`
+ * 判断是否处于计划阶段，Orchestrator 的 `plan_tasks` 靠它才进白名单（置空会让计划阶段失去
+ * fs_list / read_artifact 等上下文工具）。
  */
+import { CLAUDE_CODE_DEFAULT_MODEL } from '@/shared/agent-builder-config'
 import type { AgentInsert } from './schema'
 
 export const UI_DESIGNER_ARTIFACT_PROMPT_HINT = `产物输出硬性要求：
@@ -39,9 +51,9 @@ export const BUILTIN_AGENTS: AgentInsert[] = [
 3. 分派前根据群聊中 Agent 的能力选择负责人；不要把同一职责重复派给多个 Agent。
 4. 产物链路要清楚：PRD -> 风格指南 -> web_app -> review；缺少上游产物时允许跳过或让对应 Agent 补齐。
 5. 聚合结果时只总结关键结论、产物位置和下一步决策，不重复每个 Agent 的长篇过程。`,
-    adapterName: 'custom',
-    modelProvider: 'deepseek',
-    modelId: 'deepseek-v4-flash',
+    adapterName: 'claude-code',
+    modelProvider: null,
+    modelId: CLAUDE_CODE_DEFAULT_MODEL,
     toolNames: ['plan_tasks', 'ask_user', 'fs_list', 'fs_read', 'read_attachment', 'read_artifact'],
     isBuiltin: true,
     isOrchestrator: true,
@@ -70,9 +82,9 @@ PRD 必须包含：
 6. 验收标准与风险
 
 文风简洁有结构，使用 markdown 标题分层。除产物外，对用户的回复一段话即可。`,
-    adapterName: 'custom',
-    modelProvider: 'deepseek',
-    modelId: 'deepseek-v4-flash',
+    adapterName: 'claude-code',
+    modelProvider: null,
+    modelId: CLAUDE_CODE_DEFAULT_MODEL,
     toolNames: ['write_artifact', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read'],
     isBuiltin: true,
     isOrchestrator: false,
@@ -104,9 +116,9 @@ PRD 必须包含：
 如有上游 PRD，先用 read_artifact 读取后再设计。如用户上传了视觉参考图，请认真观察后再产出。
 
 ${UI_DESIGNER_ARTIFACT_PROMPT_HINT}`,
-    adapterName: 'custom',
-    modelProvider: 'deepseek',
-    modelId: 'deepseek-v4-flash',
+    adapterName: 'claude-code',
+    modelProvider: null,
+    modelId: CLAUDE_CODE_DEFAULT_MODEL,
     toolNames: ['write_artifact', 'read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read'],
     isBuiltin: true,
     isOrchestrator: false,
@@ -134,9 +146,9 @@ ${UI_DESIGNER_ARTIFACT_PROMPT_HINT}`,
 6. 完成 web_app 产物后必须调用 deploy_artifact，让用户在消息里拿到部署状态卡和可打开的预览路径。
 
 完成 web_app 产物后必须调用 deploy_artifact；完成本地项目构建后优先调用 deploy_workspace 部署 dist/build/out 等静态目录，让用户在消息里拿到部署状态卡和可打开的预览路径。部署工具返回的 previewPath 是当前 Multi-Agent TeamFlow 实例下的相对路径，不要在文字总结里把它改写成公网域名或自造完整 URL；让用户点击部署卡片按钮，或原样引用 previewPath。`,
-    adapterName: 'custom',
-    modelProvider: 'deepseek',
-    modelId: 'deepseek-v4-flash',
+    adapterName: 'claude-code',
+    modelProvider: null,
+    modelId: CLAUDE_CODE_DEFAULT_MODEL,
     toolNames: [
       'write_artifact',
       'deploy_artifact',
@@ -169,9 +181,9 @@ ${UI_DESIGNER_ARTIFACT_PROMPT_HINT}`,
 4. 如果没有明显问题，要明确说“未发现阻塞问题”，再列出剩余风险或未验证项。
 
 不要写代码或新的产物，只输出审查报告（文字）。`,
-    adapterName: 'custom',
-    modelProvider: 'deepseek',
-    modelId: 'deepseek-v4-flash',
+    adapterName: 'claude-code',
+    modelProvider: null,
+    modelId: CLAUDE_CODE_DEFAULT_MODEL,
     toolNames: ['read_artifact', 'read_attachment', 'ask_user', 'fs_list', 'fs_read', 'bash'],
     isBuiltin: true,
     isOrchestrator: false,
