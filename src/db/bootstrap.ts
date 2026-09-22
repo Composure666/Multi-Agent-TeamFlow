@@ -761,6 +761,15 @@ function llmAssignmentSeedTargets(): Array<{ scope: LlmAssignmentSeedScope; key:
 }
 
 /** 从 llm_providers 里挑一个「真能用」的供应商；没有就返回 null（此时不 seed）。 */
+/**
+ * 已弃用、代码里已无对应 `ProviderType` 的供应商 id。
+ *
+ * `purgeDeprecatedLlmProvidersOnce` 用它们清残留；`pickLlmAssignmentSeedProvider` 用它们
+ * 排除挑选对象 —— 后者是必须的：`ProviderType` 没有该成员时 `providerIdToModelProvider(id)`
+ * 只能回落到 `'openai-compatible'`，把默认分配写到一个已弃用供应商上等于写了一条坏链。
+ */
+const DEPRECATED_LLM_PROVIDER_IDS: readonly string[] = ['bailian']
+
 function pickLlmAssignmentSeedProvider(
   sqlite: Database.Database,
 ): { id: string; modelName: string | null } | null {
@@ -768,7 +777,10 @@ function pickLlmAssignmentSeedProvider(
     .prepare('SELECT id, api_key, models, is_connected FROM llm_providers')
     .all() as Array<{ id: string; api_key: string | null; models: string | null; is_connected: number }>
 
-  const usable = rows.filter((row) => Boolean(row.api_key && row.api_key.trim()))
+  const usable = rows.filter(
+    (row) =>
+      Boolean(row.api_key && row.api_key.trim()) && !DEPRECATED_LLM_PROVIDER_IDS.includes(row.id),
+  )
   if (usable.length === 0) return null
 
   const chosen =
@@ -851,6 +863,78 @@ function seedDefaultLlmAssignmentsOnce(sqlite: Database.Database): void {
     console.info(
       `[bootstrap] 已 seed 模型分配：${llmAssignmentSeedTargets().length} 个能力 → ${provider.id}/${provider.modelName ?? '(供应商默认模型)'}`,
     )
+  })
+  tx.immediate()
+}
+
+/**
+ * 存量安装的一次性清理：删掉已弃用供应商（阿里云百炼 `bailian`）的全部残留。
+ *
+ * 背景：2026-09-17 的 `refactor(llm)!: 弃用阿里云百炼` 只删了代码，**没有配 DB 迁移**。
+ * 线上库当时是手工清的，本地库没清 ⇒ 同一个版本的两端数据不一致：
+ * 本地 `global:default_provider` 的首选仍是 `bailian/qwen3.8-flash`，而它的健康状态是
+ * `status='unavailable'` / `last_error_code='balance'` / `consecutive_failures=8`（欠费锁定），
+ * 同时代码里 `ProviderType` 已经没有 `bailian` 这个成员，
+ * `providerIdToModelProvider('bailian')` 只能回落到 `'openai-compatible'` ——
+ * 结果是「首选供应商是个代码里不存在的类型，且永远不可用」。
+ *
+ * 三条口径：
+ *  1. 只删 `bailian` 的三处残留（供应商行 / 模型分配 / 健康状态），其它供应商一行不碰。
+ *     删除顺序必须是 分配 → 状态 → 供应商：后两张表的 `provider_id` 都外键引用 `llm_providers.id`。
+ *  2. 删完把**该能力的剩余分配重新编号成 0..n-1**（保持原有相对顺序）。分配解析一律
+ *     `ORDER BY priority ASC`，所以重编号不改变语义，只是避免 UI 里「该能力首条」显示成
+ *     priority=1 这种带空洞的编号。只在确实删过行的能力链上做。
+ *  3. 只跑一次（`bootstrap_migrations` 记标记，守卫读放在事务内 + BEGIN IMMEDIATE，
+ *     与 `seedDefaultLlmAssignmentsOnce` 同一套约定，避免 `next build` 多 worker 并发重复执行）。
+ *
+ * 前置校验（2026-09-22 对本地库逐条核对过）：引用 bailian 的能力链都还有 deepseek 兜底，
+ * 不存在「删完变空链」的能力，因此纯删是安全的。
+ */
+const PURGE_BAILIAN_MIGRATION = 'purge_bailian_provider_v1'
+
+function purgeDeprecatedLlmProvidersOnce(sqlite: Database.Database): void {
+  const tx = sqlite.transaction(() => {
+    const applied = sqlite
+      .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+      .get(PURGE_BAILIAN_MIGRATION)
+    if (applied) return
+
+    const placeholders = DEPRECATED_LLM_PROVIDER_IDS.map(() => '?').join(', ')
+
+    // 先记下哪些能力链会被动到（重编号只在这些链上做）。
+    const affected = sqlite
+      .prepare(
+        `SELECT DISTINCT capability_key FROM llm_model_assignments WHERE provider_id IN (${placeholders})`,
+      )
+      .all(...DEPRECATED_LLM_PROVIDER_IDS) as { capability_key: string }[]
+
+    for (const id of DEPRECATED_LLM_PROVIDER_IDS) {
+      sqlite.prepare('DELETE FROM llm_model_assignments WHERE provider_id = ?').run(id)
+      sqlite.prepare('DELETE FROM llm_provider_status WHERE provider_id = ?').run(id)
+      sqlite.prepare('DELETE FROM llm_providers WHERE id = ?').run(id)
+    }
+
+    const listIds = sqlite.prepare(
+      'SELECT id FROM llm_model_assignments WHERE capability_key = ? ORDER BY priority ASC, id ASC',
+    )
+    const setPriority = sqlite.prepare(
+      'UPDATE llm_model_assignments SET priority = ?, updated_at = ? WHERE id = ?',
+    )
+    const now = Date.now()
+    for (const row of affected) {
+      const ids = (listIds.all(row.capability_key) as { id: string }[]).map((item) => item.id)
+      ids.forEach((id, index) => setPriority.run(index, now, id))
+    }
+
+    sqlite
+      .prepare('INSERT OR REPLACE INTO bootstrap_migrations (key, applied_at) VALUES (?, ?)')
+      .run(PURGE_BAILIAN_MIGRATION, now)
+
+    if (affected.length > 0) {
+      console.info(
+        `[bootstrap] 已清理弃用供应商 ${DEPRECATED_LLM_PROVIDER_IDS.join(', ')}；重编号 ${affected.length} 条能力链`,
+      )
+    }
   })
   tx.immediate()
 }
@@ -1320,6 +1404,9 @@ export function bootstrapDatabase(sqlite: Database.Database): void {
   // 品牌改名的一次性提示词迁移放在 builtin agent 升级之后，
   // 这样 upgradeBuiltinAgents 追加的提示词片段也能被一起扫到。
   renameLegacyBrandOnce(sqlite)
+  // 清弃用供应商必须排在 seedDefaultLlmAssignmentsOnce 之前：seed 会从 llm_providers 里
+  // 挑一个「带 key 的」供应商写默认分配，先清掉欠费锁定的 bailian 才不会把它挑进去。
+  purgeDeprecatedLlmProvidersOnce(sqlite)
   seedDefaultLlmAssignmentsOnce(sqlite)
   ensureDemoAutomations(sqlite)
 }

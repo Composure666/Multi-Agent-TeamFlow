@@ -560,3 +560,178 @@ describe('builtin agent adapter migration', () => {
 })
 
 /**
+ * 回归：已弃用供应商（阿里云百炼 `bailian`）的残留必须被清干净，且清完不留「优先级空洞」。
+ *
+ * 背景：弃用只删了代码、没配迁移 —— 线上是手工清的，本地库没清，于是本地的首选供应商仍是
+ * `bailian`（欠费锁定，且 `ProviderType` 里已无该成员）。删完还必须保证每条能力链仍有兜底。
+ */
+describe('deprecated llm provider purge migration', () => {
+  /** 本 describe 自带一份（外层那个 helper 定义在别的 describe 作用域里）。 */
+  function insertProvider(
+    sqlite: Database.Database,
+    row: { id: string; models?: string[]; apiKey?: string | null },
+  ): void {
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT OR REPLACE INTO llm_providers
+           (id, provider_type, display_name, api_key, base_url, models, is_connected, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      )
+      .run(
+        row.id,
+        row.id,
+        row.id,
+        row.apiKey === undefined ? 'sk-test' : row.apiKey,
+        'https://example.test/v1',
+        JSON.stringify(row.models ?? ['deepseek-flash', 'deepseek-v4-pro']),
+        now,
+        now,
+      )
+  }
+
+  function insertAssignment(
+    sqlite: Database.Database,
+    row: {
+      id: string
+      capabilityKey: string
+      providerId: string
+      modelName: string
+      priority: number
+    },
+  ): void {
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO llm_model_assignments
+           (id, scope, capability_key, provider_id, model_name, priority, created_at, updated_at, use_global)
+         VALUES (?, 'system', ?, ?, ?, ?, ?, ?, 0)`,
+      )
+      .run(row.id, row.capabilityKey, row.providerId, row.modelName, row.priority, now, now)
+  }
+
+  it('purges bailian from all three tables and renumbers the surviving chain', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'deepseek' })
+      insertProvider(sqlite, { id: 'bailian', models: ['qwen3.8-flash'] })
+
+      // 复刻本地库的形状：bailian 占 p0（欠费锁定），deepseek 在 p1 兜底
+      insertAssignment(sqlite, {
+        id: 'a_bailian_0',
+        capabilityKey: 'system_chat',
+        providerId: 'bailian',
+        modelName: 'glm-5.3',
+        priority: 0,
+      })
+      insertAssignment(sqlite, {
+        id: 'a_deepseek_1',
+        capabilityKey: 'system_chat',
+        providerId: 'deepseek',
+        modelName: 'deepseek-v4-flash',
+        priority: 1,
+      })
+      // 一条与 bailian 无关的能力链：优先级不该被顺手改掉
+      insertAssignment(sqlite, {
+        id: 'a_text_5',
+        capabilityKey: 'agent:text',
+        providerId: 'deepseek',
+        modelName: 'deepseek-flash',
+        priority: 5,
+      })
+      sqlite
+        .prepare(
+          `INSERT OR REPLACE INTO llm_provider_status
+             (provider_id, status, last_error_code, consecutive_failures, updated_at)
+           VALUES ('bailian', 'unavailable', 'balance', 8, ?)`,
+        )
+        .run(Date.now())
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      // 供应商行 / 健康状态 / 模型分配 三处都不能再有 bailian
+      const targets = [
+        { table: 'llm_providers', column: 'id' },
+        { table: 'llm_provider_status', column: 'provider_id' },
+        { table: 'llm_model_assignments', column: 'provider_id' },
+      ]
+      for (const target of targets) {
+        const hit = sqlite
+          .prepare(`SELECT COUNT(*) AS n FROM ${target.table} WHERE ${target.column} = 'bailian'`)
+          .get() as { n: number }
+        expect({ table: target.table, n: hit.n }).toEqual({ table: target.table, n: 0 })
+      }
+
+      // 受影响的链：剩下的 deepseek 从 p1 压到 p0（不留空洞），兜底仍在
+      const chat = sqlite
+        .prepare(
+          `SELECT id, priority FROM llm_model_assignments WHERE capability_key = 'system_chat' ORDER BY priority`,
+        )
+        .all() as Array<{ id: string; priority: number }>
+      expect(chat).toEqual([{ id: 'a_deepseek_1', priority: 0 }])
+
+      // 未受影响的能力链：优先级原样保留
+      const text = sqlite
+        .prepare(`SELECT id, priority FROM llm_model_assignments WHERE capability_key = 'agent:text'`)
+        .all() as Array<{ id: string; priority: number }>
+      expect(text).toEqual([{ id: 'a_text_5', priority: 5 }])
+    })
+  })
+
+  it('is a one-shot: a later manual re-add of bailian is not purged again', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+      bootstrapDatabase(sqlite)
+
+      // 迁移已记账：之后有人手工把 bailian 塞回来，不该被反复删（避免误删用户重建的配置）
+      insertProvider(sqlite, { id: 'bailian' })
+      bootstrapDatabase(sqlite)
+
+      const hit = sqlite
+        .prepare(`SELECT COUNT(*) AS n FROM llm_providers WHERE id = 'bailian'`)
+        .get() as { n: number }
+      expect(hit.n).toBe(1)
+    })
+  })
+
+  it('never seeds default assignments onto a deprecated provider', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      // bailian 已连接且带 key，比 deepseek 更「早」出现在表里 —— 仍然必须被排除，
+      // 否则默认分配会写到 ProviderType 里已不存在的成员上，运行时只能是坏链。
+      insertProvider(sqlite, { id: 'bailian', models: ['qwen3.8-flash'] })
+      insertProvider(sqlite, { id: 'deepseek' })
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      const rows = sqlite
+        .prepare('SELECT provider_id FROM llm_model_assignments')
+        .all() as Array<{ provider_id: string | null }>
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        expect(row.provider_id).toBe('deepseek')
+      }
+    })
+  })
+
+  it('skips the seed entirely when only deprecated providers are usable', () => {
+    withTempDb((sqlite) => {
+      bootstrapDatabase(sqlite)
+      insertProvider(sqlite, { id: 'bailian' })
+      sqlite.prepare('DELETE FROM bootstrap_migrations').run()
+
+      bootstrapDatabase(sqlite)
+
+      // 没有可用供应商 ⇒ 不写分配、也**不记账**，将来配上真供应商还能自愈
+      const rows = sqlite.prepare('SELECT id FROM llm_model_assignments').all()
+      expect(rows).toEqual([])
+      const marked = sqlite
+        .prepare('SELECT 1 AS one FROM bootstrap_migrations WHERE key = ?')
+        .get('seed_default_llm_assignments_v1')
+      expect(marked).toBeUndefined()
+    })
+  })
+})
