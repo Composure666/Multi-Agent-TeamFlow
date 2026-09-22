@@ -233,7 +233,9 @@ tail -50 /var/log/agenthub/err.log
 需要域名。腾讯云控制台可申请免费 SSL 证书。拿到证书后取消 `nginx-agenthub.conf` 底部的注释块，把 80 改成跳转、启用 443。没域名就用 HTTP + Basic 鉴权。
 
 **Q：桌面端（Electron）那些功能呢？**
-服务器上跑不了，也不该跑。系统托盘、本地文件系统直读、`companion-proxy` 的移动端推送都依赖桌面端运行环境。Web 模式下功能是**缩水的**，这点要接受。
+桌面端 = **同一份 Web UI + 一层 Electron 壳**（`electron/` 约 986 行，无业务逻辑），所以功能**不是缩水的**——服务器上跑不了的只有一样：`companion-proxy`（桌面主进程里 listen 0.0.0.0 的代理，供手机端访问 `/api/mobile/*`）。即：**移动端伴随 App 连不上纯 Web 部署，其余功能一致。**
+
+> 注：**系统托盘 / 本地文件系统直读并未实现**。Spec 12 §1「不做」与 §13 把它列为 Phase 1 不做，`electron/` 里也搜不到 `Tray` / `globalShortcut` / `autoUpdater`。本文件此前写成「桌面端有这些、Web 端缩水」，与实现不符，已更正。
 
 ---
 

@@ -165,7 +165,7 @@ sudo bash /opt/agenthub/src/deploy/auth-toggle.sh status
 1. **只有 DeepSeek 配了 key** —— `anthropic` / `openai` / `ark` 都是空的。**别现场演示 Claude/GPT**，会直接报 `未配置 API Key`。要演示就选 DeepSeek 系模型。
 2. **生图走的是第三方网关**（`fast.qianxing.us.ci` 的 `gpt-image-2`），不是内置能力。网关挂了就出不了图 —— **所以提前生成好**。
 3. **这个服务会给访问者一个服务器 shell**（终端功能）。演示时别让评委随机敲命令。
-4. **Electron 桌面端功能在服务器上没有** —— 系统托盘、本地文件直读、companion 推送都没有。如果 PPT 里讲了这些，说明"桌面端可用、Web 端功能略有差异"。
+4. **桌面端与 Web 端是同一份 UI**（桌面只是 Electron 壳），不存在「桌面端有、Web 端没有」的功能差异；唯一实质差异是 `companion-proxy`（移动端访问 `/api/mobile/*`）只在桌面进程里起。**口播别提「系统托盘 / 本地文件直读」** —— Spec 12 §1/§13 明确 Phase 1 不做，`electron/` 里也没有对应实现。
 5. **手机端 API**（`/api/mobile/*`）需要 companion 代理 + Bearer token，默认没开。演示移动端要另外配。
 
 ---

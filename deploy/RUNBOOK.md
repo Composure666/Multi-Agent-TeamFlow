@@ -127,8 +127,14 @@ swap        4.0Gi
 
 ### 步骤 3 · 传密钥文件（关键，别跳过）
 
-服务器上运行时**必须**有 `DEEPSEEK_API_KEY` / `ORCHESTRATOR_PROVIDER` / `ORCHESTRATOR_MODEL_ID` / 4 个 `OSS_*`。
-你本地 `.env.local` 里正好就是这 7 项，直接传上去最省事：
+服务器上运行时**必须**有 `DEEPSEEK_API_KEY` 与 4 个 `OSS_*`（共 5 项）。
+`DEEPSEEK_API_KEY` 同时也是 cc adapter 的凭据来源 —— 平台把供应商中心的 `anthropic` 行指向
+`https://api.deepseek.com/anthropic` 并复用同一个 DeepSeek key。⚠️ 这一行存在**数据库**里、
+不走 env，所以新装实例要在供应商中心手工配一次，光传 env 不够。
+
+你本地 `.env.local` 里其实是这 7 项，多出 `ORCHESTRATOR_PROVIDER` / `ORCHESTRATOR_MODEL_ID` ——
+但**这两项在代码里没有任何读取点**（全仓 grep 命中 0 处；见 `.env.example` 注释），
+传上去不生效、留着也无害。直接整份传最省事：
 
 ```powershell
 # 回到本地 PowerShell，先 cd 到仓库根（路径不写死，换目录名/换机器都不用改）
@@ -322,7 +328,7 @@ tail -50 /var/log/agenthub/err.log
    ssh -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" -L 3000:127.0.0.1:3000 ubuntu@101.42.94.222
    # 本地浏览器打开 http://127.0.0.1:3000
    ```
-6. Electron 桌面端的功能（系统托盘、本地文件直读、companion 推送）**服务器上没有**，Web 模式是缩水的。
+6. 桌面端与 Web 端**是同一份 UI**，不存在「功能缩水」；唯一实质差异是 `companion-proxy`（移动端访问 `/api/mobile/*` 的代理）只在 Electron 主进程里起，纯服务器部署没有它。**系统托盘 / 本地文件直读并未实现**（Spec 12 §1 / §13 列为不做），别按「桌面端有、Web 端没有」的口径讲。
 
 
 ---
