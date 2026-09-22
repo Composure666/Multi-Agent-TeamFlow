@@ -2,6 +2,16 @@
   "name": "multi-agent-teamflow",
   "version": "0.1.0",
   "description": "Local-first multi-agent workspace with IM-style collaboration, artifacts, approvals, and Electron desktop support.",
+  "author": {
+    "name": "Multi-Agent TeamFlow",
+    "url": "https://gitee.com/Composure666/agent-hub"
+  },
+  "contributors": [
+    {
+      "name": "bitdance-agenthub contributors",
+      "url": "https://github.com/lizyoko9/bitdance-agenthub"
+    }
+  ],
   "keywords": [
     "agenthub",
     "multi-agent",
@@ -121,6 +131,8 @@
       ".next/standalone/**"
     ],
     "files": [
+      "LICENSE",
+      "NOTICE.md",
       "dist-electron/**",
       ".next/standalone/**",
       "!.next/standalone/release/**",

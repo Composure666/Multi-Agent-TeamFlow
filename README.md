@@ -178,3 +178,14 @@ pnpm mobile:build
 - `OVERVIEW.md` — code map and current implementation status
 - `CLAUDE.md` — project rules for AI-assisted work
 - `specs/` — numbered technical specs
+- `NOTICE.md` — license and attribution notice
+
+## License and attribution
+
+This project is licensed under the **GNU Affero General Public License v3.0** (`AGPL-3.0-only`) — see [`LICENSE`](./LICENSE).
+
+It is a **derivative work (modified version)** of [`lizyoko9/bitdance-agenthub`](https://github.com/lizyoko9/bitdance-agenthub), an open-source project that is also licensed under AGPL-3.0. Under AGPL-3.0 section 5 the whole work must stay under AGPL-3.0, so this project cannot be relicensed under more permissive or proprietary terms.
+
+Upstream copyright, the statements of modification, and the itemized list of changes are recorded in [`NOTICE.md`](./NOTICE.md).
+
+If you interact with this software over a network, AGPL-3.0 section 13 entitles you to obtain its Corresponding Source; [`NOTICE.md`](./NOTICE.md) states where to get it.

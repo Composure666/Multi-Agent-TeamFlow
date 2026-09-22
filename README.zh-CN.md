@@ -192,3 +192,14 @@ pnpm mobile:build        # 构建移动伴随端
 - `OVERVIEW.md`：项目全貌和代码地图
 - `CLAUDE.md`：项目规则与 AI 协作约定
 - `specs/`：编号版详细规格
+- `NOTICE.md`：许可与出处声明
+
+## 许可与出处
+
+本项目以 **GNU Affero General Public License v3.0**（`AGPL-3.0-only`）发布，许可证全文见 [`LICENSE`](./LICENSE)。
+
+本项目是开源项目 [`lizyoko9/bitdance-agenthub`](https://github.com/lizyoko9/bitdance-agenthub)（同样以 AGPL-3.0 授权）的**衍生作品（修改版本）**。依据 AGPL-3.0 第 5 条，本项目整体必须继续以 AGPL-3.0 授权，因此不能改用更宽松的条款或闭源再授权。
+
+上游版权信息、修改声明与逐项改动清单见 [`NOTICE.md`](./NOTICE.md)。
+
+若你通过网络使用本软件，AGPL-3.0 第 13 条赋予你获得其对应源码（Corresponding Source）的权利，获取方式见 [`NOTICE.md`](./NOTICE.md)。
