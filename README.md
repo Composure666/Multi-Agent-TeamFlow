@@ -123,7 +123,7 @@ Adding one is a documented process — see [`skills/add-adapter.md`](./skills/ad
 
 ```bash
 # 1. Clone
-git clone https://gitee.com/Composure666/agent-hub.git multi-agent-teamflow
+git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git multi-agent-teamflow
 cd multi-agent-teamflow
 
 # 2. Install dependencies

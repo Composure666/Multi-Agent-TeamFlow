@@ -30,7 +30,7 @@ git --version
 ## 3. 获取项目代码
 
 ```bash
-git clone https://gitee.com/Composure666/agent-hub.git
+git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git
 cd agent-hub
 ```
 

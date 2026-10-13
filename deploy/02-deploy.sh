@@ -29,7 +29,7 @@ APP_USER="agenthub"
 APP_ROOT="/opt/agenthub"
 SRC_DIR="${APP_ROOT}/src"
 DATA_DIR="${APP_ROOT}/data"
-REPO_URL="${REPO_URL:-https://gitee.com/Composure666/agent-hub.git}"
+REPO_URL="${REPO_URL:-https://gitee.com/Composure666/Multi-Agent-TeamFlow.git}"
 BRANCH="${BRANCH:-master}"
 
 CYAN='\033[1;36m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; GREEN='\033[1;32m'; NC='\033[0m'

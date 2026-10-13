@@ -123,7 +123,7 @@ Multi-Agent TeamFlow 是一个**本地优先的多 Agent 协作工作空间**，
 
 ```bash
 # 1. 克隆
-git clone https://gitee.com/Composure666/agent-hub.git multi-agent-teamflow
+git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git multi-agent-teamflow
 cd multi-agent-teamflow
 
 # 2. 安装依赖

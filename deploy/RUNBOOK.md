@@ -16,15 +16,15 @@
 
 ---
 
-## 二、两个会让 `README.md` 原步骤直接失败的前提 ⚠️
+## 二、关于「先 `git clone` 再跑脚本」这条路 ⚠️
 
-我核对过实际状态，`README.md` 里写的「先 `git clone` 再跑脚本」在这台机器上**第一步就会挂**：
+`README.md` 里写的「先 `git clone` 再跑脚本」在这台机器上跑不通。当初有两个原因，**第 ① 条已经解决，第 ② 条仍然成立**：
 
-**① 仓库是私有的。**
-`https://gitee.com/Composure666/agent-hub.git` 匿名访问返回 **401**。服务器上 `git clone` 会一直卡在 `Username for 'https://gitee.com':`，无人值守跑不通。
+**① 仓库此前是私有的 —— 此条已解除。**
+`https://gitee.com/Composure666/Multi-Agent-TeamFlow.git` 现已是**公开仓库**，匿名即可读取，`git clone` 不再需要凭据，也不会卡在 `Username for 'https://gitee.com':`。
 
-**② `deploy/` 这个目录本身还没进仓库。**
-它在你本地是**未追踪状态**（`git status` 里 6 个 untracked 文件全是 `deploy/*`），gitee 的 master 里**没有** `deploy/`。所以就算 clone 成功，也拿不到这些脚本 —— 典型的鸡生蛋问题。
+**② 线上 `/opt/agenthub/src` 不是 git 仓库 —— 此条仍然成立。**
+服务器上那份代码不是通过 `git pull` 更新的，所以 `02-deploy.sh` 里那条 `git fetch --depth=1` 分支在线上**永远走不到**。
 
 **解决办法（本手册采用）：把源码打包直接上传，构建时用 `SKIP_GIT=1` 跳过 git。**
 我已经帮你打好包并逐文件校验过了，见下一节。

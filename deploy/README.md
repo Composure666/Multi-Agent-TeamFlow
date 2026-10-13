@@ -78,7 +78,7 @@ ssh root@<你的公网IP>
 
 # 先 clone（初始化脚本也会用这个路径）
 mkdir -p /opt/agenthub && cd /opt/agenthub
-git clone https://gitee.com/Composure666/agent-hub.git src
+git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git src
 
 # 跑初始化：swap + Node 22 + pnpm 11 + 编译工具链 + 用户 + Nginx
 bash /opt/agenthub/src/deploy/01-server-init.sh
