@@ -1,10 +1,9 @@
 'use client'
 
 import { AlertTriangle, ArrowRight, CheckCircle2, CloudUpload, KeyRound, type LucideIcon } from 'lucide-react'
-import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
 
-import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
+import { Container, SectionHead, WorkbenchLink, cardClass } from '@/components/home/home-primitives'
 import { buttonVariants } from '@/components/ui/button'
 import {
   GUIDE_GROUPS,
@@ -117,13 +116,13 @@ export function HomeGuide() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Link
+          <WorkbenchLink
             href="/"
             className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
           >
             进入工作台
             <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
+          </WorkbenchLink>
           <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
             指南里的每个模块，都是工作台左侧栏里真实存在的入口 —— 不是规划图。
           </p>
@@ -295,7 +294,7 @@ function PrereqCard({
         )}
       </div>
       <p className="text-[12px] leading-5 text-slate-600 dark:text-slate-300">{description}</p>
-      <Link
+      <WorkbenchLink
         href={href}
         className={cn(
           buttonVariants({ variant: required ? 'default' : 'outline', size: 'sm' }),
@@ -304,7 +303,7 @@ function PrereqCard({
       >
         {action}
         <ArrowRight className="size-3.5" aria-hidden="true" />
-      </Link>
+      </WorkbenchLink>
     </div>
   )
 }

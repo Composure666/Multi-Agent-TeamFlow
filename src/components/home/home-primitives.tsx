@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import Link from 'next/link'
+import type { ComponentProps, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -62,3 +63,19 @@ export function SectionHead({
 /** 卡片规格对齐工作台的 `PageCard`：rounded-2xl + 品牌描边 + surface 底 + 轻阴影。 */
 export const cardClass =
   'home-card rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-sm'
+
+/**
+ * 指向工作台（`/` 及其 `?setup=` 深链）的站内链接 —— 主页上一律用它，别直接用 `next/link`。
+ *
+ * 必须 `prefetch={false}`：`/home` 是**免鉴权**的公开访客面，而 `/` 与 `/?setup=*` 都在
+ * Basic 鉴权后面。Next 的预取**只在 production 生效**（dev 完全不预取），默认会在链接
+ * 进入视口时就去抓 RSC 载荷；浏览器收到 401 + `WWW-Authenticate` 后弹出**原生 Basic
+ * 登录框**，那是个模态窗口，会把整页的鼠标 / 键盘 / 滚轮事件全部吞掉 —— 访客看到的现象
+ * 是「这个页面点不动」，而控制台、网络面板都干干净净，极难往鉴权方向想。
+ *
+ * 收敛成一个组件是为了让这个不变量有单一出处：以后在主页新增任何指向工作台的 CTA，
+ * 都不会再漏掉这一个 prop。
+ */
+export function WorkbenchLink(props: ComponentProps<typeof Link>) {
+  return <Link {...props} prefetch={false} />
+}

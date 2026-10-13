@@ -1,5 +1,4 @@
 import { ArrowRight, ArrowUpRight, ChevronRight, Sparkles, Terminal } from 'lucide-react'
-import Link from 'next/link'
 import { Fragment } from 'react'
 
 import {
@@ -17,7 +16,7 @@ import {
   UPSTREAM_URL,
   WORKFLOW_STEPS,
 } from '@/components/home/home-data'
-import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
+import { Container, SectionHead, WorkbenchLink, cardClass } from '@/components/home/home-primitives'
 import { buttonVariants } from '@/components/ui/button'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -87,13 +86,13 @@ export function HomeHero() {
             className="home-rise mt-8 flex flex-wrap items-center justify-center gap-3"
             style={{ animationDelay: '210ms' }}
           >
-            <Link
+            <WorkbenchLink
               href="/"
               className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
             >
               进入工作台
               <ArrowRight className="size-4" aria-hidden="true" />
-            </Link>
+            </WorkbenchLink>
             <a
               href={REPO_URL}
               target="_blank"
@@ -141,13 +140,13 @@ export function HomeWorkflow() {
               title="从一句目标，到一件可交付的产物"
               description="你只需要说清要什么。拆分、派单、传递上下文、评审这些事，交给调度 Agent 和它的同伴。"
             />
-            <Link
+            <WorkbenchLink
               href="/"
               className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-6 h-10 gap-1.5 px-4')}
             >
               进入工作台
               <ArrowRight className="size-4" aria-hidden="true" />
-            </Link>
+            </WorkbenchLink>
           </div>
 
           <ol className="relative flex list-none flex-col gap-7 border-l border-dashed border-[var(--agenthub-border)] pl-6">

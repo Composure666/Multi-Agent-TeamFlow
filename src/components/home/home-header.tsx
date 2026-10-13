@@ -1,10 +1,10 @@
 'use client'
 
 import { ArrowRight, Menu, X } from 'lucide-react'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { HOME_NAV } from '@/components/home/home-data'
+import { WorkbenchLink } from '@/components/home/home-primitives'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { buttonVariants } from '@/components/ui/button'
 import { BRAND_NAME, BRAND_TAGLINE_EN } from '@/lib/brand'
@@ -79,7 +79,7 @@ export function HomeHeader() {
           <ThemeToggle />
           {/* 窄屏放不下「导航 + 主题 + CTA」三件套，所以 CTA 收进移动端抽屉，
               顶部只在 sm 以上直接露出，避免品牌名被挤到省略号。 */}
-          <Link
+          <WorkbenchLink
             href="/"
             className={cn(
               buttonVariants({ variant: 'default', size: 'lg' }),
@@ -88,7 +88,7 @@ export function HomeHeader() {
           >
             进入工作台
             <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Link>
+          </WorkbenchLink>
           <button
             type="button"
             className={cn(buttonVariants({ variant: 'ghost', size: 'icon-lg' }), 'md:hidden')}
@@ -121,13 +121,13 @@ export function HomeHeader() {
               </li>
             ))}
           </ul>
-          <Link
+          <WorkbenchLink
             href="/"
             className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'mt-3 h-10 w-full gap-1.5')}
           >
             进入工作台
             <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
+          </WorkbenchLink>
         </nav>
       )}
     </header>
