@@ -676,4 +676,103 @@
 .dark .agenthub-status-warning { color: #fcd34d; }
 .dark .agenthub-status-danger { color: #fda4af; }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   项目主页（/home）页面级样式
+   —— 只消费本文件已定义的令牌（--agenthub-* / --radius / --agenthub-motion-*），
+      不引入新变量，因此亮/暗主题与工作台自动保持一致。
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* 顶部导航：半透明 + 背景模糊。用类而不是 `bg-[var(--x)]/80`，
+   避免在 var() 上叠透明度修饰符时的 color-mix 兼容问题。 */
+.home-header {
+  background: color-mix(in srgb, var(--agenthub-surface) 82%, transparent);
+  backdrop-filter: saturate(1.6) blur(14px);
+  -webkit-backdrop-filter: saturate(1.6) blur(14px);
+}
+
+/* 首屏装饰层：细网格 + 品牌色柔光，都向下淡出，避免出现生硬的水平切边。 */
+.home-hero-decor {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.home-hero-grid {
+  position: absolute;
+  inset: -1px;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px);
+  background-size: 54px 54px;
+  -webkit-mask-image: radial-gradient(ellipse 74% 58% at 50% 0%, #000 8%, transparent 72%);
+  mask-image: radial-gradient(ellipse 74% 58% at 50% 0%, #000 8%, transparent 72%);
+}
+
+.home-hero-glow {
+  position: absolute;
+  left: 50%;
+  top: -18rem;
+  height: 34rem;
+  width: 60rem;
+  max-width: 160vw;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--agenthub-accent) 20%, transparent), transparent 100%);
+}
+
+/* 首屏入场：只动画 transform / opacity，走合成层，不触发重排。
+   与工作台一致，用 --agenthub-ease-emphasized + both 填充，元素最终停在终态。 */
+@keyframes home-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.home-rise {
+  animation: home-rise 560ms var(--agenthub-ease-emphasized) both;
+}
+
+/* 模块卡片：hover 轻微抬升 + 品牌色投影。transform / box-shadow / border-color
+   都是合成友好属性，不会触发重排。 */
+.home-card {
+  transition:
+    transform var(--agenthub-motion-normal) var(--agenthub-ease-standard),
+    box-shadow var(--agenthub-motion-normal) var(--agenthub-ease-standard),
+    border-color var(--agenthub-motion-normal) var(--agenthub-ease-standard);
+}
+
+.home-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--agenthub-accent) 40%, var(--agenthub-border));
+  box-shadow: 0 14px 32px -16px color-mix(in srgb, var(--agenthub-accent) 55%, transparent);
+}
+
+/* 主标题里的重点词：品牌色渐变裁切。与工作台同一支主色，不额外引入新色相。 */
+.home-title-accent {
+  background-image: linear-gradient(
+    100deg,
+    var(--agenthub-accent) 0%,
+    color-mix(in srgb, var(--agenthub-accent) 50%, #7C3AED) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-rise { animation: none; }
+  .home-card:hover { transform: none; }
+}
+
+/* 锚点跳转时给固定导航留出高度，避免标题被压在导航下面。 */
+.home-anchor {
+  scroll-margin-top: calc(var(--agenthub-titlebar-height) + 5rem);
+}
+
+/* 锚点平滑滚动。工作台的滚动都发生在内部容器里，body 本身不滚动，
+   所以这条实际只作用于主页这类长文档；系统「减少动效」时会被上方的
+   prefers-reduced-motion 块用 `scroll-behavior: auto !important` 覆盖掉。 */
+html {
+  scroll-behavior: smooth;
+}
+
 /* trigger tailwind rescan */
