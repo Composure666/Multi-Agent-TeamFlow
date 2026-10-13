@@ -275,6 +275,42 @@ async function getProviderRowApiKey(provider: EffectiveApiKeyProvider): Promise<
   }
 }
 
+/** key 是从哪一层拿到的。只为「配置体检」如实说明来源，不参与取值逻辑。 */
+export type LlmKeySource = 'provider-row' | 'app-settings' | 'environment' | 'none'
+
+/**
+ * 取 key 的**唯一实现**：llm_providers（供应商中心）→ app_settings → env var → null。
+ *
+ * 刻意把「值」和「来源」一起返回，并让 `getEffectiveApiKey()` 与
+ * `resolveLlmAvailability()` 都走这一个函数 —— 优先级链一旦被复制成两份，
+ * 迟早会出现「能跑」与「说没配好」互相矛盾。
+ * 本轮就踩过：`getEffectiveLlmProvider()` 只读 app_settings 里用户显式选的默认供应商，
+ * 既不看供应商中心也不看环境变量，于是配置体检在一台本来能跑的机器上返回「未配置」。
+ */
+export async function resolveEffectiveApiKey(
+  provider: EffectiveApiKeyProvider,
+): Promise<{ key: string | null; source: LlmKeySource }> {
+  const [settings, providerRowKey] = await Promise.all([
+    getAppSettings(),
+    getProviderRowApiKey(provider),
+  ])
+  if (providerRowKey) return { key: providerRowKey, source: 'provider-row' }
+
+  const fromSettings =
+    provider === 'anthropic' ? settings.anthropicApiKey
+    : provider === 'openai' ? settings.openaiApiKey
+    : provider === 'deepseek' ? settings.deepseekApiKey
+    : settings.arkApiKey
+  if (fromSettings) return { key: fromSettings, source: 'app-settings' }
+
+  const fromEnv =
+    provider === 'anthropic' ? process.env.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_AUTH_TOKEN
+    : provider === 'openai' ? process.env.OPENAI_API_KEY
+    : provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY
+    : process.env.ARK_API_KEY
+  return fromEnv ? { key: fromEnv, source: 'environment' } : { key: null, source: 'none' }
+}
+
 /**
  * 给 adapter 用的 helper：拿一个 provider 的 effective key。
  * 顺序：llm_providers（供应商中心）→ app_settings → env var → null。
@@ -282,26 +318,7 @@ async function getProviderRowApiKey(provider: EffectiveApiKeyProvider): Promise<
 export async function getEffectiveApiKey(
   provider: EffectiveApiKeyProvider,
 ): Promise<string | null> {
-  const [settings, providerRowKey] = await Promise.all([
-    getAppSettings(),
-    getProviderRowApiKey(provider),
-  ])
-  switch (provider) {
-    case 'anthropic':
-      return (
-        providerRowKey ??
-        settings.anthropicApiKey ??
-        process.env.ANTHROPIC_API_KEY ??
-        process.env.ANTHROPIC_AUTH_TOKEN ??
-        null
-      )
-    case 'openai':
-      return providerRowKey ?? settings.openaiApiKey ?? process.env.OPENAI_API_KEY ?? null
-    case 'deepseek':
-      return providerRowKey ?? settings.deepseekApiKey ?? process.env.DEEPSEEK_API_KEY ?? null
-    case 'ark':
-      return providerRowKey ?? settings.arkApiKey ?? process.env.ARK_API_KEY ?? null
-  }
+  return (await resolveEffectiveApiKey(provider)).key
 }
 
 /**
@@ -364,4 +381,39 @@ export async function getEffectiveLlmProvider(): Promise<DefaultLlmProvider | nu
   if (settings.anthropicApiKey) return 'anthropic'
   if (settings.arkApiKey) return 'ark'
   return null
+}
+
+/** 配置体检结果：现在到底能不能调模型，以及第一个可用的 provider。 */
+export interface LlmAvailability {
+  provider: EffectiveApiKeyProvider | null
+  source: LlmKeySource
+}
+
+/**
+ * 「现在到底能不能调模型」——按**运行时真正取 key 的那条路径**逐家判定。
+ *
+ * 与 `getEffectiveLlmProvider()` 的分工必须区分清楚：
+ *  - 那个函数回答「用户想用哪家」，只认 app_settings 里的显式选择；
+ *  - 本函数回答「实际能不能拿到 key」，必须把供应商中心（面板里配 key 的主入口）
+ *    与环境变量都算上 —— 否则配置体检会在一台本来能跑的机器上判「未配置」。
+ *
+ * 顺序刻意与 `getEffectiveLlmProvider()` 的 auto 分支一致（用户显式选定的排最前，
+ * 其余按 deepseek → openai → anthropic → ark），这样「用哪个」与「有没有配好」
+ * 两个答案不会互相矛盾。
+ *
+ * 注：`agent-runner` 给 codex 适配器额外认一个 `CODEX_API_KEY`，那是适配器专属兜底，
+ * 刻意不在这里复刻 —— 本函数只如实反映 `getEffectiveApiKey()` 的口径。
+ */
+export async function resolveLlmAvailability(): Promise<LlmAvailability> {
+  const settings = await getAppSettings()
+  const chosen = normalizeDefaultLlmProvider(settings.defaultLlmProvider)
+  const all: EffectiveApiKeyProvider[] = ['deepseek', 'openai', 'anthropic', 'ark']
+  const order: EffectiveApiKeyProvider[] =
+    chosen === 'auto' ? all : [chosen, ...all.filter((provider) => provider !== chosen)]
+
+  for (const provider of order) {
+    const { source } = await resolveEffectiveApiKey(provider)
+    if (source !== 'none') return { provider, source }
+  }
+  return { provider: null, source: 'none' }
 }

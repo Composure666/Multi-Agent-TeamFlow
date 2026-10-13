@@ -100,3 +100,112 @@ describe('maskSecrets', () => {
     expect(looksMasked(masked.ossAccessKeySecret as string)).toBe(true)
   })
 })
+
+describe('LLM key 解析链（三级优先，口径必须只有一份）', () => {
+  /** 直接写 llm_providers 行：这是 UI 配 provider key 的主入口。 */
+  const upsertRow = (id: string, apiKey: string | null) => {
+    const now = Date.now()
+    dbClient.sqlite
+      .prepare(
+        `insert into llm_providers (id, provider_type, display_name, api_key, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?)
+         on conflict(id) do update set api_key = excluded.api_key`,
+      )
+      .run(id, id, id, apiKey, now, now)
+  }
+
+  const ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'OPENAI_API_KEY',
+    'DEEPSEEK_API_KEY', 'ARK_API_KEY'] as const
+
+  /** 把四个 provider 的 key 全部清干净（含环境变量），供「全都没配」类断言用。 */
+  async function clearAllKeys() {
+    const saved: Record<string, string | undefined> = {}
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k]
+      delete process.env[k]
+    }
+    for (const id of ['anthropic', 'openai', 'deepseek', 'ark']) upsertRow(id, null)
+    await service.updateAppSettings({
+      anthropicApiKey: null,
+      openaiApiKey: null,
+      deepseekApiKey: null,
+      arkApiKey: null,
+    })
+    return () => {
+      for (const k of ENV_KEYS) {
+        if (saved[k] === undefined) delete process.env[k]
+        else process.env[k] = saved[k]
+      }
+    }
+  }
+
+  it('第一优先：供应商中心（llm_providers）的 key，并如实报告来源', async () => {
+    upsertRow('deepseek', 'row-key')
+    const r = await service.resolveEffectiveApiKey('deepseek')
+    expect(r.key).toBe('row-key')
+    expect(r.source).toBe('provider-row')
+  })
+
+  it('第二优先：供应商中心为空时回退 app_settings', async () => {
+    upsertRow('openai', null)
+    process.env.OPENAI_API_KEY = 'should-be-shadowed'
+    await service.updateAppSettings({ openaiApiKey: 'settings-key' })
+    try {
+      const r = await service.resolveEffectiveApiKey('openai')
+      expect(r.key).toBe('settings-key')
+      expect(r.source).toBe('app-settings')
+    } finally {
+      delete process.env.OPENAI_API_KEY
+    }
+  })
+
+  it('第三优先：前两层都没有时回退环境变量', async () => {
+    upsertRow('ark', null)
+    await service.updateAppSettings({ arkApiKey: null })
+    process.env.ARK_API_KEY = 'env-key'
+    try {
+      const r = await service.resolveEffectiveApiKey('ark')
+      expect(r.key).toBe('env-key')
+      expect(r.source).toBe('environment')
+    } finally {
+      delete process.env.ARK_API_KEY
+    }
+  })
+
+  it('getEffectiveApiKey 与 resolveEffectiveApiKey 同源（不允许各判一套）', async () => {
+    upsertRow('deepseek', 'row-key')
+    const [key, resolved] = await Promise.all([
+      service.getEffectiveApiKey('deepseek'),
+      service.resolveEffectiveApiKey('deepseek'),
+    ])
+    expect(key).toBe(resolved.key)
+    expect(key).toBe('row-key')
+  })
+
+  // ⚠️ 本轮真实踩到的回归：旧口径（只看 app_settings 的默认供应商）会把
+  // 「key 写在环境变量里、实际能跑」判成「未配置」，于是界面提示用户去配置一个
+  // 本来就已经有东西的项。这条断言就是为了钉住它。
+  it('resolveLlmAvailability 认环境变量（旧口径会误报「未配置」）', async () => {
+    const restore = await clearAllKeys()
+    process.env.DEEPSEEK_API_KEY = 'env-only-key'
+    try {
+      const availability = await service.resolveLlmAvailability()
+      expect(availability.provider).toBe('deepseek')
+      expect(availability.source).toBe('environment')
+    } finally {
+      delete process.env.DEEPSEEK_API_KEY
+      restore()
+    }
+  })
+
+  it('四条来源全无时如实返回 none', async () => {
+    const restore = await clearAllKeys()
+    try {
+      const availability = await service.resolveLlmAvailability()
+      expect(availability.provider).toBeNull()
+      expect(availability.source).toBe('none')
+    } finally {
+      restore()
+    }
+  })
+})

@@ -253,7 +253,11 @@ function StartSection({
           icon={KeyRound}
           title="AI 模型（必须）"
           ready={llmReady}
-          readyText={status?.llmProvider ? `已配置：${PROVIDER_LABEL[status.llmProvider]}` : '已配置'}
+          readyText={
+            status?.llmProvider
+              ? `已配置：${PROVIDER_LABEL[status.llmProvider]}${LLM_SOURCE_HINT[status.llmSource]}`
+              : '已配置'
+          }
           notReadyText="未配置 —— Agent 一步都跑不动"
           actionLabel="去配置 AI 模型"
           onAction={() => onGoSettings('api-keys')}
@@ -448,4 +452,17 @@ const PROVIDER_LABEL: Record<NonNullable<SetupStatus['llmProvider']>, string> = 
   openai: 'OpenAI',
   deepseek: 'DeepSeek',
   ark: '火山方舟',
+}
+
+/**
+ * key 来自环境变量时补一句说明。
+ *
+ * 自部署场景里「界面里没配、任务却能跑」很常见（key 写在 agenthub.env / .env.local），
+ * 不解释的话用户会以为界面坏了，或者反过来把环境变量里的 key 又抄一遍到设置里。
+ */
+const LLM_SOURCE_HINT: Record<SetupStatus['llmSource'], string> = {
+  'provider-row': '',
+  'app-settings': '',
+  environment: '（来自系统环境变量）',
+  none: '',
 }

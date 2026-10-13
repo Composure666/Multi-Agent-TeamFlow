@@ -1848,9 +1848,16 @@ export async function updateOssSettings(patch: OssSettingsPatch): Promise<OssSet
 
 // ─── 开箱状态（首启使用指南用）──────────────────
 
+/**
+ * LLM key 的来源层。取值与 `settings-service.LlmKeySource` 对齐
+ * （客户端不复用服务端类型，避免把服务端模块拖进浏览器包）。
+ */
+export type LlmKeySource = 'provider-row' | 'app-settings' | 'environment' | 'none'
+
 export interface SetupStatus {
   llmConfigured: boolean
   llmProvider: 'anthropic' | 'openai' | 'deepseek' | 'ark' | null
+  llmSource: LlmKeySource
   ossConfigured: boolean
   ossSource: OssConfigSource
   guideDismissed: boolean
