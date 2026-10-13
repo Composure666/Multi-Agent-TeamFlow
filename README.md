@@ -7,185 +7,346 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-local--first-044A64?logo=sqlite&logoColor=white">
   <img alt="pnpm" src="https://img.shields.io/badge/pnpm-workspace-F69220?logo=pnpm&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0--only-blue">
 </p>
 
 <p align="center">
   <b>English</b> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-Multi-Agent TeamFlow is a local-first multi-agent workspace for IM-style AI collaboration.
+Multi-Agent TeamFlow is a **local-first, multi-agent workspace** that turns AI collaboration into an IM-style experience. Instead of juggling one prompt window per task, you get a group chat: a dispatcher agent breaks your goal into subtasks, assigns them to specialist agents, and collects their deliverables as first-class objects you can preview, keep, and reuse.
 
-It keeps conversations, agents, artifacts, approvals, and workspace files in one place so you can manage real work instead of juggling separate prompts and terminals.
+Everything — conversations, agents, artifacts, approvals, workspace files, and the SQLite database — lives on your own machine. No account, no cloud round-trip.
 
 <p align="center">
   <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow new-task entry with multi-agent collaboration" width="100%" />
 </p>
 
-> **Current release: v0.2.0-rc.1** (2026-09-12) — first ship-candidate after security audit & QA pass.
-> See [`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md) for what's new.
+> **Current release: v0.2.0-rc.1** — see [`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md).
 
-## What it does
+---
 
-- Chat-style workspaces for single-agent and group-agent conversations
-- Built-in Orchestrator for task planning and multi-agent dispatch
-- Structured messages with parts for text, thinking, tool calls, attachments, and artifact refs
-- Artifact previews for documents, images, web apps, slides, diffs, and code files
-- Workspace sandboxing with approval flow for risky file writes and commands
-- Desktop app support through Electron
-- Mobile companion app scaffold through Capacitor
+## Features
+
+### Multi-agent collaboration
+
+- **Orchestrator-driven dispatch.** The built-in `Orchestrator` agent reads your goal, decides whether the task genuinely needs multiple roles, and uses the `plan_tasks` tool to split and assign work. Simple questions get answered directly — it is instructed *not* to over-dispatch.
+- **Group chats.** A conversation can hold any number of agents; you `@` them or let the orchestrator route.
+- **Artifact dependency chains.** Typical flow is `PRD → design guide → web_app → review`; downstream agents read upstream artifacts rather than re-deriving context from prose.
+- **Failover chain.** If a provider starts failing, the dispatcher walks a configured provider priority list instead of dying on the first error.
+
+### 5 built-in agents (all on the `claude-code` adapter)
+
+| Agent | Role |
+|---|---|
+| 🎯 **Orchestrator** | Understands intent, splits tasks, dispatches, aggregates |
+| 📋 **PM 小灰** | Requirements analysis, user stories, PRD |
+| 🎨 **UI 设计师** | UI style guides and design specs |
+| 💻 **前端工程师** | Front-end implementation, produces `web_app` artifacts |
+| 🔍 **Reviewer** | Reviews deliverables against the original requirement |
+
+You can create your own agents with the agent builder (choose adapter, model, tools, system prompt, and capabilities).
+
+### Artifacts as first-class objects
+
+Deliverables are not chat text — they are typed, previewable records in an artifacts library:
+
+`web_app` · `document` · `image` · `ppt` · `diagram` · `code_file` · `diff` · `project`
+
+Each artifact records the prompt, model, and parameters that produced it, so results are reproducible. Images are grouped into albums when a single run emits several.
+
+### Workspace sandbox and approvals
+
+- Two workspace modes: **sandbox** (a managed directory) and **local** (a directory you bind to).
+- All file access is routed through a path guard that resolves symlinks and rejects paths outside the workspace.
+- **Bash is a real terminal** (`node-pty`), gated by a command deny-list, an outbound-network guard (blocks cloud-metadata endpoints, private ranges, and the platform's own loopback ports), and an approval flow for risky operations.
+- **Approval prompts** surface in the UI before destructive commands or file writes execute.
+
+### Agent tools
+
+`bash` · `fs_list` · `fs_read` · `fs_write` · `read_artifact` · `write_artifact` · `read_attachment` · `plan_tasks` · `ask_user` · `web_fetch` · `deploy_artifact` · `deploy_workspace` · `failing_result`
+
+### Pluggable adapters
+
+| Adapter | Purpose |
+|---|---|
+| `claude-code` | Claude Agent SDK — the default for built-in agents |
+| `codex` | Codex-style execution with an allow-list of platform tools |
+| `custom-agent` | Any OpenAI-compatible chat endpoint (DeepSeek, Volcano Ark, OpenAI, self-hosted gateways) |
+| `image-gen` | OpenAI-compatible `/images/generations` |
+| `mock` | Deterministic stub for tests and offline demos |
+
+Adding one is a documented process — see [`skills/add-adapter.md`](./skills/add-adapter.md).
+
+### Skills, experience, and automation
+
+- **Skills** — reusable prompt/capability bundles (`skills/`), plus authoring guides for adding tools, artifact types, message parts, adapters, and experience entries.
+- **Experience** — the platform distills reusable lessons from completed runs and injects them into later prompts.
+- **Automations** — scheduled tasks with notification delivery back into the chat.
+- **Artifact publishing** — deploy an artifact or a whole workspace and get a shareable URL.
+
+### Multiple clients
+
+- **Web** — the primary UI (Next.js App Router)
+- **Desktop** — a thin Electron shell that points at the same local server; optional system notifications
+- **Mobile** — a Capacitor companion app that connects over your LAN or a Tailscale netlist, gated by a device token
+
+---
 
 ## Tech stack
 
-- Next.js 16 App Router
-- React 19
-- TypeScript strict mode
-- Tailwind CSS v4 + shadcn/ui
-- Zustand + Immer
-- SQLite + Drizzle + better-sqlite3
-- SSE for live updates
-- Electron 33
-- Capacitor
-- pnpm workspaces
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| UI | React 19, Tailwind CSS v4, shadcn/ui |
+| State | Zustand + Immer |
+| Database | SQLite via Drizzle ORM + better-sqlite3 |
+| Live updates | Server-Sent Events (SSE) |
+| Desktop | Electron 33 |
+| Mobile | Capacitor |
+| Language | TypeScript (strict) |
+| Monorepo | pnpm workspaces |
+
+---
 
 ## Requirements
 
-- Node.js 20+
-- pnpm
-- Git
+- **Node.js 20+** (Node 24 is what the test suite is exercised against)
+- **pnpm** — the `packageManager` field pins `pnpm@11.9.0`, so Corepack resolves the right version automatically
+- **Git**
 - macOS or Windows for Electron development and packaging
-- Xcode and CocoaPods only if you work on the iOS companion app
+- Xcode + CocoaPods only if you work on the iOS companion app
 
-## Quick start
+---
+
+## Installation
 
 ```bash
+# 1. Clone
+git clone https://gitee.com/Composure666/agent-hub.git multi-agent-teamflow
+cd multi-agent-teamflow
+
+# 2. Install dependencies
 pnpm install
+
+# 3. Create your local env file
 cp .env.example .env.local
+#    then edit .env.local and fill in at least one provider API key
+
+# 4. Start
 pnpm dev
 ```
 
 Open <http://localhost:3000>.
 
-The first launch creates the SQLite database and seeds the built-in agents automatically.
+On first launch the app creates the SQLite database under `.agenthub-data/` and seeds the 5 built-in agents automatically. No manual migration step is needed.
+
+### Desktop
+
+```bash
+pnpm electron:dev     # development (Next dev server + Electron window)
+pnpm electron:build   # package an installer → release/
+```
+
+### Mobile companion
+
+```bash
+pnpm mobile:sync          # build web assets and copy them into the native projects
+pnpm mobile:open:ios      # or mobile:open:android
+```
+
+---
 
 ## Configuration
 
-### Shared, versioned configuration
+### Environment variables
 
-These files belong in Git because they define shared project behavior:
+All configuration lives in `.env.local` (never committed). Copy from [`.env.example`](./.env.example).
 
-- `package.json`
-- `next.config.ts`
-- `drizzle.config.ts`
-- `eslint.config.mjs`
-- `vitest.config.ts`
-- `playwright.config.ts`
-- `src/db/builtin-agents.ts`
-- `src/db/schema.ts`
-- `.env.example`
+**Provider API keys** — fill in at least one:
 
-The built-in Agent library lives in `src/db/builtin-agents.ts`. That is the shared source for default agents, prompts, tools, and capabilities.
+| Variable | Notes |
+|---|---|
+| `DEEPSEEK_API_KEY` | Primary provider in the default setup |
+| `ANTHROPIC_API_KEY` | Claude models |
+| `OPENAI_API_KEY` | OpenAI and OpenAI-compatible endpoints |
+| `ARK_API_KEY` | Volcano Ark (required for Doubao multimodal models) |
+| `ANTHROPIC_BASE_URL` | Optional; override the Anthropic endpoint (e.g. a gateway) |
 
-### Local private configuration
+**Optional:**
 
-Keep these out of Git:
+| Variable | Notes |
+|---|---|
+| `OSS_BUCKET` / `OSS_ENDPOINT` / `OSS_ACCESS_KEY_ID` / `OSS_ACCESS_KEY_SECRET` | Aliyun OSS for durable image-artifact storage. **All four must be set** or images fall back to local storage (and break after a container rebuild). |
+| `PROMPT_OPTIMIZE_MODEL` | `deepseek-v4-flash` or `deepseek-v4-pro` |
+| `PROMPT_OPTIMIZE_{ANTHROPIC,OPENAI,ARK}_MODEL` | Per-provider override |
+| `GITHUB_TOKEN` / `GH_TOKEN` | Raises the rate limit for GitHub tool search |
+| `NEXT_TELEMETRY_DISABLED` | Set to `1` in CI |
+| `AGENTHUB_DATA_DIR` | Where the database and workspace live. Set this for containerised deployments — the default is the current working directory. |
+| `AGENTHUB_MOBILE_TOKEN` | Device token for the mobile companion app |
 
-- `.env.local`
-- SQLite database files under `.agenthub-data/`
-- local workspace data
-- app settings values that contain API keys or tokens
+**Managed at runtime — do not set by hand:** `PORT`, `AGENTHUB_DEV`, `AGENTHUB_COMPANION_MODE`, `AGENTHUB_MOBILE_ALLOWED_ORIGINS`, `AGENTHUB_INTERNAL_BASE_URL`, `AGENTHUB_ALLOWED_TOOLS`, `ELECTRON_RUN_AS_NODE`, `CODEX_API_KEY`, `MCP_SERVICE_TEST_TOKEN`.
 
-Typical private values include:
+> Most settings can also be edited in the UI (**Settings → Providers**). The app stores provider keys in the local database. They are **masked** in API responses and only written back when you actually edit the field.
 
-- `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY`
-- `DEEPSEEK_API_KEY`
-- `ARK_API_KEY`
-- `ANTHROPIC_BASE_URL`
-- `AGENTHUB_MOBILE_TOKEN`
+**Deprecated:** `ORCHESTRATOR_PROVIDER` / `ORCHESTRATOR_MODEL_ID` are no longer read anywhere. The orchestrator takes its model from the agent row itself.
 
-If you need to share a new non-secret setting with the team, add it to `.env.example` and document it here or in `INSTALL.md`.
+### Files that must stay out of Git
 
-## Running the app
+- `.env.local` and any other `.env*` file (`.gitignore` already covers these)
+- `*.pem`, `*.key`, `id_rsa*`, `.netrc`, credentials JSON files
+- `.agenthub-data/` — the SQLite database and local workspace
+- `release/`, `dist-electron/`, `.next/`
 
-### Web development
+### Shared configuration (these *do* belong in Git)
 
-```bash
-pnpm dev
+`package.json` · `next.config.ts` · `drizzle.config.ts` · `eslint.config.mjs` · `vitest.config.ts` · `playwright.config.ts` · `src/db/schema.ts` · `src/db/builtin-agents.ts` · `.env.example`
+
+`src/db/builtin-agents.ts` is the single source of truth for the default agents, their prompts, tools, and capabilities. It is consumed both by `pnpm db:seed` (development) and by the packaged app's first-launch bootstrap.
+
+---
+
+## Usage
+
+### Single-agent conversation
+
+Start a new task, `@` one agent, describe what you want. The agent runs, calls tools as needed, and returns its answer plus any artifacts it produced.
+
+### Multi-agent collaboration
+
+`@` the **Orchestrator** (or start a group chat and let it route). It will call `plan_tasks`, which:
+
+1. decides whether the task actually needs multiple agents,
+2. writes a plan naming the responsible agent, the expected artifact, and dependencies,
+3. dispatches — and downstream agents pick up upstream artifacts automatically.
+
+A typical end-to-end run:
+
+```
+you: Build a landing page for a coffee subscription service
+  → Orchestrator plans
+  → PM 小灰      produces a PRD (document)
+  → UI 设计师    produces a style guide (document), reads the PRD
+  → 前端工程师   produces a web_app artifact, reads both
+  → Reviewer     reviews the web_app against the PRD
 ```
 
-### Electron desktop development
+### Artifacts
 
-```bash
-pnpm electron:dev
-```
+Open **Artifacts** in the sidebar. Each entry can be previewed in place (rendered HTML, image, slide deck, diff, or source file), and carries the prompt/model/parameters used to produce it.
 
-### Production build
+### Approvals
 
-```bash
-pnpm build
-pnpm start
-```
+When an agent wants to run a risky shell command or write outside the expected scope, an approval prompt appears in the conversation. Nothing executes until you approve it.
 
-### Desktop packaging
+### Workspace
 
-```bash
-pnpm electron:build
-```
+Choose a workspace per conversation:
 
-Build output is written to `release/`.
+- **Sandbox** — a managed directory the app owns
+- **Local** — bind an existing directory you point at
+
+All file operations are confined to the workspace root, with symlinks resolved before the boundary check.
+
+---
 
 ## Common commands
 
 ```bash
-pnpm dev
-pnpm build
-pnpm start
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm e2e
-pnpm db:push
-pnpm db:seed
-pnpm electron:dev
-pnpm electron:build
-pnpm mobile:dev
-pnpm mobile:build
+# Development
+pnpm dev                  # Next.js dev server
+pnpm electron:dev         # desktop dev (also runs the Next dev server)
+pnpm mobile:dev           # mobile companion dev
+
+# Quality
+pnpm lint                 # ESLint
+pnpm typecheck            # tsc --noEmit
+pnpm test                 # vitest
+pnpm test:watch           # vitest in watch mode
+pnpm e2e                  # Playwright
+pnpm e2e:ui               # Playwright UI mode
+
+# Build & package
+pnpm build                # production build
+pnpm start                # run the production build
+pnpm electron:build       # package a desktop installer → release/
+pnpm mobile:build         # build mobile web assets
+
+# Database
+pnpm db:generate          # generate Drizzle migrations
+pnpm db:push              # push schema to the SQLite database
+pnpm db:seed              # seed built-in agents
+pnpm db:studio            # Drizzle Studio
 ```
+
+> **Note on running tests:** use a Node version whose ABI matches the installed `better-sqlite3` binary. If you hit `NODE_MODULE_VERSION` mismatch errors, run `pnpm sqlite:ensure:node` (which `pnpm test` already does) or `pnpm electron:rebuild`.
+
+---
 
 ## Repository layout
 
-- `src/app/` — Next.js routes and API routes
-- `src/components/` — UI components and workbench screens
-- `src/server/` — application services, adapters, and tool execution
-- `src/db/` — SQLite schema, seed data, and bootstrap logic
-- `src/shared/` — shared types and constants
-- `apps/mobile/` — Capacitor mobile companion app
-- `electron/` — Electron main process and bootstrap code
-- `specs/` and `openspec/` — project specs and capability contracts
+```
+src/
+  app/            Next.js routes and API endpoints (105 route files)
+  components/     UI components and workbench screens
+  server/         Services, adapters, tools, sandbox and network guards
+    adapters/     claude-code · codex · custom-agent · image-gen · mock
+    tools/        bash, fs_*, artifact, plan_tasks, web_fetch, deploy_*
+  db/             SQLite schema, bootstrap/migrations, built-in agent seed
+  lib/            Client-side helpers and API bindings
+  shared/         Types and constants shared by client and server
+  stores/         Zustand stores
+  types/          Ambient type declarations
+
+electron/         Electron main process, preload, companion proxy
+apps/mobile/      Capacitor companion app (iOS / Android)
+skills/           Skill bundles + authoring guides (add a tool, adapter, …)
+specs/            Numbered technical specifications
+openspec/         Capability contracts and change proposals
+docs/             Deployment and environment documentation
+deploy/           Self-hosting scripts, nginx config, runbook
+e2e/              Playwright end-to-end tests
+public/           Static assets
+```
+
+---
 
 ## Contributing
 
-1. Create a branch for the change.
-2. Keep the change focused on one task.
-3. Update docs or specs when behavior changes.
-4. Run `pnpm typecheck` and `pnpm lint` before opening a PR.
-5. Do not commit `.env.local`, API keys, or local databases.
+1. Branch for your change; keep each branch focused on one task.
+2. Update specs or docs when behavior changes.
+3. Run `pnpm typecheck`, `pnpm lint`, and `pnpm test` before opening a PR.
+4. **Never commit `.env.local`, API keys, or database files.** If you add a new non-secret setting, document it in `.env.example` and here.
+5. Do not hardcode real resource identifiers (bucket names, hostnames, IPs) in tests, comments, or docs — use obvious placeholders like `test-bucket` and `oss-cn-hangzhou.aliyuncs.com`.
 
-## More docs
+---
 
-- `INSTALL.md` — step-by-step setup guide
-- `README.zh-CN.md` — Chinese project overview
-- `OVERVIEW.md` — code map and current implementation status
-- `CLAUDE.md` — project rules for AI-assisted work
-- `specs/` — numbered technical specs
-- `NOTICE.md` — license and attribution notice
+## Documentation
+
+| File | Contents |
+|---|---|
+| [`INSTALL.md`](./INSTALL.md) | Step-by-step setup |
+| [`OVERVIEW.md`](./OVERVIEW.md) | Code map and implementation status |
+| [`CLAUDE.md`](./CLAUDE.md) | Project conventions for AI-assisted work |
+| [`docs/deployment-env.md`](./docs/deployment-env.md) | Environment variable reference |
+| [`deploy/RUNBOOK.md`](./deploy/RUNBOOK.md) | Self-hosting runbook |
+| [`specs/`](./specs/) | Numbered technical specs |
+| [`openspec/`](./openspec/) | Capability contracts |
+| [`CHANGELOG.md`](./CHANGELOG.md) | Release history |
+| [`NOTICE.md`](./NOTICE.md) | License and attribution notice |
+
+---
 
 ## License and attribution
 
-This project is licensed under the **GNU Affero General Public License v3.0** (`AGPL-3.0-only`) — see [`LICENSE`](./LICENSE).
+Copyright (C) 2026 Multi-Agent TeamFlow contributors.
 
-It is a **derivative work (modified version)** of [`lizyoko9/bitdance-agenthub`](https://github.com/lizyoko9/bitdance-agenthub), an open-source project that is also licensed under AGPL-3.0. Under AGPL-3.0 section 5 the whole work must stay under AGPL-3.0, so this project cannot be relicensed under more permissive or proprietary terms.
+This program is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General Public License v3.0** (`AGPL-3.0-only`) as published by the Free Software Foundation. See [`LICENSE`](./LICENSE).
 
-Upstream copyright, the statements of modification, and the itemized list of changes are recorded in [`NOTICE.md`](./NOTICE.md).
+This project is a **derivative work (modified version)** of [`lizyoko9/bitdance-agenthub`](https://github.com/lizyoko9/bitdance-agenthub), which is also licensed under AGPL-3.0. Under AGPL-3.0 section 5, the combined work must remain under AGPL-3.0 — it cannot be relicensed under more permissive or proprietary terms.
 
-If you interact with this software over a network, AGPL-3.0 section 13 entitles you to obtain its Corresponding Source; [`NOTICE.md`](./NOTICE.md) states where to get it.
+Upstream copyright notices, the statement of modification, and the itemized list of changes are recorded in [`NOTICE.md`](./NOTICE.md).
+
+**AGPL-3.0 section 13:** if you interact with this software over a network, you are entitled to obtain its Corresponding Source. [`NOTICE.md`](./NOTICE.md) states where to obtain it.
+
+This program is distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

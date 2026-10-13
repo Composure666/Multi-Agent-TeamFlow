@@ -7,7 +7,7 @@
 
 > **Statement of modification (AGPL-3.0 §5(a))**
 > This project is a **modified version** of `lizyoko9/bitdance-agenthub`. It has been modified
-> since **2026-06-27**, with the most recent modification on **2026-09-22**.
+> since **2026-06-27**, with the most recent modification on **2026-10-13**.
 
 ---
 
@@ -30,29 +30,30 @@
 
 - **本项目是修改后的版本（modified version），并非上游原版，也未获得上游项目的赞助或背书。**
 - **修改起始**：2026-06-27
-- **最近修改**：2026-09-22
-- **完整修改记录**：<https://gitee.com/Composure666/agent-hub/commits>（git 历史，共 116 次提交）
+- **最近修改**：2026-10-13
+- **完整修改记录**：<https://gitee.com/Composure666/agent-hub/commits>（git 历史，共 124 次提交，截至 2026-10-13）
 
 ### 2.1 改动规模
 
 | 指标 | 数值 |
 | --- | --- |
-| 相对基线新增文件 | 305 |
-| 相对基线修改文件 | 179 |
+| 相对基线新增文件 | 307 |
+| 相对基线修改文件 | 181 |
 | 相对基线删除文件 | 5 |
-| 当前纳入版本管理的文件总数 | 803 |
+| 当前纳入版本管理的文件总数 | 805 |
 
-统计口径：`git diff --name-status <首个提交>..HEAD`，可自行复核。
+统计口径：`git diff --name-status --no-renames <首个提交>..HEAD`（首个提交 = `530acbb`，2026-06-27），可自行复核。数字随提交自然变动，上表为 **2026-10-13** 的取数结果。
 
 ### 2.2 主要改动（不限于）
 
 1. **品牌与命名体系**：对外品牌统一为 *Multi-Agent TeamFlow*，新增品牌单一真源 `src/lib/brand.ts` 并贯穿 UI、文档与部署配置。内部标识（`agenthub`、`AGENTHUB_*`、`mcp__agenthub__*`、`.agenthub-data/`）出于兼容性保持不变。
-2. **功能与代码增量**：`src/` 下新增 228 个文件（`server` 70、`components` 66、`app` 63、`lib` 14、`db` 9、`shared` 3、`stores` 2、`types` 1），覆盖任务编排、验收门禁、上下文压缩、模型分配与降级链、技能/经验体系等。
+2. **功能与代码增量**：`src/` 下新增 230 个文件（`server` 72、`components` 66、`app` 63、`lib` 14、`db` 9、`shared` 3、`stores` 2、`types` 1），覆盖任务编排、验收门禁、上下文压缩、模型分配与降级链、技能/经验体系等。
 3. **部署工具链**：新增 `deploy/` 全套（11 个文件）——打包上传、服务器初始化、systemd 服务单元、nginx 配置、健康检查与验收脚本、运维 RUNBOOK。
 4. **桌面端**：新增与修补 Electron 侧代码及图标资源（`electron/` 13 个文件，含 `companion-proxy.ts`、`preload.ts`），并修正打包配置。
 5. **规格与文档**：新增 `specs/` 6 篇、`openspec/` 9 篇、`docs/` 8 篇，以及 `CHANGELOG.md`、`INSTALL.md`、`VERSION`。
 6. **技能与站点资源**：新增 `skills/` 4 个技能定义、`public/` 17 项站点资源、`scripts/` 4 个构建辅助脚本。
 7. **删除**：移除了基线中的 5 个文件 —— `docs/AI-COLLABORATION.md`、`docs/images/agenthub-preview.png`、`docs/superpowers/plans/2026-06-05-message-search.md`、`src/app/favicon.ico`、`src/components/usage-dashboard.tsx`。
+8. **仓库卫生与元数据**：清除了开发期误纳入版本管理的运行时日志 `debug.log` 与无任何引用的临时图标 `icon_new.png`（二者均非基线文件，故不计入上表「删除」一列）；新增 `.gitattributes` 统一跨平台行尾；`package.json` 补齐 `engines`（`node >= 20.9.0`）/ `packageManager`（`pnpm@11.9.0`）/ `homepage` / `bugs`，并将 `version` 与 `VERSION` 文件对齐为 `0.2.0-rc.1`。
 
 ## 3. 许可 / License
 
