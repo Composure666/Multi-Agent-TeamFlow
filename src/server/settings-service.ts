@@ -51,6 +51,7 @@ const EMPTY: AppSettingsRow = {
   ossAccessKeyId: null,
   ossAccessKeySecret: null,
   ossPublicRead: true,
+  userGuideDismissedAt: null,
   updatedAt: 0,
 }
 
@@ -118,6 +119,7 @@ export interface AppSettingsPatch {
   ossAccessKeyId?: string | null
   ossAccessKeySecret?: string | null
   ossPublicRead?: boolean
+  userGuideDismissedAt?: number | null
 }
 
 /**
@@ -184,6 +186,15 @@ export async function updateAppSettings(patch: AppSettingsPatch): Promise<AppSet
         notificationNativeEnabled: next.notificationNativeEnabled,
         notificationUrgentEnabled: next.notificationUrgentEnabled,
         experienceExtractionEnabled: next.experienceExtractionEnabled,
+        // ❗ 下面这一组是「显式逐字段白名单」：往 app_settings 加新字段时**必须同时加到这里**。
+        // 漏了不会报错，只会「首次 insert 带上值、之后每次更新都被静默丢弃」——
+        // OSS 四件套就曾长期栽在这里（UI/类型/脱敏列表全都有它，唯独这里没有）。
+        ossBucket: next.ossBucket,
+        ossEndpoint: next.ossEndpoint,
+        ossAccessKeyId: next.ossAccessKeyId,
+        ossAccessKeySecret: next.ossAccessKeySecret,
+        ossPublicRead: next.ossPublicRead,
+        userGuideDismissedAt: next.userGuideDismissedAt,
         updatedAt: next.updatedAt,
       },
     })
@@ -215,9 +226,17 @@ export function syncCompanionRuntime(settings: AppSettingsRow): void {
 }
 
 /** 空串归一为 null，避免 "" 与 null 混杂。trim 用户输入。 */
-function normalize(v: string | boolean | null | undefined): string | boolean | null | undefined {
+function normalize(
+  v: string | number | boolean | null | undefined,
+): string | number | boolean | null | undefined {
   if (v === undefined) return undefined
   if (v === null) return null
+  // ❗ 数字必须显式放行：`userGuideDismissedAt` 存的是时间戳（number）。
+  // 少了这一支就会掉到下面的 `v.trim()` 上抛 `TypeError: v.trim is not a function`，
+  // 而调用方（如 `UserGuideDialog.dismiss`）把它 try/catch 掉了 ⇒ **静默失效**：
+  // 界面无报错、只有 console 一条 error，表现为「关了指南下次启动又弹」。
+  // 往 app_settings 加**非字符串**字段时，务必确认这里能放行。
+  if (typeof v === 'number') return v
   if (typeof v === 'boolean') return v
   const trimmed = v.trim()
   return trimmed === '' ? null : trimmed

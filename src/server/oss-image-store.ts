@@ -41,15 +41,89 @@ export interface OssImageConfig {
   publicRead: boolean
 }
 
-/** 从 app_settings（UI/DB 自填）读取，环境变量（.env.local）优先。四项齐备才算已配置。 */
-export async function getOssImageConfig(): Promise<OssImageConfig | null> {
+/** OSS 配置的生效来源。 */
+export type OssConfigSource = 'database' | 'environment' | 'none'
+
+export interface OssConfigResolution {
+  /** 四项齐备时的生效配置；有缺项为 null */
+  config: OssImageConfig | null
+  /** 生效来源：database = 设置界面填的；environment = 系统环境变量兜底；none = 未配置 */
+  source: OssConfigSource
+  /** app_settings 里是否填齐了四项 */
+  dbProvided: boolean
+  /** 进程环境里是否存在任一 OSS_* 变量（仅用于 UI 提示，不代表一定生效） */
+  envProvided: boolean
+}
+
+/**
+ * 解析 OSS 配置。
+ *
+ * 优先序（2026-10-13 调整）：**设置界面（app_settings）优先，系统环境变量兜底**。
+ * 旧实现是 env 优先，带来两个实际问题：
+ *   1. 用户在设置界面里改了 OSS，被机器上的环境变量悄悄盖掉，界面上毫无提示；
+ *   2. 桌面端分发时安装包**不读任何 .env 文件** —— standalone 的 `server.js` 先设
+ *      `__NEXT_PRIVATE_STANDALONE_CONFIG`，Next 的 `loadConfig` 命中该变量即 early return、
+ *      直接跳过 `loadEnvConfig`。所以 env 只在用户手工设了系统变量时才有值。
+ * 取「DB 优先」后语义与 LLM Provider 的 key 对齐：**界面上填的就生效**。
+ *
+ * 不做「db 与 env 各取一半」的拼接 —— 半套配置拼出来只会更难排查：
+ * db 齐则整份用 db，db 不齐才整份退回 env。
+ */
+export async function resolveOssConfig(): Promise<OssConfigResolution> {
   const row = await db.query.appSettings.findFirst()
-  const bucket = process.env.OSS_BUCKET ?? row?.ossBucket ?? undefined
-  const endpoint = process.env.OSS_ENDPOINT ?? row?.ossEndpoint ?? undefined
-  const accessKeyId = process.env.OSS_ACCESS_KEY_ID ?? row?.ossAccessKeyId ?? undefined
-  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET ?? row?.ossAccessKeySecret ?? undefined
-  if (!bucket || !endpoint || !accessKeyId || !accessKeySecret) return null
-  return { bucket, endpoint, accessKeyId, accessKeySecret, publicRead: row?.ossPublicRead ?? true }
+
+  const env = {
+    bucket: process.env.OSS_BUCKET,
+    endpoint: process.env.OSS_ENDPOINT,
+    accessKeyId: process.env.OSS_ACCESS_KEY_ID,
+    accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
+  }
+  const envProvided = Boolean(env.bucket || env.endpoint || env.accessKeyId || env.accessKeySecret)
+
+  const dbCfg = {
+    bucket: row?.ossBucket ?? undefined,
+    endpoint: row?.ossEndpoint ?? undefined,
+    accessKeyId: row?.ossAccessKeyId ?? undefined,
+    accessKeySecret: row?.ossAccessKeySecret ?? undefined,
+  }
+  const publicRead = row?.ossPublicRead ?? true
+
+  if (dbCfg.bucket && dbCfg.endpoint && dbCfg.accessKeyId && dbCfg.accessKeySecret) {
+    return {
+      config: {
+        bucket: dbCfg.bucket,
+        endpoint: dbCfg.endpoint,
+        accessKeyId: dbCfg.accessKeyId,
+        accessKeySecret: dbCfg.accessKeySecret,
+        publicRead,
+      },
+      source: 'database',
+      dbProvided: true,
+      envProvided,
+    }
+  }
+
+  if (env.bucket && env.endpoint && env.accessKeyId && env.accessKeySecret) {
+    return {
+      config: {
+        bucket: env.bucket,
+        endpoint: env.endpoint,
+        accessKeyId: env.accessKeyId,
+        accessKeySecret: env.accessKeySecret,
+        publicRead,
+      },
+      source: 'environment',
+      dbProvided: false,
+      envProvided,
+    }
+  }
+
+  return { config: null, source: 'none', dbProvided: false, envProvided }
+}
+
+/** 当前生效的 OSS 配置；四项不齐返回 null（调用方回退本地存储）。 */
+export async function getOssImageConfig(): Promise<OssImageConfig | null> {
+  return (await resolveOssConfig()).config
 }
 
 export type UploadImageResult = { ok: true; url: string } | { ok: false; error: string }

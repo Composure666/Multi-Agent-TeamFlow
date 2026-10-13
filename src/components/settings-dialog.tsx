@@ -4,6 +4,7 @@ import { AlertTriangle,
   Bell,
   Check,
   Clipboard,
+  CloudUpload,
   FolderUp,
   Info,
   KeyRound,
@@ -33,16 +34,19 @@ import { BRAND_NAME } from '@/lib/brand'
 import {
   fetchAppSettings,
   fetchConnectionHints,
+  fetchOssSettings,
   regenerateMobileDeviceToken,
   updateAppSettings,
   type AppSettingsPatchBody,
   type ConnectionHint,
+  type OssSettingsView,
 } from '@/lib/api'
 import { subscribeUiCommand } from '@/lib/ui-command-events'
 import { ProvidersPanel } from '@/components/settings/providers-panel'
 import { ProviderPriorityPanel } from '@/components/settings/provider-priority-panel'
 import { FailoverPanel } from '@/components/settings/failover-panel'
 import { ModelAssignmentPanel } from '@/components/settings/model-assignment-panel'
+import { OssPanel, type OssFormValues, type OssSecretField } from '@/components/settings/oss-panel'
 import { useAppStore } from '@/stores/app-store'
 
 interface SettingsForm {
@@ -61,6 +65,14 @@ interface SettingsForm {
   notificationNativeEnabled: boolean
   notificationUrgentEnabled: boolean
   experienceExtractionEnabled: boolean
+  // ─── 阿里云 OSS ───
+  // bucket / endpoint 是普通字段（GET 原样回传，可回填）；两个 AccessKey 是**脱敏回显**，
+  // 输入框恒为空，是否参与保存由 `ossSecretsEdited` 决定。
+  ossBucket: string
+  ossEndpoint: string
+  ossAccessKeyId: string
+  ossAccessKeySecret: string
+  ossPublicRead: boolean
 }
 
 /**
@@ -94,6 +106,13 @@ export function SettingsDialog({
   const [connectionHints, setConnectionHints] = useState<ConnectionHint[]>([])
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [tab, setTab] = useState('keys')
+  const [ossView, setOssView] = useState<OssSettingsView | null>(null)
+  // 只跟踪「用户有没有动过」这两个密钥框。没动过就不参与保存 —— 否则空串会把已存的
+  // 真 key 清掉，而脱敏串回写又会把它变成星号（两种都是静默自毁）。
+  const [ossSecretsEdited, setOssSecretsEdited] = useState<Record<OssSecretField, boolean>>({
+    accessKeyId: false,
+    accessKeySecret: false,
+  })
   const activeSettingsSection = useAppStore((s) => s.activeSettingsSection)
   const [form, setForm] = useState<SettingsForm>({
     anthropicBaseUrl: '',
@@ -111,11 +130,17 @@ export function SettingsDialog({
     notificationNativeEnabled: true,
     notificationUrgentEnabled: true,
     experienceExtractionEnabled: true,
+    ossBucket: '',
+    ossEndpoint: '',
+    ossAccessKeyId: '',
+    ossAccessKeySecret: '',
+    ossPublicRead: true,
   })
 
   useEffect(() => {
     if (!open) return
     if (activeSettingsSection === 'notifications') setTab('notifications')
+    else if (activeSettingsSection === 'oss') setTab('oss')
     else if (activeSettingsSection === 'api-keys' || activeSettingsSection === 'providers') setTab('keys')
   }, [activeSettingsSection, open])
 
@@ -139,6 +164,23 @@ export function SettingsDialog({
         if (!cancelled) setLoading(false)
       })
 
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  // OSS 状态与主设置分开取：它需要服务端「算出来」的生效来源（本页配置 / 系统环境变量），
+  // 不是 app_settings 一行的原始字段。
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setOssView(null)
+    setOssSecretsEdited({ accessKeyId: false, accessKeySecret: false })
+    void fetchOssSettings()
+      .then((view) => {
+        if (!cancelled) setOssView(view)
+      })
+      .catch((err) => console.error('[SettingsDialog] load oss settings failed', err))
     return () => {
       cancelled = true
     }
@@ -186,12 +228,37 @@ export function SettingsDialog({
         notificationNativeEnabled: form.notificationNativeEnabled,
         notificationUrgentEnabled: form.notificationUrgentEnabled,
         experienceExtractionEnabled: form.experienceExtractionEnabled,
+        // ─── 阿里云 OSS ───
+        // bucket / endpoint 可回填，空串即「清空」。
+        ossBucket: form.ossBucket.trim() || null,
+        ossEndpoint: form.ossEndpoint.trim() || null,
+        // 两个 AccessKey **只在用户动过时才带上键**。没动过还带空串，等于把库里已存的值清掉；
+        // 带脱敏串更糟 —— 服务端 `dropMaskedSecretWrites` 会拦下，但那样就白改一场。
+        ...(ossSecretsEdited.accessKeyId
+          ? { ossAccessKeyId: form.ossAccessKeyId.trim() || null }
+          : {}),
+        ...(ossSecretsEdited.accessKeySecret
+          ? { ossAccessKeySecret: form.ossAccessKeySecret.trim() || null }
+          : {}),
+        ossPublicRead: form.ossPublicRead,
       }
 
       // 密钥字段一律不在这里写：provider key 归「供应商中心」，
       // mobileDeviceToken 由 handleEnableCompanion / handleRegenerateToken 单独负责。
       await updateAppSettings(patch)
-      onOpenChange(false)
+
+      if (tab === 'oss') {
+        // 停在「对象存储」页并立刻刷新状态：这一页的价值就在于「改完能看见已启用」，
+        // 顺手关掉弹窗等于把唯一的反馈也一并关掉。
+        setOssSecretsEdited({ accessKeyId: false, accessKeySecret: false })
+        // 保存成功后清空两个密钥输入框：它们只承载「本次新输入」。
+        // 留着（以点号显示的）明文会与下方「已保存 ····abcd，留空保持不变」自相矛盾 ——
+        // 用户会以为「我框里明明有值，为什么说留空」，也会怀疑到底提交了没有。
+        setForm((prev) => ({ ...prev, ossAccessKeyId: '', ossAccessKeySecret: '' }))
+        setOssView(await fetchOssSettings())
+      } else {
+        onOpenChange(false)
+      }
     } catch (err) {
       console.error('[SettingsDialog] save failed', err)
     } finally {
@@ -265,6 +332,22 @@ export function SettingsDialog({
     }
   }
 
+  /** `OssPanel` 用 `oss*` 前缀外的短字段名，这里做一次映射，避免把两套命名混进表单。 */
+  const handleOssChange = (patch: Partial<OssFormValues>) => {
+    setForm((f) => ({
+      ...f,
+      ...(patch.bucket !== undefined ? { ossBucket: patch.bucket } : {}),
+      ...(patch.endpoint !== undefined ? { ossEndpoint: patch.endpoint } : {}),
+      ...(patch.accessKeyId !== undefined ? { ossAccessKeyId: patch.accessKeyId } : {}),
+      ...(patch.accessKeySecret !== undefined ? { ossAccessKeySecret: patch.accessKeySecret } : {}),
+      ...(patch.publicRead !== undefined ? { ossPublicRead: patch.publicRead } : {}),
+    }))
+  }
+
+  const handleOssSecretEdited = (field: OssSecretField) => {
+    setOssSecretsEdited((prev) => (prev[field] ? prev : { ...prev, [field]: true }))
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
@@ -284,6 +367,10 @@ export function SettingsDialog({
                 <TabsTrigger value="keys">
                   <KeyRound className="size-3.5" />
                   供应商
+                </TabsTrigger>
+                <TabsTrigger value="oss">
+                  <CloudUpload className="size-3.5" />
+                  对象存储
                 </TabsTrigger>
                 <TabsTrigger value="assignment">
                   <Layers className="size-3.5" />
@@ -334,6 +421,22 @@ export function SettingsDialog({
                     <ProviderPriorityPanel />
                   </div>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="oss" className="mt-0 py-1">
+                <OssPanel
+                  values={{
+                    bucket: form.ossBucket,
+                    endpoint: form.ossEndpoint,
+                    accessKeyId: form.ossAccessKeyId,
+                    accessKeySecret: form.ossAccessKeySecret,
+                    publicRead: form.ossPublicRead,
+                  }}
+                  view={ossView}
+                  secretsEdited={ossSecretsEdited}
+                  onChange={handleOssChange}
+                  onSecretEdited={handleOssSecretEdited}
+                />
               </TabsContent>
 
               <TabsContent value="assignment" className="mt-0 py-1">
@@ -743,5 +846,11 @@ function rowToForm(row: AppSettingsRow): SettingsForm {
     notificationNativeEnabled: row.notificationNativeEnabled,
     notificationUrgentEnabled: row.notificationUrgentEnabled,
     experienceExtractionEnabled: row.experienceExtractionEnabled,
+    ossBucket: row.ossBucket ?? '',
+    ossEndpoint: row.ossEndpoint ?? '',
+    // ❗ 密钥恒为空串，不回填脱敏值 —— 回填后再点保存就把真 key 写成 `********abcd` 了。
+    ossAccessKeyId: '',
+    ossAccessKeySecret: '',
+    ossPublicRead: row.ossPublicRead,
   }
 }

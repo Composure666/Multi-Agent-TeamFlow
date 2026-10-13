@@ -542,6 +542,7 @@ const DDL: string[] = [
     oss_access_key_id TEXT,
     oss_access_key_secret TEXT,
     oss_public_read INTEGER NOT NULL DEFAULT 1,
+    user_guide_dismissed_at INTEGER,
     updated_at INTEGER NOT NULL
   )`,
 
@@ -969,6 +970,7 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_access_key_id TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_access_key_secret TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_public_read INTEGER NOT NULL DEFAULT 1`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN user_guide_dismissed_at INTEGER`)
   safeAlter(sqlite, `ALTER TABLE llm_model_assignments ADD COLUMN use_global INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN prompt TEXT NOT NULL DEFAULT ''`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN agent_id TEXT REFERENCES agents(id)`)

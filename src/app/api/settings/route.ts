@@ -35,6 +35,20 @@ const PatchBody = z.object({
   notificationToastEnabled: z.boolean().optional(),
   notificationNativeEnabled: z.boolean().optional(),
   notificationUrgentEnabled: z.boolean().optional(),
+  // ❗ 下面这几项曾经**不在**白名单里 —— zod object 默认 strip 未知键，
+  // 于是「设置面板里改了、保存后没反应」，而且**完全不报错**。
+  // 往 app_settings 加字段时，这里与 `settings-service.ts` 的 `onConflictDoUpdate.set`
+  // 必须同步加，两处任一漏掉都是同一种静默失效。
+  experienceExtractionEnabled: z.boolean().optional(),
+  // ─── 阿里云 OSS（图片产物远程存储）───
+  ossBucket: z.string().nullable().optional(),
+  ossEndpoint: z.string().nullable().optional(),
+  ossAccessKeyId: z.string().nullable().optional(),
+  ossAccessKeySecret: z.string().nullable().optional(),
+  ossPublicRead: z.boolean().optional(),
+  // ─── 首次启动使用指南 ───
+  // 存时间戳而不是布尔：既能当「看过没」用，也保留了「什么时候关的」。
+  userGuideDismissedAt: z.number().nullable().optional(),
 })
 
 /** PATCH /api/settings —— upsert 部分字段 */

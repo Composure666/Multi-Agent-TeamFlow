@@ -1,12 +1,17 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 
 // app_settings 里的真实 OSS 配置会让「未配置应返回 null」永远失败 —— 显式 mock 掉，
-// 让这个文件只验证自己的判定逻辑（否则哪台机器填过 UI 配置，哪台就红）
+// 让这个文件只验证自己的判定逻辑（否则哪台机器填过 UI 配置，哪台就红）。
+//
+// 行内容放在 `vi.hoisted` 里：`vi.mock` 的工厂函数会被提升到 import 之前执行，
+// 直接引用模块顶层的 let 会撞 TDZ。
+const state = vi.hoisted(() => ({ row: null as Record<string, unknown> | null }))
+
 vi.mock('@/db/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/db/client')>()
   return {
     ...actual,
-    db: { ...actual.db, query: { appSettings: { findFirst: async () => null } } },
+    db: { ...actual.db, query: { appSettings: { findFirst: async () => state.row } } },
   }
 })
 
@@ -26,6 +31,7 @@ import {
   ensureImageStored,
   getOssImageConfig,
   isOssImageUrl,
+  resolveOssConfig,
   uploadImageToOss,
 } from './oss-image-store'
 
@@ -54,6 +60,7 @@ function clientMock(): { put: ReturnType<typeof vi.fn>; get: ReturnType<typeof v
 
 afterEach(() => {
   vi.clearAllMocks()
+  state.row = null
   delete process.env.OSS_BUCKET
   delete process.env.OSS_ENDPOINT
   delete process.env.OSS_ACCESS_KEY_ID
@@ -82,6 +89,54 @@ describe('getOssImageConfig', () => {
   it('returns null when key fields are missing', async () => {
     process.env.OSS_BUCKET = 'test-bucket'
     expect(await getOssImageConfig()).toBeNull()
+  })
+})
+
+// 优先序是 2026-10-13 从「env 优先」翻成「DB(设置界面) 优先」的。旧顺序会让用户在界面上
+// 改的 OSS 被机器上的环境变量悄悄盖掉，且界面上毫无提示 —— 所以这里把它钉死。
+describe('resolveOssConfig（DB 优先，env 兜底）', () => {
+  it('app_settings 四项齐备时压过环境变量', async () => {
+    useEnvCfg()
+    state.row = {
+      ossBucket: 'db-bucket',
+      ossEndpoint: 'oss-cn-beijing.aliyuncs.com',
+      ossAccessKeyId: 'LTAI-db',
+      ossAccessKeySecret: 'secret-db',
+      ossPublicRead: false,
+    }
+
+    const r = await resolveOssConfig()
+    expect(r.source).toBe('database')
+    expect(r.dbProvided).toBe(true)
+    expect(r.envProvided).toBe(true)
+    expect(r.config).toMatchObject({
+      bucket: 'db-bucket',
+      accessKeyId: 'LTAI-db',
+      publicRead: false,
+    })
+  })
+
+  it('app_settings 不齐时整份退回环境变量，不做半套拼接', async () => {
+    useEnvCfg()
+    state.row = {
+      ossBucket: 'db-bucket',
+      ossEndpoint: null,
+      ossAccessKeyId: null,
+      ossAccessKeySecret: null,
+    }
+
+    const r = await resolveOssConfig()
+    expect(r.source).toBe('environment')
+    expect(r.dbProvided).toBe(false)
+    expect(r.config?.bucket).toBe(CFG.bucket)
+    expect(r.config?.endpoint).toBe(CFG.endpoint)
+  })
+
+  it('两边都不齐 → none，且标注 db 未提供', async () => {
+    state.row = { ossBucket: 'db-bucket', ossEndpoint: 'oss-cn-beijing.aliyuncs.com' }
+
+    const r = await resolveOssConfig()
+    expect(r).toMatchObject({ config: null, source: 'none', dbProvided: false, envProvided: false })
   })
 })
 

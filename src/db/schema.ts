@@ -754,6 +754,15 @@ export const appSettings = sqliteTable('app_settings', {
   ossAccessKeySecret: text('oss_access_key_secret'),
   // 图片对象 ACL：1 = public-read（URL 永久直连）；0 = private（需签名，暂不支持预览直连）
   ossPublicRead: integer('oss_public_read', { mode: 'boolean' }).notNull().default(true),
+  /**
+   * 首次启动「使用指南」弹窗被关闭的时间戳。NULL = 从未看过 ⇒ 自动弹出。
+   *
+   * ❗ 为什么必须存服务端而不是 localStorage：桌面端由 Electron 拉起 Next standalone，
+   * 端口是 `listen(0)` 分配的**随机临时端口**（见 `electron/server-bootstrap.ts` 的
+   * `getFreePort`），因此 origin = `http://127.0.0.1:<随机端口>` **每次启动都不同**。
+   * localStorage 按 origin 分区 ⇒ 存进去下次启动读不到，弹窗会无限重现。
+   */
+  userGuideDismissedAt: integer('user_guide_dismissed_at'),
   updatedAt: integer('updated_at').notNull(),
 })
 

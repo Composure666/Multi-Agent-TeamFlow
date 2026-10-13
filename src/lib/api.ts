@@ -1773,6 +1773,13 @@ export interface AppSettingsPatchBody {
   notificationNativeEnabled?: boolean
   notificationUrgentEnabled?: boolean
   experienceExtractionEnabled?: boolean
+  ossBucket?: string | null
+  ossEndpoint?: string | null
+  ossAccessKeyId?: string | null
+  ossAccessKeySecret?: string | null
+  ossPublicRead?: boolean
+  /** 首启使用指南的「不再自动弹出」时间戳 */
+  userGuideDismissedAt?: number | null
 }
 
 export async function updateAppSettings(patch: AppSettingsPatchBody): Promise<AppSettingsRow> {
@@ -1791,4 +1798,65 @@ export async function regenerateMobileDeviceToken(): Promise<AppSettingsRow> {
     fetch('/api/settings/mobile-token', { method: 'POST' }),
   )
   return settings
+}
+
+// ─── 阿里云 OSS（图片产物远程存储）──────────────
+
+export type OssConfigSource = 'database' | 'environment' | 'none'
+
+export interface OssSettingsView {
+  /** 可编辑字段；两个 AccessKey 是**脱敏串**（`********abcd`），只用于展示「配的是哪一把」 */
+  bucket: string
+  endpoint: string
+  accessKeyId: string
+  accessKeySecret: string
+  hasAccessKeyId: boolean
+  hasAccessKeySecret: boolean
+  publicRead: boolean
+  /** 四项齐备，图片产物确实会上传 OSS */
+  configured: boolean
+  /** 生效来源：database（界面配置）/ environment（系统环境变量兜底）/ none */
+  source: OssConfigSource
+  dbProvided: boolean
+  envProvided: boolean
+}
+
+export interface OssSettingsPatch {
+  /** 不传 = 不改；null / '' = 清空 */
+  bucket?: string | null
+  endpoint?: string | null
+  accessKeyId?: string | null
+  accessKeySecret?: string | null
+  publicRead?: boolean
+}
+
+export async function fetchOssSettings(): Promise<OssSettingsView> {
+  const { oss } = await json<{ oss: OssSettingsView }>(fetch('/api/settings/oss'))
+  return oss
+}
+
+export async function updateOssSettings(patch: OssSettingsPatch): Promise<OssSettingsView> {
+  const { oss } = await json<{ oss: OssSettingsView }>(
+    fetch('/api/settings/oss', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  )
+  return oss
+}
+
+// ─── 开箱状态（首启使用指南用）──────────────────
+
+export interface SetupStatus {
+  llmConfigured: boolean
+  llmProvider: 'anthropic' | 'openai' | 'deepseek' | 'ark' | null
+  ossConfigured: boolean
+  ossSource: OssConfigSource
+  guideDismissed: boolean
+}
+
+export async function fetchSetupStatus(): Promise<SetupStatus> {
+  const { status } = await json<{ status: SetupStatus }>(fetch('/api/setup-status'))
+  return status
 }

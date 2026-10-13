@@ -30,7 +30,7 @@ enableMapSet()
 
 export type AppWorkbenchView = 'new-task' | 'conversations' | 'agents' | 'capability-center' | 'artifacts' | 'experiences' | 'automation' | 'run-board' | 'analytics' | 'information-center'
 
-export type SettingsSection = 'api-keys' | 'providers' | 'workspaces' | 'notifications'
+export type SettingsSection = 'api-keys' | 'providers' | 'workspaces' | 'notifications' | 'oss'
 
 export interface AutomationResultNotice {
   notificationId: string
@@ -1373,7 +1373,15 @@ function getNotificationConversationId(notification: AppNotification): string | 
 }
 
 function normalizeSettingsSection(section: string | null | undefined): SettingsSection | null {
-  if (section === 'api-keys' || section === 'providers' || section === 'workspaces' || section === 'notifications') return section
+  if (
+    section === 'api-keys' ||
+    section === 'providers' ||
+    section === 'workspaces' ||
+    section === 'notifications' ||
+    section === 'oss'
+  ) {
+    return section
+  }
   return null
 }
 
