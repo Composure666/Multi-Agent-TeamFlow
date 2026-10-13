@@ -1,4 +1,4 @@
-# Multi-Agent TeamFlow 部署手册 — 腾讯云轻量 `101.42.94.222`
+# Multi-Agent TeamFlow 部署手册 — 腾讯云轻量 `<SERVER_IP>`
 
 > 这份是**可复制粘贴**的执行清单，配合同目录的脚本使用。
 > 背景与设计取舍见 `README.md`；这里只讲"现在这一步敲什么"。
@@ -82,7 +82,7 @@ sudo -n true 2>/dev/null && echo 'sudo: 免密可用' || echo 'sudo: 需要密�
 在 **PowerShell** 里跑（`scp` 是 Windows 自带的）：
 
 ```powershell
-scp -o StrictHostKeyChecking=accept-new "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@101.42.94.222:/root/
+scp -o StrictHostKeyChecking=accept-new "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@<SERVER_IP>:/root/
 ```
 
 首次连接会问 `Are you sure you want to continue connecting (yes/no)?` → 输 `yes`，然后输服务器密码。
@@ -102,7 +102,7 @@ scp -o StrictHostKeyChecking=accept-new "C:\Users\he\Documents\agenthub-deploy\a
 ### 步骤 2 · 服务器：解压 + 初始化（约 3–6 分钟）
 
 ```bash
-ssh root@101.42.94.222
+ssh root@<SERVER_IP>
 
 # 解压到 /opt/agenthub/src（顺序很重要：先解压，01 脚本稍后会把整个 /opt/agenthub 的属主改成 agenthub）
 mkdir -p /opt/agenthub/src
@@ -139,8 +139,8 @@ swap        4.0Gi
 ```powershell
 # 回到本地 PowerShell，先 cd 到仓库根（路径不写死，换目录名/换机器都不用改）
 # root 无公钥，用 ubuntu + 免密 sudo（先传 /tmp 再 sudo 落位）
-scp -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" -o IdentitiesOnly=yes ".\.env.local" ubuntu@101.42.94.222:/tmp/agenthub.env
-ssh -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" ubuntu@101.42.94.222 "sudo -n install -m 600 -o root -g root /tmp/agenthub.env /etc/agenthub/agenthub.env"
+scp -i "$env:USERPROFILE\.ssh\deploy_key" -o IdentitiesOnly=yes ".\.env.local" ubuntu@<SERVER_IP>:/tmp/agenthub.env
+ssh -i "$env:USERPROFILE\.ssh\deploy_key" ubuntu@<SERVER_IP> "sudo -n install -m 600 -o root -g root /tmp/agenthub.env /etc/agenthub/agenthub.env"
 rm -f /tmp/agenthub.env  # 别让明文 key 留在服务器 /tmp
 ```
 
@@ -234,13 +234,13 @@ curl -I http://127.0.0.1/                  # 期望 401（Basic 鉴权生效，�
 tail -n 50 /var/log/agenthub/err.log       # 期望没有报错
 ```
 
-然后浏览器打开 **http://101.42.94.222/** ，输入步骤 5 打印的账号密码。
+然后浏览器打开 **http://<SERVER_IP>/** ，输入步骤 5 打印的账号密码。
 
 ---
 
 ## 五、以后更新代码
 
-> **⚠️ 免密登录用 `ubuntu`，不是 `root`**（2026-09-16 实地确认）：`~/.ssh/agenthub_lighthouse`
+> **⚠️ 免密登录用 `ubuntu`，不是 `root`**（2026-09-16 实地确认）：`~/.ssh/deploy_key`
 > 的公钥只装在 `ubuntu` 的 `authorized_keys` 里，**root 没装公钥**，`root@` 会
 > `Permission denied (publickey,password)`。`ubuntu` 有免密 sudo，所有特权步骤加 `sudo -n`。
 > 因此 `00-pack-upload.ps1` 的默认值是 `-User ubuntu`，包上传到 `/tmp/`（ubuntu 无权重写 `/root`）。
@@ -325,7 +325,7 @@ tail -50 /var/log/agenthub/err.log
 4. **`/etc/agenthub/agenthub.env` 600 权限**，里面是真钱的 API Key。
 5. **想更安全**：把云安全组 80 收窄成只放行你自己的 IP；或者干脆不开 80，走 SSH 隧道：
    ```bash
-   ssh -i "$env:USERPROFILE\.ssh\agenthub_lighthouse" -L 3000:127.0.0.1:3000 ubuntu@101.42.94.222
+   ssh -i "$env:USERPROFILE\.ssh\deploy_key" -L 3000:127.0.0.1:3000 ubuntu@<SERVER_IP>
    # 本地浏览器打开 http://127.0.0.1:3000
    ```
 6. 桌面端与 Web 端**是同一份 UI**，不存在「功能缩水」；唯一实质差异是 `companion-proxy`（移动端访问 `/api/mobile/*` 的代理）只在 Electron 主进程里起，纯服务器部署没有它。**系统托盘 / 本地文件直读并未实现**（Spec 12 §1 / §13 列为不做），别按「桌面端有、Web 端没有」的口径讲。

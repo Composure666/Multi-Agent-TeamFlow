@@ -25,6 +25,32 @@
 .DS_Store
 *.pem
 
+# --- 凭据类文件：宁可多拦 ---
+# 私钥 / 证书 / 密钥库
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.crt
+*.cer
+# 各类 CLI / 云服务的凭据文件
+.netrc
+_netrc
+.htpasswd
+.htaccess
+credentials.json
+service-account*.json
+.aws/
+.ssh/
+.kube/
+.docker/config.json
+.npmrc
+.pypirc
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -34,6 +60,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+# 常见的「本地覆盖」命名，docker-compose / vercel 等会读
+*.local
+!*.local.example
+.envrc
 
 # vercel
 .vercel

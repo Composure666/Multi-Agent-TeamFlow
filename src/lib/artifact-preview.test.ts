@@ -14,7 +14,7 @@ describe('artifact preview helpers', () => {
     })
 
     it('blocks Windows drive paths', () => {
-      expect(isUnsafeArtifactLink('C:\\Users\\he\\Desktop\\index.html')).toBe(true)
+      expect(isUnsafeArtifactLink('C:\\Users\\user\\Desktop\\index.html')).toBe(true)
       expect(isUnsafeArtifactLink('D:/temp/a.html')).toBe(true)
     })
 

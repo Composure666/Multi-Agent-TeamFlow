@@ -119,7 +119,7 @@ cmd_off() {
 
   echo
   warn "鉴权已关闭 ${YEL}${dur}${NC}，之后自动恢复。"
-  echo "  现在任何人打开 http://101.42.94.222/ 都能直接用，不需要密码。"
+  echo "  现在任何人打开 http://<SERVER_IP>/ 都能直接用，不需要密码。"
   echo "  想提前恢复：sudo bash auth-toggle.sh on"
 }
 

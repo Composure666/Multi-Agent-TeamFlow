@@ -8,7 +8,7 @@
 
 | 项 | 值 |
 |---|---|
-| 网址 | **http://101.42.94.222/** |
+| 网址 | **http://<SERVER_IP>/** |
 | 你自己的账号 | `admin` |
 | 评委账号 | `judge`（答辩演示用，演示结束可删） |
 | 密码 | **不在仓库中保存** —— 由部署者单独保管 |
@@ -26,9 +26,9 @@
 
 ## 二、关于域名：**不要折腾**（结论已定）
 
-`nexora-studio.com` 这条路走不通，原因三条，每条都是硬的：
+**不要试图借用别人的域名。** 这条路的三个障碍，每条都是硬的：
 
-1. **不是你的域名** —— RDAP 查到它 2025-01-16 由 DNSPod 注册、2027-01 到期，当前解析到 `43.138.28.230`（另一台腾讯云机器，上面跑着 HTTPS 服务）。你改不了解析。
+1. **不是你的域名** —— 别人的域名的解析记录你改不了，指向哪里都由注册人说了算。
 2. **北京节点必须备案** —— 服务器在 `ap-beijing`。按工信部规定，未备案域名访问 80 端口会被腾讯云拦截（会看到"该网站未备案"）。**现在用 IP 能访问，就是因为纯 IP 不需要备案。**
 3. **备案要 1~3 周** —— 新买域名 + 提交材料 + 腾讯初审 1-2 天 + 管局审核 3-20 个工作日。答辩等不起。
 
@@ -100,7 +100,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -u "admin:${AGENTHUB_DEMO_PASS:?先设�
                                                  # 期望：200
 
 # 3. 公网入口对不对（在你自己电脑上开浏览器更直观）
-#    打开 http://101.42.94.222/  → 应弹鉴权框 → 输密码 → 看到 Multi-Agent TeamFlow
+#    打开 http://<SERVER_IP>/  → 应弹鉴权框 → 输密码 → 看到 Multi-Agent TeamFlow
 
 # 4. 有没有报错
 sudo wc -c /var/log/agenthub/err.log             # 期望：0
@@ -150,7 +150,7 @@ sudo bash /opt/agenthub/src/deploy/auth-toggle.sh status
 |---|---|
 | **AI 对话** | ✅ 发消息 → Agent 返回，`run` 状态 `complete`，**耗时 642ms**（DeepSeek） |
 | **多 Agent 协作** | ✅ 「光影造像工坊」团队跑通，成员分工正常 |
-| **生图 + OSS 上传** | ✅ 已生成 7 张 2.1MB 成图，产物 URL 已上 OSS: `nexora-studio.oss-cn-beijing.aliyuncs.com` |
+| **生图 + OSS 上传** | ✅ 已生成 7 张 2.1MB 成图，产物 URL 已上 OSS（`<your-bucket>.oss-cn-<region>.aliyuncs.com`） |
 | **产物库** | ✅ 8 条产物（image + document），提示词/模型/参数可复现 |
 | **经验资产** | ✅ 1 条已提炼经验，统计接口正常 |
 | **技能系统** | ✅ 9 个技能已加载（finesse-brief / finesse-skill / frame-smith 等） |

@@ -29,16 +29,17 @@ import {
   uploadImageToOss,
 } from './oss-image-store'
 
+// 假样例：bucket / endpoint / 凭据都必须是明显的占位值，不要填任何真实资源名。
 const CFG = {
-  bucket: 'nexora-studio',
-  endpoint: 'oss-cn-beijing.aliyuncs.com',
+  bucket: 'test-bucket',
+  endpoint: 'oss-cn-hangzhou.aliyuncs.com',
   accessKeyId: 'LTAI-test',
   accessKeySecret: 'secret-test',
   publicRead: true,
 }
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
-const BAD_EXT_URL = 'https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/2026-09-15/1789483314465-fed57599d394.bin'
+const BAD_EXT_URL = 'https://test-bucket.oss-cn-hangzhou.aliyuncs.com/artifacts/2026-09-15/1789483314465-fed57599d394.bin'
 
 function useEnvCfg(): void {
   process.env.OSS_BUCKET = CFG.bucket
@@ -65,29 +66,29 @@ describe('getOssImageConfig', () => {
   })
 
   it('reads from environment variables (four fields required)', async () => {
-    process.env.OSS_BUCKET = 'nexora-studio'
-    process.env.OSS_ENDPOINT = 'oss-cn-beijing.aliyuncs.com'
+    process.env.OSS_BUCKET = 'test-bucket'
+    process.env.OSS_ENDPOINT = 'oss-cn-hangzhou.aliyuncs.com'
     process.env.OSS_ACCESS_KEY_ID = 'LTAI-x'
     process.env.OSS_ACCESS_KEY_SECRET = 'sk-y'
     const cfg = await getOssImageConfig()
     expect(cfg).toMatchObject({
-      bucket: 'nexora-studio',
-      endpoint: 'oss-cn-beijing.aliyuncs.com',
+      bucket: 'test-bucket',
+      endpoint: 'oss-cn-hangzhou.aliyuncs.com',
       accessKeyId: 'LTAI-x',
       accessKeySecret: 'sk-y',
     })
   })
 
   it('returns null when key fields are missing', async () => {
-    process.env.OSS_BUCKET = 'nexora-studio'
+    process.env.OSS_BUCKET = 'test-bucket'
     expect(await getOssImageConfig()).toBeNull()
   })
 })
 
 describe('isOssImageUrl', () => {
   it('detects OSS urls only', () => {
-    expect(isOssImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/a.png')).toBe(true)
-    expect(isOssImageUrl('https://other.oss-cn-hangzhou.aliyuncs.com/a.png')).toBe(true)
+    expect(isOssImageUrl('https://test-bucket.oss-cn-hangzhou.aliyuncs.com/a.png')).toBe(true)
+    expect(isOssImageUrl('https://another-bucket.oss-cn-shanghai.aliyuncs.com/a.png')).toBe(true)
     expect(isOssImageUrl('https://example.com/a.png')).toBe(false)
     expect(isOssImageUrl('/api/artifact-images/a.png')).toBe(false)
   })
@@ -99,7 +100,7 @@ describe('uploadImageToOss', () => {
     console.log('upload result:', JSON.stringify(r))
     expect(r.ok).toBe(true)
     const url = (r as { url: string }).url
-    expect(url).toMatch(/^https:\/\/nexora-studio\.oss-cn-beijing\.aliyuncs\.com\/artifacts\/\d{4}-\d{2}-\d{2}\/[\w-]+\.png$/)
+    expect(url).toMatch(/^https:\/\/test-bucket\.oss-cn-hangzhou\.aliyuncs\.com\/artifacts\/\d{4}-\d{2}-\d{2}\/[\w-]+\.png$/)
     const client = clientMock()
     expect(client.put).toHaveBeenCalledTimes(1)
     const [key, buf, opts] = client.put.mock.calls[0]
@@ -122,7 +123,7 @@ describe('uploadImageToOss', () => {
 
 describe('ensureImageStored', () => {
   it('passes through OSS urls unchanged', async () => {
-    const url = 'https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x.png'
+    const url = 'https://test-bucket.oss-cn-hangzhou.aliyuncs.com/artifacts/x.png'
     const r = await ensureImageStored(url)
     expect(r).toEqual({ ok: true, url, storage: 'oss' })
   })
@@ -138,7 +139,7 @@ describe('ensureImageStored', () => {
     const uri = 'data:image/png;base64,' + PNG.toString('base64')
     const r = await ensureImageStored(uri)
     expect(r.ok).toBe(true)
-    expect((r as { url: string }).url).toMatch(/^https:\/\/nexora-studio\.oss-cn-beijing\.aliyuncs\.com\//)
+    expect((r as { url: string }).url).toMatch(/^https:\/\/test-bucket\.oss-cn-hangzhou\.aliyuncs\.com\//)
     expect((r as { storage: string }).storage).toBe('oss')
   })
 

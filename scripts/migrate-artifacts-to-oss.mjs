@@ -1,12 +1,12 @@
 /**
  * 存量图片产物迁移到阿里云 OSS。
  *
- * 用法（在项目根目录）：
- *   $env:OSS_BUCKET="nexora-studio"
- *   $env:OSS_ENDPOINT="oss-cn-beijing.aliyuncs.com"
- *   $env:OSS_ACCESS_KEY_ID="LTAI..."
- *   $env:OSS_ACCESS_KEY_SECRET="..."
- *   & "D:\work space\NodeJS\node.exe" scripts/migrate-artifacts-to-oss.mjs
+ * 用法（在项目根目录，先把凭据填进 .env.local 或直接导出为环境变量）：
+ *   $env:OSS_BUCKET="<你的 bucket 名>"
+ *   $env:OSS_ENDPOINT="oss-cn-<region>.aliyuncs.com"
+ *   $env:OSS_ACCESS_KEY_ID="<你的 AccessKeyId>"
+ *   $env:OSS_ACCESS_KEY_SECRET="<你的 AccessKeySecret>"
+ *   node scripts/migrate-artifacts-to-oss.mjs
  *
  * 行为：
  *  - 遍历 artifacts 表中 type='image' 且 url 不是 OSS 链接的记录；

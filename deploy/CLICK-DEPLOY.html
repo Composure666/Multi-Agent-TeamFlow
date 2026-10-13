@@ -140,7 +140,7 @@
     <h1>Multi-Agent TeamFlow 部署 · 点击式操作图册</h1>
     <p>照着顺序点，命令全部复制粘贴。不需要装任何软件，全程在浏览器里完成。</p>
     <div class="facts">
-      <div class="fact">服务器 <b>101.42.94.222</b></div>
+      <div class="fact">服务器 <b><SERVER_IP></b></div>
       <div class="fact">实例 <b>lhins-8caaphmu</b></div>
       <div class="fact">配置 <b>2 核 2G</b></div>
       <div class="fact">预计总耗时 <b>30–50 分钟</b>（大头是构建）</div>
@@ -156,7 +156,7 @@
     <div class="ov"><b>第 5 步</b><span>构建（20–40 分钟）</span></div>
     <div class="ov"><b>第 6 步</b><span>装服务并启动</span></div>
     <div class="ov"><b>第 7 步</b><span>浏览器验收</span></div>
-    <div class="ov"><b>结果</b><span>http://101.42.94.222/</span></div>
+    <div class="ov"><b>结果</b><span>http://<SERVER_IP>/</span></div>
   </div>
 
   <!-- ============ 开工前 ============ -->
@@ -232,7 +232,7 @@
             <tr><th>实例 ID</th><th>IP</th><th>状态</th><th style="text-align:right">操作</th></tr>
             <tr>
               <td class="mono">lhins-8caaphmu</td>
-              <td class="mono">101.42.94.222</td>
+              <td class="mono"><SERVER_IP></td>
               <td><span class="pill">运行中</span></td>
               <td style="text-align:right;white-space:nowrap">
                 <span class="btn primary hot">登录</span>
@@ -326,7 +326,7 @@ C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz</pre></div>
 
       <h3>方式 B：本地 PowerShell 一条命令（找不到上传按钮就用这个）</h3>
       <p style="margin:0;font-size:13.8px">在你<b>自己电脑</b>上按 <code class="inl">Win + X</code> → 选「终端 / PowerShell」，粘贴：</p>
-      <div class="code"><pre><button class="copy">复制</button>scp -o StrictHostKeyChecking=accept-new "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@101.42.94.222:/root/</pre></div>
+      <div class="code"><pre><button class="copy">复制</button>scp -o StrictHostKeyChecking=accept-new "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@<SERVER_IP>:/root/</pre></div>
       <p style="font-size:13.5px;color:var(--ink2);margin:6px 0 0">
         <code class="inl">accept-new</code> 的意思是「第一次见到的服务器自动接受指纹，省掉手输 yes」。<br>
         密码提示处<b>不显示任何字符是正常的</b>；如果敲了没反应，改用<b>粘贴</b>（见 §卡住了 的第 1 条）。
@@ -342,24 +342,24 @@ C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz</pre></div>
       <div class="note warn">
         <span class="ico">⚠</span>
         <div>如果你<b>重装过系统</b>，服务器指纹会变，scp 会报 <code class="inl">REMOTE HOST IDENTIFICATION HAS CHANGED</code>。清掉旧记录即可：
-          <div class="code" style="margin-top:8px"><pre><button class="copy">复制</button>ssh-keygen -R 101.42.94.222</pre></div>
+          <div class="code" style="margin-top:8px"><pre><button class="copy">复制</button>ssh-keygen -R <SERVER_IP></pre></div>
         </div>
       </div>
 
       <h3>方式 B 的密钥版：彻底告别输密码（推荐，一次性设置）</h3>
-      <p style="margin:0;font-size:13.8px">密钥已经为你生成好了（<code class="inl">C:\Users\he\.ssh\agenthub_lighthouse</code>）。
+      <p style="margin:0;font-size:13.8px">密钥已经为你生成好了（<code class="inl">C:\Users\he\.ssh\deploy_key</code>）。
       只要把<b>公钥</b>装到服务器上一次，之后 <code class="inl">scp</code> / <code class="inl">ssh</code> 全程不再问密码 ——
       也彻底绕开上面那个「密码打不进去」的毛病。</p>
       <p style="font-size:13.8px;margin:12px 0 4px"><b>① 在网页终端里粘贴这一段</b>（它会把公钥追加到服务器的 authorized_keys）：</p>
       <div class="code"><pre><button class="copy">复制</button>mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ5ZuyUnwHTawarBMgomjo/Imn4w5zu6Arilap6i5uo2 agenthub-lighthouse-deploy' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && wc -l ~/.ssh/authorized_keys</pre></div>
       <p style="font-size:13.5px;color:var(--ink2);margin:6px 0 14px">末尾会打印 <code class="inl">1</code>（或更多），说明写进去了。</p>
       <p style="font-size:13.8px;margin:0 0 4px"><b>② 回到本地，用带 <code class="inl">-i</code> 的命令传文件：</b></p>
-      <div class="code"><pre><button class="copy">复制</button>scp -i "C:\Users\he\.ssh\agenthub_lighthouse" -o IdentitiesOnly=yes "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@101.42.94.222:/root/</pre></div>
+      <div class="code"><pre><button class="copy">复制</button>scp -i "C:\Users\he\.ssh\deploy_key" -o IdentitiesOnly=yes "C:\Users\he\Documents\agenthub-deploy\agenthub-src.tar.gz" root@<SERVER_IP>:/root/</pre></div>
       <div class="note info">
         <span class="ico">🔑</span>
-        <div>私钥保存在你本机 <code class="inl">C:\Users\he\.ssh\agenthub_lighthouse</code>，<b>没有设密码短语</b>（方便脚本调用）。
+        <div>私钥保存在你本机 <code class="inl">C:\Users\he\.ssh\deploy_key</code>，<b>没有设密码短语</b>（方便脚本调用）。
         这个文件等于服务器的钥匙，别外传、别提交进 git。想更保险可以给它加个密码短语：
-        <code class="inl">ssh-keygen -p -f C:\Users\he\.ssh\agenthub_lighthouse</code>（加了之后每次用都要输一次，脚本就不能自动跑了）。</div>
+        <code class="inl">ssh-keygen -p -f C:\Users\he\.ssh\deploy_key</code>（加了之后每次用都要输一次，脚本就不能自动跑了）。</div>
       </div>
     </div>
   </div>
@@ -432,7 +432,7 @@ awk -F= '/^[A-Z]/{print $1}' /etc/agenthub/agenthub.env</pre></div>
 
       <h3>方式 B：跟源码包一起传（会 scp 的话）</h3>
       <div class="code"><pre><button class="copy">复制</button><span class="c"># 在你自己电脑的 PowerShell 里跑（先 cd 到项目根目录）</span>
-scp ".\.env.local" root@101.42.94.222:/etc/agenthub/agenthub.env</pre></div>
+scp ".\.env.local" root@<SERVER_IP>:/etc/agenthub/agenthub.env</pre></div>
       <div class="code"><pre><button class="copy">复制</button><span class="c"># 回到服务器的网页终端</span>
 chmod 600 /etc/agenthub/agenthub.env</pre></div>
 
@@ -547,7 +547,7 @@ tail -n 50 /var/log/agenthub/err.log</pre></div>
       <div class="final">
         <h2>最后一步：用浏览器打开</h2>
         <p style="margin:0 0 12px;opacity:.95;font-size:14px">弹出账号密码框 → 输入第 6 步记下的 <b>admin / 密码</b>。</p>
-        <a href="http://101.42.94.222/" target="_blank" rel="noopener noreferrer">http://101.42.94.222/</a>
+        <a href="http://<SERVER_IP>/" target="_blank" rel="noopener noreferrer">http://<SERVER_IP>/</a>
       </div>
     </div>
   </div>
@@ -612,7 +612,7 @@ tmux attach -t build</pre></div>
       </ol>
       <b>永久解法（一次性，之后 scp / ssh 全程免密）：</b>
       用 SSH 密钥。已为本机生成好一对密钥：
-      <code class="inl">C:\Users\he\.ssh\agenthub_lighthouse</code>，
+      <code class="inl">C:\Users\he\.ssh\deploy_key</code>，
       把它的公钥粘进服务器（见下方「方式 B 的密钥版」）。
     </div>
   </details>

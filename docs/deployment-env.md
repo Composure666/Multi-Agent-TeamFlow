@@ -13,9 +13,12 @@
 
 | 键 | 值怎么取 | 用途 |
 | --- | --- | --- |
-| `DEEPSEEK_API_KEY` | 本机 `.env.local` 已配 | 本机在用的主力 provider |
-| `ORCHESTRATOR_PROVIDER` | 本机 `.env.local` 已配 | 编排层默认 provider |
-| `ORCHESTRATOR_MODEL_ID` | 本机 `.env.local` 已配 | 编排层默认模型 |
+| `DEEPSEEK_API_KEY` | 你自己的 DeepSeek 控制台 key | 默认主力 provider |
+
+> ⚠️ **`ORCHESTRATOR_PROVIDER` / `ORCHESTRATOR_MODEL_ID` 已失效**（2026-09-22 实测：
+> 全仓 `src`/`scripts`/`electron` 读取点 **0 处**）。编排层的模型现在取 agent 行自身的
+> `model` 配置，不再有 env 覆盖入口。本文档此前把它们列为「必填」，属文档漂移，已更正；
+> `.env.example` 里也已标注为「传不传都不生效」。
 
 其它 provider，用到哪个填哪个：
 
@@ -35,13 +38,17 @@
 
 | 键 | 值怎么取 |
 | --- | --- |
-| `OSS_BUCKET` | 本机 `.env.local` 已配 |
-| `OSS_ENDPOINT` | 本机 `.env.local` 已配 |
-| `OSS_ACCESS_KEY_ID` | 本机 `.env.local` 已配 |
-| `OSS_ACCESS_KEY_SECRET` | 本机 `.env.local` 已配 |
+| `OSS_BUCKET` | 你自己的 bucket 名（在阿里云 OSS 控制台创建） |
+| `OSS_ENDPOINT` | 该 bucket 所在地域的 endpoint，形如 `oss-cn-<region>.aliyuncs.com` |
+| `OSS_ACCESS_KEY_ID` | 你自己的 RAM 用户 AccessKeyId（建议只授该 bucket 的写权限） |
+| `OSS_ACCESS_KEY_SECRET` | 对应的 AccessKeySecret |
 
 **四个缺任意一个都不生效**，`write_artifact` 会退回本地存储，容器重建后图片变成坏链。
-（本机已有 OSS 变量，所以 oss-image-store 的两个测试会在本地失败——那是预期行为。）
+本机若已在 `.env.local` 里配了这四项，`oss-image-store` 的两个测试会读到真实配置而失败——那是预期行为；
+测试本身用的是假样例值，不会依赖你任何真实资源。
+
+> ❗ **不要把真实 bucket 名 / endpoint / AccessKey 写进任何进版本管理的文件**（含测试夹具、脚本注释、文档示例）。
+> 只想跑通测试，用 `test-bucket` / `oss-cn-hangzhou.aliyuncs.com` 这类明显的占位值即可。
 
 ---
 
@@ -84,7 +91,7 @@ Electron 模式下这个值由主进程注入 `userData`，**不需要手填**�
 ```powershell
 python -X utf8 -c "
 import os
-keep = ['DEEPSEEK_API_KEY','ORCHESTRATOR_PROVIDER','ORCHESTRATOR_MODEL_ID','OSS_BUCKET','OSS_ENDPOINT','OSS_ACCESS_KEY_ID','OSS_ACCESS_KEY_SECRET']
+keep = ['DEEPSEEK_API_KEY','OSS_BUCKET','OSS_ENDPOINT','OSS_ACCESS_KEY_ID','OSS_ACCESS_KEY_SECRET']
 for line in open('.env.local', encoding='utf-8-sig'):
     k, _, v = line.strip().partition('=')
     if k in keep: print(k + '=' + v)

@@ -30,15 +30,15 @@
 
     SSH KEY
     -------
-      If %USERPROFILE%\.ssh\agenthub_lighthouse exists it is used automatically
+      If %USERPROFILE%\.ssh\deploy_key exists it is used automatically
       and no password prompt appears at all. This matters because the Windows
       OpenSSH password prompt switches the console into raw mode, where IME and
       some keyboard input never reach ssh -- users on Chinese IMEs frequently
       cannot type their password there at all.
 
       Create the key once and install the public half on the server:
-        ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\agenthub_lighthouse -N ""
-        # then paste the contents of agenthub_lighthouse.pub into the server's
+        ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\deploy_key -N ""
+        # then paste the contents of deploy_key.pub into the server's
         # ~/.ssh/authorized_keys (see deploy/CLICK-DEPLOY.html)
 
       Override with -IdentityFile, or pass -IdentityFile '' to force a password.
@@ -51,10 +51,10 @@
 #>
 
 param(
-    [string]$Server    = '101.42.94.222',
+    [string]$Server    = '<SERVER_IP>',
     [string]$User      = 'ubuntu',
     [string]$Branch    = 'master',
-    [string]$IdentityFile = (Join-Path $env:USERPROFILE '.ssh\agenthub_lighthouse'),
+    [string]$IdentityFile = (Join-Path $env:USERPROFILE '.ssh\deploy_key'),
     [switch]$SkipUpload,
     [switch]$RemoteExtract
 )

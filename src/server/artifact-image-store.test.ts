@@ -76,10 +76,10 @@ describe('isServableImageUrl', () => {
 
   it('treats an OSS url with a non-image suffix as a broken link', () => {
     // 2026-09-15 线上封面图裂图的形态：SVG 被存成 .bin，OSS 回 octet-stream + attachment
-    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/2026-09-15/x.bin')).toBe(false)
-    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x')).toBe(false)
-    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x.svg')).toBe(true)
-    expect(isServableImageUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/artifacts/x.png?v=2')).toBe(true)
+    expect(isServableImageUrl('https://test-bucket.oss-cn-hangzhou.aliyuncs.com/artifacts/2026-09-15/x.bin')).toBe(false)
+    expect(isServableImageUrl('https://test-bucket.oss-cn-hangzhou.aliyuncs.com/artifacts/x')).toBe(false)
+    expect(isServableImageUrl('https://test-bucket.oss-cn-hangzhou.aliyuncs.com/artifacts/x.svg')).toBe(true)
+    expect(isServableImageUrl('https://test-bucket.oss-cn-hangzhou.aliyuncs.com/artifacts/x.png?v=2')).toBe(true)
   })
 
   it('keeps extension-less urls on non-OSS hosts servable', () => {

@@ -19,9 +19,10 @@ let closeCompanionServer: (() => Promise<void>) | null = null
 // 应用显示名统一；必须在任何 app.getPath('userData') 调用之前完成。
 const APP_DISPLAY_NAME = 'Multi-Agent TeamFlow'
 
-// ⚠️ app 名同时决定 userData 目录名。品牌从 'Nexora Studio' 改成新名后目录名会跟着变，
+// ⚠️ app 名同时决定 userData 目录名。历史上这个目录还叫别的名字，改名后目录名会跟着变，
 // 那等于让已有桌面端用户的 DB / workspace（<userData>/data）凭空消失。所以旧目录存在就
 // 继续用它，只有全新安装才落到新名字下。userData 路径属**内部标识**，别再跟着品牌改。
+// 注意：这里必须写「旧目录的真实名字」才能命中历史安装，不能改成新品牌名。
 const LEGACY_USER_DATA_DIR_NAME = 'Nexora Studio'
 
 app.setName(APP_DISPLAY_NAME)
