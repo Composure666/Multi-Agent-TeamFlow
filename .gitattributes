@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# 统一行尾，根治跨平台「伪脏」
+#   症状：同一个文件在 Windows 与 macOS 之间来回 checkout 后反复显示 modified，
+#         但 git diff 内容为空或整文件全变。
+#   规则：仓库内（index）一律存 LF；检出时按下面各条规则决定工作区行尾。
+#   注意：本文件只约束行尾，不做内容转换；新增规则后如需一次性规范化，
+#         执行 `git add --renormalize .` 再提交。
+# ---------------------------------------------------------------------------
+* text=auto eol=lf
+
+# --- Shell 脚本必须保持 LF，否则在 Linux / macOS 上无法执行 ---
+*.sh    text eol=lf
+
+# --- Windows 脚本保持 CRLF，避免 cmd.exe 解析异常 ---
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# --- 二进制：禁止任何行尾转换（转换会损坏文件）---
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.bmp       binary
+*.ico       binary
+*.icns      binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.otf       binary
+*.eot       binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.7z        binary
+*.tar       binary
+*.db        binary
+*.sqlite    binary
+*.sqlite3   binary
+*.node      binary
+*.wasm      binary
+*.mp4       binary
+*.mp3       binary
+
+# --- 锁文件：标记为生成文件，减少 review 噪音 ---
+pnpm-lock.yaml  linguist-generated=true

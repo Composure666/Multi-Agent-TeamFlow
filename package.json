@@ -1,6 +1,6 @@
 {
   "name": "multi-agent-teamflow",
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "description": "Local-first multi-agent workspace with IM-style collaboration, artifacts, approvals, and Electron desktop support.",
   "author": {
     "name": "Multi-Agent TeamFlow",
@@ -24,8 +24,16 @@
     "type": "git",
     "url": "https://gitee.com/Composure666/agent-hub.git"
   },
+  "homepage": "https://gitee.com/Composure666/agent-hub#readme",
+  "bugs": {
+    "url": "https://gitee.com/Composure666/agent-hub/issues"
+  },
   "license": "AGPL-3.0-only",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "packageManager": "pnpm@11.9.0",
   "main": "dist-electron/main.js",
   "scripts": {
     "sqlite:ensure:node": "node scripts/ensure-node-sqlite.mjs",
