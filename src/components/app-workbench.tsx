@@ -7,6 +7,7 @@ import {
   Bell,
   CheckCircle2,
   ChevronDown,
+  CircleHelp,
   Coins,
   Copy,
   Grid2X2,
@@ -81,6 +82,7 @@ import {
   type UsageSummary,
 } from '@/lib/api'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
+import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
@@ -598,6 +600,15 @@ function MobileWorkbenchDrawer({
 
           <button
             type="button"
+            onClick={() => emitUiCommand('open-user-guide')}
+            className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[#EEF4FF] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800"
+          >
+            <CircleHelp className="size-5 stroke-[2.1]" />
+            <span className="min-w-0 flex-1 truncate">使用指南</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setAccountOpen((expanded) => !expanded)}
             aria-expanded={accountOpen}
             className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
@@ -943,6 +954,22 @@ function WorkbenchNav({
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           </div>
         )}
+
+        {/* 使用指南常驻入口。首次进入会自动弹一次，关掉之后靠这里再打开。
+            走 ui-command 而不是本地 state —— 指南弹窗挂在根布局（app/page.tsx），不在本组件树里。 */}
+        <button
+          type="button"
+          onClick={() => emitUiCommand('open-user-guide')}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+            compact ? 'justify-center px-2 py-2' : 'px-2 py-2',
+          )}
+          title="使用指南"
+          aria-label="使用指南"
+        >
+          <CircleHelp className="size-4 shrink-0" />
+          {!compact && <span className="text-xs font-medium">使用指南</span>}
+        </button>
 
         <button
           type="button"
