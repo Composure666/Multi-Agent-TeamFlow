@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { db, schema } from '@/db/client'
 import { appendImageToArtifact, resolveImageArtifactTarget } from '@/server/artifact-image-group'
 import { newArtifactId, newMessageId } from '@/server/ids'
+import { assertOutboundUrlAllowed } from '@/server/network-guard'
 import { getOssImageConfig, uploadImageToOss } from '@/server/oss-image-store'
 import type { ArtifactContent, ArtifactRecord, StreamEvent } from '@/shared/types'
 
@@ -132,6 +133,9 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
     prompt: string,
     signal: AbortSignal,
   ): Promise<{ buffer: Buffer; width?: number; height?: number }> {
+    // 生图 baseUrl 与 chat 的 apiBaseUrl 同属「用户可填的出站口」，同样要过 SSRF 守卫。
+    await assertOutboundUrlAllowed(baseUrl, '生图 baseUrl 指向了被禁止的网络目标')
+
     const url = `${baseUrl.replace(/\/$/, '')}/images/generations`
 
     const res = await fetch(url, {
@@ -167,6 +171,9 @@ export class ImageGenAdapter implements AgentPlatformAdapter {
 
     // 处理 url：下载图片
     if (first.url) {
+      // 这个 URL 来自**上游 API 的响应**，同样不可信（恶意/被篡改的网关可借此让平台
+      // 去打内网）。下载前再校验一次。
+      await assertOutboundUrlAllowed(first.url, '生图结果 URL 指向了被禁止的网络目标')
       const imgRes = await fetch(first.url, { signal })
       if (!imgRes.ok) throw new Error(`下载图片失败: ${imgRes.status}`)
       const arrayBuffer = await imgRes.arrayBuffer()

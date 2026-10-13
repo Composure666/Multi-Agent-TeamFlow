@@ -21,6 +21,7 @@ import {
   writeCompanionConfig,
   type CompanionMode,
 } from '@/server/companion-config'
+import { looksMasked, maskSecret } from '@/server/secret-mask'
 
 const SINGLETON_ID = 'singleton'
 
@@ -60,6 +61,38 @@ export async function getAppSettings(): Promise<AppSettingsRow> {
   return row ?? EMPTY
 }
 
+/**
+ * 设置里所有「值本身即密钥」的字段。
+ * 这两个列表必须与 `AppSettingsRow` 同步维护 —— 新增密钥字段时别漏。
+ */
+const SECRET_SETTING_KEYS = [
+  'anthropicApiKey',
+  'openaiApiKey',
+  'deepseekApiKey',
+  'arkApiKey',
+  'ossAccessKeySecret',
+  'ossAccessKeyId',
+  'mobileDeviceToken',
+] as const
+
+/**
+ * 脱敏：只留「是否已配置」+「尾 4 位」，其余用 `*` 盖掉。
+ *
+ * 为什么要做：`GET /api/settings` 会把 `AppSettingsRow` 原样返回给浏览器。应用自身没有
+ * 登录体系（边界全在 nginx Basic 上），所以一旦 Basic 被关掉/配错，任何人 `curl` 一下
+ * 就能拿到全部 LLM key 与 OSS AccessKey。脱敏把「后端机密」重新降级回后端。
+ *
+ * 前端只需要知道「有没有填过」和「填的是哪一把」，不需要完整值 ——
+ * 要改就整把重填（`PATCH` 仍接受完整值写入）。
+ */
+export function maskSecrets(row: AppSettingsRow): AppSettingsRow {
+  const out: AppSettingsRow = { ...row }
+  for (const key of SECRET_SETTING_KEYS) {
+    out[key] = maskSecret(out[key])
+  }
+  return out
+}
+
 export interface AppSettingsPatch {
   anthropicApiKey?: string | null
   anthropicBaseUrl?: string | null
@@ -87,13 +120,35 @@ export interface AppSettingsPatch {
   ossPublicRead?: boolean
 }
 
+/**
+ * 兜底防线：丢掉「值看起来是脱敏串」的密钥字段写入。
+ *
+ * 为什么要在服务端兜：GET 返回的是 `********abcd`。如果某个前端（或某个脚本、
+ * 某个用户手工 curl）把这个串原样 PATCH 回来，真 key 就被星号覆盖了 ——
+ * 而且**没有任何报错**，只是之后所有调用开始 401。这类不可见的自毁式写入
+ * 不该依赖前端自觉，服务端必须自己拦。
+ *
+ * 正常输入不会命中：真实 key（`sk-…`、`LTAI…`）不以 4 个以上连续星号开头。
+ */
+function dropMaskedSecretWrites(patch: AppSettingsPatch): AppSettingsPatch {
+  const out: AppSettingsPatch = { ...patch }
+  for (const key of SECRET_SETTING_KEYS) {
+    const value = out[key]
+    if (typeof value === 'string' && looksMasked(value.trim())) {
+      delete out[key]
+    }
+  }
+  return out
+}
+
 /** UPSERT 全部字段：传 null 清空，undefined 不动。 */
 export async function updateAppSettings(patch: AppSettingsPatch): Promise<AppSettingsRow> {
   const current = await getAppSettings()
+  const cleaned = dropMaskedSecretWrites(patch)
   const next: AppSettingsRow = {
     ...current,
     ...Object.fromEntries(
-      Object.entries(patch).map(([k, v]) => [k, normalize(v)]),
+      Object.entries(cleaned).map(([k, v]) => [k, normalize(v)]),
     ),
     id: SINGLETON_ID,
     updatedAt: Date.now(),

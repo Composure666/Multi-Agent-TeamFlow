@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs'
+import { realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 
@@ -36,12 +36,55 @@ export function isPathWithin(child: string, parent: string): boolean {
 /**
  * 把 target（可相对、可绝对）解析为绝对路径，并强制落在 workspace 的 effective cwd 子树内。
  * 越权返回 null（调用方决定怎么响应）。
+ *
+ * ⚠️ 纯文本 `path.resolve` 不足以挡住沙箱逃逸：workspace 里放一个指向 `/etc/passwd`
+ * 的符号链接，文本层面它仍在 cwd 子树内，但 `readFileSync`/`writeFileSync` 会跟随链接
+ * 跑到 cwd 外面去。所以这里额外做一次真实路径解析。
+ *
+ * 做法：对「从 target 往上找到的第一个已存在的祖先」做 realpath，再把「祖先的 realpath」
+ * 与「剩余的、尚不存在的路径片段」重新拼起来判断。这样：
+ *   - 已存在的路径（含符号链接）会被解析到真实位置后再校验；
+ *   - 写新文件时最深层还不存在，也能用它已存在的父目录做校验。
+ * cwd 自身也做 realpath，避免 macOS 的 `/tmp` → `/private/tmp` 这类系统级链接导致误判。
  */
 export function resolveSafePath(workspace: WorkspaceRow, target: string): string | null {
   const cwd = getEffectiveCwd(workspace)
   const abs = path.isAbsolute(target) ? path.resolve(target) : path.resolve(cwd, target)
   if (!isPathWithin(abs, cwd)) return null
+
+  const realCwd = realpathOrNull(cwd) ?? cwd
+  const realAbs = realpathOfAncestor(abs) ?? abs
+  if (!isPathWithin(realAbs, realCwd)) return null
+
   return abs
+}
+
+/** realpath，失败（不存在 / 无权限）返回 null。 */
+function realpathOrNull(p: string): string | null {
+  try {
+    return realpathSync(p)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 对「p 往上第一个已存在的祖先」做 realpath，再把不存在的尾部片段拼回去。
+ * 全都解析不了时返回 null。
+ */
+function realpathOfAncestor(p: string): string | null {
+  const tail: string[] = []
+  let cur = p
+  for (;;) {
+    const real = realpathOrNull(cur)
+    if (real !== null) {
+      return tail.length > 0 ? path.join(real, ...tail.reverse()) : real
+    }
+    const parent = path.dirname(cur)
+    if (parent === cur) return null // 到根了还没找到
+    tail.push(path.basename(cur))
+    cur = parent
+  }
 }
 
 export function assertPathWithinWorkspace(workspace: WorkspaceRow, target: string): string {

@@ -1,7 +1,8 @@
-import { homedir } from 'node:os'
+import { lstatSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import type { WorkspaceRow } from '@/db/schema'
 
@@ -12,6 +13,15 @@ import {
   isPathWithin,
   resolveSafePath,
 } from './workspace-utils'
+
+/** 路径是否存在且确实是一个符号链接/junction。 */
+function isSymlink(p: string): boolean {
+  try {
+    return lstatSync(p).isSymbolicLink()
+  } catch {
+    return false
+  }
+}
 
 function workspace(overrides: Partial<WorkspaceRow> = {}): WorkspaceRow {
   return {
@@ -81,6 +91,79 @@ describe('resolveSafePath', () => {
     expect(resolveSafePath(ws, '..')).toBeNull()
     expect(resolveSafePath(ws, path.join(path.dirname(rootPath), 'outside.txt'))).toBeNull()
     expect(resolveSafePath(ws, path.join(path.dirname(rootPath), 'workspace-evil'))).toBeNull()
+  })
+})
+
+describe('resolveSafePath · 符号链接逃逸', () => {
+  const tmpDirs: string[] = []
+  afterEach(() => {
+    for (const d of tmpDirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  })
+
+  /** 造一个 workspace，并在外侧放一个「秘密文件」。 */
+  function fixture() {
+    const base = mkdtempSync(path.join(tmpdir(), 'agenthub-ws-'))
+    tmpDirs.push(base)
+    const wsRoot = path.join(base, 'workspace')
+    const outside = path.join(base, 'outside')
+    mkdirSync(wsRoot, { recursive: true })
+    mkdirSync(outside, { recursive: true })
+    const secret = path.join(outside, 'secret.txt')
+    writeFileSync(secret, 'TOP SECRET\n', 'utf8')
+    return { base, wsRoot, outside, secret }
+  }
+
+  /** 建目录链接：Windows 用 junction（无需管理员/开发者模式），POSIX 用 symlink。建不了返回 false。 */
+  function linkDir(target: string, linkPath: string): boolean {
+    try {
+      symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it('拒绝指向 workspace 外的符号链接文件', () => {
+    const { wsRoot, secret } = fixture()
+    const link = path.join(wsRoot, 'pwn.txt')
+    try {
+      symlinkSync(secret, link, 'file')
+    } catch {
+      return
+    }
+    // ⚠️ Windows 上（无开发者模式 / 非管理员）文件 symlink 会被「静默降级成复制一个普通文件」——
+    // 那样它本来就在 workspace 内，不构成逃逸。只有真建出链接才断言。
+    if (!isSymlink(link)) return
+    const ws = workspace({ rootPath: wsRoot })
+    expect(resolveSafePath(ws, 'pwn.txt')).toBeNull()
+    expect(() => assertPathWithinWorkspace(ws, 'pwn.txt')).toThrow('outside workspace')
+  })
+
+  it('拒绝经由符号链接目录逃逸', () => {
+    const { wsRoot, outside } = fixture()
+    if (!linkDir(outside, path.join(wsRoot, 'esc'))) return
+    const ws = workspace({ rootPath: wsRoot })
+    // 纯文本层面 esc/secret.txt 在 wsRoot 内 —— 旧实现会放行
+    expect(resolveSafePath(ws, path.join('esc', 'secret.txt'))).toBeNull()
+    expect(() => assertPathWithinWorkspace(ws, path.join('esc', 'secret.txt'))).toThrow(
+      'outside workspace',
+    )
+  })
+
+  it('不误伤 workspace 内的普通路径', () => {
+    const { wsRoot } = fixture()
+    mkdirSync(path.join(wsRoot, 'src'), { recursive: true })
+    const ws = workspace({ rootPath: wsRoot })
+    // 已存在的真实目录
+    expect(resolveSafePath(ws, 'src')).toBe(path.join(wsRoot, 'src'))
+    // 还不存在的新文件（父目录存在）—— 写新文件必须仍然放行
+    expect(resolveSafePath(ws, path.join('src', 'new.ts'))).toBe(path.join(wsRoot, 'src', 'new.ts'))
+  })
+
+  it('拒绝指向 workspace 外的绝对路径（原有行为不回退）', () => {
+    const { wsRoot, secret } = fixture()
+    const ws = workspace({ rootPath: wsRoot })
+    expect(resolveSafePath(ws, secret)).toBeNull()
   })
 })
 

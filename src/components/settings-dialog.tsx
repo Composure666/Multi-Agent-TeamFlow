@@ -46,11 +46,7 @@ import { ModelAssignmentPanel } from '@/components/settings/model-assignment-pan
 import { useAppStore } from '@/stores/app-store'
 
 interface SettingsForm {
-  anthropicApiKey: string
   anthropicBaseUrl: string
-  openaiApiKey: string
-  deepseekApiKey: string
-  arkApiKey: string
   defaultLlmProvider: 'auto' | 'deepseek' | 'openai' | 'anthropic' | 'ark'
   companionMode: 'off' | 'lan' | 'tailnet'
   mobileDeviceToken: string
@@ -68,12 +64,20 @@ interface SettingsForm {
 }
 
 /**
- * 全局 API key / endpoint 设置面板。
+ * 密钥类字段：`mobileDeviceToken` 在本弹窗里由 `MobileConnectionHints` 直接「重新生成」，
+ * 不走文本输入，所以不需要 dirty 跟踪。
  *
- * 4 个 provider key + Anthropic 自定义 base URL。明文展示，因为本地单用户场景安全
- * 收益小且会引入 keychain / safeStorage 复杂度（详见 spec / CLAUDE.md §5.4）。
+ * ❗ 另外 4 个 provider key（anthropic/openai/deepseek/ark）**不在这里维护** ——
+ * 它们的主入口是「供应商中心」（`ProvidersPanel` → `ProviderConfigDialog`），
+ * 那个弹窗里才有对应输入框和 dirty 跟踪。本弹窗曾有的那 4 个字段从未被渲染过，
+ * 已在 2026-09-22 清理掉，避免出现「看起来能改、实际改了没用」的幽灵字段。
+ */
+
+/**
+ * 全局设置面板。
  *
- * 优先级（adapter 侧）：agent.apiKey > app_settings > process.env。
+ * 服务端返回的所有密钥字段都是**脱敏值**（`********abcd`）。前端只显示「配没配」，
+ * 要改一律去供应商中心整把重填。优先级（adapter 侧）：agent.apiKey > 供应商中心 > env。
  */
 export function SettingsDialog({
   open,
@@ -92,11 +96,7 @@ export function SettingsDialog({
   const [tab, setTab] = useState('keys')
   const activeSettingsSection = useAppStore((s) => s.activeSettingsSection)
   const [form, setForm] = useState<SettingsForm>({
-    anthropicApiKey: '',
     anthropicBaseUrl: '',
-    openaiApiKey: '',
-    deepseekApiKey: '',
-    arkApiKey: '',
     defaultLlmProvider: 'auto',
     companionMode: 'off',
     mobileDeviceToken: '',
@@ -172,14 +172,9 @@ export function SettingsDialog({
     try {
       // 空串归一 null，明确「清空」语义
       const patch: AppSettingsPatchBody = {
-        anthropicApiKey: form.anthropicApiKey.trim() || null,
         anthropicBaseUrl: form.anthropicBaseUrl.trim() || null,
-        openaiApiKey: form.openaiApiKey.trim() || null,
-        deepseekApiKey: form.deepseekApiKey.trim() || null,
-        arkApiKey: form.arkApiKey.trim() || null,
         defaultLlmProvider: form.defaultLlmProvider,
         companionMode: form.companionMode,
-        mobileDeviceToken: form.mobileDeviceToken.trim() || null,
         deploymentPublishEnabled: form.deploymentPublishEnabled,
         deploymentPublishDir: form.deploymentPublishDir.trim() || null,
         deploymentPublicBaseUrl: form.deploymentPublicBaseUrl.trim() || null,
@@ -192,6 +187,9 @@ export function SettingsDialog({
         notificationUrgentEnabled: form.notificationUrgentEnabled,
         experienceExtractionEnabled: form.experienceExtractionEnabled,
       }
+
+      // 密钥字段一律不在这里写：provider key 归「供应商中心」，
+      // mobileDeviceToken 由 handleEnableCompanion / handleRegenerateToken 单独负责。
       await updateAppSettings(patch)
       onOpenChange(false)
     } catch (err) {
@@ -730,11 +728,7 @@ export function SettingsButton() {
 
 function rowToForm(row: AppSettingsRow): SettingsForm {
   return {
-    anthropicApiKey: row.anthropicApiKey ?? '',
     anthropicBaseUrl: row.anthropicBaseUrl ?? '',
-    openaiApiKey: row.openaiApiKey ?? '',
-    deepseekApiKey: row.deepseekApiKey ?? '',
-    arkApiKey: row.arkApiKey ?? '',
     defaultLlmProvider: (row.defaultLlmProvider as SettingsForm['defaultLlmProvider']) ?? 'auto',
     companionMode: row.companionMode,
     mobileDeviceToken: row.mobileDeviceToken ?? '',

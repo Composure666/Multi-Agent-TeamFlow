@@ -1,3 +1,4 @@
+import { assertOutboundUrlAllowedSync } from '@/server/network-guard'
 import {
   validateOpenAICompatibleApiKey,
   validateOpenAICompatibleBaseUrl,
@@ -16,6 +17,19 @@ export interface CustomProviderClientConfig {
 function explicitBaseUrl(apiBaseUrl?: string | null): string | undefined {
   const trimmed = apiBaseUrl?.trim()
   return trimmed ? trimmed : undefined
+}
+
+/**
+ * 用户可填的 `apiBaseUrl` 是个**出站口**，方向对就等于 SSRF。
+ * bash 侧有 `network-guard`，但这里直接进 `fetch` / `new OpenAI({ baseURL })`，
+ * 完全绕开它 —— 所以这一层必须自己拦一次。
+ *
+ * 拦的是「云 metadata / 内网 IP / 回环平台端口」这类**正常配置绝不会用到**的地址；
+ * 用户自建的内网网关（比如公司内网的 LLM 代理）会一并被拦，那是**有意的**：
+ * 真要连内网网关，请把它暴露成域名并允许出口，而不是让平台替用户去打内网。
+ */
+function assertBaseUrlAllowed(baseUrl: string): void {
+  assertOutboundUrlAllowedSync(baseUrl, 'apiBaseUrl 指向了被禁止的网络目标')
 }
 
 /**
@@ -43,6 +57,7 @@ export function resolveCustomProviderClientConfig(
   apiBaseUrl?: string | null,
 ): CustomProviderClientConfig {
   const baseUrl = explicitBaseUrl(apiBaseUrl)
+  if (baseUrl) assertBaseUrlAllowed(baseUrl)
 
   if (provider === 'deepseek') {
     const apiKey = overrideKey?.trim() || process.env.DEEPSEEK_API_KEY

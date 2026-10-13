@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { getAppSettings, updateAppSettings } from '@/server/settings-service'
+import { getAppSettings, maskSecrets, updateAppSettings } from '@/server/settings-service'
 
-/** GET /api/settings —— 返回全局设置（key 字段会原样返回；用户已自行选择填明文） */
+/**
+ * GET /api/settings —— 返回全局设置。
+ *
+ * ❗ 密钥字段**必须脱敏**后再返回：应用自身没有登录体系，鉴权全在 nginx Basic 上；
+ * 原样回吐等于「Basic 一关/一配错，任何人都能 curl 走全部 key」。
+ * 前端只需要「填没填」，不需要完整值；要改就整把重填（PATCH 仍收完整值）。
+ */
 export async function GET() {
   const settings = await getAppSettings()
-  return NextResponse.json({ settings })
+  return NextResponse.json({ settings: maskSecrets(settings) })
 }
 
 const PatchBody = z.object({
@@ -42,5 +48,5 @@ export async function PATCH(req: NextRequest) {
     )
   }
   const settings = await updateAppSettings(parsed.data)
-  return NextResponse.json({ settings })
+  return NextResponse.json({ settings: maskSecrets(settings) })
 }

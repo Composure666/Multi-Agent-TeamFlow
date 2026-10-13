@@ -139,6 +139,99 @@ export async function findBlockedNetworkTarget(
 }
 
 /**
+ * 检查单个出站 URL 是否触碰被禁网络目标。返回 null 表示放行。
+ *
+ * 与 `findBlockedNetworkTarget` 的区别：那个解析的是「一整条 shell 命令」，这个直接吃
+ * 「一个 URL」。用在命令行之外的出站口 —— 「供应商中心 / 生图 Agent」里用户可填的
+ * `apiBaseUrl`，以及生图 API 返回的图片 URL。
+ *
+ * 为什么必须单独做：那些地址会直接进 `fetch` / `new OpenAI({ baseURL })`，**完全绕过**
+ * bash 侧的守卫。把 baseUrl 填成 `http://169.254.169.254/latest/meta-data/…` 就能偷云
+ * 厂商的临时凭据，填成 `http://127.0.0.1:3000/api/settings` 就能回环打平台自己。
+ */
+export async function findBlockedOutboundUrl(
+  url: string,
+  options: { platformPorts?: Set<number>; lookupImpl?: LookupImpl } = {},
+): Promise<BlockedNetworkTarget | null> {
+  return findBlockedNetworkTarget(url, options)
+}
+
+/**
+ * `findBlockedOutboundUrl` 的**同步**版本 —— 只做不需要 DNS 的那部分判定：
+ * 非 http(s) 协议、IP 字面量、metadata 域名别名、localhost。
+ *
+ * 为什么要有同步版：`resolveCustomProviderClientConfig` 是同步函数、被 adapter 深层同步调用，
+ * 改异步会牵动一大片。实测真正有杀伤力的 SSRF 载荷（`169.254.169.254`、`100.100.100.200`、
+ * `metadata.tencentyun.com`、`127.0.0.1:3000`）**全是 IP/别名，同步就能拦住**；
+ * 「域名 DNS 指向内网」这一档留给写入配置时的异步校验兜底。
+ */
+export function findBlockedOutboundUrlSync(
+  url: string,
+  options: { platformPorts?: Set<number> } = {},
+): BlockedNetworkTarget | null {
+  if (!shouldInspectCommand(url)) return null
+
+  const platformPorts = options.platformPorts ?? resolvePlatformPorts()
+  for (const target of extractNetworkTargets(url)) {
+    const host = target.host
+
+    if (host.startsWith('option:')) {
+      return reject(target, `option ${host.slice('option:'.length)} can retarget the request`)
+    }
+    if (host.startsWith('scheme:')) {
+      return reject(
+        target,
+        `only http(s) targets are allowed; got ${host.slice('scheme:'.length)}://`,
+      )
+    }
+    if (METADATA_HOSTS.has(host)) {
+      return reject(target, `host ${host} is a cloud metadata endpoint`)
+    }
+    if (host === 'localhost' || host.endsWith('.localhost')) {
+      return checkLoopback(target, platformPorts)
+    }
+
+    const ipVersion = isIP(host)
+    if (ipVersion) {
+      const cls = ipVersion === 4 ? classifyIpv4(host) : classifyIpv6(host)
+      const blocked = applyClass(target, cls, platformPorts)
+      if (blocked) return blocked
+    }
+    // 普通域名：同步阶段无法判定，交给异步兜底
+  }
+  return null
+}
+
+/**
+ * `findBlockedOutboundUrl` 的抛错包装：被拦时抛一个带原因的错误。
+ * 适合在「配置阶段」调用（校验用户填的 baseUrl）。
+ */
+export async function assertOutboundUrlAllowed(
+  url: string,
+  context: string,
+  options: { platformPorts?: Set<number>; lookupImpl?: LookupImpl } = {},
+): Promise<void> {
+  const blocked = await findBlockedOutboundUrl(url, options)
+  if (blocked) {
+    throw new Error(`${context}: ${blocked.reason} (${blocked.target})`)
+  }
+}
+
+/**
+ * `findBlockedOutboundUrlSync` 的抛错包装。适合同步的客户端构造路径。
+ */
+export function assertOutboundUrlAllowedSync(
+  url: string,
+  context: string,
+  options: { platformPorts?: Set<number> } = {},
+): void {
+  const blocked = findBlockedOutboundUrlSync(url, options)
+  if (blocked) {
+    throw new Error(`${context}: ${blocked.reason} (${blocked.target})`)
+  }
+}
+
+/**
  * 是否需要检查，两种触发：
  *  1. 命令里出现带协议的 URL —— 覆盖 `git clone http://…` / `npm i http://…` 这类
  *     命令名不在网络命令清单里的写法；

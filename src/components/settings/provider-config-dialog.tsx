@@ -39,6 +39,9 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
   const [testResult, setTestResult] = useState<{ connected: boolean; error?: string; models?: string[] } | null>(null)
   const [fetchingModels, setFetchingModels] = useState(false)
   const [revealKey, setRevealKey] = useState(false)
+  // GET /api/providers/[id] 返回的 apiKey 是脱敏串。没被用户改过就不回写，
+  // 否则保存会把库里的真 key 覆盖成 `********abcd`（服务端也有兜底，这里先挡住）。
+  const [keyDirty, setKeyDirty] = useState(false)
 
   const isBuiltin = providerId ? BUILTIN_PROVIDER_IDS.includes(providerId) : false
   const isNew = providerId === null
@@ -62,6 +65,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
           baseUrl: data.provider.baseUrl ?? '',
           models: (data.provider.models ?? []).join(', '),
         })
+        setKeyDirty(false)
       })
       .catch((err) => console.error('[ProviderConfigDialog] load failed', err))
       .finally(() => {
@@ -77,6 +81,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
     if (open && isNew) {
       setForm(EMPTY_FORM)
       setTestResult(null)
+      setKeyDirty(true) // 新建本来就要填 key
     }
   }, [open, isNew])
 
@@ -100,7 +105,8 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
   const saveProvider = async (silent = false): Promise<boolean> => {
     const payload = {
       displayName: form.displayName.trim() || undefined,
-      apiKey: form.apiKey.trim() || null,
+      // 只在用户真的动过 key 输入框时才提交，否则会把脱敏串写回库
+      apiKey: keyDirty ? form.apiKey.trim() || null : undefined,
       baseUrl: form.baseUrl.trim() || null,
       models: form.models
         .split(',')
@@ -193,7 +199,10 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
                   id="provider-api-key"
                   type={revealKey ? 'text' : 'password'}
                   value={form.apiKey}
-                  onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, apiKey: e.target.value }))
+                    setKeyDirty(true)
+                  }}
                   placeholder="sk-..."
                   autoComplete="off"
                 />

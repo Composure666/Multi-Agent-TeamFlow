@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractNetworkTargets, findBlockedNetworkTarget } from './network-guard'
+import {
+  assertOutboundUrlAllowed,
+  assertOutboundUrlAllowedSync,
+  extractNetworkTargets,
+  findBlockedNetworkTarget,
+  findBlockedOutboundUrl,
+  findBlockedOutboundUrlSync,
+} from './network-guard'
 
 const PLATFORM_PORTS = new Set([3000])
 
@@ -132,5 +139,98 @@ describe('extractNetworkTargets', () => {
   it('去掉 URL 里的凭据，只保留主机', () => {
     const targets = extractNetworkTargets('curl https://user:pass@example.com/x')
     expect(targets.some((target) => target.host === 'example.com')).toBe(true)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 用户可填的 apiBaseUrl / 生图 baseUrl 是**命令行之外**的出站口：
+// 它们直接进 fetch / new OpenAI({ baseURL })，不经过 bash，因此绕开上面全部防护。
+// 这两组测试锁住新增的 URL 级守卫。
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('findBlockedOutboundUrlSync —— 同步守卫（IP 字面量 / 别名）', () => {
+  const opts = { platformPorts: PLATFORM_PORTS }
+
+  it('拦下云 metadata：IP 与各厂别名', () => {
+    expect(
+      findBlockedOutboundUrlSync(
+        'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+        opts,
+      ),
+    ).not.toBeNull()
+    expect(findBlockedOutboundUrlSync('http://100.100.100.200/latest/meta-data/', opts)).not.toBeNull()
+    expect(
+      findBlockedOutboundUrlSync('https://metadata.tencentyun.com/latest/meta-data/', opts),
+    ).not.toBeNull()
+  })
+
+  it('拦下回环上的平台端口（回环打自己拿设置）', () => {
+    expect(findBlockedOutboundUrlSync('http://127.0.0.1:3000/api/settings', opts)).not.toBeNull()
+    expect(findBlockedOutboundUrlSync('http://localhost:3000/api/settings', opts)).not.toBeNull()
+  })
+
+  it('拦下内网网段与 CGNAT', () => {
+    expect(findBlockedOutboundUrlSync('http://10.0.0.5/v1', opts)).not.toBeNull()
+    expect(findBlockedOutboundUrlSync('http://192.168.1.10/v1', opts)).not.toBeNull()
+    expect(findBlockedOutboundUrlSync('http://172.16.0.1/v1', opts)).not.toBeNull()
+    expect(findBlockedOutboundUrlSync('http://100.64.0.1/v1', opts)).not.toBeNull()
+  })
+
+  it('拦下非 http(s) 协议', () => {
+    expect(findBlockedOutboundUrlSync('file:///etc/passwd', opts)).not.toBeNull()
+  })
+
+  it('放行正常公网端点', () => {
+    expect(findBlockedOutboundUrlSync('https://api.deepseek.com/v1', opts)).toBeNull()
+    expect(findBlockedOutboundUrlSync('https://api.siliconflow.cn/v1', opts)).toBeNull()
+    expect(findBlockedOutboundUrlSync('https://dashscope.aliyuncs.com/compatible-mode/v1', opts)).toBeNull()
+  })
+
+  it('回环上的**非**平台端口放行（保留本地自测流程）', () => {
+    expect(findBlockedOutboundUrlSync('http://127.0.0.1:8080/v1', opts)).toBeNull()
+  })
+})
+
+describe('findBlockedOutboundUrl —— 异步守卫（含 DNS 预解析）', () => {
+  it('域名解析到内网时拦下', async () => {
+    const blocked = await findBlockedOutboundUrl('http://evil.example.com/v1', {
+      platformPorts: PLATFORM_PORTS,
+      lookupImpl: lookupReturning('10.1.2.3'),
+    })
+    expect(blocked).not.toBeNull()
+    expect(blocked?.reason).toContain('10.1.2.3')
+  })
+
+  it('域名解析到公网时放行', async () => {
+    expect(
+      await findBlockedOutboundUrl('http://good.example.com/v1', {
+        platformPorts: PLATFORM_PORTS,
+        lookupImpl: PUBLIC_LOOKUP,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('assertOutboundUrlAllowed* —— 抛错包装', () => {
+  it('被拦时抛出带原因的错误', async () => {
+    await expect(
+      assertOutboundUrlAllowed('http://169.254.169.254/', '生图 baseUrl', {
+        platformPorts: PLATFORM_PORTS,
+        lookupImpl: PUBLIC_LOOKUP,
+      }),
+    ).rejects.toThrow(/生图 baseUrl/)
+  })
+
+  it('同步版被拦时抛错、放行时不抛', () => {
+    expect(() =>
+      assertOutboundUrlAllowedSync('http://127.0.0.1:3000/api/settings', 'apiBaseUrl', {
+        platformPorts: PLATFORM_PORTS,
+      }),
+    ).toThrow(/apiBaseUrl/)
+    expect(() =>
+      assertOutboundUrlAllowedSync('https://api.deepseek.com/v1', 'apiBaseUrl', {
+        platformPorts: PLATFORM_PORTS,
+      }),
+    ).not.toThrow()
   })
 })
