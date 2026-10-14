@@ -169,6 +169,7 @@
       "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "signExecutable": false,
+      "artifactName": "Multi-Agent-TeamFlow-Setup.${ext}",
       "target": [
         {
           "target": "nsis",

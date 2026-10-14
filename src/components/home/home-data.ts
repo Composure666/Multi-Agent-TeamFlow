@@ -45,6 +45,7 @@ export const HOME_NAV: { href: string; label: string }[] = [
   { href: '#agents', label: '内置 Agent' },
   { href: '#stack', label: '技术栈' },
   { href: '#quickstart', label: '快速开始' },
+  { href: '#download', label: '桌面端' },
   { href: '#guide', label: '使用指南' },
   { href: '#contact', label: '联系作者' },
 ]
@@ -275,6 +276,7 @@ export const FOOTER_LINKS: { title: string; links: { label: string; href: string
       { label: '功能模块', href: '#features' },
       { label: '内置 Agent', href: '#agents' },
       { label: '快速开始', href: '#quickstart' },
+      { label: '桌面端下载', href: '#download' },
       { label: '使用指南', href: '#guide' },
     ],
   },

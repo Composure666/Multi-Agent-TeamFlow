@@ -86,6 +86,12 @@ next-env.d.ts
 /dist-electron/
 /release/
 
+# 桌面端安装包：体积在百 MB 量级，绝不进版本库、也不进部署压缩包。
+# 目录本身要保留（.gitkeep），因为 Next 的 standalone 组装会把 public/ 整个拷过去。
+# 发布方式见 deploy/RUNBOOK.md「安装包发布」一节。
+/public/downloads/*
+!/public/downloads/.gitkeep
+
 # Mobile app build outputs
 /apps/mobile/dist/
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { HomeContact } from '@/components/home/home-contact'
+import { HomeDownload } from '@/components/home/home-download'
 import { HomeGuide } from '@/components/home/home-guide'
 import { HomeHeader } from '@/components/home/home-header'
 import {
@@ -13,6 +14,7 @@ import {
   HomeWorkflow,
 } from '@/components/home/home-sections'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
+import { resolveSiteLinks } from '@/server/site-links-service'
 
 /**
  * 项目主页（/home）。
@@ -28,7 +30,11 @@ export const metadata: Metadata = {
   keywords: ['multi-agent', 'ai-agent', 'agent-orchestration', 'nextjs', 'electron', 'sqlite', '本地优先'],
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  // 在服务端解析「下载地址」—— 公开页也必须能拿到这个值，所以走的是服务端函数
+  // 而不是需要鉴权的接口（口径与 `/api/site-links` 完全一致）。
+  const { desktopDownload, localInstallerPath } = await resolveSiteLinks()
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <a
@@ -47,6 +53,7 @@ export default function HomePage() {
         <HomeAgents />
         <HomeStack />
         <HomeQuickstart />
+        <HomeDownload download={desktopDownload} localInstallerPath={localInstallerPath} />
         <HomeGuide />
         <HomeContact />
       </main>
