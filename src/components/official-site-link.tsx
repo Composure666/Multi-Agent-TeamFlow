@@ -51,9 +51,12 @@ export function useOfficialWebsiteUrl(): string | null {
 export function OfficialSiteLink({
   variant,
   compact = false,
+  className,
 }: {
   variant: 'sidebar' | 'drawer'
   compact?: boolean
+  /** 调用方补的尺寸类。侧栏把它和「使用指南」并排成一行，需要 `flex-1` 才能等分。 */
+  className?: string
 }) {
   const url = useOfficialWebsiteUrl()
   if (!url) return null
@@ -64,7 +67,10 @@ export function OfficialSiteLink({
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[#EEF4FF] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800"
+        className={cn(
+          'flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[#EEF4FF] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800',
+          className,
+        )}
       >
         <Globe className="size-5 stroke-[2.1]" />
         <span className="min-w-0 flex-1 truncate">官网</span>
@@ -80,6 +86,7 @@ export function OfficialSiteLink({
       className={cn(
         'flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
         compact ? 'justify-center px-2 py-2' : 'px-2 py-2',
+        className,
       )}
       title="官网"
       aria-label="官网"

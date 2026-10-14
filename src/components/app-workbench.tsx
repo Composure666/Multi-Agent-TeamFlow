@@ -677,7 +677,7 @@ function UserAccountOverview({
   const topConversations = usage.data?.topConversations.slice(0, 3) ?? []
 
   return (
-    <div className="max-h-[52vh] min-w-0 overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
+    <div className="max-h-[min(42vh,15rem)] min-w-0 overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-neutral-800">A</div>
@@ -824,9 +824,13 @@ function WorkbenchNav({
     <aside
       onMouseEnter={() => (view === 'analytics' || view === 'run-board') && !collapsed && setNavHovered(true)}
       onMouseLeave={() => (view === 'analytics' || view === 'run-board') && setNavHovered(false)}
-      className={cn('hidden h-full min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
+      // ❗ overflow-hidden 是必需的，不是装饰：各区块总高超过侧栏时，默认 overflow:visible
+      // 会让底部「使用指南 / 官网 / Workspace」溢出到容器外，再被 page.tsx 的
+      // overflow-hidden 裁掉 —— 表现就是「底部那块不见了 / 被遮挡」。
+      className={cn('wb-sidebar hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white px-3 py-2.5 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
     >
-      <div className={cn('mb-3 flex items-center gap-2 px-2', compact && 'flex-col px-0')}>
+      {/* ① 品牌区（shrink-0） */}
+      <div className={cn('flex shrink-0 items-center gap-2 px-2 pb-1.5', compact && 'flex-col gap-2 px-0 pb-1')}>
         <button
           type="button"
           onClick={() => onViewChange('new-task')}
@@ -885,11 +889,12 @@ function WorkbenchNav({
         )}
       </div>
 
+      {/* ② 新建任务（shrink-0）。h-11 → h-10：这一步省下的 4.25px 直接进历史区。 */}
       <button
         type="button"
         onClick={() => onViewChange('new-task')}
         className={cn(
-          'mb-2 flex h-11 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-base font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
+          'mb-1.5 flex h-10 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-base font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
           compact && 'px-0',
           view === 'new-task' && 'border-[var(--agenthub-accent,#2F5FD0)] bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/15 dark:bg-[#1E2A3A] dark:text-slate-50',
         )}
@@ -899,7 +904,9 @@ function WorkbenchNav({
         {!compact && <span className="ml-auto text-3xs font-normal text-slate-400">Ctrl + N</span>}
       </button>
 
-      <nav className="shrink-0 space-y-1">
+      {/* ③ 主导航（shrink-0）。行高 / 行距由 globals.css 的 `--wb-nav-h` / `--wb-nav-gap`
+          按窗口高度分档给 —— 这是控制「历史列表可用高度」的唯一有效杠杆。 */}
+      <nav className="wb-nav flex shrink-0 flex-col" aria-label="工作台导航">
         {navItems.filter((item) => item.id !== 'new-task').map((item) => {
           const Icon = item.icon
           const active = view === item.id
@@ -908,7 +915,7 @@ function WorkbenchNav({
           return (
             <Fragment key={item.id}>
               {item.id === 'run-board' && !compact && (
-                <div className="mb-1 mt-4 border-t border-slate-100 px-[18px] pt-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
+                <div className="mb-0.5 mt-2 border-t border-slate-100 px-[18px] pt-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
                   分析
                 </div>
               )}
@@ -917,8 +924,8 @@ function WorkbenchNav({
                 onClick={() => onViewChange(item.id)}
                 title={compact ? item.label : undefined}
                 className={cn(
-                  'relative flex w-full items-center gap-2.5 rounded-[14px] px-[18px] text-base transition',
-                  'h-9',
+                  // 行高由 .wb-nav-item 给（见 globals.css），不写 h-9 —— 否则两处会打架
+                  'wb-nav-item relative flex w-full items-center gap-2.5 rounded-[14px] px-[18px] text-base transition',
                   compact && 'justify-center px-0',
                   item.id === 'run-board' && !compact && 'pl-5',
                   active
@@ -943,50 +950,69 @@ function WorkbenchNav({
         })}
       </nav>
 
-      {!compact && view === 'conversations' && (
-        <div className="mt-2 min-h-0 flex-1 overflow-hidden border-t border-slate-100 pt-3 dark:border-white/10">
+      {/* ④ 对话历史 —— 全侧栏唯一的弹性区块，拿走「上方固定区 + 底部固定区」之外的全部高度，
+          因此这里不写任何固定高度。
+          - `min-h-0` 不可省：flex 子项默认 `min-height:auto`，历史列表的内容会把它顶高、
+            而不是让内部的滚动区去滚（这正是「历史区被挤出容器」的机制）。
+          - 刻意不再按 `view` 条件渲染：以前只有「对话」视图才有这一块，切到产物库 / 自动化
+            就整块消失，看起来像「历史没了」。 */}
+      {!compact && (
+        <section className="wb-history mt-1.5 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-slate-100 pt-1.5 dark:border-white/10">
           <ConversationListPanel variant="embedded" />
-        </div>
+        </section>
       )}
 
-      {(!compact && view !== 'conversations') && <div className="min-h-3 flex-1" />}
+      {/* 弹性占位。两种情况下由它接管「剩余高度」，保证底部区永远贴在侧栏最底：
+          ① 窄轨 / 折叠态（`compact`，没有历史区）；
+          ② 窗口太矮、历史区让位（此时 `.wb-history` 被媒体查询隐藏，见 globals.css）。
+          `.wb-spacer` 与 `.wb-history` 的可见性由互斥的 min/max-height 规则保证。 */}
+      <div className={cn('min-h-0 flex-1', !compact && 'wb-spacer')} />
 
-      <div className="relative shrink-0 space-y-2 pt-3">
+      {/* ⑤ 底部工具 + Workspace（shrink-0，永远贴在侧栏最底）。
+          整块不使用任何 absolute / 覆盖定位 —— 否则它会盖住上面历史列表的最后几行。 */}
+      <div className="shrink-0 border-t border-slate-100 pt-1.5 dark:border-white/10">
+        {/* 账户概览由「absolute bottom-full 浮层」改为**内联展开**：浮层会盖住历史列表。
+            高度封顶 + 内部滚动，避免面板本身把历史区挤成 0。 */}
         {accountOpen && !compact && (
-          <div className="absolute bottom-full left-0 z-50 mb-2 w-[300px]">
+          <div className="mb-1.5 min-w-0">
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           </div>
         )}
 
-        {/* 使用指南常驻入口。首次进入会自动弹一次，关掉之后靠这里再打开。
+        {/* 使用指南 + 官网并成一行「较矮的横向入口」：竖排两块要吃掉 33 + 8.5 + 33 ≈ 75px。
+            官网未配置时 `OfficialSiteLink` 自己返回 null，这一行自然只剩使用指南占满整行。
+            使用指南常驻入口：首次进入会自动弹一次，关掉之后靠这里再打开；
             走 ui-command 而不是本地 state —— 指南弹窗挂在根布局（app/page.tsx），不在本组件树里。 */}
-        <button
-          type="button"
-          onClick={() => emitUiCommand('open-user-guide')}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
-            compact ? 'justify-center px-2 py-2' : 'px-2 py-2',
-          )}
-          title="使用指南"
-          aria-label="使用指南"
-        >
-          <CircleHelp className="size-4 shrink-0" />
-          {!compact && <span className="text-xs font-medium">使用指南</span>}
-        </button>
+        <div className={cn('mb-1.5 flex gap-1.5', compact && 'flex-col gap-1')}>
+          <button
+            type="button"
+            onClick={() => emitUiCommand('open-user-guide')}
+            className={cn(
+              'flex min-w-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+              'px-2 py-1.5',
+              compact ? 'justify-center' : 'flex-1',
+            )}
+            title="使用指南"
+            aria-label="使用指南"
+          >
+            <CircleHelp className="size-4 shrink-0" />
+            {!compact && <span className="truncate text-xs font-medium">使用指南</span>}
+          </button>
 
-        {/* 官网入口。地址为空时本组件自己返回 null（见 `official-site-link.tsx`），
-            所以这里不必再判一次「配没配」。 */}
-        <OfficialSiteLink variant="sidebar" compact={compact} />
+          {/* 官网入口。地址为空时本组件自己返回 null（见 `official-site-link.tsx`），
+              所以这里不必再判一次「配没配」。 */}
+          <OfficialSiteLink variant="sidebar" compact={compact} className={compact ? undefined : 'flex-1'} />
+        </div>
 
         <button
           type="button"
           onClick={() => compact ? setCollapsed(false) : setAccountOpen((open) => !open)}
           aria-expanded={accountOpen && !compact}
-          className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact && 'px-2', !compact && 'p-2')}
+          className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact ? 'px-2 py-1.5' : 'px-1.5 py-1')}
           title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
         >
           <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             {!compact && (
               <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -1643,11 +1669,13 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
       variant === 'standalone' && 'hidden w-[292px] shrink-0 rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60 lg:flex',
       variant === 'embedded' && 'h-full',
     )}>
-      <div className={cn('border-b border-slate-100', variant === 'embedded' ? 'pb-3' : 'p-4')}>
+      {/* embedded（侧栏内）时它是 flex 列里的固定块：标题 + 说明 + 搜索钉在历史区顶部，
+          真正的列表在下面的 ScrollArea 里独立滚动。`shrink-0` 保证它不被列表内容压扁。 */}
+      <div className={cn('shrink-0 border-b border-slate-100', variant === 'embedded' ? 'pb-2' : 'p-4')}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className={cn('font-semibold', variant === 'embedded' ? 'text-sm' : 'text-base')}>对话历史</h2>
-            <p className="mt-1 truncate text-xs text-slate-500">选择一个会话继续协作</p>
+            <p className={cn('truncate text-xs text-slate-500', variant === 'embedded' ? 'mt-0.5' : 'mt-1')}>选择一个会话继续协作</p>
           </div>
           {variant === 'standalone' && (
             <div className="flex shrink-0 items-center gap-1">
@@ -1657,7 +1685,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
             </div>
           )}
         </div>
-        <div className="relative mt-3">
+        <div className={cn('relative', variant === 'embedded' ? 'mt-2' : 'mt-3')}>
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" className="h-8 rounded-lg border-0 bg-slate-100 pl-9 text-xs shadow-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)]" />
         </div>
@@ -1707,7 +1735,13 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
               </button>
             )
           })}
-          {filtered.length === 0 && <div className="px-3 py-8 text-center text-xs text-slate-500">暂无匹配会话</div>}
+          {filtered.length === 0 && (
+            <div className={cn('px-3 text-center text-xs text-slate-500', variant === 'embedded' ? 'py-5' : 'py-8')}>
+              {conversations.length === 0
+                ? '还没有对话，从上方「新建任务」开始'
+                : `没有匹配「${query.trim()}」的会话`}
+            </div>
+          )}
 
           {archivedConversations.length > 0 && (
             <div className="mt-2 border-t border-slate-100 pt-2 dark:border-white/5">
