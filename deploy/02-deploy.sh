@@ -54,8 +54,15 @@ export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 # 不向 Vercel 发遥测，省一次外部请求
 export NEXT_TELEMETRY_DISABLED=1
 export CI=1
-# 国内镜像加速（腾讯云内网访问 npmmirror 很快）
-export npm_config_registry="${npm_config_registry:-https://registry.npmmirror.com}"
+# 国内镜像加速。
+# ❗ 必须用 `--registry` 命令行参数（见下面 pnpm install），不能只靠环境变量：
+#    2026-10-14 在阿里云新机上实测，pnpm 11.9.0 **不再读取 `npm_config_registry`**
+#    —— 即使显式 `export npm_config_registry=https://registry.npmmirror.com`，
+#    `pnpm config get registry` 仍返回 https://registry.npmjs.org/。
+#    后果：安装退回官方源，实测 45 KiB/s（npmmirror 18 MB/s），装依赖慢到不可用。
+NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com}"
+# 同时保留环境变量写法，供 npm / corepack 等其它工具使用。
+export npm_config_registry="${NPM_REGISTRY}"
 # 2G 物理内存 + 4G swap，给 V8 堆一个明确上界，避免无限膨胀把机器拖死
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
 
@@ -116,11 +123,11 @@ fi
 # apps/mobile 是 Capacitor 移动端，服务器不需要；排除它能省时间与磁盘。
 # 若 filter 语法在该 pnpm 版本下不生效则自动回退全量。
 # 注意不要把 pnpm 的输出接到 tail —— 安装失败时那段日志正是唯一线索。
-if pnpm install --no-frozen-lockfile --filter "!./apps/mobile"; then
+if pnpm install --no-frozen-lockfile --registry "${NPM_REGISTRY}" --filter "!./apps/mobile"; then
   ok "依赖安装完成（已排除 apps/mobile）"
 else
   warn "带 filter 的安装失败，回退为全量安装"
-  pnpm install --no-frozen-lockfile
+  pnpm install --no-frozen-lockfile --registry "${NPM_REGISTRY}"
   ok "依赖安装完成（全量）"
 fi
 
