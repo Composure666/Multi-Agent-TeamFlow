@@ -6,6 +6,7 @@ import { AlertTriangle,
   Clipboard,
   CloudUpload,
   FolderUp,
+  Globe,
   Info,
   KeyRound,
   Loader2,
@@ -35,11 +36,13 @@ import {
   fetchAppSettings,
   fetchConnectionHints,
   fetchOssSettings,
+  fetchSiteLinks,
   regenerateMobileDeviceToken,
   updateAppSettings,
   type AppSettingsPatchBody,
   type ConnectionHint,
   type OssSettingsView,
+  type SiteLinksView,
 } from '@/lib/api'
 import { subscribeUiCommand } from '@/lib/ui-command-events'
 import { ProvidersPanel } from '@/components/settings/providers-panel'
@@ -47,6 +50,7 @@ import { ProviderPriorityPanel } from '@/components/settings/provider-priority-p
 import { FailoverPanel } from '@/components/settings/failover-panel'
 import { ModelAssignmentPanel } from '@/components/settings/model-assignment-panel'
 import { OssPanel, type OssFormValues, type OssSecretField } from '@/components/settings/oss-panel'
+import { SitePanel, type SiteFormValues } from '@/components/settings/site-panel'
 import { useAppStore } from '@/stores/app-store'
 
 interface SettingsForm {
@@ -73,6 +77,9 @@ interface SettingsForm {
   ossAccessKeyId: string
   ossAccessKeySecret: string
   ossPublicRead: boolean
+  // ─── 官网 ───
+  officialWebsiteUrl: string
+  desktopDownloadUrl: string
 }
 
 /**
@@ -107,6 +114,9 @@ export function SettingsDialog({
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [tab, setTab] = useState('keys')
   const [ossView, setOssView] = useState<OssSettingsView | null>(null)
+  // 官网 / 安装包地址的「生效结果」由服务端算（含 OSS 推导与本站文件探测），
+  // 这里只负责展示，不在前端重算一遍。
+  const [siteLinks, setSiteLinks] = useState<SiteLinksView | null>(null)
   // 只跟踪「用户有没有动过」这两个密钥框。没动过就不参与保存 —— 否则空串会把已存的
   // 真 key 清掉，而脱敏串回写又会把它变成星号（两种都是静默自毁）。
   const [ossSecretsEdited, setOssSecretsEdited] = useState<Record<OssSecretField, boolean>>({
@@ -135,12 +145,15 @@ export function SettingsDialog({
     ossAccessKeyId: '',
     ossAccessKeySecret: '',
     ossPublicRead: true,
+    officialWebsiteUrl: '',
+    desktopDownloadUrl: '',
   })
 
   useEffect(() => {
     if (!open) return
     if (activeSettingsSection === 'notifications') setTab('notifications')
     else if (activeSettingsSection === 'oss') setTab('oss')
+    else if (activeSettingsSection === 'site') setTab('site')
     else if (activeSettingsSection === 'api-keys' || activeSettingsSection === 'providers') setTab('keys')
   }, [activeSettingsSection, open])
 
@@ -181,6 +194,19 @@ export function SettingsDialog({
         if (!cancelled) setOssView(view)
       })
       .catch((err) => console.error('[SettingsDialog] load oss settings failed', err))
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void fetchSiteLinks()
+      .then((links) => {
+        if (!cancelled) setSiteLinks(links)
+      })
+      .catch((err) => console.error('[SettingsDialog] load site links failed', err))
     return () => {
       cancelled = true
     }
@@ -241,6 +267,9 @@ export function SettingsDialog({
           ? { ossAccessKeySecret: form.ossAccessKeySecret.trim() || null }
           : {}),
         ossPublicRead: form.ossPublicRead,
+        // ─── 官网 ───
+        officialWebsiteUrl: form.officialWebsiteUrl.trim() || null,
+        desktopDownloadUrl: form.desktopDownloadUrl.trim() || null,
       }
 
       // 密钥字段一律不在这里写：provider key 归「供应商中心」，
@@ -348,9 +377,22 @@ export function SettingsDialog({
     setOssSecretsEdited((prev) => (prev[field] ? prev : { ...prev, [field]: true }))
   }
 
+  /** 与 `handleOssChange` 同理：`SitePanel` 用短字段名，这里映射一次。 */
+  const handleSiteChange = (patch: Partial<SiteFormValues>) => {
+    setForm((f) => ({ ...f, ...patch }))
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
+      {/*
+        ❗ 尺寸必须**写死**，不能让它跟着内容长。
+        原先是 `grid-rows-[auto_minmax(0,1fr)_auto]` + 高度自适应：每个 Tab 的内容高度不同，
+        于是每切一次导航，弹窗就当着用户的面「跳」一下 —— 窗口一缩放，视觉焦点跟着跑，
+        看着像页面在抽搐。中间行本来就是 `minmax(0,1fr)` + 内层 `overflow-y-auto`，
+        给外层一个确定高度后，内容多的一页只会内部滚动，弹窗外框纹丝不动。
+        高度取 `min(44rem, 100vh-2rem)`：够放下最长的「模型与分配」，又永远不超出视口。
+      */}
+      <DialogContent className="grid h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden sm:h-[min(44rem,calc(100vh-2rem))] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription className="sr-only">{BRAND_NAME} 设置</DialogDescription>
@@ -387,6 +429,10 @@ export function SettingsDialog({
                 <TabsTrigger value="publish">
                   <FolderUp className="size-3.5" />
                   发布
+                </TabsTrigger>
+                <TabsTrigger value="site">
+                  <Globe className="size-3.5" />
+                  官网
                 </TabsTrigger>
                 <TabsTrigger value="notifications">
                   <Bell className="size-3.5" />
@@ -479,6 +525,17 @@ export function SettingsDialog({
                   onPublicBaseUrlChange={(deploymentPublicBaseUrl) =>
                     setForm((f) => ({ ...f, deploymentPublicBaseUrl }))
                   }
+                />
+              </TabsContent>
+
+              <TabsContent value="site" className="mt-0 py-1">
+                <SitePanel
+                  values={{
+                    officialWebsiteUrl: form.officialWebsiteUrl,
+                    desktopDownloadUrl: form.desktopDownloadUrl,
+                  }}
+                  links={siteLinks}
+                  onChange={handleSiteChange}
                 />
               </TabsContent>
 
@@ -852,5 +909,7 @@ function rowToForm(row: AppSettingsRow): SettingsForm {
     ossAccessKeyId: '',
     ossAccessKeySecret: '',
     ossPublicRead: row.ossPublicRead,
+    officialWebsiteUrl: row.officialWebsiteUrl ?? '',
+    desktopDownloadUrl: row.desktopDownloadUrl ?? '',
   }
 }

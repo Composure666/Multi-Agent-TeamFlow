@@ -754,6 +754,21 @@ export const appSettings = sqliteTable('app_settings', {
   ossAccessKeySecret: text('oss_access_key_secret'),
   // 图片对象 ACL：1 = public-read（URL 永久直连）；0 = private（需签名，暂不支持预览直连）
   ossPublicRead: integer('oss_public_read', { mode: 'boolean' }).notNull().default(true),
+  // ─── 官网（对外落地页）──────────────────────────────────────
+  /**
+   * 官网地址 —— 工作台里「官网」入口的目标。
+   * 留空 = 不显示该入口（宁可没有入口，也不要一个点了 404 的死链）。
+   * 典型值就是本项目主页自己的公网地址（如 `http://101.42.94.222/home`）。
+   */
+  officialWebsiteUrl: text('official_website_url'),
+  /**
+   * 桌面端安装包的下载地址（可选覆盖）。
+   * 留空 = 自动推导：OSS 四项齐备时用 `https://<bucket>.<endpoint>/downloads/<约定文件名>`，
+   * 否则回退到本站的 `/downloads/<约定文件名>`。推导逻辑只有一份
+   * （`src/server/site-links-service.ts`），页面、接口、设置面板都引用它。
+   */
+  desktopDownloadUrl: text('desktop_download_url'),
+
   /**
    * 首次启动「使用指南」弹窗被关闭的时间戳。NULL = 从未看过 ⇒ 自动弹出。
    *

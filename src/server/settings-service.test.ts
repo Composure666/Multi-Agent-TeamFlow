@@ -209,3 +209,32 @@ describe('LLM key 解析链（三级优先，口径必须只有一份）', () =>
     }
   })
 })
+
+describe('官网与桌面端安装包地址', () => {
+  // 这两个字段踩的是同一个老坑：`onConflictDoUpdate.set` 是逐字段白名单，
+  // 漏掉就「首次 insert 带上值、之后每次更新被静默丢弃」。OSS 四件套曾长期栽在这里。
+  it('两个字段都能往返，且更新其中一个不会丢掉另一个', async () => {
+    const first = await service.updateAppSettings({
+      officialWebsiteUrl: 'http://101.42.94.222/home',
+      desktopDownloadUrl: 'https://cdn.example.com/Multi-Agent-TeamFlow-Setup.exe',
+    })
+    expect(first.officialWebsiteUrl).toBe('http://101.42.94.222/home')
+    expect(first.desktopDownloadUrl).toBe('https://cdn.example.com/Multi-Agent-TeamFlow-Setup.exe')
+
+    // 第二次走 onConflictDoUpdate 分支 —— 静默丢弃就发生在这里
+    const second = await service.updateAppSettings({ officialWebsiteUrl: 'https://example.com' })
+    expect(second.officialWebsiteUrl).toBe('https://example.com')
+    expect(second.desktopDownloadUrl).toBe('https://cdn.example.com/Multi-Agent-TeamFlow-Setup.exe')
+
+    const row = await service.getAppSettings()
+    expect(row.officialWebsiteUrl).toBe('https://example.com')
+    expect(row.desktopDownloadUrl).toBe('https://cdn.example.com/Multi-Agent-TeamFlow-Setup.exe')
+  })
+
+  it('留空 / 空格即清空（normalize 把空串归一成 null）', async () => {
+    await service.updateAppSettings({ officialWebsiteUrl: '', desktopDownloadUrl: '   ' })
+    const row = await service.getAppSettings()
+    expect(row.officialWebsiteUrl).toBeNull()
+    expect(row.desktopDownloadUrl).toBeNull()
+  })
+})

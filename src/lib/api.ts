@@ -28,6 +28,7 @@ import type {
   TerminalSessionRecord,
 } from '@/shared/types'
 import type { AgentDraftRequest, AgentDraftResponse } from '@/shared/agent-builder-config'
+import type { ResolvedDesktopDownload } from '@/lib/site-links'
 import type { PromptEnhanceContext, PromptEnhanceResponse } from '@/shared/prompt-enhance'
 import type { AgentModality } from '@/lib/llm-shared'
 
@@ -1778,6 +1779,10 @@ export interface AppSettingsPatchBody {
   ossAccessKeyId?: string | null
   ossAccessKeySecret?: string | null
   ossPublicRead?: boolean
+  /** 官网地址（工作台「官网」入口的目标；留空 = 不显示入口） */
+  officialWebsiteUrl?: string | null
+  /** 桌面端安装包下载地址（留空 = 自动推导：OSS → 本站 /downloads/） */
+  desktopDownloadUrl?: string | null
   /** 首启使用指南的「不再自动弹出」时间戳 */
   userGuideDismissedAt?: number | null
 }
@@ -1844,6 +1849,24 @@ export async function updateOssSettings(patch: OssSettingsPatch): Promise<OssSet
     }),
   )
   return oss
+}
+
+// ─── 官网与桌面端安装包（站点链接）──────────────
+
+export interface SiteLinksView {
+  /** 官网地址；null = 设置里还没填 */
+  officialWebsiteUrl: string | null
+  /** 主页下载按钮的目标 + 来源 + 是否可用（推导口径见 `@/lib/site-links`） */
+  desktopDownload: ResolvedDesktopDownload
+  /** 站内约定位置，如 `public/downloads/Multi-Agent-TeamFlow-Setup.exe` */
+  localInstallerPath: string
+  /** OSS 当前是否公共读；false 时 OSS 直连地址会 403 */
+  ossPublicRead: boolean
+}
+
+export async function fetchSiteLinks(): Promise<SiteLinksView> {
+  const { links } = await json<{ links: SiteLinksView }>(fetch('/api/site-links'))
+  return links
 }
 
 // ─── 开箱状态（首启使用指南用）──────────────────

@@ -542,6 +542,8 @@ const DDL: string[] = [
     oss_access_key_id TEXT,
     oss_access_key_secret TEXT,
     oss_public_read INTEGER NOT NULL DEFAULT 1,
+    official_website_url TEXT,
+    desktop_download_url TEXT,
     user_guide_dismissed_at INTEGER,
     updated_at INTEGER NOT NULL
   )`,
@@ -971,6 +973,9 @@ function ensureSchema(sqlite: Database.Database): void {
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_access_key_secret TEXT`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN oss_public_read INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN user_guide_dismissed_at INTEGER`)
+  // 官网地址 + 桌面端安装包地址（存量库补列；新库由上面的 CREATE TABLE 覆盖）
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN official_website_url TEXT`)
+  safeAlter(sqlite, `ALTER TABLE app_settings ADD COLUMN desktop_download_url TEXT`)
   safeAlter(sqlite, `ALTER TABLE llm_model_assignments ADD COLUMN use_global INTEGER NOT NULL DEFAULT 1`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN prompt TEXT NOT NULL DEFAULT ''`)
   safeAlter(sqlite, `ALTER TABLE automations ADD COLUMN agent_id TEXT REFERENCES agents(id)`)

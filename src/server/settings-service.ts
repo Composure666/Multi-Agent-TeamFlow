@@ -51,6 +51,8 @@ const EMPTY: AppSettingsRow = {
   ossAccessKeyId: null,
   ossAccessKeySecret: null,
   ossPublicRead: true,
+  officialWebsiteUrl: null,
+  desktopDownloadUrl: null,
   userGuideDismissedAt: null,
   updatedAt: 0,
 }
@@ -119,6 +121,8 @@ export interface AppSettingsPatch {
   ossAccessKeyId?: string | null
   ossAccessKeySecret?: string | null
   ossPublicRead?: boolean
+  officialWebsiteUrl?: string | null
+  desktopDownloadUrl?: string | null
   userGuideDismissedAt?: number | null
 }
 
@@ -194,6 +198,8 @@ export async function updateAppSettings(patch: AppSettingsPatch): Promise<AppSet
         ossAccessKeyId: next.ossAccessKeyId,
         ossAccessKeySecret: next.ossAccessKeySecret,
         ossPublicRead: next.ossPublicRead,
+        officialWebsiteUrl: next.officialWebsiteUrl,
+        desktopDownloadUrl: next.desktopDownloadUrl,
         userGuideDismissedAt: next.userGuideDismissedAt,
         updatedAt: next.updatedAt,
       },

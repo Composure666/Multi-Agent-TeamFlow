@@ -46,6 +46,9 @@ const PatchBody = z.object({
   ossAccessKeyId: z.string().nullable().optional(),
   ossAccessKeySecret: z.string().nullable().optional(),
   ossPublicRead: z.boolean().optional(),
+  // ─── 官网 ───
+  officialWebsiteUrl: z.string().nullable().optional(),
+  desktopDownloadUrl: z.string().nullable().optional(),
   // ─── 首次启动使用指南 ───
   // 存时间戳而不是布尔：既能当「看过没」用，也保留了「什么时候关的」。
   userGuideDismissedAt: z.number().nullable().optional(),
