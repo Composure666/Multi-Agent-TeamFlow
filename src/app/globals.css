@@ -827,8 +827,12 @@ html {
      ① 品牌区          shrink-0
      ② 新建任务        shrink-0
      ③ 主导航          shrink-0
-     ④ 对话历史        flex-1 + min-h-0   ← 唯一弹性区块，拿走全部剩余高度
-     ⑤ 底部工具 + Workspace  shrink-0
+     ④ 对话历史        flex:1 1 0% + min-height:0（`.wb-history`）← 唯一弹性区块
+                       **仅在「对话」页渲染**；其余页面整块不在 DOM 里
+     ⑤ 底部 Workspace  mt-auto shrink-0  ← 没有历史区时由 mt-auto 把它推到最底
+
+   ⇒ 对话页：历史区拿走全部剩余高度，内部独立滚动。
+   ⇒ 非对话页：④ 不存在，剩余空间直接由 ⑤ 的 `mt-auto` 吸收，不留空白容器/固定高度/无效滚动区。
 
    所以「历史列表可用高度」= 侧栏高度 − 固定区块之和，而固定区块里**唯一值钱
    的杠杆是导航行高**（9 项 × 行高）。行高按窗口高度分档收缩，见下。
@@ -877,22 +881,20 @@ html {
   height: var(--wb-nav-h);
 }
 
-/* 窗口矮到「对话历史」的标题 + 搜索框都放不下时，让这一整块让位。
-   否则它会被 flex 压到 0 高、内容被 overflow-hidden 裁成半截（看起来像坏掉）。
-   折算：非导航固定区块约 317px，历史区自身约 100px，因此列表见底高度 ≈ 680px。
-   注意必须与 `.wb-spacer` 成对：历史区一让位，弹性空间就没人占了，
-   底部「Workspace」会浮上来贴不到底。两者用互斥的 min/max-height 保证任一时刻
-   恰好有一个 `display:none`，不许各写各的。 */
-@media (max-height: 680px) {
-  .wb-history {
-    display: none;
-  }
-}
+/* ④ 对话历史（**只在「对话」页渲染**，判据是组件里的 `view === 'conversations'`）
+   全侧栏唯一的弹性区块：吃掉「上方固定区 + 底部固定区」之外的全部高度。
 
-@media (min-height: 681px) {
-  .wb-spacer {
-    display: none;
-  }
+   两条声明都不可省，且和 `.wb-nav-item` 一样刻意**不加 @layer**（未分层优先级更高）：
+     - `flex: 1 1 0%` —— `flex-basis` 必须是 `0%` 而不是 `auto`，否则内容会撑出基准尺寸；
+     - `min-height: 0` —— flex 子项默认 `min-height: auto`，不写它就变成「容器被内容顶高」，
+       而不是「内部 ScrollArea 滚动」。这正是「历史区被挤出容器 / 底部被裁掉」的机制。
+
+   非对话页时这一块**整块不渲染**，所以这里不需要任何「隐藏 / 让位」的媒体查询：
+   剩余空间由底部区的 `mt-auto` 接管（见组件注释），侧栏内不会出现空白容器或无效滚动区。
+   类名同时是探针钩子 —— `.tmp-probe/measure-sidebar.mjs` 靠它定位历史区。 */
+.wb-history {
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
 /* trigger tailwind rescan */

@@ -7,7 +7,6 @@ import {
   Bell,
   CheckCircle2,
   ChevronDown,
-  CircleHelp,
   Coins,
   Copy,
   Grid2X2,
@@ -82,11 +81,9 @@ import {
   type UsageSummary,
 } from '@/lib/api'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
-import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
-import { OfficialSiteLink } from '@/components/official-site-link'
 import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
 
 type WorkbenchView = AppWorkbenchView
@@ -599,16 +596,10 @@ function MobileWorkbenchDrawer({
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           )}
 
-          <button
-            type="button"
-            onClick={() => emitUiCommand('open-user-guide')}
-            className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[#EEF4FF] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800"
-          >
-            <CircleHelp className="size-5 stroke-[2.1]" />
-            <span className="min-w-0 flex-1 truncate">使用指南</span>
-          </button>
-
-          <OfficialSiteLink variant="drawer" />
+          {/* 「使用指南」与「官网」两个独立入口已按需求从左侧栏移除（桌面侧栏 + 本抽屉
+              是同一个左侧栏的两种形态）。功能本体都还在：官网地址仍在「设置 → 官网」页
+              可查看/打开与保存；使用指南弹窗仍挂在根布局上、首启会自动弹出。
+              `OfficialSiteLink` / `user-guide-dialog` 组件均未删除，只是不再由侧栏承载入口。 */}
 
           <button
             type="button"
@@ -825,8 +816,9 @@ function WorkbenchNav({
       onMouseEnter={() => (view === 'analytics' || view === 'run-board') && !collapsed && setNavHovered(true)}
       onMouseLeave={() => (view === 'analytics' || view === 'run-board') && setNavHovered(false)}
       // ❗ overflow-hidden 是必需的，不是装饰：各区块总高超过侧栏时，默认 overflow:visible
-      // 会让底部「使用指南 / 官网 / Workspace」溢出到容器外，再被 page.tsx 的
-      // overflow-hidden 裁掉 —— 表现就是「底部那块不见了 / 被遮挡」。
+      // 会让底部「Workspace」溢出到容器外，再被 page.tsx 的 overflow-hidden 裁掉
+      // —— 表现就是「底部那块不见了 / 被遮挡」。配合 `.wb-history` 的 min-height:0，
+      // 高度不足时是历史区收缩，而不是固定区块被挤出去。
       className={cn('wb-sidebar hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white px-3 py-2.5 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
     >
       {/* ① 品牌区（shrink-0） */}
@@ -950,27 +942,30 @@ function WorkbenchNav({
         })}
       </nav>
 
-      {/* ④ 对话历史 —— 全侧栏唯一的弹性区块，拿走「上方固定区 + 底部固定区」之外的全部高度，
-          因此这里不写任何固定高度。
-          - `min-h-0` 不可省：flex 子项默认 `min-height:auto`，历史列表的内容会把它顶高、
-            而不是让内部的滚动区去滚（这正是「历史区被挤出容器」的机制）。
-          - 刻意不再按 `view` 条件渲染：以前只有「对话」视图才有这一块，切到产物库 / 自动化
-            就整块消失，看起来像「历史没了」。 */}
-      {!compact && (
-        <section className="wb-history mt-1.5 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-slate-100 pt-1.5 dark:border-white/10">
+      {/* ④ 对话历史 —— **只在「对话」页渲染**。
+          判据直接用既有的当前页状态 `view`（`WorkbenchNav` 的入参，源头是 app-store，
+          桌面侧栏与移动端抽屉共用同一份）—— 不新造"是否显示历史"的重复状态。
+
+          非对话页（信息中心 / Agent 库 / 能力中心 / 产物库 / 经验资产 / 自动化 /
+          运行展板 / 数据概览）整块**不渲染**：组件卸载 ⇒ 布局空间直接释放，
+          不留空白容器、不留固定高度、不留无效滚动区。
+
+          弹性尺寸（`flex: 1 1 0%` + `min-height: 0`）写在 globals.css 的 `.wb-history`
+          里，理由与 `.wb-nav-item` 的行高相同：不依赖 Tailwind v4 不可控的生成顺序。
+          `min-height: 0` 尤其不可省 —— flex 子项默认 `min-height: auto`，
+          列表内容会把它顶高，而不是让内部的 ScrollArea 去滚。 */}
+      {!compact && view === 'conversations' && (
+        <section className="wb-history mt-1.5 flex flex-col overflow-hidden border-t border-slate-100 pt-1.5 dark:border-white/10">
           <ConversationListPanel variant="embedded" />
         </section>
       )}
 
-      {/* 弹性占位。两种情况下由它接管「剩余高度」，保证底部区永远贴在侧栏最底：
-          ① 窄轨 / 折叠态（`compact`，没有历史区）；
-          ② 窗口太矮、历史区让位（此时 `.wb-history` 被媒体查询隐藏，见 globals.css）。
-          `.wb-spacer` 与 `.wb-history` 的可见性由互斥的 min/max-height 规则保证。 */}
-      <div className={cn('min-h-0 flex-1', !compact && 'wb-spacer')} />
-
       {/* ⑤ 底部工具 + Workspace（shrink-0，永远贴在侧栏最底）。
-          整块不使用任何 absolute / 覆盖定位 —— 否则它会盖住上面历史列表的最后几行。 */}
-      <div className="shrink-0 border-t border-slate-100 pt-1.5 dark:border-white/10">
+          `mt-auto` 取代了上一版的弹性占位 <div>：非对话页没有历史区时由它把底部推到最底；
+          对话页里历史区已经把剩余高度吃满，`mt-auto` 自然失效（没有剩余空间可占）。
+          这样既不需要额外的占位元素，也不会在非对话页留下任何"空白容器"。
+          整块不使用任何 absolute / 覆盖定位 —— 否则它会盖住历史列表的最后几行。 */}
+      <div className="mt-auto shrink-0 border-t border-slate-100 pt-1.5 dark:border-white/10">
         {/* 账户概览由「absolute bottom-full 浮层」改为**内联展开**：浮层会盖住历史列表。
             高度封顶 + 内部滚动，避免面板本身把历史区挤成 0。 */}
         {accountOpen && !compact && (
@@ -979,30 +974,11 @@ function WorkbenchNav({
           </div>
         )}
 
-        {/* 使用指南 + 官网并成一行「较矮的横向入口」：竖排两块要吃掉 33 + 8.5 + 33 ≈ 75px。
-            官网未配置时 `OfficialSiteLink` 自己返回 null，这一行自然只剩使用指南占满整行。
-            使用指南常驻入口：首次进入会自动弹一次，关掉之后靠这里再打开；
-            走 ui-command 而不是本地 state —— 指南弹窗挂在根布局（app/page.tsx），不在本组件树里。 */}
-        <div className={cn('mb-1.5 flex gap-1.5', compact && 'flex-col gap-1')}>
-          <button
-            type="button"
-            onClick={() => emitUiCommand('open-user-guide')}
-            className={cn(
-              'flex min-w-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
-              'px-2 py-1.5',
-              compact ? 'justify-center' : 'flex-1',
-            )}
-            title="使用指南"
-            aria-label="使用指南"
-          >
-            <CircleHelp className="size-4 shrink-0" />
-            {!compact && <span className="truncate text-xs font-medium">使用指南</span>}
-          </button>
-
-          {/* 官网入口。地址为空时本组件自己返回 null（见 `official-site-link.tsx`），
-              所以这里不必再判一次「配没配」。 */}
-          <OfficialSiteLink variant="sidebar" compact={compact} className={compact ? undefined : 'flex-1'} />
-        </div>
+        {/* ❗ 上一版这里是「使用指南 + 官网」的横向入口行，已按需求移除 —— 只留下
+            Workspace 区，底部区因此矮了约 42px，这些空间直接进对话历史列表。
+            两个入口的功能本体都没删：官网地址在「设置 → 官网」页；使用指南弹窗
+            仍挂在根布局（`app/page.tsx`）上，首启照常自动弹出。
+            这里刻意**没有**再补新入口 —— 因为「不要重复添加」。 */}
 
         <button
           type="button"
