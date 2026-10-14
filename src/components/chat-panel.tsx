@@ -133,7 +133,7 @@ export function ChatPanel() {
                 agents={participantAgents}
                 total={participantCount}
               >
-                <span className="min-w-0 truncate text-[15px] font-semibold text-slate-900">
+                <span className="min-w-0 truncate text-base font-semibold text-slate-900">
                   {conv.title}
                 </span>
                 <ChevronDown className="size-3.5 shrink-0 text-slate-400 transition group-hover:text-slate-600" />
@@ -141,7 +141,7 @@ export function ChatPanel() {
               {conv.workspaceMode === 'local' && conv.workspaceBoundPath && (
                 <span
                   title={`本地工作目录：${conv.workspaceBoundPath}`}
-                  className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                  className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-3xs font-medium text-amber-700"
                 >
                   <AlertTriangle className="size-2.5" />
                   本地
@@ -272,7 +272,7 @@ function ParticipantStack({ agents, total }: { agents: AgentRow[]; total?: numbe
       ))}
       {hiddenCount > 0 && (
         <div
-          className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-background bg-muted text-[11px] font-semibold text-muted-foreground"
+          className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-semibold text-muted-foreground"
           title={agents.slice(3).map((agent) => agent.name).join(' / ')}
         >
           +{hiddenCount}

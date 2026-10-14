@@ -45,9 +45,9 @@ export function HistoryRow({ icon, title, description, time }: { icon: ReactNode
       <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{title}</div>
-        <div className="mt-0.5 truncate text-[10px] text-slate-500 dark:text-slate-400">{description}</div>
+        <div className="mt-0.5 truncate text-3xs text-slate-500 dark:text-slate-400">{description}</div>
       </div>
-      <div className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">{time}</div>
+      <div className="shrink-0 text-3xs text-slate-400 dark:text-slate-500">{time}</div>
     </div>
   )
 }
@@ -72,10 +72,10 @@ export function Meta({
           : 'border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40',
       )}
     >
-      <div className="text-[10px] text-slate-400 dark:text-slate-500">{label}</div>
+      <div className="text-3xs text-slate-400 dark:text-slate-500">{label}</div>
       <div className="mt-1 truncate text-xs text-slate-700 dark:text-slate-200">{value}</div>
       {sublabel !== undefined && sublabel !== null && (
-        <div className="mt-0.5 truncate text-[10.5px] text-slate-500 dark:text-slate-400">{sublabel}</div>
+        <div className="mt-0.5 truncate text-3xs text-slate-500 dark:text-slate-400">{sublabel}</div>
       )}
     </div>
   )
@@ -84,7 +84,7 @@ export function Meta({
 export function LibraryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
-      <div className="text-[11px] text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-1 truncate text-base font-semibold text-slate-900 dark:text-slate-50">{value}</div>
     </div>
   )

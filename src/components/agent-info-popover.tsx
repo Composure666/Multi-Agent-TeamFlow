@@ -84,7 +84,7 @@ export function AgentInfoPopover({
               {agent.capabilities.map((c) => (
                 <span
                   key={c}
-                  className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                  className="rounded bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground"
                 >
                   {c}
                 </span>
@@ -93,7 +93,7 @@ export function AgentInfoPopover({
           )}
 
           {/* 底层 model */}
-          <div className="space-y-1 border-t pt-2 text-[11px] text-muted-foreground">
+          <div className="space-y-1 border-t pt-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <ShieldCheck className="size-3" />
               <span className="font-mono">
@@ -108,7 +108,7 @@ export function AgentInfoPopover({
                   {agent.toolNames.map((t) => (
                     <code
                       key={t}
-                      className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground"
+                      className="rounded bg-muted px-1 py-0.5 font-mono text-3xs text-muted-foreground"
                     >
                       {t}
                     </code>
@@ -150,7 +150,7 @@ function Badge({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px]',
+        'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-3xs',
         toneClass,
       )}
     >

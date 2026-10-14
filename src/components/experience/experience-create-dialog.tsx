@@ -133,7 +133,7 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
               <label className="mb-1 block text-xs font-medium">标签</label>
               <div className="flex flex-wrap gap-1">
                 {tags.map((t) => (
-                  <Badge key={t} variant="secondary" className="gap-1 text-[10px]">
+                  <Badge key={t} variant="secondary" className="gap-1 text-3xs">
                     {t}
                     <button onClick={() => setTags(tags.filter((x) => x !== t))}><X className="size-2.5" /></button>
                   </Badge>
@@ -145,7 +145,7 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
                   placeholder="输入标签，回车或逗号添加" className="text-xs" />
                 <Button size="sm" variant="outline" onClick={() => addTags(tagInput)} className="shrink-0 text-xs">添加</Button>
               </div>
-              <p className="mt-1 text-[10px] text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
+              <p className="mt-1 text-3xs text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-xs font-medium">启用</span>
@@ -165,8 +165,8 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
                 {pendingFiles.map((f, i) => (
                   <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-md border bg-background px-2 py-1">
                     <Paperclip className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-[11px]">{f.name}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{formatFileSize(f.size)}</span>
+                    <span className="min-w-0 flex-1 truncate text-xs">{f.name}</span>
+                    <span className="shrink-0 text-3xs text-muted-foreground">{formatFileSize(f.size)}</span>
                     <button
                       onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
                       className="shrink-0 text-muted-foreground hover:text-foreground"
@@ -180,8 +180,8 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
             )}
             <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40">
               <Upload className="size-3.5 text-muted-foreground" />
-              <span className="text-[11px] text-muted-foreground">{creating ? '创建中…' : '添加参考文件（可选）'}</span>
-              <span className="text-[10px] text-muted-foreground/70">创建后自动上传</span>
+              <span className="text-xs text-muted-foreground">{creating ? '创建中…' : '添加参考文件（可选）'}</span>
+              <span className="text-3xs text-muted-foreground/70">创建后自动上传</span>
               <input
                 type="file"
                 multiple

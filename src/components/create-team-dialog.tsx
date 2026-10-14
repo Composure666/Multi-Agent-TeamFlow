@@ -389,7 +389,7 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-medium">团队成员（{plan.members.length} 人）</div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     {hydratingConfigs
                       ? '正在生成成员配置…'
                       : `${configuredCount}/${plan.members.length} 份配置已就绪`}
@@ -405,15 +405,15 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                         <div className="flex items-center gap-2">
                           <span className="truncate text-xs font-medium">{m.name}</span>
                           {m.isLead && (
-                            <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                            <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-3xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
                               负责人
                             </span>
                           )}
-                          <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-[10px] text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+                          <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-3xs text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
                             {m.modality}
                           </span>
                           {m.config && (
-                            <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-[10px] text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                            <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-3xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
                               已配置
                             </span>
                           )}
@@ -488,7 +488,7 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                           <input type="checkbox" checked={selectedAgents.includes(a.id)} readOnly className="size-3.5" />
                           <AgentAvatar agent={a} size="sm" />
                           <span className="truncate text-xs">{a.name}</span>
-                          <span className="ml-auto text-[11px] text-muted-foreground">{a.modality}</span>
+                          <span className="ml-auto text-xs text-muted-foreground">{a.modality}</span>
                         </button>
                       ))
                     )}

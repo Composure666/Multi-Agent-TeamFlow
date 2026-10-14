@@ -89,7 +89,7 @@ export function TeamLibrary({ refreshKey, onStartChat, onCreateTeam }: TeamLibra
                 <button className="min-w-0 flex-1 text-left" onClick={() => openDetail(t.id)}>
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-medium">{t.name}</span>
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
                       {t.memberCount} 人
                     </span>
                   </div>
@@ -101,14 +101,14 @@ export function TeamLibrary({ refreshKey, onStartChat, onCreateTeam }: TeamLibra
                       {t.members.slice(0, 4).map((m) => (
                         <div
                           key={m.id}
-                          className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-[9px]"
+                          className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-3xs"
                           title={m.agentName}
                         >
                           {m.agentName[0]}
                         </div>
                       ))}
                       {t.members.length > 4 && (
-                        <div className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-[9px] text-muted-foreground">
+                        <div className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-3xs text-muted-foreground">
                           +{t.members.length - 4}
                         </div>
                       )}

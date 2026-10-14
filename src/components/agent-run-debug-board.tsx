@@ -825,7 +825,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
               <GitBranch className="size-5" />
             </div>
             <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <span>分析</span>
               <span>/</span>
               <span>运行调试</span>
@@ -1203,7 +1203,7 @@ function CanvasToolbar({
         <button
           type="button"
           onClick={onToggleCurrentRunExpansion}
-          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
         >
           {currentRunExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
           {currentRunExpanded ? '收起当前 Run' : '展开当前 Run'}
@@ -1230,12 +1230,12 @@ function CanvasToolbar({
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {view === 'graph' && (
           <>
-            <span className="mr-1 hidden text-[11px] text-slate-400 lg:inline">拖动卡片可调整位置</span>
+            <span className="mr-1 hidden text-xs text-slate-400 lg:inline">拖动卡片可调整位置</span>
             <button
               type="button"
               onClick={onFitView}
               title="适配视野：把全部卡片放回可视区"
-              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
             >
               <Scan className="size-3.5" />
               适配视野
@@ -1244,7 +1244,7 @@ function CanvasToolbar({
               type="button"
               onClick={onResetLayout}
               title="重置布局"
-              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
             >
               <Maximize2 className="size-3.5" />
               重置布局
@@ -1257,7 +1257,7 @@ function CanvasToolbar({
             type="button"
             onClick={() => onFilterChange(option.id)}
             className={cn(
-              'h-7 rounded-md border px-2.5 text-[11px] font-medium transition',
+              'h-7 rounded-md border px-2.5 text-xs font-medium transition',
               filter === option.id
                 ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300'
                 : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5',
@@ -1306,12 +1306,12 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
             </span>
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{data.label}</div>
-              <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
                 {renderDebuggerNodeDescription(data)}
               </div>
             </div>
           </div>
-          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium', debuggerStatusBadgeClass(data.status))}>
+          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium', debuggerStatusBadgeClass(data.status))}>
             <span className={cn('size-1.5 rounded-full', debuggerStatusDotClass(data.status))} />
             {debuggerStatusLabel(data.status)}
           </span>
@@ -1334,7 +1334,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
         {data.kind === 'message' && data.message && (
           <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-white/10">
             <div className="line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{data.message.preview}</div>
-            <div className="grid grid-cols-2 gap-2 text-[10px]">
+            <div className="grid grid-cols-2 gap-2 text-3xs">
               <NodeMetric label="关联 Run" value={String(data.message.runIds.length)} />
               <NodeMetric label="时间" value={formatClockTime(data.message.createdAt)} />
             </div>
@@ -1342,7 +1342,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
         )}
 
         {(data.kind === 'run' || data.kind === 'summary') && (
-          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-[10px] dark:border-white/10">
+          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-3xs dark:border-white/10">
             <NodeMetric label="耗时" value={data.run?.durationMs === null || data.run?.durationMs === undefined ? '-' : formatDurationMs(data.run.durationMs)} />
             <NodeMetric label="Token" value={data.run?.tokenTotal === null || data.run?.tokenTotal === undefined ? '-' : formatCompactNumber(data.run.tokenTotal)} />
             <NodeMetric label="模型" value={compactModelName(data.run?.modelId ?? '-')} />
@@ -1351,7 +1351,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
 
         {data.kind === 'agent' && data.agent && (
           <>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+            <div className="mt-3 grid grid-cols-3 gap-2 text-3xs">
               <NodeMetric label="耗时" value={data.agent.durationMs === null ? '-' : formatDurationMs(data.agent.durationMs)} />
               <NodeMetric label="Token" value={data.agent.tokenTotal === null ? '-' : formatCompactNumber(data.agent.tokenTotal)} />
               <NodeMetric label="工具" value={String(data.agent.toolCallCount)} />
@@ -1362,7 +1362,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
         )}
 
         {data.kind === 'tool' && data.tool && (
-          <div className="mt-3 rounded-md bg-slate-50 px-2.5 py-1.5 text-[10px] leading-5 text-slate-600 dark:bg-white/5 dark:text-slate-300">
+          <div className="mt-3 rounded-md bg-slate-50 px-2.5 py-1.5 text-3xs leading-5 text-slate-600 dark:bg-white/5 dark:text-slate-300">
             <div className="truncate font-medium text-slate-700 dark:text-slate-200">
               {data.tool.toolName}
               {data.tool.agentName ? <span className="ml-1 font-normal text-slate-500">· {data.tool.agentName}</span> : null}
@@ -1373,7 +1373,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
 
         {data.kind === 'task' && data.task && (
           <>
-            <div className="mt-3 line-clamp-2 text-[11px] leading-5 text-slate-600 dark:text-slate-300">
+            <div className="mt-3 line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
               {data.task.title}
             </div>
             <NodeToolSummary tools={data.task.toolNames} toolCount={data.task.toolNames.length} expanded />
@@ -1417,7 +1417,7 @@ function NodeAgentCurrentStep({
 
   if (!expanded) {
     return (
-      <div className="mt-3 flex min-w-0 items-center gap-2 rounded-md border-t border-slate-100 pt-3 text-[11px] dark:border-white/10">
+      <div className="mt-3 flex min-w-0 items-center gap-2 rounded-md border-t border-slate-100 pt-3 text-xs dark:border-white/10">
         <span className={cn(
           'flex size-3.5 shrink-0 items-center justify-center rounded-full border',
           currentStep?.status === 'running' || (status === 'running' && !currentStep)
@@ -1440,7 +1440,7 @@ function NodeAgentCurrentStep({
           )} />
         </span>
         <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">{currentTitle}</span>
-        <span className="shrink-0 text-[10px] text-slate-400">
+        <span className="shrink-0 text-3xs text-slate-400">
           {currentIndex >= 0 && totalCount > 1 ? `${currentIndex + 1}/${totalCount}` : `共 ${totalCount}`}
         </span>
       </div>
@@ -1457,7 +1457,7 @@ function NodeAgentCurrentStep({
           <div
             key={step.id}
             className={cn(
-              'min-w-0 rounded-md px-1.5 py-1 text-[11px] text-slate-600 transition dark:text-slate-300',
+              'min-w-0 rounded-md px-1.5 py-1 text-xs text-slate-600 transition dark:text-slate-300',
               isCurrent && 'bg-blue-50/80 ring-1 ring-blue-200 dark:bg-blue-500/15 dark:ring-blue-400/30',
             )}
           >
@@ -1465,10 +1465,10 @@ function NodeAgentCurrentStep({
               <span className={cn('size-2 shrink-0 rounded-full', debuggerStatusDotClass(step.status), isCurrent && 'animate-pulse')} />
               <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-200">{step.title}</span>
               {isCurrent && (
-                <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 dark:text-blue-300">当前</span>
+                <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-3xs font-medium text-blue-700 dark:text-blue-300">当前</span>
               )}
               {step.dependsOn.length > 0 && !isCurrent && (
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[9px] text-slate-500 dark:bg-white/10">
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10">
                   dep {step.dependsOn.length}
                 </span>
               )}
@@ -1477,7 +1477,7 @@ function NodeAgentCurrentStep({
         )
       })}
       {hiddenCount > 0 && (
-        <div className="pl-4 text-[10px] text-slate-400">+{hiddenCount} 个步骤</div>
+        <div className="pl-4 text-3xs text-slate-400">+{hiddenCount} 个步骤</div>
       )}
     </div>
   )
@@ -1498,7 +1498,7 @@ function NodeToolSummary({
   if (!expanded) {
     const preview = tools.slice(0, 3).join(' · ')
     return (
-      <div className="mt-2 flex min-w-0 items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+      <div className="mt-2 flex min-w-0 items-center gap-2 text-3xs text-slate-500 dark:text-slate-400">
         <Wrench className="size-3 shrink-0" />
         <span className="shrink-0 font-medium">Tools {toolCount}</span>
         {preview ? (
@@ -1515,16 +1515,16 @@ function NodeToolChips({ tools, expanded = false }: { tools: string[]; expanded?
   const visibleTools = expanded ? tools : tools.slice(0, 4)
   return (
     <div className="mt-3 rounded-lg border border-dashed border-blue-100 bg-blue-50/40 px-2.5 py-2 dark:border-blue-400/20 dark:bg-blue-500/10">
-      <div className="mb-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">调用工具</div>
+      <div className="mb-1.5 text-3xs font-medium text-slate-500 dark:text-slate-400">调用工具</div>
       <div className="flex flex-wrap gap-1.5">
         {visibleTools.map((tool) => (
-          <span key={tool} className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 font-mono text-[10px] text-slate-600 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-300">
+          <span key={tool} className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 font-mono text-3xs text-slate-600 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-300">
             <Wrench className="size-3 shrink-0" />
             <span className="truncate">{tool}</span>
           </span>
         ))}
         {tools.length > visibleTools.length && (
-          <span className="inline-flex items-center rounded-md px-1.5 py-1 text-[10px] text-slate-400">
+          <span className="inline-flex items-center rounded-md px-1.5 py-1 text-3xs text-slate-400">
             +{tools.length - visibleTools.length}
           </span>
         )}
@@ -1612,7 +1612,7 @@ function DetailsPanel({
       <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--agenthub-accent)]">
+            <div className="flex items-center gap-2 text-3xs font-semibold uppercase tracking-wider text-[var(--agenthub-accent)]">
               {inspectorIcon(inspectorView.kind)}
               Details
             </div>
@@ -1641,7 +1641,7 @@ function DetailsPanel({
             type="button"
             onClick={() => onTabChange(item.id)}
             className={cn(
-              'inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition',
+              'inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium transition',
               tab === item.id
                 ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
                 : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
@@ -1721,7 +1721,7 @@ function DetailsOverview({
       <CurrentTaskSummary task={inspectorView.currentTask} />
       {inspectorView.fields.length > 0 && (
         <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
-          <div className="grid gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
             {inspectorView.fields.map((field) => (
               <div key={field.label} className="flex items-center justify-between gap-2">
                 <span>{field.label}</span>
@@ -1735,7 +1735,7 @@ function DetailsOverview({
         <button
           type="button"
           onClick={() => onJumpToTab('terminal')}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
         >
           <TerminalSquare className="size-3" />
           查看终端
@@ -1743,7 +1743,7 @@ function DetailsOverview({
         <button
           type="button"
           onClick={() => onJumpToTab('trace')}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
         >
           <Activity className="size-3" />
           查看工具调用
@@ -1751,7 +1751,7 @@ function DetailsOverview({
         <button
           type="button"
           onClick={() => onJumpToTab('logs')}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
         >
           <FileCode2 className="size-3" />
           查看日志
@@ -1781,10 +1781,10 @@ function ToolInspectorSummary({
       <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">工具</div>
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">工具</div>
             <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{view.title}</div>
           </div>
-          <span className={cn('rounded px-1.5 py-0.5 text-[10px]', view.status === 'completed' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : view.status === 'running' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300' : view.status === 'failed' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300')}>
+          <span className={cn('rounded px-1.5 py-0.5 text-3xs', view.status === 'completed' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : view.status === 'running' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300' : view.status === 'failed' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300')}>
             {view.subtitle}
           </span>
         </div>
@@ -1803,23 +1803,23 @@ function ToolInspectorSummary({
         ))}
       </div>
       <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
-        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Input</div>
-        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-slate-900 dark:text-slate-100">{view.input || '-'}</p>
+        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Input</div>
+        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900 dark:text-slate-100">{view.input || '-'}</p>
       </section>
       <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Output</div>
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Output</div>
           {onJumpToTools && (
             <button
               type="button"
               onClick={onJumpToTools}
-              className="rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-soft)]"
+              className="rounded px-1.5 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-soft)]"
             >
               查看工具调用
             </button>
           )}
         </div>
-        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-5 text-slate-900 dark:text-slate-100">{view.output || '-'}</p>
+        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900 dark:text-slate-100">{view.output || '-'}</p>
       </section>
     </div>
   )
@@ -1845,7 +1845,7 @@ function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
         <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">{task.title}</span>
       </div>
       {task.stepTitle && (
-        <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
           <span className="min-w-0 truncate">{task.stepTitle}</span>
           <span className="shrink-0">{task.stepIndex}/{task.stepTotal}</span>
         </div>
@@ -2071,12 +2071,12 @@ function TerminalPanel({
         <button
           type="submit"
           disabled={!input || submitting}
-          className="rounded bg-white/10 px-2 py-1 text-[10px] text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded bg-white/10 px-2 py-1 text-3xs text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
         >
           发送
         </button>
       </form>
-      {inputError && <div className="px-3 pb-2 text-[10px] text-rose-300">{inputError}</div>}
+      {inputError && <div className="px-3 pb-2 text-3xs text-rose-300">{inputError}</div>}
     </>
   ) : undefined
 
@@ -2269,25 +2269,25 @@ function TerminalDisplay({
   return (
     <div
       className={cn(
-        'agenthub-terminal-font flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-800 bg-[#0b1020] text-[13px] leading-[1.65] text-slate-300',
+        'agenthub-terminal-font flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-800 bg-[#0b1020] text-sm leading-[1.65] text-slate-300',
         heightClassName,
       )}
     >
       {/* 头部：一行放下标题 / shell / 状态 / 动作，不做成两行的信息卡 */}
-      <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 text-[11px] text-slate-400">
+      <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-3 text-xs text-slate-400">
         <div className="flex min-w-0 items-center gap-2">
           <TerminalSquare className="size-3.5 shrink-0 text-slate-500" />
           <span className="shrink-0 font-semibold text-slate-200">Terminal</span>
-          <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+          <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 font-mono text-3xs text-slate-400">
             {activeTerminal.shell}
           </span>
-          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px]', statusBadge.cls)}>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-3xs', statusBadge.cls)}>
             {statusBadge.label}
           </span>
           {activeTerminal.cwd && (
             <span
               className={cn(
-                'min-w-0 truncate font-mono text-[10px] text-slate-500',
+                'min-w-0 truncate font-mono text-3xs text-slate-500',
                 expanded ? 'block flex-1' : 'hidden xl:block',
               )}
               title={activeTerminal.cwd}
@@ -2301,7 +2301,7 @@ function TerminalDisplay({
             type="button"
             onClick={() => setAutoScroll((current) => !current)}
             className={cn(
-              'inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] transition',
+              'inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs transition',
               autoScroll
                 ? 'bg-blue-500/15 text-blue-300 hover:bg-blue-500/20'
                 : 'text-slate-400 hover:bg-white/10 hover:text-slate-200',
@@ -2316,7 +2316,7 @@ function TerminalDisplay({
             type="button"
             onClick={() => void handleCopy()}
             disabled={!activeTerminal.transcript}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-slate-400 transition hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="复制终端输出"
             title="复制全部输出"
           >
@@ -2327,7 +2327,7 @@ function TerminalDisplay({
             type="button"
             onClick={() => setCleared(true)}
             disabled={cleared || !activeTerminal.transcript}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-slate-400 transition hover:bg-white/10 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="清空终端显示（不影响实际日志）"
             title="清空显示（不影响实际日志）"
           >
@@ -2339,7 +2339,7 @@ function TerminalDisplay({
             <button
               type="button"
               onClick={onExpand}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
               aria-label="展开为独立的完整终端窗口"
               title="展开为完整终端窗口"
             >
@@ -2352,7 +2352,7 @@ function TerminalDisplay({
             <button
               type="button"
               onClick={onCollapse}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
               aria-label="收起终端窗口"
               title="收起（Esc）"
             >
@@ -2387,7 +2387,7 @@ function TerminalDisplay({
           <button
             type="button"
             onClick={jumpToBottom}
-            className="absolute bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/15 bg-slate-900/95 px-3 py-1 text-[11px] text-slate-200 shadow-md backdrop-blur transition hover:bg-slate-800"
+            className="absolute bottom-3 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/15 bg-slate-900/95 px-3 py-1 text-xs text-slate-200 shadow-md backdrop-blur transition hover:bg-slate-800"
             aria-label="回到底部并开启自动滚动"
           >
             <ArrowDown className="size-3" />
@@ -2533,7 +2533,7 @@ function EventTimelinePanel({
           <Clock3 className="size-3.5 text-[var(--agenthub-accent)]" />
           时间线
         </div>
-        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 dark:bg-white/10">Run / Agent 生命周期</span>
+        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-400 dark:bg-white/10">Run / Agent 生命周期</span>
       </div>
       {rows.length === 0 ? (
         <PanelEmpty
@@ -2554,14 +2554,14 @@ function EventTimelinePanel({
               title={row.runId ? '选中对应 Run 并跳转到事件流' : undefined}
               className="grid w-full grid-cols-[64px_20px_minmax(0,1fr)] items-start gap-2 rounded-md px-1 py-1 text-left text-xs transition hover:bg-blue-50/70 dark:hover:bg-blue-500/10"
             >
-              <span className="pt-1 font-mono text-[10px] text-slate-400">{row.time}</span>
+              <span className="pt-1 font-mono text-3xs text-slate-400">{row.time}</span>
               <span className="flex justify-center pt-0.5"><LifecycleMarker marker={row.marker} /></span>
               <span className="min-w-0">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="break-words font-medium text-slate-800 dark:text-slate-100">{row.label}</span>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10">{row.scope}</span>
+                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10">{row.scope}</span>
                 </span>
-                {row.detail && <span className="mt-0.5 block break-words text-[11px] text-slate-500 dark:text-slate-400">{row.detail}</span>}
+                {row.detail && <span className="mt-0.5 block break-words text-xs text-slate-500 dark:text-slate-400">{row.detail}</span>}
               </span>
             </button>
           ))}
@@ -2589,7 +2589,7 @@ function RawEventStreamPanel({
           <FileCode2 className="size-3.5 text-[var(--agenthub-accent)]" />
           事件流
         </div>
-        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400 dark:bg-white/10">原始运行事件</span>
+        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-400 dark:bg-white/10">原始运行事件</span>
       </div>
       {rows.length === 0 ? (
         <PanelEmpty icon={<FileCode2 className="size-4" />} text="暂无实时事件" />
@@ -2614,20 +2614,20 @@ function RawEventStreamPanel({
                 >
                   <span className="flex items-center gap-1.5 pt-0.5">
                     <span className={cn('size-2.5 shrink-0 rounded-full', timelineToneDotClass(failed ? 'danger' : event.status === 'running' ? 'info' : 'success'))} />
-                    <span className="font-mono text-[10px] text-slate-400">{formatClockTime(event.createdAt)}</span>
+                    <span className="font-mono text-3xs text-slate-400">{formatClockTime(event.createdAt)}</span>
                   </span>
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="break-words font-medium text-slate-800 dark:text-slate-100">{desc.label}</span>
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10">{debugEventScope(event)}</span>
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10">{debugEventScope(event)}</span>
                     </span>
-                    {desc.detail && <span className="mt-0.5 block break-words text-[11px] text-slate-500 dark:text-slate-400">{desc.detail}</span>}
+                    {desc.detail && <span className="mt-0.5 block break-words text-xs text-slate-500 dark:text-slate-400">{desc.detail}</span>}
                   </span>
                 </summary>
                 {entries.length > 0 && (
                   <div className="mb-1 ml-[76px] mt-0.5 space-y-1 rounded-md border-l-2 border-slate-100 bg-slate-50/70 px-2 py-1.5 dark:border-white/10 dark:bg-white/5">
                     {entries.map(([key, value]) => (
-                      <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-[10px]">
+                      <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-3xs">
                         <span className="shrink-0 text-slate-400">{key}</span>
                         <span className="break-all font-mono text-slate-600 dark:text-slate-300" title={value}>{value.length > 320 ? `${value.slice(0, 320)}…` : value}</span>
                       </div>
@@ -2718,7 +2718,7 @@ function ToolTracePanel({
   return (
     // 与日志同一套"连续列表"语言：一行一次调用，点开才看参数与结果，不做一卡一调用
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 text-[11px] text-slate-400">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 text-xs text-slate-400">
         <span>共 {items.length} 次调用</span>
         <span className="text-slate-400/80">点击任意一行展开参数与结果</span>
       </div>
@@ -2736,16 +2736,16 @@ function ToolTracePanel({
                 }}
                 onClick={() => onSelectToolCall?.(item.callId)}
               >
-                <span className="font-mono text-[10px] text-slate-400">{String(index + 1).padStart(2, '0')}</span>
-                <span className="truncate font-mono text-[12px] text-slate-700 dark:text-slate-200" title={item.toolName}>
+                <span className="font-mono text-3xs text-slate-400">{String(index + 1).padStart(2, '0')}</span>
+                <span className="truncate font-mono text-xs text-slate-700 dark:text-slate-200" title={item.toolName}>
                   {item.toolName}
                 </span>
-                <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                <span className="shrink-0 font-mono text-xs text-slate-400">
                   {meta?.durationMs === null || meta?.durationMs === undefined ? '-' : formatDurationMs(meta.durationMs)}
                 </span>
                 <span
                   className={cn(
-                    'shrink-0 text-[11px]',
+                    'shrink-0 text-xs',
                     failed
                       ? 'text-rose-500 dark:text-rose-400'
                       : status === 'complete'
@@ -2758,7 +2758,7 @@ function ToolTracePanel({
                 <ChevronRight className="size-3.5 shrink-0 text-slate-300 transition-transform group-open:rotate-90 dark:text-slate-600" />
               </summary>
               <div className="space-y-2 px-3 pb-3 pt-1">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
                   <span className="font-mono">Call ID: {shortId(item.callId)}</span>
                   {meta?.durationMs !== null && meta?.durationMs !== undefined && (
                     <span className="font-mono">耗时: {formatDurationMs(meta.durationMs)}</span>
@@ -2767,7 +2767,7 @@ function ToolTracePanel({
                     <button
                       type="button"
                       onClick={() => onSelectToolCall(item.callId)}
-                      className="text-[11px] text-[var(--agenthub-accent)] hover:underline"
+                      className="text-xs text-[var(--agenthub-accent)] hover:underline"
                     >
                       定位到 Agent →
                     </button>
@@ -2993,7 +2993,7 @@ function LogsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 text-[11px] text-slate-400">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 text-xs text-slate-400">
         <span>
           共 {rows.length} 条事件
           {errorCount > 0 && <span className="ml-2 text-rose-500 dark:text-rose-400">{errorCount} 条失败</span>}
@@ -3017,18 +3017,18 @@ function LogsPanel({
                 onClick={() => setExpandedId(expanded ? null : row.id)}
                 className="grid w-full grid-cols-[62px_68px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
               >
-                <span className="font-mono text-[11px] text-slate-400">
+                <span className="font-mono text-xs text-slate-400">
                   {row.time ? formatClockTime(row.time) : '--:--:--'}
                 </span>
-                <span className={cn('font-mono text-[10px] font-semibold uppercase tracking-wide', LOG_KIND_CLASS[row.kind])}>
+                <span className={cn('font-mono text-3xs font-semibold uppercase tracking-wide', LOG_KIND_CLASS[row.kind])}>
                   {row.kind}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate font-mono text-[12px] text-slate-700 dark:text-slate-200" title={row.title}>
+                  <span className="block truncate font-mono text-xs text-slate-700 dark:text-slate-200" title={row.title}>
                     {row.title}
                   </span>
                   {row.subtitle && (
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-400" title={row.subtitle}>
+                    <span className="mt-0.5 block truncate text-xs text-slate-400" title={row.subtitle}>
                       {row.subtitle}
                     </span>
                   )}
@@ -3036,7 +3036,7 @@ function LogsPanel({
                 <span className="flex shrink-0 items-center gap-1.5">
                   <span
                     className={cn(
-                      'text-[11px]',
+                      'text-xs',
                       row.status === 'error'
                         ? 'text-rose-500 dark:text-rose-400'
                         : row.status === 'running'
@@ -3054,7 +3054,7 @@ function LogsPanel({
 
               {expanded && (
                 <div className="space-y-2 px-3 pb-3 pt-1">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] sm:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
                     <LogMeta label="Tool" value={row.detail.toolName} />
                     <LogMeta label="Call ID" value={shortId(row.detail.callId)} mono />
                     {row.detail.sessionId && <LogMeta label="Session" value={shortId(row.detail.sessionId)} mono />}
@@ -3076,8 +3076,8 @@ function LogsPanel({
 function LogMeta({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] uppercase tracking-wide text-slate-400">{label}</div>
-      <div className={cn('truncate text-slate-600 dark:text-slate-300', mono && 'font-mono text-[11px]')} title={value}>
+      <div className="text-3xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className={cn('truncate text-slate-600 dark:text-slate-300', mono && 'font-mono text-xs')} title={value}>
         {value || '-'}
       </div>
     </div>
@@ -3096,7 +3096,7 @@ function ArtifactsPanel({ detail }: { detail: AgentRunDebugDetail }) {
             <FileCode2 className="size-4 text-[var(--agenthub-accent)]" />
             <span className="min-w-0 flex-1 break-words text-xs font-medium text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
           </div>
-          <div className="mt-2 text-[10px] text-slate-400">{artifact.status ?? artifact.kind} · {artifact.artifactId}</div>
+          <div className="mt-2 text-3xs text-slate-400">{artifact.status ?? artifact.kind} · {artifact.artifactId}</div>
         </div>
       ))}
     </div>
@@ -3168,7 +3168,7 @@ function ConversationRail({
         </button>
         <div
           className={cn(
-            'mt-3 flex size-9 items-center justify-center rounded-full border text-[10px] font-semibold uppercase',
+            'mt-3 flex size-9 items-center justify-center rounded-full border text-3xs font-semibold uppercase',
             collapsedIndicatorStatus
               ? 'border-transparent text-white'
               : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] text-slate-400',
@@ -3186,12 +3186,12 @@ function ConversationRail({
         >
           {selectedRun ? formatRunLabel(selectedRun.id) : selectedConversation ? '会话' : '—'}
         </div>
-        <div className="mt-2 px-1 text-center text-[10px] font-medium leading-4 text-slate-500">
+        <div className="mt-2 px-1 text-center text-3xs font-medium leading-4 text-slate-500">
           {conversationsLabel}
         </div>
         {failedRuns > 0 && (
           <div
-            className="mt-2 flex size-6 items-center justify-center rounded-full bg-red-50 text-[10px] font-semibold text-red-600 dark:bg-red-500/15"
+            className="mt-2 flex size-6 items-center justify-center rounded-full bg-red-50 text-3xs font-semibold text-red-600 dark:bg-red-500/15"
             title={`${failedRuns} 个异常 Run`}
           >
             {failedRuns}
@@ -3199,7 +3199,7 @@ function ConversationRail({
         )}
         {runningRuns > 0 && (
           <div
-            className="mt-2 flex size-6 items-center justify-center rounded-full bg-blue-50 text-[10px] font-semibold text-[var(--agenthub-accent)] dark:bg-blue-500/15"
+            className="mt-2 flex size-6 items-center justify-center rounded-full bg-blue-50 text-3xs font-semibold text-[var(--agenthub-accent)] dark:bg-blue-500/15"
             title={`${runningRuns} 个运行中 Run`}
           >
             {runningRuns}
@@ -3243,7 +3243,7 @@ function ConversationRail({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        <div className="mb-1 flex items-center justify-between gap-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        <div className="mb-1 flex items-center justify-between gap-2 px-2 text-3xs font-semibold uppercase tracking-wider text-slate-400">
           <span>Conversation</span>
           <span>{filteredConversations.length}</span>
         </div>
@@ -3271,14 +3271,14 @@ function ConversationRail({
                 <div className="flex items-center gap-2">
                   <span className={cn('size-2 shrink-0 rounded-full', latestRunStatus ? statusDotClass(latestRunStatus) : 'bg-slate-300')} />
                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{conversation.title}</span>
-                  <span className="shrink-0 text-[10px] text-slate-400">{runCount} Runs</span>
+                  <span className="shrink-0 text-3xs text-slate-400">{runCount} Runs</span>
                 </div>
-                <div className="mt-1 flex items-center gap-2 pl-4 text-[10px] text-slate-500">
+                <div className="mt-1 flex items-center gap-2 pl-4 text-3xs text-slate-500">
                   <span>{latestRunStatus ? statusLabel(latestRunStatus) : '暂无运行'}</span>
                   <span className="ml-auto">{relativeTime(latestRunAt)}</span>
                 </div>
                 {selected && (
-                  <div className="mt-1 flex items-center gap-2 pl-4 text-[10px] text-slate-400">
+                  <div className="mt-1 flex items-center gap-2 pl-4 text-3xs text-slate-400">
                     <span>{loading ? '正在加载会话图' : `${topLevelRuns.length} 轮消息关联`}</span>
                     {selectedRunId && <span className="ml-auto font-mono">{formatRunLabel(selectedRunId)}</span>}
                     {runningRuns > 0 && <span className="text-blue-500">{runningRuns} running</span>}
@@ -3324,7 +3324,7 @@ function SegmentedFilter<T extends string>({
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            'h-6 rounded-md border px-2 text-[10px] font-medium transition',
+            'h-6 rounded-md border px-2 text-3xs font-medium transition',
             value === option.id
               ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
               : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5',
@@ -3340,19 +3340,19 @@ function SegmentedFilter<T extends string>({
 function CodeSnippet({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-slate-400">
+      <div className="mb-1 flex items-center justify-between gap-2 text-3xs uppercase tracking-wide text-slate-400">
         <span>{label}</span>
         <button
           type="button"
           onClick={() => void navigator.clipboard?.writeText(value)}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] normal-case tracking-normal text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-3xs normal-case tracking-normal text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
         >
           <Copy className="size-3" />
           复制
         </button>
       </div>
       {/* 代码块只横向滚动，不强制折行 —— 命令 / JSON / 路径折碎后基本没法读 */}
-      <pre className="agenthub-terminal-font max-h-56 overflow-auto rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] leading-[1.6] text-slate-700 dark:border-white/10 dark:bg-neutral-950/60 dark:text-slate-300">
+      <pre className="agenthub-terminal-font max-h-56 overflow-auto rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs leading-[1.6] text-slate-700 dark:border-white/10 dark:bg-neutral-950/60 dark:text-slate-300">
         {value}
       </pre>
     </div>
@@ -3594,7 +3594,7 @@ function PanelMetric({
             : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] dark:bg-white/[0.03]'
   return (
     <div className={cn('rounded-lg border px-2.5 py-1.5', toneClass)}>
-      <div className="truncate text-[10px] text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="truncate text-3xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-0.5 truncate font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{value}</div>
     </div>
   )
@@ -3616,7 +3616,7 @@ function PanelEmpty({
       <div className="flex max-w-xs flex-col items-center gap-1.5">
         {icon && <div className="text-slate-400">{icon}</div>}
         <div className="flex items-center gap-2 text-slate-500">{title ?? text}</div>
-        {hint && <div className="text-[11px] leading-relaxed text-slate-400">{hint}</div>}
+        {hint && <div className="text-xs leading-relaxed text-slate-400">{hint}</div>}
       </div>
     </div>
   )

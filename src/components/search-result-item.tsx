@@ -47,7 +47,7 @@ export function SearchResultItem({ hit, active, onClick }: SearchResultItemProps
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-xs">
           <span className="truncate font-medium text-foreground">{hit.conversationTitle}</span>
-          <span className="shrink-0 rounded bg-muted px-1.5 py-px text-[10px] text-muted-foreground">
+          <span className="shrink-0 rounded bg-muted px-1.5 py-px text-3xs text-muted-foreground">
             {sender}
           </span>
           <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">

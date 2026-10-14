@@ -706,7 +706,7 @@ export function CapabilityCenterWorkspace() {
                   {tab.label}
                   <span
                     className={cn(
-                      'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] font-semibold',
+                      'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-3xs font-semibold',
                       activeTab === tab.id
                         ? 'bg-white text-[var(--agenthub-accent)] dark:bg-slate-900'
                         : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
@@ -1176,7 +1176,7 @@ function CapabilityRowItem({
           <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900 dark:text-slate-50">
             <span className="truncate">{row.name}</span>
             {row.tags && row.tags.length > 0 && (
-              <span className="hidden text-[10px] font-normal text-slate-400 xl:inline">
+              <span className="hidden text-3xs font-normal text-slate-400 xl:inline">
                 #{row.tags.slice(0, 2).join(' #')}
               </span>
             )}
@@ -1310,7 +1310,7 @@ function KindBadge({ kind }: { kind: CapabilityRowKind }) {
   return (
     <span
       className={cn(
-        'inline-flex h-5 items-center rounded px-2 text-[11px] font-medium',
+        'inline-flex h-5 items-center rounded px-2 text-xs font-medium',
         styles[kind],
       )}
     >
@@ -1323,7 +1323,7 @@ function StatusPill({ enabled }: { enabled: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex h-5 items-center rounded px-2 text-[11px] font-medium',
+        'inline-flex h-5 items-center rounded px-2 text-xs font-medium',
         enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
       )}
     >
@@ -1340,7 +1340,7 @@ function AgentAvatar({ name, tone }: { name: string; tone: 'blue' | 'violet' }) 
   return (
     <span
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold',
+        'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
         styles,
       )}
     >
@@ -1409,13 +1409,13 @@ function BindingRelationsCard({
                   <span>→</span>
                   <span
                     className={cn(
-                      'inline-flex h-5 max-w-[120px] items-center truncate rounded px-2 text-[11px] font-medium',
+                      'inline-flex h-5 max-w-[120px] items-center truncate rounded px-2 text-xs font-medium',
                       'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
                     )}
                   >
                     {item.target}
                   </span>
-                  <span className="ml-1 shrink-0 text-[11px] text-slate-400">
+                  <span className="ml-1 shrink-0 text-xs text-slate-400">
                     {item.agents.length} 个 Agent
                   </span>
                 </div>
@@ -1530,7 +1530,7 @@ function HotCapabilitiesCard({
           const width = `${Math.max(8, (item.calls / max) * 100)}%`
           return (
             <li key={item.id} className="flex items-center gap-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {item.rank}
               </span>
               <span
@@ -1752,7 +1752,7 @@ function McpServerFormDialog({
             </div>
           </div>
           {form.trust === 'always' && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-4 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               trust=always 会在不弹确认的情况下直接执行该 MCP 工具，请只用于完全信任的来源。
             </p>
           )}
@@ -1797,7 +1797,7 @@ function ConfirmDeleteServerDialog({
             确定要删除 <strong>{server.name}</strong> 吗？此操作会立刻从能力中心移除，所有 Agent 与该 MCP 的绑定也会断开。
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] leading-4 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-4 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           此操作不可撤销。
         </div>
         <DialogFooter>
@@ -1845,11 +1845,11 @@ function McpTestResultDialog({
             <ul className="grid gap-1">
               {result.tools.map((tool) => (
                 <li key={tool.name} className="break-all">
-                  <code className="rounded bg-white px-1.5 py-0.5 text-[11px] text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <code className="rounded bg-white px-1.5 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     {tool.name}
                   </code>
                   {tool.description && (
-                    <span className="ml-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="ml-1.5 text-xs text-slate-500 dark:text-slate-400">
                       {tool.description}
                     </span>
                   )}

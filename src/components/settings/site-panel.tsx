@@ -45,7 +45,7 @@ export function SitePanel({
           <Globe className="size-4 text-muted-foreground" />
           <div>
             <h3 className="text-sm font-medium">官网地址</h3>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               工作台左下角会多出一个「官网」入口，点击在新标签打开这里。
             </p>
           </div>
@@ -61,7 +61,7 @@ export function SitePanel({
             placeholder="http://101.42.94.222/home"
             inputMode="url"
           />
-          <p className="text-[11px] leading-4 text-muted-foreground">
+          <p className="text-xs leading-4 text-muted-foreground">
             通常就是本项目主页的公网地址。<strong className="font-medium text-slate-900 dark:text-slate-100">留空则不显示该入口</strong>
             —— 宁可不显示，也不要一个点开是 404 的死链。
           </p>
@@ -73,7 +73,7 @@ export function SitePanel({
           <Download className="size-4 text-muted-foreground" />
           <div>
             <h3 className="text-sm font-medium">桌面端安装包</h3>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               主页「下载桌面端」分区的按钮指向这里。
             </p>
           </div>
@@ -90,14 +90,14 @@ export function SitePanel({
             placeholder="留空即自动推导（阿里云 OSS → 本站静态目录）"
             inputMode="url"
           />
-          <p className="text-[11px] leading-4 text-muted-foreground">
+          <p className="text-xs leading-4 text-muted-foreground">
             想托管到自己的阿里云 OSS 时，把对象地址直接填在这里最省事；留空则由下面两条规则自动推导。
           </p>
         </div>
 
         <div className="mt-3 rounded-md border bg-background p-2">
-          <p className="text-[11px] font-medium text-muted-foreground">留空时的推导顺序</p>
-          <ol className="mt-1.5 flex list-none flex-col gap-1 text-[11px] leading-4 text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">留空时的推导顺序</p>
+          <ol className="mt-1.5 flex list-none flex-col gap-1 text-xs leading-4 text-muted-foreground">
             <li>
               <span className="font-mono">1.</span> 阿里云 OSS 四项齐备 →{' '}
               <code className="break-all font-mono">
@@ -115,9 +115,9 @@ export function SitePanel({
 
         {preview && (
           <div className="mt-3 rounded-md border bg-background px-2 py-2">
-            <p className="text-[11px] font-medium">主页按钮当前指向</p>
-            <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{preview.url}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="text-xs font-medium">主页按钮当前指向</p>
+            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{preview.url}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               来源：
               {preview.source === 'custom'
                 ? '本页手工填写'
@@ -134,7 +134,7 @@ export function SitePanel({
 
         {/* 手填的地址不探测：这里明说清楚，免得用户以为「填了就是绿的」。 */}
         {preview?.source === 'custom' && (
-          <p className="mt-3 text-[11px] leading-4 text-muted-foreground">
+          <p className="mt-3 text-xs leading-4 text-muted-foreground">
             手填的地址按「你已经确认过」处理，服务端<strong className="font-medium">不会</strong>再去探测它 —— 但也意味着填错的话，
             主页上就是一个点开报错的链接。想省心就留空，让下面两条规则自动推导。
           </p>
@@ -143,7 +143,7 @@ export function SitePanel({
         {preview?.source === 'oss' && !preview.available && (
           <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-4 flex-none" />
-            <p className="min-w-0 text-[11px] leading-4">
+            <p className="min-w-0 text-xs leading-4">
               远端探测
               {links?.remoteProbe === 'unreachable'
                 ? '请求失败（网络或超时）'
@@ -158,7 +158,7 @@ export function SitePanel({
         {preview?.source === 'oss' && links && !links.ossPublicRead && (
           <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-4 flex-none" />
-            <p className="min-w-0 text-[11px] leading-4">
+            <p className="min-w-0 text-xs leading-4">
               OSS 当前是<strong className="font-medium">私有读</strong>
               （「对象存储」页的 ACL 开关是关的），这个直连地址会返回 403。
               把安装包对象的 ACL 设为公共读，或在本页直接填一个可公开访问的地址。
@@ -169,7 +169,7 @@ export function SitePanel({
         {preview?.source === 'local' && !preview.available && (
           <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-4 flex-none" />
-            <p className="min-w-0 text-[11px] leading-4">
+            <p className="min-w-0 text-xs leading-4">
               这个文件目前不存在，主页会显示「安装包准备中」而不是一个点了报错的死链。把安装包放到{' '}
               <code className="font-mono">{links?.localInstallerPath}</code>
               （文件名必须是 <code className="font-mono">Multi-Agent-TeamFlow-Setup.exe</code>），

@@ -115,7 +115,7 @@ function ProviderCard({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{provider.displayName}</span>
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
                 isConnected
                   ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400'
                   : isConfigured
@@ -133,16 +133,16 @@ function ProviderCard({
 
           {totalUsage > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground">使用中：</span>
+              <span className="text-xs text-muted-foreground">使用中：</span>
               {[...systemLabels, ...agentLabels].slice(0, 4).map((label) => (
                 <span
                   key={label}
-                  className="rounded bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-[11px] text-[var(--agenthub-accent)]"
+                  className="rounded bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-xs text-[var(--agenthub-accent)]"
                 >
                   {label}
                 </span>
               ))}
-              {totalUsage > 4 && <span className="text-[11px] text-muted-foreground">+{totalUsage - 4}</span>}
+              {totalUsage > 4 && <span className="text-xs text-muted-foreground">+{totalUsage - 4}</span>}
             </div>
           )}
         </div>

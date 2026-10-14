@@ -147,17 +147,17 @@ export function ModelAssignmentPanel({ refreshKey }: ModelAssignmentPanelProps) 
               <div className="mb-2 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium">{cap.label}</div>
-                  <div className="text-[11px] text-muted-foreground">{cap.description}</div>
+                  <div className="text-xs text-muted-foreground">{cap.description}</div>
                 </div>
                 {selectedProvider && !selectedProvider.isConnected && (
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-3xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
                     未连接
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="grid gap-1">
-                  <label className="text-[11px] text-muted-foreground">供应商</label>
+                  <label className="text-xs text-muted-foreground">供应商</label>
                   <select
                     value={st.providerId}
                     onChange={(e) => handleChange(cap.key, 'providerId', e.target.value)}
@@ -173,7 +173,7 @@ export function ModelAssignmentPanel({ refreshKey }: ModelAssignmentPanelProps) 
                   </select>
                 </div>
                 <div className="grid gap-1">
-                  <label className="text-[11px] text-muted-foreground">模型</label>
+                  <label className="text-xs text-muted-foreground">模型</label>
                   {models.length > 0 ? (
                     <select
                       value={st.modelName}

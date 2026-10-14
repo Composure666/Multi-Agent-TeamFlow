@@ -109,7 +109,7 @@ function PinnedRow({
       ) : (
         <div className="size-4 shrink-0 rounded-full bg-primary/30" />
       )}
-      <span className="shrink-0 text-[10px] font-medium text-muted-foreground">{speakerName}</span>
+      <span className="shrink-0 text-3xs font-medium text-muted-foreground">{speakerName}</span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground/90">{summary}</span>
       <button
         type="button"

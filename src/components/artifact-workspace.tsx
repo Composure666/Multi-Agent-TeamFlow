@@ -497,7 +497,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                       )}
                     >
                       {item.label}
-                      <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-white/15 dark:bg-black/15' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400')}>
+                      <span className={cn('rounded-full px-1.5 py-0.5 text-3xs tabular-nums', active ? 'bg-white/15 dark:bg-black/15' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400')}>
                         {count}
                       </span>
                     </button>
@@ -540,7 +540,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                         <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
                           {conversation.conversationTitle}
                         </span>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] tabular-nums text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-500 dark:bg-white/5 dark:text-slate-400">
                           {conversation.groups.length}
                         </span>
                       </div>
@@ -658,7 +658,7 @@ function RecentStrip({
                 >
                   {g.latest.title}
                 </button>
-                <span className="block truncate text-[10px] text-slate-400 dark:text-slate-500">
+                <span className="block truncate text-3xs text-slate-400 dark:text-slate-500">
                   {formatRelativeTime(g.latest.createdAt)} · {t.label}
                 </span>
               </div>
@@ -734,7 +734,7 @@ function ArtifactCard({
             <CoverShape shape={t.shape} title={item.title} compact imageUrl={item.imageUrl} pptCover={item.pptCover} />
           </div>
           {item.type === 'image' && (item.imageCount ?? 0) > 1 && (
-            <span className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white">
+            <span className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-black/60 px-1.5 py-0.5 text-3xs font-medium tabular-nums text-white">
               {item.imageCount} 张
             </span>
           )}
@@ -745,19 +745,19 @@ function ArtifactCard({
           </button>
           <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1">
-            <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', t.chip)}>{t.label}</span>
+            <span className={cn('rounded px-1.5 py-0.5 text-3xs font-medium', t.chip)}>{t.label}</span>
             {contentTags.map((tag) => (
-              <span key={tag} className={cn('rounded-full px-1.5 py-0.5 text-[10px]', t.tag)}>
+              <span key={tag} className={cn('rounded-full px-1.5 py-0.5 text-3xs', t.tag)}>
                 {tag}
               </span>
             ))}
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <AgentAvatar agent={agentObj} size="xs" />
             <span className="truncate">{agentName}</span>
             <span aria-hidden>·</span>
             <span className="shrink-0">{formatRelativeTime(item.createdAt)}</span>
-            <span className="ml-auto shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
+            <span className="ml-auto shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
           </div>
         </div>
         <div className="flex items-center gap-1 pr-2">
@@ -814,14 +814,14 @@ function ArtifactCard({
         </div>
 
         {/* Type badge (top-left) */}
-        <span className={cn('absolute left-2.5 top-2.5 z-10 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold shadow-sm backdrop-blur-sm', t.chip)}>
+        <span className={cn('absolute left-2.5 top-2.5 z-10 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-3xs font-semibold shadow-sm backdrop-blur-sm', t.chip)}>
           <t.Icon className="size-3" />
           {t.label}
         </span>
 
         {/* 图集张数（bottom-left）：一次任务连出的多张图合并成一个产物，别让用户以为只交付了封面那一张 */}
         {item.type === 'image' && (item.imageCount ?? 0) > 1 && (
-          <span className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white shadow-sm backdrop-blur-sm">
+          <span className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-3xs font-medium tabular-nums text-white shadow-sm backdrop-blur-sm">
             <Images className="size-3" />
             {item.imageCount} 张
           </span>
@@ -846,7 +846,7 @@ function ArtifactCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onPreview() }}
-          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:bg-white dark:bg-neutral-900/85 dark:text-slate-200 dark:hover:bg-neutral-900"
+          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-3xs font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:bg-white dark:bg-neutral-900/85 dark:text-slate-200 dark:hover:bg-neutral-900"
         >
           <Eye className="size-3" />
           预览
@@ -860,32 +860,32 @@ function ArtifactCard({
             {item.title}
           </h3>
           {item.description && (
-            <p className="mt-1.5 line-clamp-2 text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+            <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-slate-600 dark:text-slate-300">
               {item.description}
             </p>
           )}
-          <p className="mt-1.5 line-clamp-1 text-[12px] leading-4 text-slate-400 dark:text-slate-500">
+          <p className="mt-1.5 line-clamp-1 text-xs leading-4 text-slate-400 dark:text-slate-500">
             {subtitle}
           </p>
         </button>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', t.chip)}>{t.label}</span>
+          <span className={cn('rounded px-1.5 py-0.5 text-3xs font-medium', t.chip)}>{t.label}</span>
           {contentTags.map((tag) => (
-            <span key={tag} className={cn('rounded-full px-1.5 py-0.5 text-[10px]', t.tag)}>
+            <span key={tag} className={cn('rounded-full px-1.5 py-0.5 text-3xs', t.tag)}>
               {tag}
             </span>
           ))}
         </div>
 
         {/* Footer bar — GitHub/Notion style: avatar · name · time · version · star · more */}
-        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-white/5 dark:text-slate-400">
+        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-white/5 dark:text-slate-400">
           <AgentAvatar agent={agentObj} size="xs" />
           <span className="truncate">{agentName}</span>
           <span aria-hidden>·</span>
           <span className="shrink-0">{formatRelativeTime(item.createdAt)}</span>
           <span className="ml-auto flex shrink-0 items-center gap-0.5">
-            <span className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
+            <span className="rounded bg-slate-100 px-1 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
@@ -964,12 +964,12 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
           style={{ background: primary ?? 'linear-gradient(to bottom right, #f97316, #fb923c, #fbbf24)' }}
         >
           {slideTitle ? (
-            <div className="line-clamp-2 text-[11px] font-bold leading-tight text-white drop-shadow-sm">{slideTitle}</div>
+            <div className="line-clamp-2 text-xs font-bold leading-tight text-white drop-shadow-sm">{slideTitle}</div>
           ) : (
             <div className="h-2.5 w-2/3 rounded bg-white/85" />
           )}
           {slideSubtitle ? (
-            <div className="mt-1 line-clamp-1 text-[8px] text-white/80">{slideSubtitle}</div>
+            <div className="mt-1 line-clamp-1 text-3xs text-white/80">{slideSubtitle}</div>
           ) : (
             <div className="mt-1 h-1 w-1/3 rounded bg-white/50" />
           )}
@@ -982,7 +982,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
                   className="mt-0.5 size-1.5 shrink-0 rounded-full"
                   style={{ background: primary ?? '#fb923c' }}
                 />
-                <span className="line-clamp-1 text-[8px] text-slate-600 dark:text-slate-300">{b}</span>
+                <span className="line-clamp-1 text-3xs text-slate-600 dark:text-slate-300">{b}</span>
               </div>
             ))
           ) : (
@@ -1022,7 +1022,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
         <div className="absolute bottom-0 left-0 right-0 h-6 rounded-t-[50%] bg-emerald-400/60 dark:bg-emerald-600/40" />
         <div className="absolute bottom-0 left-1/4 h-4 w-1/2 rounded-t-[60%] bg-emerald-500/50 dark:bg-emerald-700/40" />
         {!compact && shortTitle && (
-          <span className="absolute bottom-1.5 left-2 max-w-[70%] truncate rounded bg-black/40 px-1.5 py-0.5 text-[9px] font-medium text-white backdrop-blur-sm">
+          <span className="absolute bottom-1.5 left-2 max-w-[70%] truncate rounded bg-black/40 px-1.5 py-0.5 text-3xs font-medium text-white backdrop-blur-sm">
             {shortTitle}
           </span>
         )}
@@ -1032,7 +1032,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
 
   if (shape === 'tree') {
     return page(
-      <div className="px-3 pt-2.5 font-mono text-[9px] leading-[17px] text-slate-500 dark:text-slate-400">
+      <div className="px-3 pt-2.5 font-mono text-3xs leading-[17px] text-slate-500 dark:text-slate-400">
         <div className="font-semibold text-slate-700 dark:text-slate-300">▸ {shortTitle || 'src/'}</div>
         <div className="pl-3">▸ components/</div>
         <div className="pl-6">▸ Button.tsx</div>
@@ -1046,12 +1046,12 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
 
   if (shape === 'code') {
     return page(
-      <div className="h-full bg-neutral-900 px-2.5 pt-2 font-mono text-[9px] leading-[17px] dark:bg-black/70">
+      <div className="h-full bg-neutral-900 px-2.5 pt-2 font-mono text-3xs leading-[17px] dark:bg-black/70">
         <div className="flex items-center gap-1 pb-1.5">
           <span className="size-1 rounded-full bg-rose-400/80" />
           <span className="size-1 rounded-full bg-amber-400/80" />
           <span className="size-1 rounded-full bg-emerald-400/80" />
-          <span className="ml-1.5 text-[8px] text-slate-500">{shortTitle || 'main.ts'}</span>
+          <span className="ml-1.5 text-3xs text-slate-500">{shortTitle || 'main.ts'}</span>
         </div>
         <div><span className="mr-1.5 text-slate-600">1</span><span className="text-violet-400">import</span><span className="text-slate-300"> {'{ useState }'} </span><span className="text-violet-400">from</span><span className="text-emerald-400"> &apos;react&apos;</span></div>
         <div><span className="mr-1.5 text-slate-600">2</span><span className="text-violet-400">const</span><span className="text-sky-300"> App</span><span className="text-slate-300"> = () ={'>'} </span><span className="text-violet-400">{'{'}</span></div>
@@ -1065,7 +1065,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
 
   if (shape === 'diff') {
     return page(
-      <div className="space-y-0.5 px-2 pt-2.5 font-mono text-[9px] leading-[17px]">
+      <div className="space-y-0.5 px-2 pt-2.5 font-mono text-3xs leading-[17px]">
         <div className="rounded-r bg-emerald-500/10 px-1.5 text-emerald-600 dark:text-emerald-400">+ {shortTitle || 'export function App()'}</div>
         <div className="rounded-r bg-rose-500/10 px-1.5 text-rose-600 dark:text-rose-400">- export default Old</div>
         <div className="px-1.5 text-slate-400 dark:text-slate-500">  import {'{ x }'} from &apos;y&apos;</div>
@@ -1087,7 +1087,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
           <circle cx="90" cy="15" r="3" fill="currentColor" opacity="0.5" />
           <circle cx="90" cy="35" r="3" fill="currentColor" opacity="0.5" />
         </svg>
-        {shortTitle && <span className="absolute bottom-1 left-2 text-[8px] font-medium text-violet-500/70 dark:text-violet-400/60">{shortTitle}</span>}
+        {shortTitle && <span className="absolute bottom-1 left-2 text-3xs font-medium text-violet-500/70 dark:text-violet-400/60">{shortTitle}</span>}
       </div>,
     )
   }
@@ -1096,7 +1096,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
   return page(
     <div className="px-3 pt-2.5">
       {shortTitle ? (
-        <div className="text-[10px] font-bold leading-tight text-slate-800 dark:text-slate-200">{shortTitle}</div>
+        <div className="text-3xs font-bold leading-tight text-slate-800 dark:text-slate-200">{shortTitle}</div>
       ) : (
         <div className="h-1.5 w-2/5 rounded bg-slate-700/80 dark:bg-slate-300/80" />
       )}
@@ -1200,7 +1200,7 @@ function ArtifactDetailPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h2 className="truncate text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">{item.title}</h2>
-                  <span className="rounded-md border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">产物</span>
+                  <span className="rounded-md border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">产物</span>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{item.conversationTitle ?? '未命名会话'}</p>
               </div>

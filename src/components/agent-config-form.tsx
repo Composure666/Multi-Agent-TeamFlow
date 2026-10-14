@@ -377,7 +377,7 @@ export function AgentConfigForm({
                   onChange={(e) => onChange({ capabilitiesText: e.target.value })}
                   placeholder="testing, react, vitest"
                 />
-                <div className="mt-1 text-[10px] text-muted-foreground">用逗号或空格分隔</div>
+                <div className="mt-1 text-3xs text-muted-foreground">用逗号或空格分隔</div>
               </div>
             </div>
 
@@ -396,13 +396,13 @@ export function AgentConfigForm({
                       )}
                     >
                       <div className="font-medium">{opt.label}</div>
-                      <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                      <div className="mt-0.5 truncate text-3xs text-muted-foreground">
                         {opt.description}
                       </div>
                     </button>
                   ))}
                 </div>
-                <div className="mt-1 text-[10px] text-muted-foreground">
+                <div className="mt-1 text-3xs text-muted-foreground">
                   决定模型自动匹配的策略档位（{`agent:${value.modality}`}）
                 </div>
               </div>
@@ -428,7 +428,7 @@ export function AgentConfigForm({
                   />
                   <div className="min-w-0">
                     <div className="text-xs font-medium">Custom Agent SDK</div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    <div className="mt-0.5 text-3xs text-muted-foreground">
                       用 DeepSeek / OpenAI / 火山方舟 / 自定义 OpenAI-compatible API。可自定义工具集和模型。
                     </div>
                   </div>
@@ -448,7 +448,7 @@ export function AgentConfigForm({
                   />
                   <div className="min-w-0">
                     <div className="text-xs font-medium">Claude Code SDK</div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    <div className="mt-0.5 text-3xs text-muted-foreground">
                       用 @anthropic-ai/claude-agent-sdk，自带 Bash / Read / Write / Edit / Grep / Glob / WebFetch / Task 子 agent 等一整套工具。
                     </div>
                   </div>
@@ -468,7 +468,7 @@ export function AgentConfigForm({
                   />
                   <div className="min-w-0">
                     <div className="text-xs font-medium">Codex SDK</div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground">
+                    <div className="mt-0.5 text-3xs text-muted-foreground">
                       用 @openai/codex-sdk，支持本地仓库读写、命令执行、线程续接和结构化事件流；需要 Codex/Responses 兼容后端。
                     </div>
                   </div>
@@ -511,7 +511,7 @@ export function AgentConfigForm({
                     }
                     className="font-mono text-xs"
                   />
-                  <div className="mt-1 text-[10px] text-muted-foreground">
+                  <div className="mt-1 text-3xs text-muted-foreground">
                     {adapterKind === 'claude-code' ? (
                       <>
                         Claude 模型 id，例 <code className="font-mono">claude-opus-4-7</code> /{' '}
@@ -547,7 +547,7 @@ export function AgentConfigForm({
                     }
                     className="font-mono text-xs"
                   />
-                  <div className="mt-1 text-[10px] text-muted-foreground">
+                  <div className="mt-1 text-3xs text-muted-foreground">
                     {adapterKind === 'claude-code' ? (
                       <>
                         指向第三方 Claude API 兼容网关（如 <code className="font-mono">https://anyrouter.top</code>）；留空走 Anthropic 官方 endpoint。配此项时下方 API Key 自动作为 <code className="font-mono">ANTHROPIC_AUTH_TOKEN</code> 传给 SDK。
@@ -597,7 +597,7 @@ export function AgentConfigForm({
                     {showApiKey ? '隐藏' : '显示'}
                   </Button>
                 </div>
-                <div className="mt-1 text-[10px] text-muted-foreground">
+                <div className="mt-1 text-3xs text-muted-foreground">
                   {adapterKind === 'claude-code' && value.apiBaseUrl.trim() ? (
                     <>填写后作为 <code className="font-mono">ANTHROPIC_AUTH_TOKEN</code> 传给 SDK，路由到自定义 Base URL；留空则透传空 token（第三方网关可能拒绝）</>
                   ) : adapterKind === 'codex' && value.apiBaseUrl.trim() ? (
@@ -645,7 +645,7 @@ export function AgentConfigForm({
                 />
                 <div className="min-w-0">
                   <div className="text-xs font-medium">该模型支持视觉（多模态）</div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  <div className="mt-0.5 text-3xs text-muted-foreground">
                     {adapterKind === 'codex'
                       ? '勾选后，发图片时会以本地图片输入传给 Codex SDK。模型不支持会被拒绝，请确认 modelId 支持视觉。'
                       : '勾选后，发图片时会以 base64 注入 messages.content。模型不支持会被 API 拒绝 (400)，请确认你填的 modelId 真的支持视觉。'}
@@ -674,7 +674,7 @@ export function AgentConfigForm({
                           )}
                         >
                           <div className="text-xs font-medium">{preset.label}</div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
+                          <div className="mt-0.5 text-3xs text-muted-foreground">
                             {preset.desc}
                           </div>
                         </button>
@@ -707,9 +707,9 @@ export function AgentConfigForm({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-medium">{meta.label}</span>
-                            <code className="font-mono text-[10px] text-muted-foreground">{t}</code>
+                            <code className="font-mono text-3xs text-muted-foreground">{t}</code>
                           </div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">{meta.desc}</div>
+                          <div className="mt-0.5 text-3xs text-muted-foreground">{meta.desc}</div>
                         </div>
                       </label>
                     )
@@ -719,7 +719,7 @@ export function AgentConfigForm({
             ) : (
               <div className="grid grid-cols-[80px_1fr] items-start gap-3">
                 <Label>工具集</Label>
-                <div className="rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   {adapterKind === 'claude-code' ? (
                     <>
                       Claude Code agent 使用 SDK 内置工具集：Bash / Read / Write / Edit / Grep / Glob /
@@ -739,7 +739,7 @@ export function AgentConfigForm({
               <Label>Skills</Label>
               <div className="grid gap-1.5">
                 {skills.length === 0 ? (
-                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                     暂无 Skills；可在设置里刷新 Skills 索引。
                   </div>
                 ) : (
@@ -769,7 +769,7 @@ export function AgentConfigForm({
                         />
                         <div className="min-w-0">
                           <div className="text-xs font-medium">{skill.name}</div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">{skill.description}</div>
+                          <div className="mt-0.5 text-3xs text-muted-foreground">{skill.description}</div>
                         </div>
                       </label>
                     )
@@ -782,7 +782,7 @@ export function AgentConfigForm({
               <Label>MCP</Label>
               <div className="grid gap-1.5">
                 {(adapterKind === 'custom' || mcpServers.length === 0) && (
-                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                     {adapterKind === 'custom'
                       ? 'Custom adapter 当前暂不支持外部 MCP。'
                       : '暂无 MCP server；可在设置里添加。'}
@@ -818,9 +818,9 @@ export function AgentConfigForm({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 text-xs font-medium">
                             <span>{server.name}</span>
-                            <code className="text-[10px] text-muted-foreground">{server.trust}</code>
+                            <code className="text-3xs text-muted-foreground">{server.trust}</code>
                           </div>
-                          <div className="mt-0.5 text-[10px] text-muted-foreground">
+                          <div className="mt-0.5 text-3xs text-muted-foreground">
                             {server.command} {server.args.join(' ')}
                             {adapterKind === 'codex' && server.trust === 'ask' ? ' · Codex 仅支持 always' : ''}
                           </div>

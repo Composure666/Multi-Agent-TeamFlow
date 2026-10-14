@@ -292,7 +292,7 @@ export function AnalyticsWorkspace() {
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6">
         <div className="min-w-0">
           <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">数据概览</h1>
-          <p className="mt-1 text-[13px] text-slate-500">多维度了解 Agent 的运行情况、任务效率与资源使用</p>
+          <p className="mt-1 text-sm text-slate-500">多维度了解 Agent 的运行情况、任务效率与资源使用</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative" ref={dateRangeRef}>
@@ -308,7 +308,7 @@ export function AnalyticsWorkspace() {
                 ))}
                 <div className="my-1 border-t border-slate-100" />
                 <div className="px-3 py-2">
-                  <div className="mb-1.5 text-[10px] font-medium text-slate-400">自定义范围</div>
+                  <div className="mb-1.5 text-3xs font-medium text-slate-400">自定义范围</div>
                   <div className="flex items-center gap-1">
                     <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
                     <span className="text-slate-300">~</span>
@@ -394,7 +394,7 @@ export function AnalyticsWorkspace() {
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">运行趋势</h2>
+                    <h2 className="text-base font-semibold tracking-tight text-slate-900">运行趋势</h2>
                     <p className="mt-1 text-sm text-slate-500">
                       {isAllTime ? '全部时间' : `${dateStart} ~ ${dateEnd}`} Agent 运行次数与成功次数
                       {trend.length > 31 && '（按周聚合）'}
@@ -414,11 +414,11 @@ export function AnalyticsWorkspace() {
 
               {/* Middle: Agent Distribution Donut */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                <div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold tracking-tight text-slate-900">Agent 运行分布</h2></div>
+                <div className="flex items-center justify-between"><h2 className="text-base font-semibold tracking-tight text-slate-900">Agent 运行分布</h2></div>
                 <DonutChart items={agentDistribution} total={totalRuns} />
                 <div className="mt-3 space-y-2">
                   {agentDistribution.map((item, i) => (
-                    <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-[13px]">
+                    <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-sm">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                         <span className="truncate text-slate-600">{item.label}</span>
@@ -435,7 +435,7 @@ export function AnalyticsWorkspace() {
                 {/* Live Activity */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">最近运行动态</h2>
+                    <h2 className="text-base font-semibold tracking-tight text-slate-900">最近运行动态</h2>
                     <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
                   </div>
                   <div className="mt-3 space-y-0">
@@ -456,7 +456,7 @@ export function AnalyticsWorkspace() {
                             </div>
                           </div>
                           <div className="min-w-0 flex-1 pb-3.5">
-                            <div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
+                            <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
                             <p className="mt-0.5 truncate text-sm text-slate-400">{item.description}</p>
                           </div>
                         </div>
@@ -467,11 +467,11 @@ export function AnalyticsWorkspace() {
 
                 {/* Status Distribution */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                  <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">运行状态分布</h2>
+                  <h2 className="text-base font-semibold tracking-tight text-slate-900">运行状态分布</h2>
                   <div className="mt-3 space-y-2.5">
                     {statusDistribution.map((item) => (
                       <div key={`st-${item.label}`}>
-                        <div className="mb-1.5 flex items-center justify-between text-[13px]">
+                        <div className="mb-1.5 flex items-center justify-between text-sm">
                           <span className="flex items-center gap-2 text-slate-600"><span className="size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[item.label as RunStatus] ?? '#94A3B8' }} />{item.label}</span>
                           <span className="font-medium text-slate-700">{item.count} 次 · {item.value}%</span>
                         </div>
@@ -487,7 +487,7 @@ export function AnalyticsWorkspace() {
               <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md lg:col-span-2">
                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
                   <div className="min-w-0">
-                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-900">任务列表</h2>
+                    <h2 className="text-base font-semibold tracking-tight text-slate-900">任务列表</h2>
                     <p className="mt-0.5 text-xs text-slate-400">
                       数据源 agent_runs · 范围内共 {totalRuns} 条
                       {analytics?.truncated && `（列表展示最近 ${analytics.items.length} 条）`}
@@ -543,7 +543,7 @@ export function AnalyticsWorkspace() {
                   {(['全部', '运行中', '成功', '失败', '已中止'] as TaskListTab[]).map((tab) => {
                     const count = tab === '全部' ? runs.length : runs.filter((r) => r.status === tab).length
                     return (
-                      <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative shrink-0 px-3 py-2.5 text-[13px] font-medium transition', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-500 hover:text-slate-700')}>
+                      <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative shrink-0 px-3 py-2.5 text-sm font-medium transition', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-500 hover:text-slate-700')}>
                         {tab}<span className={cn('ml-1.5 text-xs', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-400')}>{count}</span>
                         {taskTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#2F5FD0]" />}
                       </button>
@@ -577,7 +577,7 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className={cn('flex size-9 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4" /></div>
-          <span className="text-[13px] font-medium text-slate-700">{label}</span>
+          <span className="text-sm font-medium text-slate-700">{label}</span>
         </div>
       </div>
       <div className="mt-3.5 flex items-end justify-between gap-3">
@@ -628,6 +628,15 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
   const plotW = svgW - padL - padR, plotH = chartH
   const gap = plotW / data.length
   const barW = Math.max(6, Math.min(32, gap * 0.45))
+  /**
+   * x 轴日期标签的抽取步长。
+   *
+   * ❗ 这是 2026-10-14 字号整改时顺带修掉的一个**既有**间距问题：标签原本是「天数 ≤31 就全标」，
+   * 但 12 号字下「10/09」约占 30 个用户单位宽，而 31 天视图里每个刻度只有 plotW/31 ≈ 16 个
+   * 用户单位 —— 全标必然互相压字。7 天视图（每刻度 72 单位）不受影响，故按天数自适应抽取，
+   * 既保住日期信息又不重叠。
+   */
+  const xLabelStride = Math.max(1, Math.ceil(data.length / 10))
   const yTicks = [0, Math.round(maxTrend * 0.25), Math.round(maxTrend * 0.5), Math.round(maxTrend * 0.75), maxTrend]
   const linePts = data.map((p, i) => {
     const x = padL + gap * i + gap / 2
@@ -655,7 +664,10 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
           return (
             <g key={`yt-${i}-${tick}`}>
               <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="#F4F6FA" strokeWidth="1" />
-              <text x={padL - 8} y={y + 3} textAnchor="end" fill="#CBD5E1" fontSize="10">{tick}</text>
+              {/* ❗ 原为 fill="#CBD5E1" fontSize="10"：硬编码浅灰 + 在 560×200 的 viewBox 里
+                  只渲染到 9.1px（另见下方 x 轴）。对白底 #CBD5E1 仅 1.6:1 —— 全应用最差的一处。
+                  改成主题感知的 slate 阶梯，并抬到 12 号（渲染约 10.9px）。 */}
+              <text x={padL - 8} y={y + 3} textAnchor="end" fontSize="12" className="fill-slate-500 dark:fill-slate-400">{tick}</text>
             </g>
           )
         })}
@@ -668,8 +680,8 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
           return (
             <g key={`bar-${point.date}`} onMouseEnter={() => onHoverBar(i)} onMouseLeave={() => onHoverBar(null)} className="cursor-pointer">
               <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx="3" fill={isH ? '#1d4ed8' : '#2F5FD0'} opacity={isH ? 1 : 0.85} />
-              {data.length <= 31 && (
-                <text x={cx} y={padT + plotH + 18} textAnchor="middle" fill="#94A3B8" fontSize="10">{point.label}</text>
+              {i % xLabelStride === 0 && (
+                <text x={cx} y={padT + plotH + 18} textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-slate-400">{point.label}</text>
               )}
             </g>
           )
@@ -729,7 +741,7 @@ function DonutChart({ items, total }: { items: DistributionItem[]; total: number
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg font-bold text-slate-900">{total}</span>
-        <span className="text-[10px] text-slate-400">运行总数</span>
+        <span className="text-3xs text-slate-400">运行总数</span>
       </div>
     </div>
   )
@@ -743,7 +755,7 @@ function StatusBadge({ status }: { status: RunStatus }) {
     失败: 'bg-rose-50 text-rose-600',
     已中止: 'bg-slate-100 text-slate-500',
   }
-  return <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', s[status] ?? 'bg-slate-100 text-slate-500')}>{status}</span>
+  return <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-medium', s[status] ?? 'bg-slate-100 text-slate-500')}>{status}</span>
 }
 
 /* ─ Task Table ── */
@@ -771,7 +783,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-[13px]">
+      <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-100 text-sm font-medium text-slate-400">
             <th className="px-5 py-2.5">任务名称</th>
@@ -788,12 +800,12 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
             <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-slate-50/50">
               <td className="max-w-[280px] px-5 py-3">
                 <div className="truncate font-medium text-slate-800" title={run.title}>{run.title}</div>
-                {run.isSubRun && <span className="text-[10px] text-slate-400">子任务</span>}
+                {run.isSubRun && <span className="text-3xs text-slate-400">子任务</span>}
               </td>
               <td className="px-5 py-3">
                 <div className="flex items-center gap-1.5">
                   <span className="max-w-[120px] truncate text-slate-700" title={run.agentName}>{run.agentName}</span>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{run.category}</span>
+                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500">{run.category}</span>
                 </div>
               </td>
               <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.createdAt}</td>
@@ -801,7 +813,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
               <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.totalTokens > 0 ? formatTok(run.totalTokens) : '—'}</td>
               <td className="px-5 py-3"><StatusBadge status={run.status} /></td>
               <td className="px-5 py-3 text-right">
-                <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-[13px] font-medium text-[#2F5FD0] hover:text-[#244FB3]">查看</button>
+                <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-sm font-medium text-[#2F5FD0] hover:text-[#244FB3]">查看</button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button

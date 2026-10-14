@@ -245,7 +245,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
       {/* 版本切换条：展开时显示所有版本，点击切换 */}
       {showVersions && versions && versions.length > 0 && (
         <div className="shrink-0 border-b bg-muted/20 px-3 py-2">
-          <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="mb-1 text-3xs uppercase tracking-wider text-muted-foreground">
             版本历史
           </div>
           <div className="flex flex-wrap gap-1">
@@ -257,7 +257,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
                   type="button"
                   onClick={() => switchVersion(v.id)}
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition',
+                    'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition',
                     isCurrent
                       ? 'border-primary bg-primary/10 text-foreground'
                       : 'border-transparent hover:border-foreground/20 hover:bg-accent',
@@ -267,7 +267,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
                   <span className="font-mono">v{v.version}</span>
                   <span className="text-muted-foreground">·</span>
                   <Clock className="size-2.5" />
-                  <span className="font-mono text-[10px] text-muted-foreground">
+                  <span className="font-mono text-3xs text-muted-foreground">
                     {new Date(v.createdAt).toLocaleTimeString('zh-CN', {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -278,7 +278,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
             })}
           </div>
           {versionsLoading && (
-            <div className="mt-1 text-[10px] text-muted-foreground">加载中…</div>
+            <div className="mt-1 text-3xs text-muted-foreground">加载中…</div>
           )}
         </div>
       )}
@@ -680,7 +680,7 @@ function MermaidPreview({ content }: { content: Extract<ArtifactContent, { type:
         </Button>
         <button
           type="button"
-          className="min-w-12 rounded px-1.5 py-1 text-center font-mono text-[11px] text-muted-foreground transition hover:bg-accent hover:text-foreground"
+          className="min-w-12 rounded px-1.5 py-1 text-center font-mono text-xs text-muted-foreground transition hover:bg-accent hover:text-foreground"
           onClick={() => setZoom(1.25)}
           title="重置缩放"
         >
@@ -1057,7 +1057,7 @@ function MetricBlock({
       className="min-w-0 rounded-lg border px-3 py-2"
       style={{ background: hx(theme.background), borderColor: hx(theme.divider) }}
     >
-      <div className="line-clamp-1 text-[11px] font-medium uppercase tracking-wide" style={{ color: hx(theme.textMuted) }}>
+      <div className="line-clamp-1 text-xs font-medium uppercase tracking-wide" style={{ color: hx(theme.textMuted) }}>
         {block.label}
       </div>
       <div className="mt-1 line-clamp-1 break-words text-2xl font-bold [overflow-wrap:anywhere]" style={{ color }}>
@@ -1114,7 +1114,7 @@ function TimelineBlock({
     <div className="grid min-w-0 grid-cols-2 gap-2 overflow-hidden">
       {block.items.slice(0, 6).map((item, index) => (
         <div key={`${item.label}-${index}`} className="min-w-0 rounded-md border px-3 py-2" style={{ background: hx(theme.background), borderColor: hx(theme.divider) }}>
-          <div className="line-clamp-1 text-[11px] font-semibold" style={{ color: hx(theme.primary) }}>{item.label}</div>
+          <div className="line-clamp-1 text-xs font-semibold" style={{ color: hx(theme.primary) }}>{item.label}</div>
           {item.title && <div className="line-clamp-1 text-sm font-medium" style={{ color: hx(theme.textBody) }}>{item.title}</div>}
           {item.text && <div className="mt-0.5 line-clamp-2 break-words text-xs [overflow-wrap:anywhere]" style={{ color: hx(theme.textMuted) }}>{item.text}</div>}
         </div>
@@ -1227,7 +1227,7 @@ function ImageView({ content }: { content: Extract<ArtifactContent, { type: 'ima
       </div>
       {images.length > 1 && (
         <div className="shrink-0 border-t border-zinc-200 bg-white/80 px-3 py-2 dark:border-white/10 dark:bg-neutral-950/60">
-          <div className="mb-1.5 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+          <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
             <span>共 {images.length} 张</span>
             <span className="tabular-nums">{index + 1} / {images.length}</span>
           </div>
@@ -1357,10 +1357,10 @@ function CodeFileView({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
         <code className="min-w-0 flex-1 truncate font-mono">{content.workspacePath}</code>
-        <span className="font-mono text-[10px]">{language}</span>
-        <span className="font-mono text-[10px]">{(size / 1024).toFixed(1)} KB</span>
+        <span className="font-mono text-3xs">{language}</span>
+        <span className="font-mono text-3xs">{(size / 1024).toFixed(1)} KB</span>
         {truncated && (
-          <span className="font-mono text-[10px] text-amber-600" title="文件已截断，不可保存">
+          <span className="font-mono text-3xs text-amber-600" title="文件已截断，不可保存">
             已截断
           </span>
         )}
@@ -1494,7 +1494,7 @@ function ProjectView({
             <FolderGit2 className="size-4 text-muted-foreground" />
             <span>项目文件</span>
           </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
+          <div className="mt-1 text-xs text-muted-foreground">
             {content.files.length} 个文件 · {formatBytes(totalBytes)}
           </div>
         </div>
@@ -1522,12 +1522,12 @@ function ProjectView({
           )}
           <span className="min-w-0 flex-1 truncate font-mono">{activePath}</span>
           {activeFile && (
-            <span className="shrink-0 text-[11px] text-muted-foreground">
+            <span className="shrink-0 text-xs text-muted-foreground">
               {formatBytes(activeFile.sizeBytes)}
             </span>
           )}
           {truncated && (
-            <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-400">
+            <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-3xs text-amber-700 dark:text-amber-400">
               已截断
             </span>
           )}
@@ -1612,7 +1612,7 @@ function ProjectTreeNodeRow({
         <Icon className={cn('size-3.5 shrink-0', iconSpec.cls)} />
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
         {node.file && (
-          <span className="shrink-0 text-[10px] text-muted-foreground">
+          <span className="shrink-0 text-3xs text-muted-foreground">
             {formatBytes(node.file.sizeBytes)}
           </span>
         )}
@@ -1719,7 +1719,7 @@ function VersionCompareView({
             <section key={section.key} className="border-b last:border-b-0">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/20 px-4 py-2 text-xs">
                 <code className="min-w-0 truncate font-mono">{section.title}</code>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                <span className="shrink-0 font-mono text-3xs text-muted-foreground">
                   v{base.version} → v{target.version}
                 </span>
               </div>
@@ -1776,14 +1776,14 @@ function DiffArtifactView({ content }: { content: Extract<ArtifactContent, { typ
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center gap-2 border-b bg-muted/20 px-4 py-2 text-xs">
         <GitCompare className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="rounded border border-border bg-background px-1.5 py-0.5 text-3xs text-muted-foreground">
           历史 diff · 只读
         </span>
         <span className="text-muted-foreground">目标产物</span>
         <code className="min-w-0 flex-1 truncate font-mono">{content.targetArtifactId}</code>
         <span
           className={cn(
-            'rounded border px-1.5 py-0.5 text-[10px]',
+            'rounded border px-1.5 py-0.5 text-3xs',
             content.applied
               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
               : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',

@@ -191,11 +191,11 @@ function RunListItem({ run, selected, onClick }: { run: AgentRunDebugListItem; s
         <StatusBadge status={run.status} />
       </div>
       <div className="mt-1 truncate text-slate-600">{run.agentName ?? run.agentId}</div>
-      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
         <span>{formatDuration(run.startedAt, run.finishedAt)}</span>
         <span>{total > 0 ? `${formatNumber(total)} tok` : '无用量'}</span>
       </div>
-      {!run.hasDebugSnapshot && <div className="mt-2 text-[11px] text-amber-600">无快照</div>}
+      {!run.hasDebugSnapshot && <div className="mt-2 text-xs text-amber-600">无快照</div>}
     </button>
   )
 }
@@ -323,7 +323,7 @@ function RelationsSection({ relations }: { relations: AgentRunRelationsSummary }
         {relations.parent ? <RelationCard label="Parent" run={relations.parent} /> : <div className="text-slate-500">无 parent run</div>}
         {relations.children.length > 0 ? (
           <div className="space-y-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Children</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Children</div>
             {relations.children.map((run) => (
               <RelationCard key={run.id} label="Child" run={run} />
             ))}
@@ -342,11 +342,11 @@ function RelationCard({ label, run }: { label: string; run: AgentRunRelationsSum
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-slate-800">{label} · {run.agentName ?? run.agentId}</div>
-          <div className="mt-0.5 break-all font-mono text-[10px] text-slate-500">{run.id}</div>
+          <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">{run.id}</div>
         </div>
         <StatusBadge status={run.status} />
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
         <div>adapter: {run.adapterName ?? '-'}</div>
         <div>model: {run.modelId ?? '-'}</div>
         <div>duration: {formatDuration(run.startedAt, run.finishedAt)}</div>
@@ -378,13 +378,13 @@ function MessageSummaryCard({ label, message }: { label: string; message: AgentR
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-slate-800">{label} · {message.role}</div>
-          <div className="mt-0.5 break-all font-mono text-[10px] text-slate-500">
+          <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">
             {shortId(message.messageId)} · run {message.runId ? shortId(message.runId) : '-'}
           </div>
         </div>
-        <Badge variant={message.status === 'complete' ? 'secondary' : 'outline'} className="h-5 px-1.5 text-[10px]">{message.status}</Badge>
+        <Badge variant={message.status === 'complete' ? 'secondary' : 'outline'} className="h-5 px-1.5 text-3xs">{message.status}</Badge>
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
         <div>parts: {message.partCount}</div>
         <div>text: {formatNumber(message.textChars)} chars</div>
         <div>thinking: {formatNumber(message.thinkingChars)} chars</div>
@@ -407,13 +407,13 @@ function TimelineSection({ items }: { items: AgentRunTimelineItem[] }) {
         <div className="space-y-1.5">
           {items.map((item) => (
             <div key={item.id} className={cn('grid grid-cols-[72px_1fr_auto] gap-2 rounded-lg bg-slate-50 px-2 py-1.5', item.status === 'error' && 'bg-red-50 text-red-700')}>
-              <div className="text-[10px] uppercase tracking-wide text-slate-400">{item.kind}</div>
+              <div className="text-3xs uppercase tracking-wide text-slate-400">{item.kind}</div>
               <div className="min-w-0">
                 <div className="truncate font-medium text-slate-800">{item.label}</div>
-                <div className="mt-0.5 break-all font-mono text-[10px] text-slate-500">{shortId(item.messageId)}:{item.partIndex}</div>
-                <div className="mt-1 break-all text-[11px] text-slate-600">{item.detail}</div>
+                <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">{shortId(item.messageId)}:{item.partIndex}</div>
+                <div className="mt-1 break-all text-xs text-slate-600">{item.detail}</div>
               </div>
-              <Badge variant={item.status === 'error' ? 'destructive' : item.status === 'pending' ? 'outline' : 'secondary'} className="h-5 px-1.5 text-[10px]">{item.status}</Badge>
+              <Badge variant={item.status === 'error' ? 'destructive' : item.status === 'pending' ? 'outline' : 'secondary'} className="h-5 px-1.5 text-3xs">{item.status}</Badge>
             </div>
           ))}
         </div>
@@ -434,15 +434,15 @@ function ArtifactsSection({ items }: { items: AgentRunArtifactDebugItem[] }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate font-medium text-slate-800">{item.title ?? item.artifactId}</div>
-                  <div className="mt-0.5 break-all font-mono text-[10px] text-slate-500">
+                  <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">
                     {item.kind} · {shortId(item.messageId)}:{item.partIndex}
                   </div>
                 </div>
-                <Badge variant={item.isError ? 'destructive' : 'outline'} className="h-5 px-1.5 text-[10px]">
+                <Badge variant={item.isError ? 'destructive' : 'outline'} className="h-5 px-1.5 text-3xs">
                   {item.status ?? item.kind}
                 </Badge>
               </div>
-              <div className="mt-2 grid gap-1 text-[11px] text-slate-500">
+              <div className="mt-2 grid gap-1 text-xs text-slate-500">
                 <div><span className="text-slate-400">artifact:</span> <span className="font-mono">{item.artifactId}</span></div>
                 {item.version !== null ? <div><span className="text-slate-400">version:</span> {item.version}</div> : null}
                 {item.previewPath ? <div><span className="text-slate-400">preview:</span> <span className="font-mono">{item.previewPath}</span></div> : null}
@@ -483,13 +483,13 @@ function ToolTraceCard({ item }: { item: AgentRunToolTraceItem }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-medium text-slate-800">{item.toolName}</div>
-          <div className="mt-0.5 break-all font-mono text-[10px] text-slate-500">
+          <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">
             {shortId(item.callId)} · message {shortId(item.messageId)}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{kind}</Badge>
-          <Badge variant={variant} className="h-5 px-1.5 text-[10px]">{status}</Badge>
+          <Badge variant="outline" className="h-5 px-1.5 text-3xs">{kind}</Badge>
+          <Badge variant={variant} className="h-5 px-1.5 text-3xs">{status}</Badge>
         </div>
       </div>
       <TracePayload label="Args" value={summarizeAgentRunToolTraceArgs(item)} />
@@ -501,8 +501,8 @@ function ToolTraceCard({ item }: { item: AgentRunToolTraceItem }) {
 function TracePayload({ label, value }: { label: string; value: string }) {
   return (
     <div className="mt-2 rounded bg-white px-2 py-1.5">
-      <div className="text-[10px] uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-1 break-all font-mono text-[11px] leading-4 text-slate-700">{value}</div>
+      <div className="text-3xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-1 break-all font-mono text-xs leading-4 text-slate-700">{value}</div>
     </div>
   )
 }
@@ -517,8 +517,8 @@ function AskUserSection({ interactions }: { interactions: AgentRunAskUserInterac
           {interactions.map((interaction) => (
             <div key={`${interaction.messageId}-${interaction.callId}`} className="rounded-lg border bg-slate-50 px-3 py-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="font-mono text-[10px] text-slate-500">{shortId(interaction.callId)} · {interaction.questionCount} question(s)</div>
-                <Badge variant={interaction.isError ? 'destructive' : interaction.answered ? 'secondary' : 'outline'} className="h-5 px-1.5 text-[10px]">
+                <div className="font-mono text-3xs text-slate-500">{shortId(interaction.callId)} · {interaction.questionCount} question(s)</div>
+                <Badge variant={interaction.isError ? 'destructive' : interaction.answered ? 'secondary' : 'outline'} className="h-5 px-1.5 text-3xs">
                   {interaction.isError ? 'error' : interaction.answered ? 'answered' : 'pending'}
                 </Badge>
               </div>
@@ -526,10 +526,10 @@ function AskUserSection({ interactions }: { interactions: AgentRunAskUserInterac
                 {interaction.questions.map((question, index) => (
                   <div key={`${question.question}-${index}`} className="rounded bg-white px-2 py-1.5">
                     <div className="font-medium text-slate-800">{question.header ? `${question.header}: ` : ''}{question.question}</div>
-                    <div className="mt-1 text-[11px] text-slate-500">
+                    <div className="mt-1 text-xs text-slate-500">
                       {question.multiSelect ? 'multi' : 'single'} · options: {question.options.join(', ') || '-'}
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-700">answer: {question.answer ?? '-'}</div>
+                    <div className="mt-1 text-xs text-slate-700">answer: {question.answer ?? '-'}</div>
                   </div>
                 ))}
               </div>
@@ -553,11 +553,11 @@ function TaskResultsSection({ results }: { results: AgentRunTaskResultTrace[] })
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium text-slate-800">{result.summary}</div>
-                  <div className="mt-0.5 font-mono text-[10px] text-slate-500">{shortId(result.callId)} · message {shortId(result.messageId)}</div>
+                  <div className="mt-0.5 font-mono text-3xs text-slate-500">{shortId(result.callId)} · message {shortId(result.messageId)}</div>
                 </div>
-                <Badge variant={result.status === 'complete' ? 'secondary' : 'destructive'} className="h-5 px-1.5 text-[10px]">{result.status}</Badge>
+                <Badge variant={result.status === 'complete' ? 'secondary' : 'destructive'} className="h-5 px-1.5 text-3xs">{result.status}</Badge>
               </div>
-              <div className="mt-2 grid gap-1 text-[11px] text-slate-500">
+              <div className="mt-2 grid gap-1 text-xs text-slate-500">
                 {result.filesChanged?.length ? <div><span className="text-slate-400">files:</span> {result.filesChanged.map((file) => `${file.action ?? 'changed'}:${file.path}`).join(', ')}</div> : null}
                 {result.commandsRun?.length ? <div><span className="text-slate-400">commands:</span> {result.commandsRun.map((command) => `${command.exitCode ?? '-'}:${command.command}`).join(' | ')}</div> : null}
                 {result.tests?.length ? <div><span className="text-slate-400">tests:</span> {result.tests.map((test) => `${test.passed ? 'pass' : 'fail'}:${test.command}`).join(' | ')}</div> : null}
@@ -581,17 +581,17 @@ function PlanDagSection({ dag }: { dag: AgentRunPlanDagProjection }) {
         <div className="text-slate-500">本 run 没有可视化计划。</div>
       ) : (
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">root: {dag.nodes.filter((node) => node.isRoot).length}</Badge>
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">leaf: {dag.nodes.filter((node) => node.isLeaf).length}</Badge>
-            {dag.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">cycle</Badge>}
-            {dag.missingDependencyCount > 0 && <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">missing deps</Badge>}
+          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+            <Badge variant="outline" className="h-5 px-1.5 text-3xs">root: {dag.nodes.filter((node) => node.isRoot).length}</Badge>
+            <Badge variant="outline" className="h-5 px-1.5 text-3xs">leaf: {dag.nodes.filter((node) => node.isLeaf).length}</Badge>
+            {dag.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-3xs">cycle</Badge>}
+            {dag.missingDependencyCount > 0 && <Badge variant="destructive" className="h-5 px-1.5 text-3xs">missing deps</Badge>}
           </div>
           <div className="overflow-x-auto rounded-xl border bg-slate-50 p-3">
             <div className="flex min-w-max items-start gap-3">
               {dag.layers.map((layer, layerIndex) => (
                 <div key={`layer-${layerIndex}`} className="w-56 shrink-0">
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Step {layerIndex + 1}</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Step {layerIndex + 1}</div>
                   <div className="space-y-2">
                     {layer.map((nodeId) => {
                       const node = nodeById.get(nodeId)
@@ -605,10 +605,10 @@ function PlanDagSection({ dag }: { dag: AgentRunPlanDagProjection }) {
           </div>
           {dag.edges.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Dependencies</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Dependencies</div>
               <div className="flex flex-wrap gap-1.5">
                 {dag.edges.map((edge) => (
-                  <Badge key={`${edge.from}-${edge.to}`} variant="outline" className="h-5 px-1.5 font-mono text-[10px]">
+                  <Badge key={`${edge.from}-${edge.to}`} variant="outline" className="h-5 px-1.5 font-mono text-3xs">
                     {edge.from} → {edge.to}
                   </Badge>
                 ))}
@@ -626,16 +626,16 @@ function PlanDagNodeCard({ node }: { node: AgentRunPlanDagProjection['nodes'][nu
     <div className={cn('rounded-lg border bg-white px-3 py-2 shadow-sm', node.hasCycle && 'border-red-200 bg-red-50')}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate font-mono text-[11px] font-semibold text-slate-800">{node.id}</div>
-          <div className="mt-0.5 truncate text-[11px] text-slate-500">agent: {node.agentId}</div>
+          <div className="truncate font-mono text-xs font-semibold text-slate-800">{node.id}</div>
+          <div className="mt-0.5 truncate text-xs text-slate-500">agent: {node.agentId}</div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {node.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{node.taskKind}</Badge>}
-          {node.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">cycle</Badge>}
+          {node.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-3xs">{node.taskKind}</Badge>}
+          {node.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-3xs">cycle</Badge>}
         </div>
       </div>
-      <div className="mt-2 line-clamp-3 text-[11px] leading-4 text-slate-700">{node.task}</div>
-      <div className="mt-2 space-y-1 text-[10px] text-slate-500">
+      <div className="mt-2 line-clamp-3 text-xs leading-4 text-slate-700">{node.task}</div>
+      <div className="mt-2 space-y-1 text-3xs text-slate-500">
         <div>depends: {node.dependsOn.length ? node.dependsOn.join(', ') : node.isRoot ? 'root' : '-'}</div>
         {node.missingDependsOn.length > 0 && <div className="text-red-600">missing: {node.missingDependsOn.join(', ')}</div>}
         <div>next: {node.dependents.length ? node.dependents.join(', ') : node.isLeaf ? 'leaf' : '-'}</div>
@@ -655,15 +655,15 @@ function AgentChainsSection({ chains }: { chains: AgentRunAgentTaskChain[] }) {
             <div key={chain.agentId} className="rounded-lg border bg-slate-50 px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="font-medium text-slate-800">{chain.agentId}</div>
-                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                <Badge variant="outline" className="h-5 px-1.5 text-3xs">
                   {chain.tasks.length} tasks · {chain.commands.length} commands
                 </Badge>
               </div>
               <div className="mt-2 space-y-2">
                 {chain.tasks.length > 0 && (
                   <div className="rounded bg-white px-2 py-1.5">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">Task chain</div>
-                    <div className="mt-1 space-y-1 text-[11px] text-slate-700">
+                    <div className="text-3xs uppercase tracking-wide text-slate-400">Task chain</div>
+                    <div className="mt-1 space-y-1 text-xs text-slate-700">
                       {chain.tasks.map((task) => (
                         <div key={task.id} className="grid grid-cols-[72px_1fr] gap-2">
                           <span className="font-mono text-slate-500">{task.id}</span>
@@ -675,10 +675,10 @@ function AgentChainsSection({ chains }: { chains: AgentRunAgentTaskChain[] }) {
                 )}
                 {chain.commands.length > 0 && (
                   <div className="rounded bg-white px-2 py-1.5">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">Terminal output</div>
+                    <div className="text-3xs uppercase tracking-wide text-slate-400">Terminal output</div>
                     <div className="mt-1 space-y-1">
                       {chain.commands.map((command, index) => (
-                        <div key={`${command.callId}-${index}`} className={cn('rounded bg-slate-950 px-2 py-1.5 font-mono text-[10px] leading-4 text-slate-100', command.isError && 'bg-red-950')}>
+                        <div key={`${command.callId}-${index}`} className={cn('rounded bg-slate-950 px-2 py-1.5 font-mono text-3xs leading-4 text-slate-100', command.isError && 'bg-red-950')}>
                           <div>{command.command}</div>
                           <div className="mt-0.5 text-slate-400">{command.exitCode === null ? command.status ?? 'running' : `exit ${command.exitCode}`}</div>
                         </div>
@@ -688,8 +688,8 @@ function AgentChainsSection({ chains }: { chains: AgentRunAgentTaskChain[] }) {
                 )}
                 {chain.taskResults.length > 0 && (
                   <div className="rounded bg-white px-2 py-1.5">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">Reports</div>
-                    <div className="mt-1 space-y-1 text-[11px] text-slate-700">
+                    <div className="text-3xs uppercase tracking-wide text-slate-400">Reports</div>
+                    <div className="mt-1 space-y-1 text-xs text-slate-700">
                       {chain.taskResults.map((result) => (
                         <div key={result.callId}>{result.status}: {result.summary}</div>
                       ))}
@@ -719,9 +719,9 @@ function PlanTasksSection({ tasks }: { tasks: DispatchPlanItem[] }) {
                   <div className="font-medium text-slate-800">{task.id} · {task.agentId}</div>
                   <div className="mt-1 whitespace-pre-wrap text-slate-700">{task.task}</div>
                 </div>
-                {task.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{task.taskKind}</Badge>}
+                {task.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-3xs">{task.taskKind}</Badge>}
               </div>
-              <div className="mt-2 grid gap-1 text-[11px] text-slate-500">
+              <div className="mt-2 grid gap-1 text-xs text-slate-500">
                 <OptionalList label="depends" values={task.dependsOn} />
                 <OptionalList label="targets" values={task.targetPaths} />
                 <OptionalList label="accept" values={task.acceptanceCriteria} />
@@ -791,7 +791,7 @@ function OperationGroup({ title, empty, children }: { title: string; empty: stri
   const hasChildren = Array.isArray(children) ? children.length > 0 : Boolean(children)
   return (
     <div>
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{title}</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</div>
       {hasChildren ? <div className="space-y-1">{children}</div> : <div className="text-slate-500">{empty}</div>}
     </div>
   )
@@ -801,7 +801,7 @@ function OperationRow({ title, value, error }: { title: string; value: string; e
   return (
     <div className={cn('grid grid-cols-[84px_1fr] gap-2 rounded bg-slate-50 px-2 py-1.5', error && 'bg-red-50 text-red-700')}>
       <div className="text-slate-500">{title}</div>
-      <div className="break-all font-mono text-[11px]">{value}</div>
+      <div className="break-all font-mono text-xs">{value}</div>
     </div>
   )
 }
@@ -818,7 +818,7 @@ function PromptSections({ snapshot }: { snapshot: AgentRunDebugSnapshot }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
         <div>user: {formatNumber(snapshot.prompt.userPromptChars)} chars</div>
         <div>effective: {formatNumber(snapshot.prompt.effectivePromptChars)} chars</div>
         <div>system: {formatNumber(snapshot.prompt.systemPromptChars)} chars</div>
@@ -863,14 +863,14 @@ function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg bg-slate-50 px-2 py-2 text-center">
       <div className="font-semibold text-slate-800">{formatNumber(value)}</div>
-      <div className="mt-0.5 text-[11px] text-slate-500">{label}</div>
+      <div className="mt-0.5 text-xs text-slate-500">{label}</div>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: AgentRunDebugListItem['status'] }) {
   const variant = status === 'failed' || status === 'aborted' ? 'destructive' : status === 'complete' ? 'secondary' : 'outline'
-  return <Badge variant={variant} className="h-5 px-1.5 text-[10px]">{status}</Badge>
+  return <Badge variant={variant} className="h-5 px-1.5 text-3xs">{status}</Badge>
 }
 
 function shortId(id: string): string {

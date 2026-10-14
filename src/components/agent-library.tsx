@@ -114,20 +114,20 @@ export function AgentLibrary() {
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-xs font-medium">{a.name}</span>
                     {a.isBuiltin && (
-                      <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground">
+                      <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-3xs text-muted-foreground">
                         内置
                       </span>
                     )}
                     {a.isOrchestrator && (
-                      <span className="shrink-0 rounded bg-primary/10 px-1 py-0.5 font-mono text-[9px] text-primary">
+                      <span className="shrink-0 rounded bg-primary/10 px-1 py-0.5 font-mono text-3xs text-primary">
                         Orchestrator
                       </span>
                     )}
                   </div>
-                  <div className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                  <div className="mt-0.5 line-clamp-2 text-3xs text-muted-foreground">
                     {a.description}
                   </div>
-                  <div className="mt-0.5 font-mono text-[9px] text-muted-foreground">
+                  <div className="mt-0.5 font-mono text-3xs text-muted-foreground">
                     {a.adapterName}
                     {a.modelId ? ` · ${a.modelId}` : ''}
                   </div>

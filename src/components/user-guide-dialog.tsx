@@ -163,7 +163,7 @@ export function UserGuideDialog() {
           >
             {groups.map((group) => (
               <div key={group} className="flex shrink-0 gap-1 md:block md:shrink">
-                <p className="hidden px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:block">
+                <p className="hidden px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:block">
                   {group}
                 </p>
                 {GUIDE_ITEMS.filter((item) => item.group === group).map((item) => {
@@ -175,7 +175,7 @@ export function UserGuideDialog() {
                       aria-current={selected ? 'true' : undefined}
                       onClick={() => setActiveId(item.id)}
                       className={cn(
-                        'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition md:w-full',
+                        'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition md:w-full',
                         selected
                           ? 'bg-[var(--agenthub-accent-soft)] font-medium text-[var(--agenthub-accent)]'
                           : 'text-muted-foreground hover:bg-accent hover:text-foreground',
@@ -210,7 +210,7 @@ export function UserGuideDialog() {
         </div>
 
         <DialogFooter className="items-center sm:justify-between">
-          <p className="mr-auto hidden text-[11px] leading-4 text-muted-foreground sm:block">
+          <p className="mr-auto hidden text-xs leading-4 text-muted-foreground sm:block">
             {allReady
               ? '两项外部依赖都已就绪，可以开始了。'
               : '先配好 AI 模型；对象存储建议一并配上。'}
@@ -251,7 +251,7 @@ function StartSection({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[13px] leading-5 text-muted-foreground">{summary}</p>
+      <p className="text-sm leading-5 text-muted-foreground">{summary}</p>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <StatusCard
@@ -283,7 +283,7 @@ function StartSection({
           <AlertTriangle className="mt-0.5 size-4 flex-none" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-xs font-semibold">还没有可用的 AI 模型，现在派任务会失败</p>
-            <p className="mt-1 text-[11px] leading-4">
+            <p className="mt-1 text-xs leading-4">
               至少填一家供应商的 API Key（DeepSeek / OpenAI / Anthropic / 火山方舟任选其一）。
               在「供应商」页填完后，可以顺手点一次「测试连接」确认能通。
             </p>
@@ -294,8 +294,8 @@ function StartSection({
       <Section title="三步开跑">
         <ol className="flex flex-col gap-1.5">
           {steps.map((step, index) => (
-            <li key={step} className="flex gap-2 text-[13px] leading-5">
-              <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[10px] font-semibold text-[var(--agenthub-accent)]">
+            <li key={step} className="flex gap-2 text-sm leading-5">
+              <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-3xs font-semibold text-[var(--agenthub-accent)]">
                 {index + 1}
               </span>
               <span className="text-muted-foreground">{step}</span>
@@ -308,7 +308,7 @@ function StartSection({
         <Section title={notesTitle}>
           <ul className="flex flex-col gap-1.5">
             {notes.map((note) => (
-              <li key={note} className="flex gap-2 text-[12px] leading-5 text-muted-foreground">
+              <li key={note} className="flex gap-2 text-xs leading-5 text-muted-foreground">
                 <span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground/50" />
                 <span>{note}</span>
               </li>
@@ -339,15 +339,15 @@ function ModuleSection({
         </span>
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">{item.label}</h3>
-          <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">{item.summary}</p>
+          <p className="mt-0.5 text-sm leading-5 text-muted-foreground">{item.summary}</p>
         </div>
       </div>
 
       <Section title="怎么用">
         <ol className="flex flex-col gap-1.5">
           {item.steps.map((step, index) => (
-            <li key={step} className="flex gap-2 text-[13px] leading-5">
-              <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+            <li key={step} className="flex gap-2 text-sm leading-5">
+              <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-3xs font-semibold text-muted-foreground">
                 {index + 1}
               </span>
               <span className="text-muted-foreground">{step}</span>
@@ -360,7 +360,7 @@ function ModuleSection({
         <Section title="小提示">
           <ul className="flex flex-col gap-1.5">
             {item.tips.map((tip) => (
-              <li key={tip} className="flex gap-2 text-[12px] leading-5 text-muted-foreground">
+              <li key={tip} className="flex gap-2 text-xs leading-5 text-muted-foreground">
                 <span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground/50" />
                 <span>{tip}</span>
               </li>
@@ -442,7 +442,7 @@ function StatusCard({
           <AlertTriangle className="ml-auto size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
         )}
       </div>
-      <p className="text-[12px] leading-4 text-muted-foreground">
+      <p className="text-xs leading-4 text-muted-foreground">
         {ready ? readyText : notReadyText}
       </p>
       <Button variant={ready ? 'outline' : 'default'} size="sm" onClick={onAction} className="mt-auto">

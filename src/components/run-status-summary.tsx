@@ -121,13 +121,13 @@ export function RunStatusSummary({ conversationId }: { conversationId: string })
           <span className="shrink-0 font-semibold">正在运行</span>
           <span className="min-w-0 truncate opacity-80">{activity ?? summary.detail}</span>
           {taskProgress && (
-            <span className="hidden min-w-0 shrink truncate rounded-full bg-blue-500/10 px-1.5 py-px text-[10px] tabular-nums opacity-90 md:inline dark:bg-blue-400/15">
+            <span className="hidden min-w-0 shrink truncate rounded-full bg-blue-500/10 px-1.5 py-px text-3xs tabular-nums opacity-90 md:inline dark:bg-blue-400/15">
               {taskProgress}
             </span>
           )}
           {elapsed && (
             <span
-              className="ml-auto shrink-0 font-mono text-[11px] tabular-nums opacity-70"
+              className="ml-auto shrink-0 font-mono text-xs tabular-nums opacity-70"
               title="本次运行已耗时"
             >
               {elapsed}

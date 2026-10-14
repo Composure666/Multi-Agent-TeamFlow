@@ -75,10 +75,10 @@ export function HomeDownload({
                 <Laptop className="size-4.5" />
               </span>
               <div className="min-w-0">
-                <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+                <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
                   Windows 桌面端
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">
+                <div className="text-sm text-slate-600">
                   {APP_VERSION} · x64 · NSIS 安装包
                 </div>
               </div>
@@ -102,7 +102,7 @@ export function HomeDownload({
                     <Download className="size-4" aria-hidden="true" />
                     下载 Windows 安装包
                   </a>
-                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                  <p className="text-xs leading-5 text-slate-600">
                     下载地址：<span className="break-all font-mono">{download.url}</span>
                   </p>
                 </>
@@ -119,18 +119,18 @@ export function HomeDownload({
                     <Download className="size-4" aria-hidden="true" />
                     安装包准备中
                   </span>
-                  <p className="text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                  <p className="text-xs leading-5 text-slate-600">
                     安装包尚未上传，站点准备好后会在这里直接提供下载。如果你想立刻使用，可以按下面的「快速开始」
                     从源码运行，两者功能完全一致。
                   </p>
                   {download.source === 'oss' ? (
-                    <p className="text-[11px] leading-5 text-slate-400 dark:text-slate-500">
+                    <p className="text-xs leading-5 text-slate-500">
                       站点维护者：把 <span className="font-mono">{DESKTOP_INSTALLER_FILENAME}</span>{' '}
                       上传到「设置 → 对象存储」那个 bucket 的{' '}
                       <span className="font-mono">downloads/</span> 目录，并把对象设为公共读，本页会自动出现下载按钮。
                     </p>
                   ) : (
-                    <p className="text-[11px] leading-5 text-slate-400 dark:text-slate-500">
+                    <p className="text-xs leading-5 text-slate-500">
                       站点维护者：把安装包放到 <span className="font-mono">{localInstallerPath}</span>{' '}
                       （文件名保持 <span className="font-mono">{DESKTOP_INSTALLER_FILENAME}</span>），本页会自动出现下载按钮。
                     </p>
@@ -144,7 +144,7 @@ export function HomeDownload({
               {REQUIREMENTS.map((item) => (
                 <div key={item.label} className="flex gap-3 text-xs leading-5">
                   <dt className="w-8 shrink-0 font-medium text-slate-900 dark:text-slate-100">{item.label}</dt>
-                  <dd className="min-w-0 text-slate-500 dark:text-slate-400">{item.detail}</dd>
+                  <dd className="min-w-0 text-slate-600">{item.detail}</dd>
                 </div>
               ))}
             </dl>
@@ -159,7 +159,7 @@ export function HomeDownload({
 
             <div className="mt-auto flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
               <ShieldAlert className="mt-0.5 size-4 flex-none" aria-hidden="true" />
-              <p className="min-w-0 text-[11px] leading-5">
+              <p className="min-w-0 text-xs leading-5">
                 安装包未做代码签名，Windows 首次运行可能弹出 SmartScreen
                 提示。选择「更多信息 → 仍要运行」即可；也可以直接从源码运行，二者是同一份代码。
               </p>
@@ -168,19 +168,19 @@ export function HomeDownload({
 
           {/* 安装说明卡片 */}
           <div className={cn(cardClass, 'p-6')}>
-            <h3 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">装好之后</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">装好之后</h3>
             <ol className="mt-5 flex list-none flex-col gap-5">
               {INSTALL_STEPS.map((step, index) => (
                 <li key={step.title} className="flex gap-3.5">
                   <span
-                    className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] font-mono text-[11px] font-semibold text-[var(--agenthub-accent)]"
+                    className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]"
                     aria-hidden="true"
                   >
                     {index + 1}
                   </span>
                   <div className="min-w-0">
                     <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{step.title}</h4>
-                    <p className="mt-1 text-sm leading-7 text-slate-500 dark:text-slate-400">{step.detail}</p>
+                    <p className="mt-1 text-sm leading-7 text-slate-600">{step.detail}</p>
                   </div>
                 </li>
               ))}
@@ -191,7 +191,7 @@ export function HomeDownload({
                 (item) => (
                   <li
                     key={item}
-                    className="inline-flex items-start gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400"
+                    className="inline-flex items-start gap-1.5 text-sm font-medium text-slate-600"
                   >
                     <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-[var(--agenthub-accent)]" aria-hidden="true" />
                     {item}

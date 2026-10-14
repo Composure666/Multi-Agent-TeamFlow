@@ -99,7 +99,7 @@ export function ConversationOutline({ conversationId }: { conversationId: string
             对话目录
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-3xs text-muted-foreground">
               {filtered.length}/{userMessages.length}
             </span>
             <button
@@ -107,7 +107,7 @@ export function ConversationOutline({ conversationId }: { conversationId: string
               onClick={() => setOnlyStarred((v) => !v)}
               disabled={starredCount === 0}
               className={cn(
-                'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-40',
+                'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-3xs transition disabled:cursor-not-allowed disabled:opacity-40',
                 onlyStarred
                   ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300'
                   : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
@@ -126,7 +126,7 @@ export function ConversationOutline({ conversationId }: { conversationId: string
           >
             <div className="space-y-0.5 p-1">
               {filtered.length === 0 ? (
-                <div className="px-3 py-6 text-center text-[11px] text-muted-foreground">
+                <div className="px-3 py-6 text-center text-xs text-muted-foreground">
                   没有收藏的提问
                 </div>
               ) : (
@@ -198,7 +198,7 @@ function OutlineItem({
         onClick={onClick}
         className="flex min-w-0 flex-1 items-start gap-2 text-left"
       >
-        <span className="mt-0.5 shrink-0 font-mono text-[10px] text-muted-foreground/70 group-hover:text-foreground/70">
+        <span className="mt-0.5 shrink-0 font-mono text-3xs text-muted-foreground/70 group-hover:text-foreground/70">
           #{index}
         </span>
         <MessageSquare className="mt-0.5 size-3 shrink-0 text-muted-foreground/50" />
@@ -206,7 +206,7 @@ function OutlineItem({
           <div className="line-clamp-2 whitespace-pre-wrap break-words leading-snug">
             {displayText}
           </div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">{time}</div>
+          <div className="mt-0.5 text-3xs text-muted-foreground">{time}</div>
         </div>
       </button>
       <button

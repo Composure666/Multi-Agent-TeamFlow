@@ -16,7 +16,7 @@ import {
   UPSTREAM_URL,
   WORKFLOW_STEPS,
 } from '@/components/home/home-data'
-import { Container, SectionHead, WorkbenchLink, cardClass } from '@/components/home/home-primitives'
+import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
 import { buttonVariants } from '@/components/ui/button'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -48,11 +48,11 @@ export function HomeHero() {
 
       <Container className="relative py-20 sm:py-24 lg:py-28">
         <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-          <span className="home-rise inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] py-1 pl-1 pr-3 text-xs shadow-sm">
+          <span className="home-rise inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] py-1 pl-1 pr-3 text-sm shadow-sm">
             <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 font-mono font-semibold text-[var(--agenthub-accent)]">
               {APP_VERSION}
             </span>
-            <span className="font-medium text-slate-500 dark:text-slate-400">
+            <span className="font-medium text-slate-600">
               本地优先的多 Agent 协作工作空间
             </span>
           </span>
@@ -67,14 +67,14 @@ export function HomeHero() {
           </h1>
 
           <p
-            className="home-rise mt-5 text-sm font-medium tracking-wide text-slate-500 dark:text-slate-400"
+            className="home-rise mt-5 text-sm font-medium tracking-wide text-slate-600"
             style={{ animationDelay: '110ms' }}
           >
             {BRAND_NAME} · {BRAND_TAGLINE_ZH}
           </p>
 
           <p
-            className="home-rise mt-5 max-w-2xl text-[15px] leading-7 text-slate-600 dark:text-slate-300"
+            className="home-rise mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300"
             style={{ animationDelay: '160ms' }}
           >
             不必为每个任务单开一个提示词窗口。这里有内置的调度 Agent 负责把目标拆成子任务、派发给不同专长的
@@ -86,13 +86,15 @@ export function HomeHero() {
             className="home-rise mt-8 flex flex-wrap items-center justify-center gap-3"
             style={{ animationDelay: '210ms' }}
           >
-            <WorkbenchLink
-              href="/"
+            {/* ❗ 目标必须是访客真能到的地方。`/` 在对外托管部署里位于 nginx Basic 门禁之后，
+                匿名点下去只会弹浏览器原生登录框（模态窗口、吞掉整页事件、控制台零报错）。 */}
+            <a
+              href="#download"
               className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
             >
-              进入工作台
+              下载桌面端
               <ArrowRight className="size-4" aria-hidden="true" />
-            </WorkbenchLink>
+            </a>
             <a
               href={REPO_URL}
               target="_blank"
@@ -111,7 +113,7 @@ export function HomeHero() {
             {TRUST_MARKERS.map(({ label, icon: Icon }) => (
               <li
                 key={label}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600"
               >
                 <Icon className="size-3.5 shrink-0 text-[var(--agenthub-accent)]" aria-hidden="true" />
                 {label}
@@ -140,26 +142,26 @@ export function HomeWorkflow() {
               title="从一句目标，到一件可交付的产物"
               description="你只需要说清要什么。拆分、派单、传递上下文、评审这些事，交给调度 Agent 和它的同伴。"
             />
-            <WorkbenchLink
-              href="/"
+            <a
+              href="#download"
               className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-6 h-10 gap-1.5 px-4')}
             >
-              进入工作台
+              下载桌面端
               <ArrowRight className="size-4" aria-hidden="true" />
-            </WorkbenchLink>
+            </a>
           </div>
 
           <ol className="relative flex list-none flex-col gap-7 border-l border-dashed border-[var(--agenthub-border)] pl-6">
             {WORKFLOW_STEPS.map((step, index) => (
               <li key={step.title} className="relative">
                 <span
-                  className="absolute -left-9 top-0 flex size-6 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-surface)] font-mono text-[11px] font-semibold text-[var(--agenthub-accent)]"
+                  className="absolute -left-9 top-0 flex size-6 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-surface)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]"
                   aria-hidden="true"
                 >
                   {index + 1}
                 </span>
-                <h3 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-7 text-slate-500 dark:text-slate-400">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-7 text-slate-600">
                   {step.description}
                 </p>
               </li>
@@ -173,7 +175,7 @@ export function HomeWorkflow() {
               <Sparkles className="size-4 shrink-0 text-[var(--agenthub-accent)]" aria-hidden="true" />
               一条典型的端到端链路
             </div>
-            <code className="font-mono text-xs text-slate-400 dark:text-slate-500">
+            <code className="font-mono text-sm text-slate-600">
               “做一个咖啡订阅服务的落地页”
             </code>
           </div>
@@ -182,11 +184,11 @@ export function HomeWorkflow() {
             {PIPELINE.map((node, index) => (
               <Fragment key={node.owner}>
                 {index > 0 && (
-                  <ChevronRight className="size-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
+                  <ChevronRight className="size-4 shrink-0 text-slate-300 dark:text-slate-400" aria-hidden="true" />
                 )}
                 <span className="inline-flex flex-col rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2">
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{node.owner}</span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">{node.detail}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{node.owner}</span>
+                  <span className="text-xs text-slate-600">{node.detail}</span>
                 </span>
               </Fragment>
             ))}
@@ -217,11 +219,11 @@ export function HomeFeatures() {
               <span className="flex size-9 items-center justify-center rounded-xl bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
                 <feature.icon className="size-[18px]" aria-hidden="true" />
               </span>
-              <h3 className="mt-4 text-[15px] font-semibold text-slate-900 dark:text-slate-100">
+              <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-slate-100">
                 {feature.label}
               </h3>
-              <p className="mt-1 text-xs font-medium text-[var(--agenthub-accent)]">{feature.tagline}</p>
-              <p className="mt-2.5 text-sm leading-6 text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm font-medium text-[var(--agenthub-accent)]">{feature.tagline}</p>
+              <p className="mt-2.5 text-sm leading-6 text-slate-600">
                 {feature.description}
               </p>
             </article>
@@ -229,7 +231,7 @@ export function HomeFeatures() {
         </div>
 
         <div className={cn(cardClass, 'mt-4 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-6')}>
-          <span className="shrink-0 text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">
+          <span className="shrink-0 text-sm font-semibold tracking-wide text-slate-600">
             产物类型
           </span>
           <ul className="flex flex-wrap gap-2">
@@ -272,7 +274,7 @@ export function HomeAgents() {
                 <span className="agenthub-status-badge agenthub-status-info">{agent.role}</span>
               </div>
               <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{agent.name}</h3>
-              <p className="mt-1.5 text-xs leading-6 text-slate-500 dark:text-slate-400">{agent.duty}</p>
+              <p className="mt-1.5 text-sm leading-6 text-slate-600">{agent.duty}</p>
             </article>
           ))}
         </div>
@@ -337,13 +339,13 @@ export function HomeQuickstart() {
             {QUICKSTART_STEPS.map((step, index) => (
               <li key={step.title} className="flex gap-3.5">
                 <span
-                  className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] font-mono text-[11px] font-semibold text-[var(--agenthub-accent)]"
+                  className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]"
                   aria-hidden="true"
                 >
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
                   <p className="mt-1 text-sm leading-7 text-slate-500 dark:text-slate-400">{step.detail}</p>
                 </div>
               </li>
@@ -357,12 +359,12 @@ export function HomeQuickstart() {
               <span className="size-2.5 rounded-full bg-[#FF5F57]" aria-hidden="true" />
               <span className="size-2.5 rounded-full bg-[#FEBC2E]" aria-hidden="true" />
               <span className="size-2.5 rounded-full bg-[#28C840]" aria-hidden="true" />
-              <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
+              <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-xs text-slate-400">
                 <Terminal className="size-3" aria-hidden="true" />
                 bash · multi-agent-teamflow
               </span>
             </div>
-            <pre className="agenthub-hide-scrollbar overflow-x-auto px-4 py-4 font-mono text-[12.5px] leading-6 text-slate-200">
+            <pre className="overflow-x-auto px-4 py-4 font-mono text-sm leading-6 text-slate-200">
               <code>
                 {QUICKSTART_COMMANDS.map((line, index) => (
                   // 空行保留站位，让分组之间有空隙，读起来更像一段真实会话
@@ -399,14 +401,14 @@ export function HomeFooter() {
                 <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {BRAND_NAME}
                 </div>
-                <div className="truncate text-xs text-slate-500 dark:text-slate-400">{BRAND_TAGLINE_EN}</div>
+                <div className="truncate text-xs text-slate-600">{BRAND_TAGLINE_EN}</div>
               </div>
             </div>
-            <p className="mt-4 max-w-sm text-xs leading-6 text-slate-500 dark:text-slate-400">
+            <p className="mt-4 max-w-sm text-sm leading-6 text-slate-600">
               本地优先的多 Agent 协作工作空间。所有会话、产物与数据库都在你自己的机器上，无需注册账号，
               也不经过任何云端中转。
             </p>
-            <p className="mt-3 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+            <p className="mt-3 font-mono text-xs text-slate-600">
               {APP_VERSION} · AGPL-3.0-only
             </p>
           </div>
@@ -414,7 +416,7 @@ export function HomeFooter() {
           <div className="grid gap-8 sm:grid-cols-3">
             {FOOTER_LINKS.map((column) => (
               <nav key={column.title} aria-label={column.title}>
-                <h3 className="text-xs font-semibold tracking-wide text-slate-900 dark:text-slate-100">
+                <h3 className="text-sm font-semibold tracking-wide text-slate-900 dark:text-slate-100">
                   {column.title}
                 </h3>
                 <ul className="mt-3 flex flex-col gap-2.5">
@@ -425,7 +427,7 @@ export function HomeFooter() {
                         {...(link.href.startsWith('#')
                           ? {}
                           : { target: '_blank', rel: 'noreferrer' })}
-                        className="text-xs leading-5 text-slate-500 outline-none transition-colors hover:text-[var(--agenthub-accent)] focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent)]/30 dark:text-slate-400"
+                        className="text-sm leading-6 text-slate-600 outline-none transition-colors hover:text-[var(--agenthub-accent)] focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent)]/30"
                       >
                         {link.label}
                       </a>
@@ -438,10 +440,10 @@ export function HomeFooter() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-[var(--agenthub-border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-slate-400 dark:text-slate-500">
+          <p className="text-xs text-slate-600">
             Copyright © 2026 {BRAND_NAME} contributors.
           </p>
-          <p className="text-xs leading-6 text-slate-400 dark:text-slate-500">
+          <p className="text-xs leading-6 text-slate-600">
             本项目是{' '}
             <a
               href={UPSTREAM_URL}

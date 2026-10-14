@@ -546,7 +546,7 @@ export function SettingsDialog({
                       <BookOpen className="size-4 text-muted-foreground" />
                       <div>
                         <h3 className="text-sm font-medium">经验资产</h3>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">run 收尾后自动反思沉淀可复用经验；关闭后仍可手动沉淀。</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">run 收尾后自动反思沉淀可复用经验；关闭后仍可手动沉淀。</p>
                       </div>
                     </div>
                     <div className="rounded-md border bg-background p-2">
@@ -637,7 +637,7 @@ function MobileConnectionHints({
               <AlertTriangle className="mt-0.5 size-4 flex-none" />
               <div className="min-w-0">
                 <p className="text-xs font-semibold">请重启桌面端 App</p>
-                <p className="mt-1 text-[11px] leading-4">
+                <p className="mt-1 text-xs leading-4">
                   开启或关闭移动端连接后，监听地址需要重启后才会生效。
                 </p>
               </div>
@@ -650,7 +650,7 @@ function MobileConnectionHints({
                 <KeyRound className="size-4 flex-none text-muted-foreground" />
                 <div className="min-w-0">
                   <p className="text-xs font-medium">{enabled ? '已开启' : '未开启'}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {enabled ? '重启桌面端后生效' : '开启后生成设备 token'}
                   </p>
                 </div>
@@ -673,7 +673,7 @@ function MobileConnectionHints({
               )}
             </div>
             {mobileDeviceToken && (
-              <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">
+              <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
                 {mobileDeviceToken}
               </p>
             )}
@@ -702,10 +702,10 @@ function MobileConnectionHints({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium">{hint.label}</span>
                   {hint.interfaceName && (
-                    <span className="text-[10px] text-muted-foreground">{hint.interfaceName}</span>
+                    <span className="text-3xs text-muted-foreground">{hint.interfaceName}</span>
                   )}
                 </div>
-                <p className="truncate font-mono text-[11px] text-muted-foreground">{hint.url}</p>
+                <p className="truncate font-mono text-xs text-muted-foreground">{hint.url}</p>
               </div>
               <Button
                 type="button"
@@ -766,7 +766,7 @@ function DeploymentPublishSettings({
             onChange={(event) => onPublishDirChange(event.target.value)}
             placeholder="D:\\sites\\agenthub"
           />
-          <p className="text-[11px] leading-4 text-muted-foreground">
+          <p className="text-xs leading-4 text-muted-foreground">
             {BRAND_NAME} 会写入该目录下的 dep_xxx 子目录。
           </p>
         </div>
@@ -777,7 +777,7 @@ function DeploymentPublishSettings({
             onChange={(event) => onPublicBaseUrlChange(event.target.value)}
             placeholder="https://example.com/apps"
           />
-          <p className="text-[11px] leading-4 text-muted-foreground">
+          <p className="text-xs leading-4 text-muted-foreground">
             部署卡片会返回公开根 URL 加 deployment id 的地址。
           </p>
         </div>
@@ -799,7 +799,7 @@ function NotificationPreferenceSettings({
         <Bell className="size-4 text-muted-foreground" />
         <div>
           <h3 className="text-sm font-medium">通知偏好</h3>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">关闭分类后仍会进入信息中心，但不会弹 Toast 或系统通知。</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">关闭分类后仍会进入信息中心，但不会弹 Toast 或系统通知。</p>
         </div>
       </div>
 

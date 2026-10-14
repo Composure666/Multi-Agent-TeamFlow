@@ -878,10 +878,10 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
             <div className="font-medium text-[#3370FF]">
               {pendingQuote.kind === 'ask' ? '提问' : '改写'} · {pendingQuote.sourceLabel}
             </div>
-            <pre className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words font-mono text-[10px] text-muted-foreground">
+            <pre className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words font-mono text-3xs text-muted-foreground">
               {pendingQuote.text}
             </pre>
-            <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+            <div className="mt-0.5 text-3xs text-muted-foreground/70">
               {pendingQuote.kind === 'ask'
                 ? '在下方输入框写你的问题，发送时会带上这段引用一起发给 Agent'
                 : '在下方输入框写改写指令，发送时会作为引用一起发给 Agent'}
@@ -924,7 +924,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
       {/* 已确认的 mention chips */}
       {mentionedAgents.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] text-muted-foreground">@ 指定</span>
+          <span className="text-3xs text-muted-foreground">@ 指定</span>
           {mentionedAgents.map((a) => (
             <span
               key={a.id}
@@ -1016,7 +1016,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
       {/* @ Mention popup */}
       {trigger && filtered.length > 0 && (
         <div className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-          <div className="px-3 py-2 text-[10px] text-slate-500">
+          <div className="px-3 py-2 text-3xs text-slate-500">
             选择 Agent · ↑↓ 切换 · Enter 确认 · Esc 取消
           </div>
           {filtered.map((a, i) => (
@@ -1037,7 +1037,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
               <AgentAvatar agent={a} size="xs" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-medium">{a.name}</div>
-                <div className="truncate text-[10px] text-muted-foreground">{a.description}</div>
+                <div className="truncate text-3xs text-muted-foreground">{a.description}</div>
               </div>
             </button>
           ))}

@@ -222,7 +222,7 @@ function AskUserBody({
       )}
 
       <DialogFooter className="m-0 flex items-center justify-between gap-2 border-t bg-muted/30 p-3 sm:flex-row">
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {allAnswered ? '已答完所有问题' : `${questions.filter((q) => (draft[q.question]?.selectedLabels.length ?? 0) > 0 || !!draft[q.question]?.freeformNote?.trim()).length} / ${questions.length} 已答`}
         </span>
         <Button
@@ -264,12 +264,12 @@ function QuestionBlock({
   return (
     <section className="space-y-2 rounded-lg border bg-card p-3">
       <div className="flex items-start gap-2">
-        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md bg-[#3370FF]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#3370FF]">
+        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md bg-[#3370FF]/10 px-1.5 py-0.5 text-3xs font-medium text-[#3370FF]">
           <Sparkles className="size-2.5" />
           {question.header}
         </span>
         {question.multiSelect && (
-          <span className="mt-0.5 shrink-0 text-[10px] text-muted-foreground">多选</span>
+          <span className="mt-0.5 shrink-0 text-3xs text-muted-foreground">多选</span>
         )}
       </div>
       <p className="text-sm font-medium">
@@ -302,10 +302,10 @@ function QuestionBlock({
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{opt.label}</div>
                 {opt.description && (
-                  <div className="mt-0.5 text-[11px] text-muted-foreground">{opt.description}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{opt.description}</div>
                 )}
                 {opt.preview && (
-                  <pre className="mt-1 overflow-x-auto rounded bg-black/5 px-2 py-1 font-mono text-[10px] dark:bg-white/5">
+                  <pre className="mt-1 overflow-x-auto rounded bg-black/5 px-2 py-1 font-mono text-3xs dark:bg-white/5">
                     {opt.preview}
                   </pre>
                 )}
@@ -334,7 +334,7 @@ function QuestionBlock({
           </span>
           <div className="min-w-0 flex-1">
             <div className="font-medium">其他（自由填写）</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
+            <div className="mt-0.5 text-xs text-muted-foreground">
               选项以外的答案，下方填写说明
             </div>
           </div>

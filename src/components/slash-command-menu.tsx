@@ -53,7 +53,7 @@ export function SlashCommandMenu({
             </span>
             <span className="flex min-w-0 flex-1 items-baseline gap-2">
               <code className="shrink-0 font-mono text-xs font-medium">{command.command}</code>
-              <span className="truncate text-[10px] text-muted-foreground">
+              <span className="truncate text-3xs text-muted-foreground">
                 {command.description}
               </span>
             </span>

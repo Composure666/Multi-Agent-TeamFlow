@@ -56,7 +56,7 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
     <Popover>
       <PopoverTrigger
         className={cn(
-          'inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted/30 px-2 py-1 font-mono text-[10px] text-muted-foreground transition hover:border-foreground/30 hover:bg-muted hover:text-foreground',
+          'inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted/30 px-2 py-1 font-mono text-3xs text-muted-foreground transition hover:border-foreground/30 hover:bg-muted hover:text-foreground',
         )}
         title="点击查看 token 用量明细"
       >
@@ -66,7 +66,7 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
       <PopoverContent className="w-80 p-3 text-xs" align="end">
         <div className="mb-2 flex items-baseline justify-between border-b pb-2">
           <span className="font-medium">本会话 token 累计</span>
-          <span className="text-[10px] text-muted-foreground">{total.runCount} 次响应</span>
+          <span className="text-3xs text-muted-foreground">{total.runCount} 次响应</span>
         </div>
 
         <div className="space-y-1">
@@ -113,7 +113,7 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
             type="button"
             onClick={() => void handleCompact()}
             disabled={compacting}
-            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             title="Compact older conversation history into a summary"
           >
             <Archive className="size-3" />
@@ -132,7 +132,7 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
                     (total.inputTokens + total.cacheCreationTokens + total.cacheReadTokens),
                 )}
                 %
-                <span className="ml-1 text-[10px] text-muted-foreground">
+                <span className="ml-1 text-3xs text-muted-foreground">
                   (省 ~{Math.round((total.cacheReadTokens * 90) / 100 / 1000)}k input 计费)
                 </span>
               </span>
@@ -140,13 +140,13 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
           )}
         </div>
 
-        <div className="mt-2 border-t pt-2 text-[10px] text-muted-foreground">
+        <div className="mt-2 border-t pt-2 text-3xs text-muted-foreground">
           所有 token 都计费，速率不同。详见各行 tooltip。Pin 消息可避免被预算自动截断。
         </div>
 
         {Object.keys(total.byAgent).length > 1 && (
           <div className="mt-3 border-t pt-2">
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="mb-1 text-3xs uppercase tracking-wider text-muted-foreground">
               按 Agent
             </div>
             {Object.entries(total.byAgent)
@@ -159,7 +159,7 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
 
         {Object.keys(total.byModel).length > 0 && (
           <div className="mt-3 border-t pt-2">
-            <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="mb-1 text-3xs uppercase tracking-wider text-muted-foreground">
               按 Model
             </div>
             {Object.entries(total.byModel)
@@ -202,7 +202,7 @@ function Row({
       <span className={cn('truncate', bold && 'font-medium')}>{label}</span>
       <span className={cn('shrink-0 font-mono', bold && 'font-semibold')}>
         {formatTok(value)}
-        {hint && <span className="ml-1 text-[10px] text-muted-foreground">({hint})</span>}
+        {hint && <span className="ml-1 text-3xs text-muted-foreground">({hint})</span>}
         {highlight && value === 0 && <span className="ml-1 text-muted-foreground">—</span>}
       </span>
     </div>

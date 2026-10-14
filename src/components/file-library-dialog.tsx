@@ -236,7 +236,7 @@ function Section({
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         {icon}
         <span>{title}</span>
-        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{count}</span>
+        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-3xs">{count}</span>
       </div>
       {children}
     </div>
@@ -290,7 +290,7 @@ function ImageGridItem({
         />
       </a>
       <div
-        className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
+        className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-3xs text-white opacity-0 transition group-hover:opacity-100"
         title={attachment.fileName}
       >
         {attachment.fileName}
@@ -356,7 +356,7 @@ function FileRow({
         <div className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium">
           {attachment.fileName}
         </div>
-        <div className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground">
+        <div className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-3xs text-muted-foreground">
           {formatSize(attachment.size)} · {attachment.mimeType}
         </div>
       </a>

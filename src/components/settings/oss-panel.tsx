@@ -68,7 +68,7 @@ export function OssPanel({
           <CloudUpload className="size-4 text-muted-foreground" />
           <div>
             <h3 className="text-sm font-medium">图片产物远程存储</h3>
-            <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+            <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
               配好后，Agent 生成的图片会直接上传到你的 bucket 并返回永久 URL；不配则回退本地目录。
             </p>
           </div>
@@ -99,7 +99,7 @@ export function OssPanel({
               placeholder="oss-cn-hangzhou.aliyuncs.com"
               autoComplete="off"
             />
-            <p className="text-[11px] leading-4 text-muted-foreground">
+            <p className="text-xs leading-4 text-muted-foreground">
               在 OSS 控制台「概览 → 访问域名」里找，形如 <code>oss-cn-&lt;地域&gt;.aliyuncs.com</code>。
             </p>
           </div>
@@ -164,7 +164,7 @@ export function OssPanel({
             <span>
               上传对象设为<strong className="font-medium text-foreground">公共读</strong>
               ，图片 URL 可被永久直连。
-              <span className="mt-0.5 block text-[11px] leading-4">
+              <span className="mt-0.5 block text-xs leading-4">
                 关闭后对象为私有，当前版本不支持签名预览，产物面板里的图会显示不出来。
               </span>
             </span>
@@ -179,7 +179,7 @@ export function OssPanel({
             {coveredByEnv ? (
               <>
                 <p className="text-xs font-semibold">本页还差 {missing.join('、')}，保存后仍沿用环境变量配置</p>
-                <p className="mt-1 text-[11px] leading-4">
+                <p className="mt-1 text-xs leading-4">
                   当前生效的配置来自这台机器的系统环境变量（上面横幅已说明），所以 OSS 现在就是可用的。
                   只有四项在本页填齐，本页配置才会覆盖环境变量。
                 </p>
@@ -187,7 +187,7 @@ export function OssPanel({
             ) : (
               <>
                 <p className="text-xs font-semibold">还差 {missing.join('、')}，保存后 OSS 仍未启用</p>
-                <p className="mt-1 text-[11px] leading-4">
+                <p className="mt-1 text-xs leading-4">
                   四项必须全部填写才会启用。未启用时图片产物保存在本机，功能不受影响，只是不会上云。
                 </p>
               </>
@@ -199,7 +199,7 @@ export function OssPanel({
       {values.publicRead && (
         <div className="flex gap-2 rounded-md border px-2 py-2">
           <Info className="mt-0.5 size-4 flex-none text-muted-foreground" />
-          <p className="text-[11px] leading-4 text-muted-foreground">
+          <p className="text-xs leading-4 text-muted-foreground">
             公共读意味着<b className="font-medium text-foreground">任何拿到 URL 的人都能访问该对象</b>。
             建议单独建一个只放图片产物的 bucket，不要与私有文件混用。
           </p>
@@ -215,7 +215,7 @@ function StatusBanner({ view }: { view: OssSettingsView | null }) {
   if (!view) {
     return (
       <div className="flex h-12 items-center justify-center rounded-xl border bg-muted/30">
-        <span className="text-[11px] text-muted-foreground">正在读取对象存储状态…</span>
+        <span className="text-xs text-muted-foreground">正在读取对象存储状态…</span>
       </div>
     )
   }
@@ -232,7 +232,7 @@ function StatusBanner({ view }: { view: OssSettingsView | null }) {
         <CheckCircle2 className="mt-0.5 size-4 flex-none" />
         <div className="min-w-0">
           <p className="text-xs font-semibold">已启用，图片产物会上传到 OSS</p>
-          <p className="mt-1 text-[11px] leading-4">
+          <p className="mt-1 text-xs leading-4">
             {fromEnv
               ? '当前配置来自这台机器的系统环境变量（OSS_*）。想改请在下面填写 —— 本页填写后优先于环境变量。'
               : '当前配置来自本页，已生效。'}
@@ -247,7 +247,7 @@ function StatusBanner({ view }: { view: OssSettingsView | null }) {
       <AlertTriangle className="mt-0.5 size-4 flex-none" />
       <div className="min-w-0">
         <p className="text-xs font-semibold">未启用，图片产物将保存在本机</p>
-        <p className="mt-1 text-[11px] leading-4">
+        <p className="mt-1 text-xs leading-4">
           {view.envProvided
             ? '检测到这台机器设了 OSS_* 环境变量，但不完整（四项需齐全）。在下面补齐即可启用。'
             : '不配也能正常用，只是图片不会上云 —— 换机器或重装后拿不到旧图。要做对外演示建议配上。'}
@@ -282,13 +282,13 @@ function StoredHint({
 }) {
   if (edited) {
     return (
-      <p className="text-[11px] leading-4 text-muted-foreground">
+      <p className="text-xs leading-4 text-muted-foreground">
         保存后将替换已存的值；留空保存表示清除。
       </p>
     )
   }
   return (
-    <p className="text-[11px] leading-4 text-muted-foreground">
+    <p className="text-xs leading-4 text-muted-foreground">
       {stored ? (
         <>
           已保存 <code className="font-mono">{masked}</code>，留空保持不变。

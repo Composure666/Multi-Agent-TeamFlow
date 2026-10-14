@@ -511,7 +511,7 @@ function CollapsedItem({
         <Pin className="absolute -right-0 -top-0 size-3 fill-amber-400 text-amber-500" />
       )}
       {unread > 0 && !isActive && (
-        <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-medium leading-none text-white">
+        <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-medium leading-none text-white">
           {unread > 9 ? '9+' : unread}
         </span>
       )}
@@ -576,7 +576,7 @@ function ConversationItem({
             </Avatar>
           )}
           {unread > 0 && !isActive && (
-            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+            <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-medium leading-none text-white">
               {unread > 99 ? '99+' : unread}
             </span>
           )}

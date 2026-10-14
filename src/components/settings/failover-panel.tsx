@@ -125,7 +125,7 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
             </label>
           ))}
         </div>
-        <div className="mt-2 rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+        <div className="mt-2 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
           参数错误（400）、业务错误、Prompt 过长等不会触发自动切换，避免不必要的 Provider 切换。
         </div>
       </div>

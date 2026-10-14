@@ -39,13 +39,13 @@ export function StatCard({
         <Icon className={cn('size-5', iconColor)} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] text-muted-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground">{label}</div>
         <div className="flex items-baseline gap-2">
           <span className="text-xl font-semibold tabular-nums">{value}</span>
           {sparkline ? (
             <Sparkline data={sparkline} />
           ) : (
-            <span className={cn('text-[11px] tabular-nums', trendColor)}>{trendArrow}</span>
+            <span className={cn('text-xs tabular-nums', trendColor)}>{trendArrow}</span>
           )}
         </div>
       </div>

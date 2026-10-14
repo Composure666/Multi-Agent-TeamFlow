@@ -57,7 +57,7 @@ export function UnifiedCreateDialog({ open, onOpenChange, onCreateAgent, onCreat
           >
             <Bot className="size-8 text-primary" />
             <div className="text-sm font-medium">单个 Agent</div>
-            <div className="text-[11px] text-muted-foreground">创建一个独立的 AI 助手</div>
+            <div className="text-xs text-muted-foreground">创建一个独立的 AI 助手</div>
           </button>
 
           <button
@@ -68,7 +68,7 @@ export function UnifiedCreateDialog({ open, onOpenChange, onCreateAgent, onCreat
           >
             <Users className="size-8 text-primary" />
             <div className="text-sm font-medium">Agent 团队</div>
-            <div className="text-[11px] text-muted-foreground">创建多 Agent 协作团队</div>
+            <div className="text-xs text-muted-foreground">创建多 Agent 协作团队</div>
           </button>
         </div>
 

@@ -63,7 +63,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
           </div>
           <h3 className="text-sm font-medium">快速使用指南</h3>
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
           了解如何在合适的时机注入经验资产，提升 Agent 表现。
         </p>
         <Button variant="outline" size="sm" className="mt-3 w-full text-xs" onClick={() => setGuideOpen(true)}>
@@ -80,7 +80,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
               <h3 className="text-sm font-medium">热门经验</h3>
             </div>
             <button
-              className="text-[11px] text-blue-500 hover:underline"
+              className="text-xs text-blue-500 hover:underline"
               onClick={() => setShowAllHot((v) => !v)}
             >
               {showAllHot ? '收起' : `查看更多 (${hotSorted.length})`}
@@ -94,7 +94,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/50"
               >
                 <span className={cn(
-                  'flex size-5 shrink-0 items-center justify-center rounded text-[10px] font-semibold',
+                  'flex size-5 shrink-0 items-center justify-center rounded text-3xs font-semibold',
                   idx === 0 ? 'bg-amber-500/15 text-amber-600'
                   : idx === 1 ? 'bg-slate-400/15 text-slate-500'
                   : idx === 2 ? 'bg-orange-500/15 text-orange-600'
@@ -103,10 +103,10 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
                   {idx + 1}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-xs">{item.title}</span>
-                <Badge className={cn('shrink-0 border-0 text-[9px]', KIND_COLOR[item.kind])}>
+                <Badge className={cn('shrink-0 border-0 text-3xs', KIND_COLOR[item.kind])}>
                   {KIND_LABEL[item.kind]}
                 </Badge>
-                <span className="shrink-0 text-[10px] text-muted-foreground">{item.usageCount} 次</span>
+                <span className="shrink-0 text-3xs text-muted-foreground">{item.usageCount} 次</span>
               </button>
             ))}
           </div>
@@ -122,7 +122,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
               <h3 className="text-sm font-medium">最近使用</h3>
             </div>
             <button
-              className="text-[11px] text-blue-500 hover:underline"
+              className="text-xs text-blue-500 hover:underline"
               onClick={() => setShowAllRecent((v) => !v)}
             >
               {showAllRecent ? '收起' : `查看更多 (${recentSorted.length})`}
@@ -135,11 +135,11 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
                 onClick={() => onOpen(item.id)}
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/50"
               >
-                <Badge className={cn('shrink-0 border-0 text-[9px]', KIND_COLOR[item.kind])}>
+                <Badge className={cn('shrink-0 border-0 text-3xs', KIND_COLOR[item.kind])}>
                   {KIND_LABEL[item.kind]}
                 </Badge>
                 <span className="min-w-0 flex-1 truncate text-xs">{item.title}</span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+                <span className="shrink-0 text-3xs text-muted-foreground">
                   {item.lastUsedAt ? formatRelative(item.lastUsedAt) : ''}
                 </span>
               </button>
@@ -154,7 +154,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
           <Sparkles className="size-4 text-blue-500" />
           <h3 className="text-sm font-medium">让经验沉淀，发挥更大价值</h3>
         </div>
-        <p className="mt-1.5 text-[11px] text-muted-foreground">经验资产，让 AI 不断成长</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">经验资产，让 AI 不断成长</p>
         <div className="mt-3 flex justify-end">
           <div className="flex size-8 items-center justify-center rounded-full bg-blue-500 text-white">
             <ArrowRight className="size-4" />
@@ -169,7 +169,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
             <DialogTitle>经验资产使用指南</DialogTitle>
             <DialogDescription>经验是 Agent 运行后沉淀的可复用知识，按触发条件注入后续任务。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-[13px] leading-relaxed text-muted-foreground">
+          <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
             <div className="flex gap-2.5">
               <Zap className="mt-0.5 size-4 shrink-0 text-amber-500" />
               <div>

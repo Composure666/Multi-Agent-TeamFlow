@@ -5,6 +5,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * 字号阶梯（最小字号下限）。
+ *
+ * 背景：此前全仓有 596 处 `text-[Npx]` 直接写死，其中 294 处是 `text-[10px]`、
+ * 282 处是 `text-[11px]`，没有任何下限约束 —— 在手机阅读距离下会累积成明显的阅读疲劳
+ * （2026-10-14 主页可用性审查实测：移动端 67% 文本 < 14px）。
+ *
+ * 这里把「微小字」收敛成两个令牌，并把下限抬到 11px（根字号上调后约 11.7px）：
+ *   text-3xs  0.6875rem  原 text-[8px] / [9px] / [10px] / [10.5px]
+ *   text-2xs  0.75rem    预留：需要比 text-xs 略小但又不能到 3xs 的场景
+ *
+ * ❗ 刻意**不**定义 `--text-3xs--line-height`：原先的 `text-[10px]` 只设字号、不设行高
+ *    （行高从父级继承）。若这里补上行高，576 处元素的垂直节奏会被一并改动，
+ *    「只放大字号」这件事就不再是纯增量。行高需要时请在元素上显式写 `leading-*`。
+ */
+@theme {
+  --text-3xs: 0.6875rem;
+  --text-2xs: 0.75rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -173,6 +193,20 @@
   }
   html {
     @apply font-sans;
+
+    /*
+     * 根字号基准 = 16px × 1.0625 = 17px。
+     *
+     * 为什么用一个数字就能整体放大排版：全仓的排版尺寸都是 rem 驱动的
+     * （实测 rem 类约 3530 处 vs 写死 px 的尺寸类仅约 146 处），
+     * 所以上调根字号会**同时**放大字号与间距（padding / gap / 行高 / 圆角 / 最大宽度），
+     * 二者保持原有比例 —— 正是「字号偏小、间距要协调」要的效果，
+     * 而且不触碰任何一处布局结构。
+     *
+     * 用百分比而不是 17px：这样会叠加浏览器的「默认字号」偏好设置，
+     * 视力不佳的用户把默认字号调大时，界面能跟着一起放大（WCAG 1.4.4）。
+     */
+    font-size: 106.25%;
   }
 
   html,
@@ -318,7 +352,7 @@
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -396,10 +430,20 @@
   .dark :where(.bg-orange-50) { background-color: rgba(251, 146, 60, 0.12); }
   .dark :where(.bg-amber-50) { background-color: rgba(251, 191, 36, 0.12); }
 
+  /* ↓ 暗色下的 slate 阶梯（2026-10-14 重整）。
+     规则：亮色模式里「越深 = 越重要」，暗色模式下必须翻成「越亮 = 越重要」，
+     所以这里按 #E5E7EB > #CBD5E1 > #9CA3AF > #94A3B8 的亮度单调映射四级。
+     实测对比度（vs 背景 #0F1115）：16.0 / 12.7 / 7.7 / 7.4 —— 四级全部超过 AA(4.5)，
+     后两级还超过 AAA(7)。
+
+     ❗ 改动前的两个问题（2026-10-14 主页审查实测）：
+       ① 600/700/800 被压成同一个 #CBD5E1，暗色下三级层次全丢；
+       ② slate-300 被映射成 #64748B（3.9:1，低于 AA）—— slate-300 是**浅**灰，
+          映射成中深灰是方向性错误。 */
   .dark :where(.text-slate-950, .text-slate-900) { color: #E5E7EB; }
-  .dark :where(.text-slate-800, .text-slate-700, .text-slate-600) { color: #CBD5E1; }
-  .dark :where(.text-slate-500, .text-slate-400) { color: #9CA3AF; }
-  .dark :where(.text-slate-300) { color: #64748B; }
+  .dark :where(.text-slate-800, .text-slate-700) { color: #CBD5E1; }
+  .dark :where(.text-slate-600, .text-slate-500) { color: #9CA3AF; }
+  .dark :where(.text-slate-400, .text-slate-300) { color: #94A3B8; }
   .dark :where(.text-blue-600, .text-\[\#3370ff\]) { color: #60A5FA; }
   .dark :where(.text-emerald-600, .text-green-700) { color: #6EE7B7; }
   .dark :where(.text-rose-600, .text-rose-700) { color: #FDA4AF; }
@@ -661,7 +705,7 @@
   min-height: 1.25rem;
   border-radius: 999px;
   padding: 0.125rem 0.5rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
 }

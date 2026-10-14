@@ -136,7 +136,7 @@ export function McpServersSettings() {
     <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border bg-card p-3">
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         <ShieldAlert className="mt-0.5 size-4 flex-none" />
-        <p className="min-w-0 break-words text-[11px] leading-4">
+        <p className="min-w-0 break-words text-xs leading-4">
           外部 MCP server 是本机进程，不受 {BRAND_NAME} 内置 workspace 工具沙箱保护。只添加信任来源；env 在列表中会脱敏。
         </p>
       </div>
@@ -173,7 +173,7 @@ export function McpServersSettings() {
           </div>
         </div>
         {form.trust === 'always' && (
-          <p className="text-[11px] leading-4 text-amber-600 dark:text-amber-300">
+          <p className="text-xs leading-4 text-amber-600 dark:text-amber-300">
             trust=always 会在不弹确认的情况下直接执行该 MCP 工具，请只用于完全信任的来源。
           </p>
         )}
@@ -209,8 +209,8 @@ export function McpServersSettings() {
                       {server.lastCheckStatus === 'ok' ? '连接正常' : server.lastCheckStatus ? `状态: ${server.lastCheckStatus}` : '未检测'}
                     </StatusBadge>
                   </div>
-                  <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{server.command} {server.args.join(' ')}</p>
-                  <p className="mt-1 break-words text-[10px] text-muted-foreground">
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{server.command} {server.args.join(' ')}</p>
+                  <p className="mt-1 break-words text-3xs text-muted-foreground">
                     env: {Object.keys(server.env).join(', ') || 'none'} · tools: {server.lastToolCount ?? '-'}
                   </p>
                 </div>
@@ -223,7 +223,7 @@ export function McpServersSettings() {
               {result && (
                 <div
                   className={cn(
-                    'mt-2 min-w-0 break-words rounded-lg border px-3 py-2 text-[11px]',
+                    'mt-2 min-w-0 break-words rounded-lg border px-3 py-2 text-xs',
                     result.status === 'ok'
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
                       : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300',

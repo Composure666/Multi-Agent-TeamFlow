@@ -134,7 +134,7 @@ export function NewConversationDialog({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{a.name}</span>
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
                         {a.adapterName}
                       </span>
                     </div>
@@ -160,7 +160,7 @@ export function NewConversationDialog({
             />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium">沙箱隔离</div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">
+              <div className="mt-0.5 text-3xs text-muted-foreground">
                 工作目录在 <code className="font-mono">.agenthub-data/</code> 内部，不接触你的真实代码
               </div>
             </div>
@@ -198,7 +198,7 @@ export function NewConversationDialog({
                       浏览
                     </Button>
                   </div>
-                  <div className="flex items-start gap-1.5 text-[10px] text-amber-700 dark:text-amber-300">
+                  <div className="flex items-start gap-1.5 text-3xs text-amber-700 dark:text-amber-300">
                     <AlertTriangle className="mt-0.5 size-3 shrink-0" />
                     <span>Agent 将能读写此目录中的真实文件。请确保已 git 备份。</span>
                   </div>

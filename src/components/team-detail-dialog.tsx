@@ -295,7 +295,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium">{m.agentName}</span>
                       {m.isLead && (
-                        <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[9px] text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                        <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-3xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
                           负责人
                         </span>
                       )}

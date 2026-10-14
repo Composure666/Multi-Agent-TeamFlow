@@ -129,9 +129,9 @@ function PendingWriteCard({
         <div className="flex items-center gap-1.5">
           <span className="shrink-0 font-medium">{agent?.name ?? 'Agent'}</span>
           <span className="shrink-0 text-muted-foreground">想{isNew ? '创建' : '修改'}</span>
-          <code className="truncate font-mono text-[11px]">{pending.path}</code>
+          <code className="truncate font-mono text-xs">{pending.path}</code>
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+        <div className="mt-0.5 flex items-center gap-2 text-3xs text-muted-foreground">
           {added > 0 && <span className="font-mono text-emerald-600">+{added}</span>}
           {removed > 0 && <span className="font-mono text-rose-600">−{removed}</span>}
           {added === 0 && removed === 0 && <span>无内容变化</span>}

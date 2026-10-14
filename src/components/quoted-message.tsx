@@ -47,7 +47,7 @@ export function QuotedMessage({
         <div className="mt-0.5 size-4 shrink-0 rounded-full bg-muted-foreground/20" />
       )}
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-medium text-muted-foreground">回复 {speakerName}</div>
+        <div className="text-3xs font-medium text-muted-foreground">回复 {speakerName}</div>
         <div className="truncate text-muted-foreground/80">{summary}</div>
       </div>
       {onDismiss && (

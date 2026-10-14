@@ -118,13 +118,13 @@ export function FileTab({
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-1.5 text-xs">
         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
         <code className="min-w-0 flex-1 truncate font-mono">{relPath}</code>
-        <span className="font-mono text-[10px] text-muted-foreground">
+        <span className="font-mono text-3xs text-muted-foreground">
           {(state.size / 1024).toFixed(1)} KB
         </span>
-        {dirty && <span className="font-mono text-[10px] text-amber-600">●未保存</span>}
+        {dirty && <span className="font-mono text-3xs text-amber-600">●未保存</span>}
         {state.truncated && (
           <span
-            className="font-mono text-[10px] text-amber-600"
+            className="font-mono text-3xs text-amber-600"
             title="文件超出 50,000 字符已截断，不可编辑保存"
           >
             ●已截断

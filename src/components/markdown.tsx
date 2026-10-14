@@ -55,7 +55,7 @@ export function Markdown({ children, className }: MarkdownProps) {
               return <CodeBlock code={String(children).replace(/\n$/, '')} language={language} />
             }
             return (
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
                 {children}
               </code>
             )

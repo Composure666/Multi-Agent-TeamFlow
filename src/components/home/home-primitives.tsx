@@ -49,7 +49,7 @@ export function SectionHead({
       {description != null && (
         <p
           className={cn(
-            'text-sm leading-7 text-slate-500 sm:text-[15px] dark:text-slate-400',
+            'text-sm leading-7 text-slate-600 sm:text-base',
             centered && 'max-w-2xl',
           )}
         >
@@ -65,7 +65,10 @@ export const cardClass =
   'home-card rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-sm'
 
 /**
- * 指向工作台（`/` 及其 `?setup=` 深链）的站内链接 —— 主页上一律用它，别直接用 `next/link`。
+ * 指向工作台（`/` 及其 `?setup=` 深链）的站内链接 —— 主页上**若将来重新需要**这类入口，一律用它。
+ *
+ * ❗ 当前（2026-10-14 整改后）主页上已经没有指向 `/` 的链接了，所以这个组件**暂时没有调用点**。
+ * 保留它是因为它承载的是一个安全不变量，而不是一段实现：
  *
  * 必须 `prefetch={false}`：`/home` 是**免鉴权**的公开访客面，而 `/` 与 `/?setup=*` 都在
  * Basic 鉴权后面。Next 的预取**只在 production 生效**（dev 完全不预取），默认会在链接
@@ -73,8 +76,9 @@ export const cardClass =
  * 登录框**，那是个模态窗口，会把整页的鼠标 / 键盘 / 滚轮事件全部吞掉 —— 访客看到的现象
  * 是「这个页面点不动」，而控制台、网络面板都干干净净，极难往鉴权方向想。
  *
- * 收敛成一个组件是为了让这个不变量有单一出处：以后在主页新增任何指向工作台的 CTA，
- * 都不会再漏掉这一个 prop。
+ * 换句话说：撤掉这些链接是为了「访客别撞上那扇门」，而 `prefetch={false}` 是为了
+ * 「万一还要挂在门上，别让预取替访客去撞」。将来若要按部署形态（自建/无门禁）条件性地
+ * 放回入口，记得连同这个 prop 一起用上。
  */
 export function WorkbenchLink(props: ComponentProps<typeof Link>) {
   return <Link {...props} prefetch={false} />

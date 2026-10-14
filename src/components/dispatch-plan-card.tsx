@@ -114,7 +114,7 @@ function DispatchPlanReviewCard({
 
         <PlanTaskList dispatch={dispatch} />
 
-        <div className="text-[11px] leading-5 text-muted-foreground">
+        <div className="text-xs leading-5 text-muted-foreground">
           想改计划？在下方对话框直接说，例如「把 t2 改成依赖 t1」「设计任务交给后端 agent」——Orchestrator
           会据此重排，再给你确认。
         </div>
@@ -170,9 +170,9 @@ function PlanTaskList({ dispatch }: { dispatch: DispatchState }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="font-medium">{agent?.name ?? task.agentId}</span>
-                <span className="font-mono text-[10px] text-muted-foreground">{task.id}</span>
+                <span className="font-mono text-3xs text-muted-foreground">{task.id}</span>
                 {task.dependsOn && task.dependsOn.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-3xs text-muted-foreground">
                     → {task.dependsOn.join(', ')}
                   </span>
                 )}
@@ -180,7 +180,7 @@ function PlanTaskList({ dispatch }: { dispatch: DispatchState }) {
               </div>
               <PlanTaskMarkdown>{task.task}</PlanTaskMarkdown>
               {(inputRefs.length > 0 || outputRefs.length > 0 || criteriaCount > 0) && (
-                <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                <div className="mt-1 flex flex-wrap gap-1 text-3xs text-muted-foreground">
                   {inputRefs.length > 0 && (
                     <span className="rounded border bg-muted/40 px-1 py-0.5">
                       in {inputRefs.join(', ')}
@@ -218,7 +218,7 @@ function PlanTaskMarkdown({ children }: { children: string }) {
           ),
           em: ({ children: node }) => <em className="italic">{node}</em>,
           code: ({ children: node }) => (
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground/80">
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-3xs text-foreground/80">
               {node}
             </code>
           ),

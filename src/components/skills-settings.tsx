@@ -61,7 +61,7 @@ export function SkillsSettings() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-medium">Skills</h3>
-          <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
+          <p className="mt-0.5 break-words text-xs text-muted-foreground">
             Skills 是注入到 Agent 提示词中的行为规则与流程模板，不会执行代码。
           </p>
         </div>
@@ -89,14 +89,14 @@ export function SkillsSettings() {
                     <StatusBadge tone={skill.enabled ? 'success' : 'neutral'}>{skill.enabled ? '已启用' : '已禁用'}</StatusBadge>
                     <StatusBadge tone={hasContent ? 'success' : 'warning'}>{hasContent ? '内容完整' : '仅元数据'}</StatusBadge>
                   </div>
-                  <p className="mt-1 break-words text-[11px] text-muted-foreground">{skill.description}</p>
-                  <p className="mt-1 truncate text-[10px] text-muted-foreground/70" title={skill.sourcePath}>
+                  <p className="mt-1 break-words text-xs text-muted-foreground">{skill.description}</p>
+                  <p className="mt-1 truncate text-3xs text-muted-foreground/70" title={skill.sourcePath}>
                     {skill.sourcePath}
                   </p>
                   {skill.tags.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {skill.tags.map((tag) => (
-                        <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                        <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-3xs text-muted-foreground">
                           {tag}
                         </span>
                       ))}

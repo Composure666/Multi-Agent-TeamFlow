@@ -197,7 +197,7 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
               <p className="truncate text-xs text-muted-foreground">沉淀 Agent 运行经验，形成可复用的知识，让 AI 越用越聪明。</p>
             </div>
           </div>
-          <div className="hidden shrink-0 items-center gap-1 text-[11px] whitespace-nowrap text-muted-foreground xl:flex">
+          <div className="hidden shrink-0 items-center gap-1 text-xs whitespace-nowrap text-muted-foreground xl:flex">
             <span>每一次运行，</span>
             <span className="italic text-blue-500">都是下一次更好的开始</span>
           </div>
@@ -256,14 +256,14 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
             </PopoverTrigger>
             <PopoverContent align="end" className="w-60 gap-3">
               <div>
-                <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">状态</div>
+                <div className="mb-1.5 text-xs font-medium text-muted-foreground">状态</div>
                 <div className="flex gap-1">
                   {([['all', '全部'], ['active', '已启用'], ['draft', '草稿']] as const).map(([val, label]) => (
                     <Button
                       key={val}
                       size="sm"
                       variant={activeFilter === val ? 'secondary' : 'ghost'}
-                      className="h-7 flex-1 text-[11px]"
+                      className="h-7 flex-1 text-xs"
                       onClick={() => setActiveFilter(val)}
                     >
                       {label}
@@ -272,14 +272,14 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
                 </div>
               </div>
               <div>
-                <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">来源</div>
+                <div className="mb-1.5 text-xs font-medium text-muted-foreground">来源</div>
                 <div className="flex gap-1">
                   {([['all', '全部'], ['auto', '自动沉淀'], ['manual', '手动创建']] as const).map(([val, label]) => (
                     <Button
                       key={val}
                       size="sm"
                       variant={sourceFilter === val ? 'secondary' : 'ghost'}
-                      className="h-7 flex-1 text-[11px]"
+                      className="h-7 flex-1 text-xs"
                       onClick={() => setSourceFilter(val)}
                     >
                       {label}
@@ -290,7 +290,7 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full text-[11px]"
+                className="w-full text-xs"
                 onClick={() => { setActiveFilter('all'); setSourceFilter('all') }}
               >
                 重置筛选

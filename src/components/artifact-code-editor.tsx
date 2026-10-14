@@ -51,7 +51,7 @@ export default function ArtifactCodeEditor({
       theme={resolvedTheme === 'dark' ? githubDark : githubLight}
       readOnly={readOnly}
       height="100%"
-      style={{ height: '100%', fontSize: 13 }}
+      style={{ height: '100%', fontSize: 14 }}
       className="size-full"
     />
   )

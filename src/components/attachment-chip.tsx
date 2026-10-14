@@ -83,7 +83,7 @@ function FileChip({ attachment, onRemove, context }: AttachmentChipProps) {
         title={attachment.fileName}
       >
         <div className="truncate text-xs font-medium">{attachment.fileName}</div>
-        <div className="text-[10px] text-muted-foreground">{formatSize(attachment.size)}</div>
+        <div className="text-3xs text-muted-foreground">{formatSize(attachment.size)}</div>
       </a>
       {onRemove && (
         <button

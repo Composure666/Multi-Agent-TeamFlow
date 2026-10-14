@@ -247,12 +247,12 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
                 {testResult.connected && testResult.models && testResult.models.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {testResult.models.slice(0, 12).map((m) => (
-                      <span key={m} className="rounded bg-white/60 px-1.5 py-0.5 text-[10px] text-green-800 dark:bg-black/20 dark:text-green-300">
+                      <span key={m} className="rounded bg-white/60 px-1.5 py-0.5 text-3xs text-green-800 dark:bg-black/20 dark:text-green-300">
                         {m}
                       </span>
                     ))}
                     {testResult.models.length > 12 && (
-                      <span className="text-[10px] text-green-600">+{testResult.models.length - 12} more</span>
+                      <span className="text-3xs text-green-600">+{testResult.models.length - 12} more</span>
                     )}
                   </div>
                 )}

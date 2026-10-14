@@ -39,7 +39,7 @@ export function AgentDraftPreview({
                 {draft.capabilities.map((capability) => (
                   <span
                     key={capability}
-                    className="rounded bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-foreground/10"
+                    className="rounded bg-background px-1.5 py-0.5 text-3xs text-muted-foreground ring-1 ring-foreground/10"
                   >
                     {capability}
                   </span>
@@ -52,13 +52,13 @@ export function AgentDraftPreview({
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-md border px-3 py-2">
-          <div className="text-[10px] text-muted-foreground">模型</div>
+          <div className="text-3xs text-muted-foreground">模型</div>
           <div className="mt-1 text-xs font-medium">
             {providerLabel} / {draft.modelId ?? 'SDK 默认'}
           </div>
         </div>
         <div className="rounded-md border px-3 py-2">
-          <div className="text-[10px] text-muted-foreground">视觉</div>
+          <div className="text-3xs text-muted-foreground">视觉</div>
           <div className="mt-1 text-xs font-medium">
             {draft.supportsVision ? '默认开启' : '默认关闭'}
           </div>
@@ -73,8 +73,8 @@ export function AgentDraftPreview({
         {draft.toolPermissionSummaries.length > 0 ? (
           <div className="mt-2 space-y-1.5">
             {draft.toolPermissionSummaries.map((tool) => (
-              <div key={tool.toolName} className="flex items-start gap-2 text-[11px]">
-                <code className="mt-0.5 shrink-0 rounded bg-muted px-1 font-mono text-[9px] text-muted-foreground">
+              <div key={tool.toolName} className="flex items-start gap-2 text-xs">
+                <code className="mt-0.5 shrink-0 rounded bg-muted px-1 font-mono text-3xs text-muted-foreground">
                   {tool.toolName}
                 </code>
                 <div className="min-w-0">
@@ -85,7 +85,7 @@ export function AgentDraftPreview({
             ))}
           </div>
         ) : (
-          <div className="mt-2 text-[11px] text-muted-foreground">
+          <div className="mt-2 text-xs text-muted-foreground">
             SDK adapter 使用运行时内置工具集，不保存 {BRAND_NAME} 自定义 toolNames。
           </div>
         )}
@@ -99,7 +99,7 @@ export function AgentDraftPreview({
           </div>
           <div className="mt-2 space-y-1.5">
             {draft.assumptions.map((assumption) => (
-              <div key={assumption.label} className="text-[11px]">
+              <div key={assumption.label} className="text-xs">
                 <span className="font-medium">{assumption.label}</span>
                 <span className="text-muted-foreground"> · {assumption.detail}</span>
               </div>
@@ -110,7 +110,7 @@ export function AgentDraftPreview({
 
       <section className="rounded-md border px-3 py-2">
         <div className="text-xs font-medium">System Prompt</div>
-        <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono text-[10px] leading-4 text-muted-foreground">
+        <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono text-3xs leading-4 text-muted-foreground">
           {draft.systemPrompt}
         </pre>
       </section>

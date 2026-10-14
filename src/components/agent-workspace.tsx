@@ -47,7 +47,7 @@ function TeamAvatarStack({ members }: { members: SummonableMember[] }) {
         </span>
       ))}
       {hiddenCount > 0 && (
-        <span className="flex size-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-[10px] font-medium text-slate-600 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[var(--agenthub-surface-raised,#252932)] dark:text-[#B8C0CC]">
+        <span className="flex size-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-3xs font-medium text-slate-600 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[var(--agenthub-surface-raised,#252932)] dark:text-[#B8C0CC]">
           +{hiddenCount}
         </span>
       )}
@@ -108,24 +108,24 @@ function FeaturedTeamCard({ team, onOpen }: { team: SummonableTeam; onOpen: () =
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-2">
           {/* 左上：分类 chip */}
-          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', lightTone.chip, 'dark:' + darkTone.chip.split(' ').join(' dark:'))}>
+          <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium', lightTone.chip, 'dark:' + darkTone.chip.split(' ').join(' dark:'))}>
             <span className={cn('size-1.5 rounded-full', lightTone.dot, 'dark:' + darkTone.dotDark)} />
             {category?.label}
           </span>
           {/* 右上：数据 badge（heat） */}
           <span className={cn(
-            'shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500',
+            'shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500',
             'dark:border-white/10 dark:bg-white/[0.04] dark:text-[#B8C0CC]',
           )}>{team.heat}</span>
         </div>
         <div className="mt-auto pt-3">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-[#7F8998]">{team.type === 'team' ? '推荐团队' : '推荐 Agent'}</div>
-          <h3 className="mt-1 truncate text-[16px] font-semibold tracking-tight text-slate-900 dark:text-[#F5F7FA]">{team.name}</h3>
-          <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-slate-500 dark:text-[#B8C0CC]">{team.description}</p>
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-[#7F8998]">{team.type === 'team' ? '推荐团队' : '推荐 Agent'}</div>
+          <h3 className="mt-1 truncate text-base font-semibold tracking-tight text-slate-900 dark:text-[#F5F7FA]">{team.name}</h3>
+          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-[#B8C0CC]">{team.description}</p>
           <div className="mt-3 flex items-center justify-between gap-3">
             <TeamAvatarStack members={team.members} />
             <span className={cn(
-              'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium opacity-0 transition group-hover:opacity-100',
+              'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium opacity-0 transition group-hover:opacity-100',
               lightTone.accent,
               'dark:' + darkTone.accent.split(' ').join(' dark:'),
             )}>
@@ -463,7 +463,7 @@ export function AgentWorkspace({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-[22px] font-semibold tracking-tight">Agent 库</h1>
-              <p className="mt-1 text-[13px] text-slate-500">发现、配置和复用你的协作 Agent</p>
+              <p className="mt-1 text-sm text-slate-500">发现、配置和复用你的协作 Agent</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => setUnifiedCreateOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
@@ -559,8 +559,8 @@ export function AgentWorkspace({
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h2 className="text-[15px] font-semibold tracking-tight text-slate-950 dark:text-slate-100">精选 Agent</h2>
-                    <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话</p>
+                    <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-100">精选 Agent</h2>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话</p>
                   </div>
                 </div>
                 <div className="min-h-[280px] pr-1">
@@ -631,7 +631,7 @@ export function AgentWorkspace({
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">我的团队</h3>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{teams.length}</span>
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{teams.length}</span>
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                       {teams.map((team) => (
@@ -656,7 +656,7 @@ export function AgentWorkspace({
                   <div className={cn('flex flex-col gap-2', mineFilter === 'all' && teams.length > 0 && 'mt-5')}>
                     <div className="flex items-center gap-2">
                       <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">我的 Agent</h3>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{filteredAgents.length}</span>
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{filteredAgents.length}</span>
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                       {filteredAgents.map((agent) => (
@@ -840,23 +840,27 @@ function ResourcePresetCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start gap-2">
-            <h3 className={cn('line-clamp-2 flex-1 text-[15px] font-semibold leading-5 text-slate-950 dark:text-slate-50', getPresetDisplayName(preset).length > 22 && 'text-sm leading-5')}>
+            {/* 长名字降一档用三目而不是 && 追加：字号迁移后基础档是 text-base、
+                降档是 text-sm，若两者同时挂在元素上，胜负由 Tailwind 的生成顺序决定
+                （text-sm 在前，text-base 在后 ⇒ base 反而赢），会让「长名字缩小」静默失效。
+                改成三目后任何时刻只有一个字号类生效。 */}
+            <h3 className={cn('line-clamp-2 flex-1 font-semibold leading-5 text-slate-950 dark:text-slate-50', getPresetDisplayName(preset).length > 22 ? 'text-sm' : 'text-base')}>
               {getPresetDisplayName(preset)}
             </h3>
-            <span className="shrink-0 rounded-md border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{preset.category}</span>
+            <span className="shrink-0 rounded-md border border-slate-100 bg-slate-50 px-2 py-0.5 text-3xs font-medium text-slate-500 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{preset.category}</span>
           </div>
-          <p className="mt-2 line-clamp-3 text-[12px] leading-5 text-slate-500 dark:text-slate-400">{preset.description}</p>
+          <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500 dark:text-slate-400">{preset.description}</p>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5">
         {preset.capabilities.slice(0, 2).map((capability) => (
-          <span key={capability} className="rounded-md bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-neutral-800 dark:text-slate-300">
+          <span key={capability} className="rounded-md bg-slate-50 px-2 py-0.5 text-xs text-slate-500 dark:bg-neutral-800 dark:text-slate-300">
             {capability}
           </span>
         ))}
         {preset.capabilities.length > 2 && (
-          <span className="rounded-md bg-white px-2 py-0.5 text-[11px] text-slate-400 dark:bg-neutral-900 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
+          <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-400 dark:bg-neutral-900 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
         )}
       </div>
 
@@ -919,7 +923,7 @@ function FeaturedPresetDetailPanel({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="truncate text-base font-semibold tracking-tight text-slate-950">{getPresetDisplayName(preset)}</h2>
-                <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">精选</span>
+                <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-3xs font-medium text-slate-600">精选</span>
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p>
             </div>
@@ -935,10 +939,10 @@ function FeaturedPresetDetailPanel({
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {preset.capabilities.slice(0, 2).map((capability) => (
-              <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600">{capability}</span>
+              <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600">{capability}</span>
             ))}
             {preset.capabilities.length > 2 && (
-              <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-400">+{preset.capabilities.length - 2}</span>
+              <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-xs text-slate-400">+{preset.capabilities.length - 2}</span>
             )}
           </div>
           <Button
@@ -962,7 +966,7 @@ function FeaturedPresetDetailPanel({
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-xs font-medium text-[var(--agenthub-accent)]">{preset.modelId}</div>
-                      <div className="mt-0.5 text-[10px] text-slate-500">自定义模型 · WorkBuddy preset</div>
+                      <div className="mt-0.5 text-3xs text-slate-500">自定义模型 · WorkBuddy preset</div>
                     </div>
                   </div>
                   <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
@@ -1046,19 +1050,19 @@ function AgentCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{getAgentDisplayName(agent)}</h3>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{agent.isBuiltin ? '内置' : '自定义'}</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{agent.isBuiltin ? '内置' : '自定义'}</span>
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{agent.description || '可配置的协作 Agent'}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
         {[agent.adapterName, agent.isOrchestrator ? '编排' : '执行'].map((tag) => (
-          <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{tag}</span>
+          <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-3xs text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{tag}</span>
         ))}
-        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-400 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500">+1</span>
+        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-3xs text-slate-400 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500">+1</span>
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
-        <div className="truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">{agent.modelId || 'default model'}</div>
+        <div className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{agent.modelId || 'default model'}</div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onSelect}>详情</Button>
           <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onStart}>开始对话</Button>
@@ -1111,19 +1115,19 @@ function TeamCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{team.name}</h3>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{team.memberCount} 人</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{team.memberCount} 人</span>
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{team.description || '多 Agent 协作团队'}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
-        <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">团队</span>
+        <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-3xs text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">团队</span>
         {team.members.find((m) => m.isLead) && (
-          <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/30 dark:text-amber-400">含负责人</span>
+          <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 font-mono text-3xs text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/30 dark:text-amber-400">含负责人</span>
         )}
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
-        <div className="truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">{team.goal || '协作完成任务'}</div>
+        <div className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{team.goal || '协作完成任务'}</div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onSelect}>详情</Button>
           <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onStartChat}>开始对话</Button>
@@ -1169,7 +1173,7 @@ function AgentDetailPanel({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950">{getAgentDisplayName(agent)}</h2>
-                <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">{agent.isBuiltin ? '内置' : '自定义'}</span>
+                <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">{agent.isBuiltin ? '内置' : '自定义'}</span>
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-500">{agent.description || '可配置的协作 Agent'}</p>
             </div>
@@ -1222,7 +1226,7 @@ function AgentDetailPanel({
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-xs font-medium text-[var(--agenthub-accent)]">{agent.modelId || 'default model'}</div>
-                      <div className="mt-0.5 text-[10px] text-slate-500">{agent.adapterName} · {agent.modelProvider ?? '默认 provider'}</div>
+                      <div className="mt-0.5 text-3xs text-slate-500">{agent.adapterName} · {agent.modelProvider ?? '默认 provider'}</div>
                     </div>
                   </div>
                   <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
@@ -1275,7 +1279,7 @@ function PermissionRow({ name, code }: { name: string; code: string }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{name}</div>
-        <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400 dark:text-slate-500">{code}</div>
+        <div className="mt-0.5 truncate font-mono text-3xs text-slate-400 dark:text-slate-500">{code}</div>
       </div>
       <CheckCircle2 className="size-4 shrink-0 text-emerald-500 dark:text-emerald-300" />
     </div>
@@ -1285,7 +1289,7 @@ function PermissionRow({ name, code }: { name: string; code: string }) {
 function CapabilityRows({ label, ids, empty }: { label: string; ids: string[]; empty: string }) {
   if (ids.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-400 dark:border-white/10 dark:bg-neutral-900">
+      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-xs text-slate-400 dark:border-white/10 dark:bg-neutral-900">
         {label}：{empty}
       </div>
     )
@@ -1293,10 +1297,10 @@ function CapabilityRows({ label, ids, empty }: { label: string; ids: string[]; e
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-neutral-950/40">
-      <div className="mb-2 text-[11px] font-medium text-slate-600 dark:text-slate-300">{label}</div>
+      <div className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-300">{label}</div>
       <div className="flex flex-wrap gap-1.5">
         {ids.map((id) => (
-          <code key={id} className="max-w-full truncate rounded bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-slate-400 dark:ring-white/10">
+          <code key={id} className="max-w-full truncate rounded bg-white px-1.5 py-0.5 font-mono text-3xs text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-slate-400 dark:ring-white/10">
             {id}
           </code>
         ))}

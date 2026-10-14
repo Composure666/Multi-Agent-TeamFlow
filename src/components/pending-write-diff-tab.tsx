@@ -108,7 +108,7 @@ export function PendingWriteDiffTab({
         {error ? (
           <span className="font-mono text-xs text-destructive">{error}</span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             Review 模式 — 应用前可拒绝，或直接 [拒绝] 后到对应文件 tab 自己改
           </span>
         )}

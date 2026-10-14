@@ -102,18 +102,18 @@ function PendingMcpToolApprovalCard({
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 font-medium">{agent?.name ?? 'Agent'}</span>
           <span className="shrink-0 text-muted-foreground">请求调用外部 MCP 工具</span>
-          <code className="truncate font-mono text-[11px]">{pending.namespacedToolName}</code>
+          <code className="truncate font-mono text-xs">{pending.namespacedToolName}</code>
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-3xs text-muted-foreground">
           <span>Server：{pending.serverName}</span>
           <span>Tool：{pending.toolName}</span>
           {error && <span className="text-destructive">· {error}</span>}
         </div>
-        <div className="rounded border bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground">
-          <span className="select-none font-sans text-[10px]">Args：</span>
+        <div className="rounded border bg-muted/40 px-2 py-1 font-mono text-3xs text-muted-foreground">
+          <span className="select-none font-sans text-3xs">Args：</span>
           <span className="whitespace-pre-wrap break-words">{argsPreview}</span>
         </div>
-        <div className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+        <div className="text-3xs leading-4 text-amber-700 dark:text-amber-300">
           外部 MCP server 在 {BRAND_NAME} workspace 沙箱和 bash 黑名单保护之外运行；仅在信任该 server 与本次工具参数时批准。
         </div>
       </div>

@@ -290,9 +290,9 @@ function TeamSummonDialog({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">{category?.label ?? '场景'}</span>
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">{team.type === 'team' ? '多 Agent 团队' : '单 Agent'}</span>
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">{team.heat}</span>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-medium text-white/85 backdrop-blur">{category?.label ?? '场景'}</span>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-medium text-white/85 backdrop-blur">{team.type === 'team' ? '多 Agent 团队' : '单 Agent'}</span>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-medium text-white/85 backdrop-blur">{team.heat}</span>
                 </div>
                 <DialogTitle className="truncate text-2xl font-semibold tracking-tight text-white">{team.name}</DialogTitle>
                 <DialogDescription className="mt-2 max-w-2xl text-sm leading-6 text-white/78">{team.description}</DialogDescription>
@@ -308,7 +308,7 @@ function TeamSummonDialog({
                 <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">
                   工作流说明
                   {workflowCustom && (
-                    <span className="ml-2 inline-flex translate-y-[-1px] items-center rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">已自定义</span>
+                    <span className="ml-2 inline-flex translate-y-[-1px] items-center rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">已自定义</span>
                   )}
                 </h3>
                 <Button
@@ -350,7 +350,7 @@ function TeamSummonDialog({
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-2">
                             <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
-                            {member.isLead && <span className="shrink-0 rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--agenthub-accent)]">主理人</span>}
+                            {member.isLead && <span className="shrink-0 rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">主理人</span>}
                           </div>
                           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                             <span className="truncate">{member.role}</span>
@@ -389,7 +389,7 @@ function TeamSummonDialog({
               {team.members.slice(0, 3).map((member) => (
                 <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-100 text-sm dark:border-[#1C1F26] dark:bg-[#252932]">{member.avatar}</span>
               ))}
-              {hiddenMemberCount > 0 && <span className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-200 text-[10px] text-slate-600 dark:border-[#1C1F26] dark:bg-[#252932] dark:text-slate-300">+{hiddenMemberCount}</span>}
+              {hiddenMemberCount > 0 && <span className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-200 text-3xs text-slate-600 dark:border-[#1C1F26] dark:bg-[#252932] dark:text-slate-300">+{hiddenMemberCount}</span>}
             </div>
             <span className="truncate text-xs text-slate-500 dark:text-slate-400">{team.type === 'team' ? `${team.members.length} 位成员协作` : '单 Agent 对话'}</span>
           </div>
@@ -470,7 +470,7 @@ function MobileWorkbenchTopBar({
       >
         <Bell className="size-4 stroke-[2.2]" />
         {unreadNotificationCount > 0 && (
-          <span className="absolute -right-1 -top-1 rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute -right-1 -top-1 rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-white">
             {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
           </span>
         )}
@@ -543,7 +543,7 @@ function MobileWorkbenchDrawer({
               <CheckCircle2 className="size-3.5 text-emerald-500 dark:text-emerald-300" />
               个人工作区
             </div>
-            <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">管理本地会话、Agent、产物与自动化任务。</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">管理本地会话、Agent、产物与自动化任务。</p>
           </div>
 
           <button
@@ -561,7 +561,7 @@ function MobileWorkbenchDrawer({
           <nav className="space-y-4" aria-label="工作台导航">
             {(['primary', 'workspace'] as const).map((group) => (
               <div key={group} className="space-y-1.5">
-                <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">
+                <div className="px-3 text-3xs font-semibold uppercase tracking-[0.08em] text-slate-400 dark:text-slate-500">
                   {group === 'primary' ? '协作' : '工作区'}
                 </div>
                 {navItems.filter((item) => item.group === group).map((item) => {
@@ -582,7 +582,7 @@ function MobileWorkbenchDrawer({
                       <Icon className="size-5 stroke-[2.1]" />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.id === 'information-center' && unreadNotificationCount > 0 && (
-                        <span className="rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                        <span className="rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-white">
                           {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                         </span>
                       )}
@@ -620,9 +620,9 @@ function MobileWorkbenchDrawer({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-xs font-medium text-slate-900">Workspace</span>
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
               </div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
                 本地模式
               </div>
@@ -684,13 +684,13 @@ function UserAccountOverview({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">Workspace</div>
-              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
             </div>
-            <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
+            <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">已连接</span>
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">已连接</span>
           {onClose && (
             <button
               type="button"
@@ -721,7 +721,7 @@ function UserAccountOverview({
 
           {topModels.length > 0 && (
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              <div className="flex items-center justify-between text-3xs font-medium uppercase tracking-wider text-slate-400">
                 <span>常用模型</span>
                 <span>{usage.data.today.runs} 次今日运行</span>
               </div>
@@ -733,7 +733,7 @@ function UserAccountOverview({
 
           {topConversations.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] font-medium uppercase tracking-wider text-slate-400">最近高频会话</div>
+              <div className="text-3xs font-medium uppercase tracking-wider text-slate-400">最近高频会话</div>
               {topConversations.slice(0, 2).map((conversation) => (
                 <button
                   key={conversation.id}
@@ -743,7 +743,7 @@ function UserAccountOverview({
                   title={`更新时间 ${new Date(conversation.updatedAt).toLocaleString('zh-CN')}`}
                 >
                   <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
-                  <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                  <span className="shrink-0 font-mono text-xs text-slate-400">
                     <Coins className="mr-1 inline size-3" />
                     {formatTok(conversation.totalTokens)}
                   </span>
@@ -788,7 +788,7 @@ function UsageBarRow({ label, value, runs, max }: { label: string; value: number
     <div className="space-y-1 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-neutral-950/40">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="min-w-0 flex-1 truncate font-mono text-slate-600 dark:text-slate-300">{label}</span>
-        <span className="shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">{formatTok(value)} · {runs}</span>
+        <span className="shrink-0 font-mono text-xs text-slate-400 dark:text-slate-500">{formatTok(value)} · {runs}</span>
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-neutral-800">
         <div className="h-full rounded-full bg-[var(--agenthub-accent,#2F5FD0)] transition-all" style={{ width: `${pct}%` }} />
@@ -840,7 +840,7 @@ function WorkbenchNav({
           />
           {/* 72px 窄轨放不下整名，按品牌规范折成两行：Multi-Agent / TeamFlow */}
           {compact && (
-            <span className="text-center text-[11px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50">
+            <span className="text-center text-xs font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50">
               <span className="block">Multi-Agent</span>
               <span className="block">TeamFlow</span>
             </span>
@@ -848,7 +848,7 @@ function WorkbenchNav({
           {!compact && (
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">{BRAND_NAME}</div>
-              <div className="truncate text-[11px] text-slate-500/60 dark:text-slate-400/60">{BRAND_TAGLINE_EN}</div>
+              <div className="truncate text-xs text-slate-500/60 dark:text-slate-400/60">{BRAND_TAGLINE_EN}</div>
             </div>
           )}
         </button>
@@ -889,14 +889,14 @@ function WorkbenchNav({
         type="button"
         onClick={() => onViewChange('new-task')}
         className={cn(
-          'mb-2 flex h-11 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-[15px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
+          'mb-2 flex h-11 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-base font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
           compact && 'px-0',
           view === 'new-task' && 'border-[var(--agenthub-accent,#2F5FD0)] bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/15 dark:bg-[#1E2A3A] dark:text-slate-50',
         )}
       >
         <Plus className="size-4" />
         {!compact && <span className="min-w-0 flex-1 text-left">新建任务</span>}
-        {!compact && <span className="ml-auto text-[10px] font-normal text-slate-400">Ctrl + N</span>}
+        {!compact && <span className="ml-auto text-3xs font-normal text-slate-400">Ctrl + N</span>}
       </button>
 
       <nav className="shrink-0 space-y-1">
@@ -908,7 +908,7 @@ function WorkbenchNav({
           return (
             <Fragment key={item.id}>
               {item.id === 'run-board' && !compact && (
-                <div className="mb-1 mt-4 border-t border-slate-100 px-[18px] pt-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
+                <div className="mb-1 mt-4 border-t border-slate-100 px-[18px] pt-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
                   分析
                 </div>
               )}
@@ -917,7 +917,7 @@ function WorkbenchNav({
                 onClick={() => onViewChange(item.id)}
                 title={compact ? item.label : undefined}
                 className={cn(
-                  'relative flex w-full items-center gap-2.5 rounded-[14px] px-[18px] text-[15px] transition',
+                  'relative flex w-full items-center gap-2.5 rounded-[14px] px-[18px] text-base transition',
                   'h-9',
                   compact && 'justify-center px-0',
                   item.id === 'run-board' && !compact && 'pl-5',
@@ -933,7 +933,7 @@ function WorkbenchNav({
                   <span className={cn('ml-auto size-2 rounded-full bg-[var(--agenthub-accent)]', compact && 'absolute right-2 top-2')} title="有自动化任务结果生成" />
                 )}
                 {showUnreadNotifications && (
-                  <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white', compact && 'absolute right-1 top-1 px-1')} title="未读通知">
+                  <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold text-white', compact && 'absolute right-1 top-1 px-1')} title="未读通知">
                     {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                   </span>
                 )}
@@ -991,9 +991,9 @@ function WorkbenchNav({
               <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <div className="truncate text-xs font-medium">Workspace</div>
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
               </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <span className="size-1.5 rounded-full bg-emerald-500" />
                   本地模式
                 </div>
@@ -1210,7 +1210,7 @@ function NewTaskView({
                   多 Agent <span className="text-[var(--agenthub-accent)]">团队协作</span>工作流
                 </span>
               </h1>
-              <p className="mt-3 text-[15px] leading-relaxed text-slate-500 dark:text-slate-400 xl:text-[16px] 2xl:text-[17px]">{activeCategoryMeta.description}</p>
+              <p className="mt-3 text-base leading-relaxed text-slate-500 dark:text-slate-400 xl:text-base 2xl:text-[1.0625rem]">{activeCategoryMeta.description}</p>
 
               {/* 一级场景切换 Tabs */}
               <div className="mt-6 flex flex-nowrap items-center gap-2.5">
@@ -1224,7 +1224,7 @@ function NewTaskView({
                       setSelectedTeam(null)
                     }}
                     className={cn(
-                      'h-[42px] shrink-0 whitespace-nowrap rounded-full px-[16px] text-[14px] transition active:scale-[0.98]',
+                      'h-[42px] shrink-0 whitespace-nowrap rounded-full px-[16px] text-sm transition active:scale-[0.98]',
                       activeCategory === category.id
                         ? 'bg-[var(--agenthub-accent)] font-semibold text-white shadow-[0_10px_24px_rgba(47,95,208,0.28)] hover:bg-[var(--agenthub-accent-hover)]'
                         : 'bg-white font-medium text-slate-600 ring-1 ring-[rgba(120,140,180,0.12)] hover:bg-[#F7F9FD] hover:text-slate-900 hover:ring-[rgba(120,140,180,0.20)] dark:bg-white/5 dark:text-slate-300 dark:ring-white/10 dark:hover:bg-white/10 dark:hover:text-slate-100',
@@ -1247,7 +1247,7 @@ function NewTaskView({
                       onClick={() => void applySubcategoryPrompt(team)}
                       disabled={selectingTeamId === team.id}
                       className={cn(
-                        'inline-flex h-[40px] items-center gap-2 rounded-full border px-4 text-[13px] font-medium transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70',
+                        'inline-flex h-[40px] items-center gap-2 rounded-full border px-4 text-sm font-medium transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70',
                         active
                           ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100',
@@ -1296,10 +1296,10 @@ function NewTaskView({
                 }}
                 onPaste={handleTaskPaste}
                 placeholder={`今天想让 ${BRAND_NAME} 帮你完成什么？`}
-                className="min-h-[150px] max-h-[280px] resize-none overflow-y-auto border-0 bg-transparent px-6 pb-3.5 pt-8 text-[15px] shadow-none placeholder:text-slate-400 focus-visible:ring-0 2xl:min-h-[168px] 2xl:max-h-[320px] 2xl:px-7 2xl:text-[16px]"
+                className="min-h-[150px] max-h-[280px] resize-none overflow-y-auto border-0 bg-transparent px-6 pb-3.5 pt-8 text-base shadow-none placeholder:text-slate-400 focus-visible:ring-0 2xl:min-h-[168px] 2xl:max-h-[320px] 2xl:px-7 2xl:text-base"
               />
               {contentOverflow && (
-                <span className="pointer-events-none absolute bottom-2 right-6 z-10 rounded-full bg-white/85 px-2 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-neutral-900/85 dark:text-slate-400">
+                <span className="pointer-events-none absolute bottom-2 right-6 z-10 rounded-full bg-white/85 px-2 py-0.5 text-xs font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-neutral-900/85 dark:text-slate-400">
                   已省略 · 框内滑动查看
                 </span>
               )}
@@ -1411,7 +1411,7 @@ function NewTaskView({
 
           {/* 底部状态栏 - 居中对齐 */}
           {sceneAgentError && <div className="mt-3 text-center text-xs text-amber-600 dark:text-amber-300">{sceneAgentError}</div>}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-[12px] text-slate-500 dark:text-slate-400">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
             <span className="inline-flex items-center gap-1.5 rounded-md px-1">
               选择工作空间
             </span>
@@ -1550,15 +1550,15 @@ function RobotMascot() {
 
       {/* 机器人下方的轻量装饰胶囊（保留原「Orchestrator / Working… / Review Enabled」） */}
       <div className="absolute inset-x-0 bottom-[10px] flex items-center justify-center gap-2.5">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
           <Waypoints className="size-3 text-[var(--agenthub-accent)]/70" />
           Orchestrator
         </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
           <Sparkles className="size-3 text-[var(--agenthub-accent)]/70" />
           Working…
         </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
           <span className="text-emerald-500/80">✓</span>
           Review Enabled
         </span>
@@ -1664,7 +1664,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-0.5 py-2">
-          <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-slate-400">最近对话</div>
+          <div className="px-2 pb-1 text-3xs font-medium uppercase tracking-wider text-slate-400">最近对话</div>
           {filtered.map((conversation) => {
             const isGroup = conversation.mode === 'group' || conversation.agentIds.length > 1
             return (
@@ -1697,13 +1697,13 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                       onCancel={() => setRenamingId(null)}
                     />
                   ) : (
-                    <span className="block truncate text-[13px] font-medium leading-5">{conversation.title}</span>
+                    <span className="block truncate text-sm font-medium leading-5">{conversation.title}</span>
                   )}
-                  <span className="mt-0.5 block truncate text-[10px] leading-4 text-slate-500">
+                  <span className="mt-0.5 block truncate text-3xs leading-4 text-slate-500">
                     {conversation.agentIds.map((id) => agents[id] ? getAgentDisplayName(agents[id]) : null).filter(Boolean).join(' / ') || '未配置 Agent'}
                   </span>
                 </span>
-                <span className="ml-1 shrink-0 self-start pt-1 text-[10px] text-slate-400">{formatConversationTime(conversation.updatedAt)}</span>
+                <span className="ml-1 shrink-0 self-start pt-1 text-3xs text-slate-400">{formatConversationTime(conversation.updatedAt)}</span>
               </button>
             )
           })}
@@ -1715,7 +1715,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                 type="button"
                 onClick={() => setShowArchived((v) => !v)}
                 aria-expanded={showArchived}
-                className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] font-medium text-slate-500 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"
+                className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-slate-500 transition hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-white/5"
               >
                 <Archive className="size-3.5 shrink-0 opacity-70" />
                 已归档
@@ -1743,8 +1743,8 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                       <Archive className="size-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12.5px] font-medium leading-5 text-slate-600 dark:text-slate-300">{conversation.title}</span>
-                      <span className="mt-0.5 block truncate text-[10px] leading-4 text-slate-400">
+                      <span className="block truncate text-[0.8125rem] font-medium leading-5 text-slate-600 dark:text-slate-300">{conversation.title}</span>
+                      <span className="mt-0.5 block truncate text-3xs leading-4 text-slate-400">
                         已归档 · {formatConversationTime(conversation.updatedAt)}
                       </span>
                     </span>
@@ -1870,7 +1870,7 @@ function RenameInput({
         }
       }}
       maxLength={100}
-      className="w-full rounded border border-primary/40 bg-background px-1.5 py-0.5 text-[13px] font-medium outline-none ring-2 ring-primary/30"
+      className="w-full rounded border border-primary/40 bg-background px-1.5 py-0.5 text-sm font-medium outline-none ring-2 ring-primary/30"
     />
   )
 }

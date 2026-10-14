@@ -89,14 +89,14 @@ export function HomeContact() {
                 想聊聊它、想改它、想抄它，都加微信
               </h2>
 
-              <p className="mt-3 max-w-xl text-sm leading-7 text-slate-500 sm:text-[15px] dark:text-slate-400">
+              <p className="mt-3 max-w-xl text-sm leading-7 text-slate-500 sm:text-base dark:text-slate-400">
                 项目由个人独立维护。使用中遇到问题、想提需求、想接一段 Agent 编排到自己的业务里，
                 或者只是想知道某个模块为什么这么设计 —— 直接加微信说，比在 issue 里等回复快得多。
               </p>
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3.5 py-2.5">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">微信号</span>
+                  <span className="text-sm font-medium text-slate-600">微信号</span>
                   <code
                     id="home-wechat-id"
                     className="font-mono text-base font-semibold tracking-wide text-slate-900 select-all dark:text-slate-100"
@@ -130,7 +130,7 @@ export function HomeContact() {
               <p
                 className={cn(
                   'mt-3 flex items-start gap-1.5 text-xs leading-5',
-                  failed ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500',
+                  failed ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600',
                 )}
               >
                 <TriangleAlert className={cn('mt-0.5 size-3.5 shrink-0', failed ? '' : 'hidden')} aria-hidden="true" />
@@ -151,13 +151,13 @@ export function HomeContact() {
                   <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {BRAND_NAME}
                   </div>
-                  <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                  <div className="truncate text-xs text-slate-600">
                     {BRAND_TAGLINE_ZH}
                   </div>
                 </div>
               </div>
 
-              <p className="mt-4 text-xs leading-6 text-slate-500 dark:text-slate-400">
+              <p className="mt-4 text-sm leading-6 text-slate-600">
                 不想加微信也没关系 —— 仓库、文档与问题反馈都是公开的，欢迎直接提 issue 或 PR。
               </p>
 
@@ -182,7 +182,7 @@ export function HomeContact() {
                 </a>
               </div>
 
-              <p className="mt-4 border-t border-[var(--agenthub-border)] pt-3 text-[11px] leading-5 text-slate-400 dark:text-slate-500">
+              <p className="mt-4 border-t border-[var(--agenthub-border)] pt-3 text-xs leading-5 text-slate-600">
                 本项目是{' '}
                 <a href={UPSTREAM_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-600 dark:hover:text-slate-300">
                   lizyoko9/bitdance-agenthub

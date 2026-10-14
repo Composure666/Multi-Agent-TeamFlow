@@ -10,7 +10,7 @@ import { SearchResultItem } from './search-result-item'
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border bg-muted px-1 font-sans text-[10px] font-medium text-muted-foreground">
+    <kbd className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border bg-muted px-1 font-sans text-3xs font-medium text-muted-foreground">
       {children}
     </kbd>
   )

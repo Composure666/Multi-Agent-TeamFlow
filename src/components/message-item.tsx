@@ -208,7 +208,7 @@ function MessageItemImpl({ message }: { message: MessageRow }) {
           {/* Agent 消息的 token 用量小标，hover 看拆分 */}
           {!isUser && message.usage && (
             <span
-              className="cursor-help font-mono text-[10px] text-muted-foreground/60"
+              className="cursor-help font-mono text-3xs text-muted-foreground/60"
               title={`新 Input: ${message.usage.inputTokens.toLocaleString()}\nOutput: ${message.usage.outputTokens.toLocaleString()}${message.usage.cacheReadTokens > 0 ? `\nCache 命中: ${message.usage.cacheReadTokens.toLocaleString()}` : ''}`}
             >
               {formatTokenShort(
@@ -262,7 +262,7 @@ function MessageItemImpl({ message }: { message: MessageRow }) {
                   {mentionedAgents.map((a) => (
                     <span
                       key={a.id}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pl-1 pr-1.5 text-[10px] text-primary"
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pl-1 pr-1.5 text-3xs text-primary"
                     >
                       <AgentAvatar agent={a} size="xs" />
                       <span>{a.name}</span>

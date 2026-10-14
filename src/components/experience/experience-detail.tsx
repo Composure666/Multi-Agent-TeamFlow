@@ -175,11 +175,11 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="min-w-0 break-words text-xl font-semibold">{item.title}</h1>
-            <Badge className={cn('border text-[10px] font-normal', KIND_COLOR[item.kind])}>
+            <Badge className={cn('border text-3xs font-normal', KIND_COLOR[item.kind])}>
               {KIND_LABEL[item.kind]}
             </Badge>
             <Badge className={cn(
-              'border text-[10px] font-normal',
+              'border text-3xs font-normal',
               item.active
                 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
                 : 'bg-amber-500/10 text-amber-600 border-amber-500/20',
@@ -204,7 +204,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
             {item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {item.tags.map((tag) => (
-                  <span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
                     #{tag}
                   </span>
                 ))}
@@ -237,7 +237,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-medium">迭代历史</h2>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {revisions.length > 0 ? `${revisions.length} 个快照` : ''}
             </span>
           </div>
@@ -259,12 +259,12 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-medium">{meta.label}</span>
-                          <Badge className={cn('border text-[10px] font-normal', meta.badge)}>
+                          <Badge className={cn('border text-3xs font-normal', meta.badge)}>
                             {rev.source === 'auto' ? 'Agent 自动' : '人工'}
                           </Badge>
-                          <span className="text-[11px] text-muted-foreground">{formatDate(rev.createdAt)}</span>
+                          <span className="text-xs text-muted-foreground">{formatDate(rev.createdAt)}</span>
                           {rev.runId && (
-                            <span className="font-mono text-[10px] text-muted-foreground">
+                            <span className="font-mono text-3xs text-muted-foreground">
                               Run {rev.runId.slice(0, 8)}
                             </span>
                           )}
@@ -273,14 +273,14 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
                           {rev.title}
                         </div>
                         {rev.note && (
-                          <div className="mt-0.5 break-words text-[11px] text-muted-foreground/80">{rev.note}</div>
+                          <div className="mt-0.5 break-words text-xs text-muted-foreground/80">{rev.note}</div>
                         )}
                       </div>
                       {rev.kind !== 'confirm' && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 shrink-0 gap-1 text-[11px]"
+                          className="h-7 shrink-0 gap-1 text-xs"
                           disabled={restoringId === rev.id}
                           onClick={() => void handleRollback(rev.id)}
                         >
@@ -322,9 +322,9 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-medium">经验注入</div>
-                      <div className="text-[11px] text-muted-foreground">{formatDate(rec.createdAt)}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(rec.createdAt)}</div>
                     </div>
-                    <Badge className="border-0 bg-blue-500/10 text-[10px] text-blue-600">Run {rec.runId.slice(0, 8)}</Badge>
+                    <Badge className="border-0 bg-blue-500/10 text-3xs text-blue-600">Run {rec.runId.slice(0, 8)}</Badge>
                   </div>
                 ))}
               </div>
@@ -341,7 +341,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-medium">参考附件</h2>
             {!filesLoading && files.length > 0 && (
-              <span className="text-[11px] text-muted-foreground">{files.length} 个文件</span>
+              <span className="text-xs text-muted-foreground">{files.length} 个文件</span>
             )}
           </div>
           <div className="rounded-xl border bg-card">
@@ -363,7 +363,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
                       >
                         {f.fileName}
                       </a>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-xs text-muted-foreground">
                         {formatFileSize(f.size)} · {formatDate(f.createdAt)}
                       </div>
                     </div>
@@ -400,7 +400,7 @@ function formatFileSize(bytes: number): string {
 function StatBox({ icon: Icon, label, value }: { icon: typeof Zap; label: string; value: string }) {
   return (
     <div className="rounded-xl border bg-card px-3 py-2.5">
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icon className="size-3" />
         {label}
       </div>

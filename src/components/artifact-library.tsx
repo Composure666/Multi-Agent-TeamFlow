@@ -154,7 +154,7 @@ export function ArtifactLibrary({
             className="h-8 pl-8 text-xs"
           />
         </div>
-        <div className="mt-1 text-[10px] text-muted-foreground">
+        <div className="mt-1 text-3xs text-muted-foreground">
           {loading ? '加载中…' : `共 ${filteredGroups.length} 组 / ${scopedItems.length} 个版本`}
         </div>
       </div>
@@ -199,11 +199,11 @@ export function ArtifactLibrary({
                           <span className="block min-w-0 truncate text-xs font-medium" title={latest.title}>
                             {latest.title}
                           </span>
-                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
                             v{latest.version}
                           </span>
                         </div>
-                        <div className="mt-0.5 min-w-0 truncate text-[10px] text-muted-foreground">
+                        <div className="mt-0.5 min-w-0 truncate text-3xs text-muted-foreground">
                           <span className="font-mono">{latest.type}</span>
                           <span className="mx-1">·</span>
                           {versions.length > 1 ? `${versions.length} 个版本` : '1 个版本'}
@@ -211,7 +211,7 @@ export function ArtifactLibrary({
                           {formatTime(latest.createdAt)}
                         </div>
                         {showConversationTitle && (
-                          <div className="mt-0.5 min-w-0 truncate text-[10px] text-muted-foreground">
+                          <div className="mt-0.5 min-w-0 truncate text-3xs text-muted-foreground">
                             {latest.conversationTitle ?? '（无会话）'}
                           </div>
                         )}
@@ -246,7 +246,7 @@ export function ArtifactLibrary({
                             aria-pressed={isSelected}
                             title={`${version.title} · ${formatTime(version.createdAt)}`}
                             className={cn(
-                              'inline-flex h-5 shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-[10px] transition',
+                              'inline-flex h-5 shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-3xs transition',
                               isSelected
                                 ? 'border-primary/30 bg-primary/10 text-foreground'
                                 : 'border-border/70 bg-background/60 text-muted-foreground hover:border-foreground/25 hover:text-foreground',

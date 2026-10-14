@@ -332,7 +332,7 @@ export function InformationCenterWorkspace() {
                 >
                   <span className={cn("size-1.5 rounded-full", item.accent, !active && "opacity-70")} />
                   {item.label}
-                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] tabular-nums", active ? "bg-white/15 dark:bg-black/15" : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400")}>
+                  <span className={cn("rounded-full px-1.5 py-0.5 text-3xs tabular-nums", active ? "bg-white/15 dark:bg-black/15" : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400")}>
                     {count}
                   </span>
                 </button>
@@ -503,7 +503,7 @@ function NotificationRow({
           </button>
           {unread && <span className="size-1.5 shrink-0 rounded-full bg-blue-500" aria-label="未读" />}
           {urgent && (
-            <span className="shrink-0 rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30">
+            <span className="shrink-0 rounded-full bg-rose-50 px-1.5 py-0.5 text-3xs font-medium text-rose-600 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30">
               紧急
             </span>
           )}
@@ -516,7 +516,7 @@ function NotificationRow({
           </div>
         )}
 
-        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-slate-400">
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
           <span>{NOTIFICATION_SOURCE_LABEL[notification.source]}</span>
           <span aria-hidden>·</span>
           <span>{formatRelativeTime(notification.createdAt)}</span>
@@ -600,7 +600,7 @@ function CategoryTag({ category, level }: { category: AppNotificationCategory; l
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
+        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-3xs font-medium",
         level === "error" && "bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
         level === "warning" && "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
         level === "success" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",

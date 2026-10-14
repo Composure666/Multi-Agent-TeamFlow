@@ -98,9 +98,9 @@ function PendingBashCommandCard({
         <div className="flex items-center gap-1.5">
           <span className="shrink-0 font-medium">{agent?.name ?? 'Agent'}</span>
           <span className="shrink-0 text-muted-foreground">请求执行命令</span>
-          <code className="truncate font-mono text-[11px]">{pending.command}</code>
+          <code className="truncate font-mono text-xs">{pending.command}</code>
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+        <div className="mt-0.5 flex items-center gap-2 text-3xs text-muted-foreground">
           <span className="truncate">原因：{pending.reason}</span>
           <span>·</span>
           <span className="truncate font-mono">{pending.cwd}</span>

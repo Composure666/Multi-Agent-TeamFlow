@@ -484,7 +484,7 @@ function RateRing({ rate, invalid }: { rate: number; invalid?: boolean }) {
     <svg viewBox="0 0 40 40" className="size-11 shrink-0" aria-hidden>
       <circle cx="20" cy="20" r={radius} fill="none" strokeWidth="4" className="stroke-slate-100 dark:stroke-white/10" />
       {invalid ? (
-        <text x="20" y="24" textAnchor="middle" fontSize="12" fontWeight="600" className="fill-slate-300 dark:fill-slate-600">--</text>
+        <text x="20" y="24" textAnchor="middle" fontSize="12" fontWeight="600" className="fill-slate-500 dark:fill-slate-400">--</text>
       ) : (
         <>
           <circle
@@ -553,7 +553,7 @@ function DashboardTile({
             <div className="mt-0.5 flex items-baseline gap-1.5">
               <span className="text-xl font-semibold tracking-tight tabular-nums text-slate-950 dark:text-slate-50">{value}</span>
               {delta && (
-                <span className={cn('inline-flex items-center gap-0.5 text-[11px] font-medium', delta.startsWith('-') ? 'text-rose-500' : 'text-emerald-600')}>
+                <span className={cn('inline-flex items-center gap-0.5 text-xs font-medium', delta.startsWith('-') ? 'text-rose-500' : 'text-emerald-600')}>
                   <TrendingUp className={cn('size-3', delta.startsWith('-') && 'rotate-180')} />
                   {delta}
                 </span>
@@ -565,7 +565,7 @@ function DashboardTile({
           <button
             type="button"
             onClick={onAction}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-white/90 px-2 py-1 text-[10px] font-medium text-slate-700 shadow-sm transition hover:bg-white hover:text-[var(--agenthub-accent)] dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-white/90 px-2 py-1 text-3xs font-medium text-slate-700 shadow-sm transition hover:bg-white hover:text-[var(--agenthub-accent)] dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
           >
             {actionLabel}
             <ChevronRight className="size-3" />
@@ -573,7 +573,7 @@ function DashboardTile({
         )}
       </div>
       {children}
-      <div className="mt-auto flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+      <div className="mt-auto flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
         <span>{hint}</span>
         {delta && <span className="font-medium text-slate-600 dark:text-slate-300">{deltaLabel}</span>}
       </div>
@@ -677,7 +677,7 @@ function AutomationCard({
               >
                 <Star className={cn('size-3.5', favorite && 'fill-amber-400')} />
               </button>
-              <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium', tone.ring, tone.text)}>
+              <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium', tone.ring, tone.text)}>
                 <span className={cn('size-1.5 rounded-full', tone.dot, task.statusTone === 'running' && 'animate-pulse')} />
                 {tone.label}
               </span>
@@ -692,14 +692,14 @@ function AutomationCard({
         <TriggerIcon className={cn('size-3.5 shrink-0', trigger.tone)} />
         <span className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{task.cadence}</span>
         {task.category.trim() && (
-          <span className={cn('ml-auto inline-flex max-w-[45%] shrink-0 items-center truncate rounded-full px-2 py-0.5 text-[10px] font-medium', categoryChipClass(task.category))}>
+          <span className={cn('ml-auto inline-flex max-w-[45%] shrink-0 items-center truncate rounded-full px-2 py-0.5 text-3xs font-medium', categoryChipClass(task.category))}>
             {task.category}
           </span>
         )}
       </div>
 
       {/* Footer — last run + hover actions */}
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-white/5 dark:text-slate-400">
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-white/5 dark:text-slate-400">
         <div className="flex min-w-0 items-center gap-1.5">
           {task.statusTone === 'failed' ? (
             <>
@@ -725,7 +725,7 @@ function AutomationCard({
               onRun(task.id)
             }}
             disabled={task.statusTone === 'running'}
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-[10px] font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-3xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
             title="立即运行"
           >
             <Play className="size-3" />
@@ -779,7 +779,7 @@ function AutomationRow({
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-medium leading-tight text-slate-950 dark:text-slate-50">{task.title || '未命名任务'}</h3>
           {task.category.trim() && (
-            <span className={cn('hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline-flex', categoryChipClass(task.category))}>
+            <span className={cn('hidden shrink-0 rounded-full px-2 py-0.5 text-3xs font-medium sm:inline-flex', categoryChipClass(task.category))}>
               {task.category}
             </span>
           )}
@@ -790,11 +790,11 @@ function AutomationRow({
         <TriggerIcon className={cn('size-3.5', trigger.tone)} />
         <span className="w-24 truncate">{task.cadence}</span>
       </div>
-      <span className={cn('hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline-flex', tone.ring, tone.text)}>
+      <span className={cn('hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium sm:inline-flex', tone.ring, tone.text)}>
         <span className={cn('size-1.5 rounded-full', tone.dot, task.statusTone === 'running' && 'animate-pulse')} />
         {tone.label}
       </span>
-      <span className="hidden w-24 shrink-0 text-right text-[11px] text-slate-400 lg:block">{task.latestRun}</span>
+      <span className="hidden w-24 shrink-0 text-right text-xs text-slate-400 lg:block">{task.latestRun}</span>
       <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
         <button
           type="button"
@@ -818,7 +818,7 @@ function AutomationRow({
             onRun(task.id)
           }}
           disabled={task.statusTone === 'running'}
-          className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-[10px] font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-3xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
           title="立即运行"
         >
           <Play className="size-3" />
@@ -839,7 +839,7 @@ const RUN_ROW_LIMIT = 4
 function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomationRun>[]; nowMs: number }) {
   if (runs.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-[11px] text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
         暂无运行记录
       </div>
     )
@@ -871,7 +871,7 @@ function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomatio
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-medium text-slate-900 dark:text-slate-100">{run.title}</div>
-              <div className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400">
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
                 <Clock4 className="size-3 shrink-0" />
                 <span>{formatRelativeRunTime(run.createdAt ? new Date(run.createdAt).getTime() : nowMs, nowMs)}</span>
                 {run.duration && (
@@ -882,7 +882,7 @@ function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomatio
                 )}
               </div>
             </div>
-            <span className={cn('inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium', chip)}>
+            <span className={cn('inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-3xs font-medium', chip)}>
               {run.status}
             </span>
           </li>
@@ -946,18 +946,18 @@ function DetailPanel({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
                   选中任务 / Selected
                 </span>
-                <span className="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                <span className="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
                   {task.category.trim() || '未分类'}
                 </span>
               </div>
               <DialogTitle className="mt-2 truncate text-[22px] font-bold leading-tight text-slate-900 dark:text-slate-50">
                 {task.title}
               </DialogTitle>
-              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
-                <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium', tone.ring, tone.text)}>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[0.8125rem] text-slate-500 dark:text-slate-400">
+                <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', tone.ring, tone.text)}>
                   <span className={cn('size-1.5 rounded-full', tone.dot, task.statusTone === 'running' && 'animate-pulse')} />
                   {tone.label}
                 </span>
@@ -1013,18 +1013,18 @@ function DetailPanel({
             {/* 任务提示词预览 (只读 · line-clamp 3 + 展开) */}
             <section className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <Sparkles className="size-3.5 text-slate-500 dark:text-slate-400" />
                   任务提示词预览
                 </h3>
-                <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
                   <Lock className="size-3" />只读 · line-clamp 3
                 </span>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.04]">
                 <p
                   className={cn(
-                    'whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-slate-700 dark:text-slate-300',
+                    'whitespace-pre-wrap break-words text-[0.8125rem] leading-relaxed text-slate-700 dark:text-slate-300',
                     !promptExpanded && 'line-clamp-3',
                   )}
                 >
@@ -1034,7 +1034,7 @@ function DetailPanel({
                   <button
                     type="button"
                     onClick={() => setPromptExpanded((v) => !v)}
-                    className="mt-2 text-[11.5px] font-medium text-sky-600 hover:underline dark:text-sky-400"
+                    className="mt-2 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
                   >
                     {promptExpanded
                       ? '收起'
@@ -1051,8 +1051,8 @@ function DetailPanel({
               <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-500/30 dark:bg-rose-500/10">
                 <CircleAlert className="mt-0.5 size-4 shrink-0 text-rose-600 dark:text-rose-300" />
                 <div className="min-w-0">
-                  <div className="text-[12.5px] font-semibold text-rose-700 dark:text-rose-200">最近一次错误 · {formatDateTime(task.latestRunAt)}</div>
-                  <div className="mt-0.5 text-[12px] leading-relaxed text-rose-700 dark:text-rose-300">{task.lastError}</div>
+                  <div className="text-[0.8125rem] font-semibold text-rose-700 dark:text-rose-200">最近一次错误 · {formatDateTime(task.latestRunAt)}</div>
+                  <div className="mt-0.5 text-xs leading-relaxed text-rose-700 dark:text-rose-300">{task.lastError}</div>
                 </div>
               </div>
             )}
@@ -1064,7 +1064,7 @@ function DetailPanel({
                   <Button
                     variant="outline"
                     onClick={() => onOpenConversation(task.conversationId as string)}
-                    className="h-9 rounded-full border-slate-200 px-4 text-[12.5px] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
+                    className="h-9 rounded-full border-slate-200 px-4 text-[0.8125rem] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
                   >
                     <ExternalLink className="mr-1.5 size-3.5" />查看结果会话
                   </Button>
@@ -1072,7 +1072,7 @@ function DetailPanel({
                 <Button
                   variant="outline"
                   onClick={onEdit}
-                  className="h-9 rounded-full border-slate-200 px-4 text-[12.5px] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
+                  className="h-9 rounded-full border-slate-200 px-4 text-[0.8125rem] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
                 >
                   <Settings2 className="mr-1.5 size-3.5" />编辑
                 </Button>
@@ -1081,7 +1081,7 @@ function DetailPanel({
                     variant="outline"
                     onClick={onTogglePause}
                     disabled={busyAction !== null}
-                    className="h-9 rounded-full border-amber-300 bg-amber-50 px-4 text-[12.5px] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200"
+                    className="h-9 rounded-full border-amber-300 bg-amber-50 px-4 text-[0.8125rem] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200"
                   >
                     <Pause className="mr-1.5 size-3.5" />暂停
                   </Button>
@@ -1090,7 +1090,7 @@ function DetailPanel({
                     variant="outline"
                     onClick={onTogglePause}
                     disabled={busyAction !== null}
-                    className="h-9 rounded-full border-emerald-300 bg-emerald-50 px-4 text-[12.5px] font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
+                    className="h-9 rounded-full border-emerald-300 bg-emerald-50 px-4 text-[0.8125rem] font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
                   >
                     <Play className="mr-1.5 size-3.5" />启用
                   </Button>
@@ -1098,7 +1098,7 @@ function DetailPanel({
                 <Button
                   onClick={onRun}
                   disabled={busyAction === 'run' || task.statusTone === 'running'}
-                  className="h-9 rounded-full bg-sky-600 px-4 text-[12.5px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-50"
+                  className="h-9 rounded-full bg-sky-600 px-4 text-[0.8125rem] font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-50"
                 >
                   <Play className="mr-1.5 size-3.5 fill-white" />
                   {busyAction === 'run' ? '运行中…' : '立即运行'}
@@ -1107,7 +1107,7 @@ function DetailPanel({
                   variant="outline"
                   onClick={onDelete}
                   disabled={busyAction === 'delete'}
-                  className="h-9 rounded-full border-rose-300 px-4 text-[12.5px] font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-500/40 dark:hover:bg-rose-500/10"
+                  className="h-9 rounded-full border-rose-300 px-4 text-[0.8125rem] font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-500/40 dark:hover:bg-rose-500/10"
                 >
                   <Trash2 className="mr-1.5 size-3.5" />删除
                 </Button>
@@ -1153,22 +1153,22 @@ function DetailPanel({
             {/* 运行历史 — 5 行 (前 4 条 / 共 N 条) */}
             <section className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <History className="size-3.5 text-slate-500 dark:text-slate-400" />
                   运行历史
                 </h3>
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                  <span className="text-xs tabular-nums text-slate-400 dark:text-slate-500">
                     {runHistory.length === 0
                       ? '暂无记录'
                       : `显示 ${visibleRuns.length} 条 / 共 ${runHistory.length} 条`}
                   </span>
-                  {runHistoryLoading && <span className="text-[11px] text-slate-400">加载中</span>}
+                  {runHistoryLoading && <span className="text-xs text-slate-400">加载中</span>}
                   {runHistory.length > RUN_ROW_LIMIT && (
                     <button
                       type="button"
                       onClick={() => setHistoryExpanded((v) => !v)}
-                      className="inline-flex items-center gap-0.5 text-[11.5px] font-medium text-sky-600 hover:underline dark:text-sky-400"
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
                     >
                       {historyExpanded ? '收起' : '查看全部'}
                       <ChevronRight className={cn('size-3 transition-transform', historyExpanded && '-rotate-90')} />
@@ -1206,16 +1206,16 @@ function DetailPanel({
                         {success ? <CheckCircle2 className="size-4" /> : running ? <Play className="size-4" /> : <CircleAlert className="size-4" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-slate-800 dark:text-slate-200">
+                        <div className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-slate-800 dark:text-slate-200">
                           {index === 0 && runHistory.length > 0 && (
-                            <span className="inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                            <span className="inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-3xs font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                               最新
                             </span>
                           )}
                           <span>{run.trigger === 'manual' ? '手动触发' : '计划触发'} · {success ? '成功' : running ? '运行中' : '失败'}</span>
                         </div>
                         {summary && (
-                          <div className="mt-0.5 truncate text-[11.5px] text-slate-500 dark:text-slate-400">
+                          <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
                             {summary}
                           </div>
                         )}
@@ -1225,13 +1225,13 @@ function DetailPanel({
                           type="button"
                           onClick={() => onOpenConversation(run.conversationId as string)}
                           title="打开这次运行的产出会话"
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/40 hover:text-[var(--agenthub-accent)] dark:border-white/10 dark:text-slate-300"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/40 hover:text-[var(--agenthub-accent)] dark:border-white/10 dark:text-slate-300"
                         >
                           <ExternalLink className="size-3" />
                           查看会话
                         </button>
                       )}
-                      <div className="shrink-0 text-right text-[11.5px] tabular-nums text-slate-500 dark:text-slate-400">
+                      <div className="shrink-0 text-right text-xs tabular-nums text-slate-500 dark:text-slate-400">
                         {formatRelativeRunTime(run.startedAt, nowMs)}
                         <span aria-hidden> · </span>
                         {running ? '进行中' : formatDurationMs(run.durationMs)}
@@ -1312,7 +1312,7 @@ function UpcomingList({
   )
   if (upcoming.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-[11px] text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
         暂无即将执行的任务
       </div>
     )
@@ -1328,7 +1328,7 @@ function UpcomingList({
               onClick={() => onSelect(task.id)}
               className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-50 dark:hover:bg-white/[0.04]"
             >
-              <span className="w-12 shrink-0 font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+              <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400">
                 {formatAbsoluteClock(task.nextRunAt ?? nowMs, nowMs)}
               </span>
               <span className={cn('flex size-6 shrink-0 items-center justify-center rounded-md', task.iconWrapClassName)}>
@@ -1337,7 +1337,7 @@ function UpcomingList({
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-medium text-slate-900 dark:text-slate-100">{task.title}</div>
               </div>
-              <span className="shrink-0 truncate text-[11px] text-violet-500">{task.nextRunLabel}</span>
+              <span className="shrink-0 truncate text-xs text-violet-500">{task.nextRunLabel}</span>
             </button>
           </li>
         )
@@ -1397,7 +1397,7 @@ function TrendAreaChart({ values, weekdayLabels }: { values: number[]; weekdayLa
             x={x}
             y={h - 2}
             textAnchor="middle"
-            className="fill-slate-400"
+            className="fill-slate-500 dark:fill-slate-400"
             style={{ fontSize: 6 }}
           >
             {label}
@@ -1460,13 +1460,13 @@ function TaskFormDialog({
         {/* Header — tag + title + description (close button rendered by DialogContent) */}
         <DialogHeader className="shrink-0 px-7 pt-6 pb-4">
           <div className="min-w-0 pr-10">
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
               {topTag}
             </span>
             <DialogTitle className="mt-2.5 text-[22px] font-bold leading-tight text-slate-900 dark:text-slate-50">
               {isEdit ? '编辑自动化任务' : '创建自动化任务'}
             </DialogTitle>
-            <DialogDescription className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+            <DialogDescription className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
               {isEdit
                 ? '表单与「新建」完全一致。初值取自选中的任务快照，保存后保留选中态，详情面板继续展开。'
                 : '配置任务提示词、执行目标和基础触发计划。新建后可在卡片网格中查看。'}
@@ -1478,7 +1478,7 @@ function TaskFormDialog({
           <div className="space-y-6 px-7 pb-6 pt-4">
             {/* 错误提示条 — 窗口内展示（AI 优化失败 / 校验失败 / 保存失败） */}
             {dialogError && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12px] text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+              <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
                 <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 leading-relaxed">{dialogError}</span>
                 <button
@@ -1495,15 +1495,15 @@ function TaskFormDialog({
             {/* ① 基本信息 (单列：标题必填 / 分类 / 描述) */}
             <section className="space-y-3.5">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <User className="size-3.5 text-slate-500 dark:text-slate-400" />
                   基本信息
                 </h3>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">必填 · 1 项</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">必填 · 1 项</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
-                  <span className="flex items-center justify-between text-[12px] font-medium text-slate-700 dark:text-slate-300">
+                  <span className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
                     <span>标题 / Title</span>
                     <span className="text-rose-500">必填</span>
                   </span>
@@ -1515,7 +1515,7 @@ function TaskFormDialog({
                   />
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">分类 / Category</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">分类 / Category</span>
                   <select
                     value={form.category}
                     onChange={(event) => onFormChange({ category: event.target.value })}
@@ -1528,7 +1528,7 @@ function TaskFormDialog({
                 </label>
               </div>
               <label className="block space-y-1.5">
-                <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">描述 / Description</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">描述 / Description</span>
                 <Input
                   value={form.description}
                   onChange={(event) => onFormChange({ description: event.target.value })}
@@ -1541,19 +1541,19 @@ function TaskFormDialog({
             {/* ② 任务提示词 — 编辑器 (header + textarea + footer 字数) */}
             <section className="space-y-3.5">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <Sparkles className="size-3.5 text-slate-500 dark:text-slate-400" />
                   任务提示词
                 </h3>
                 <div className="flex items-center gap-3">
-                  <span className="tabular-nums text-[11px] text-slate-400 dark:text-slate-500">
+                  <span className="tabular-nums text-xs text-slate-400 dark:text-slate-500">
                     {form.prompt.length} / 800
                   </span>
                   <button
                     type="button"
                     onClick={onEnhancePrompt}
                     disabled={promptFilling || submitting}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--agenthub-accent)] transition hover:opacity-80 disabled:cursor-wait disabled:opacity-60"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--agenthub-accent)] transition hover:opacity-80 disabled:cursor-wait disabled:opacity-60"
                   >
                     {promptFilling ? <Spinner size="xs" inheritColor /> : <Sparkles className="size-3" />}
                     {promptFilling ? 'AI 优化中…' : 'AI 优化'}
@@ -1573,15 +1573,15 @@ function TaskFormDialog({
             {/* ③ 执行目标 — Agent + 会话 双列 */}
             <section className="space-y-3.5">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <Zap className="size-3.5 text-slate-500 dark:text-slate-400" />
                   执行目标
                 </h3>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">未指定则自动选择</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">未指定则自动选择</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">目标 Agent</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">目标 Agent</span>
                   <select value={form.agentId} onChange={(event) => onFormChange({ agentId: event.target.value })} className={cn(SELECT_CLASS, 'cursor-pointer')}>
                     <option value="">Auto · 自动指派</option>
                     {agents.map((agent) => (
@@ -1590,7 +1590,7 @@ function TaskFormDialog({
                   </select>
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">目标会话</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">目标会话</span>
                   <select value={form.conversationId} onChange={(event) => onFormChange({ conversationId: event.target.value })} className={cn(SELECT_CLASS, 'cursor-pointer')}>
                     <option value="">未绑定会话</option>
                     {conversations.map((conversation) => (
@@ -1604,17 +1604,17 @@ function TaskFormDialog({
             {/* ④ 触发计划 — 预览框 + 3 列 (类型 / 间隔 / 状态) + 条件字段说明 */}
             <section className="space-y-3.5">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   <Clock4 className="size-3.5 text-slate-500 dark:text-slate-400" />
                   触发计划
                 </h3>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">类型 · 间隔 · 状态</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">类型 · 间隔 · 状态</span>
               </div>
 
               {/* 预览框 */}
               <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-white/[0.04]">
                 <TriggerIcon className={cn('size-3.5 shrink-0', trigger.tone)} />
-                <span className="text-[12.5px] font-medium text-slate-700 dark:text-slate-200">
+                <span className="text-[0.8125rem] font-medium text-slate-700 dark:text-slate-200">
                   预览：{scheduleSummaryText(form)}
                 </span>
               </div>
@@ -1622,7 +1622,7 @@ function TaskFormDialog({
               {/* 3 列：触发类型 / 间隔分钟 / 状态 */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">触发类型</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">触发类型</span>
                   <select value={form.scheduleType} onChange={(event) => onFormChange({ scheduleType: event.target.value as AutomationScheduleType })} className={cn(SELECT_CLASS, 'cursor-pointer')}>
                     {TRIGGER_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label} · {opt.hint}</option>
@@ -1630,7 +1630,7 @@ function TaskFormDialog({
                   </select>
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                     {form.scheduleType === 'interval' ? '间隔分钟' : form.scheduleType === 'weekly' ? '时间' : form.scheduleType === 'daily' ? '时间' : '默认值'}
                   </span>
                   {form.scheduleType === 'interval' ? (
@@ -1642,19 +1642,19 @@ function TaskFormDialog({
                         onChange={(event) => onFormChange({ intervalMinutes: event.target.value })}
                         className="h-9 pr-12"
                       />
-                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] text-slate-400">分钟</span>
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-slate-400">分钟</span>
                     </div>
                   ) : form.scheduleType === 'manual' ? (
-                    <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-[12px] text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">—</div>
+                    <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">—</div>
                   ) : (
                     <div className="relative">
                       <Input type="time" value={form.timeOfDay} onChange={(event) => onFormChange({ timeOfDay: event.target.value })} className="h-9 pr-12" />
-                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] text-slate-400">调起</span>
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-slate-400">调起</span>
                     </div>
                   )}
                 </label>
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">状态</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">状态</span>
                   <select value={form.status} onChange={(event) => onFormChange({ status: event.target.value as Exclude<AutomationStatus, 'running'> })} className={cn(SELECT_CLASS, 'cursor-pointer')}>
                     {FORM_STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label} · {opt.hint}</option>
@@ -1666,7 +1666,7 @@ function TaskFormDialog({
               {/* weekly 额外选星期 */}
               {form.scheduleType === 'weekly' && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[12px] font-medium text-slate-700 dark:text-slate-300">星期</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">星期</span>
                   {WEEKDAY_FORM_OPTIONS.map((option) => {
                     const active = (form.dayOfWeek || '1') === option.value
                     return (
@@ -1675,7 +1675,7 @@ function TaskFormDialog({
                         type="button"
                         onClick={() => onFormChange({ dayOfWeek: option.value })}
                         className={cn(
-                          'flex size-7 items-center justify-center rounded-md border text-[11px] font-medium transition',
+                          'flex size-7 items-center justify-center rounded-md border text-xs font-medium transition',
                           active
                             ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white shadow-sm'
                             : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800 dark:border-white/10 dark:text-slate-400 dark:hover:text-slate-200',
@@ -1689,7 +1689,7 @@ function TaskFormDialog({
               )}
 
               {/* 条件字段说明 */}
-              <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2 text-[11.5px] text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+              <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2 text-xs text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
                 <Info className="mt-0.5 size-3.5 shrink-0 text-slate-400" />
                 <span className="leading-relaxed">
                   {form.scheduleType === 'interval'
@@ -1704,7 +1704,7 @@ function TaskFormDialog({
             </section>
 
             {/* ⑤ 提示带 (橙色琥珀) */}
-            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
               <span className="leading-relaxed">
                 {isEdit
@@ -1717,18 +1717,18 @@ function TaskFormDialog({
 
         {/* Footer — 快捷键 + 取消 + 主按钮 */}
         <DialogFooter className="mx-0 mb-0 shrink-0 flex-row items-center justify-between gap-3 border-t border-slate-100 bg-white px-7 py-4 sm:justify-between dark:border-white/5 dark:bg-neutral-950">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
             <Keyboard className="size-3" />
             按 ⌘/Ctrl + Enter 保存
           </div>
           <div className="flex shrink-0 items-center gap-2.5">
-            <Button variant="outline" onClick={onClose} disabled={submitting || promptFilling} className="h-10 rounded-full border-slate-200 px-5 text-[13px] font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.04]">
+            <Button variant="outline" onClick={onClose} disabled={submitting || promptFilling} className="h-10 rounded-full border-slate-200 px-5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.04]">
               取消
             </Button>
             <Button
               onClick={onSave}
               disabled={submitting || promptFilling || missingRequired}
-              className="h-10 rounded-full bg-sky-600 px-5 text-[13px] font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-50"
+              className="h-10 rounded-full bg-sky-600 px-5 text-sm font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-50"
             >
               <Save className="mr-1.5 size-3.5" />
               {submitting ? '保存中…' : primaryLabel}
@@ -2143,7 +2143,7 @@ export function AutomationWorkspace({
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">让 Agent 按计划自动执行任务，解放重复劳动，提升工作效率。</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
                 <span className={cn('size-1.5 rounded-full', hasRunningState ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')} />
                 {formatSyncTime(lastUpdatedAt, nowMs)}
               </span>
@@ -2293,7 +2293,7 @@ export function AutomationWorkspace({
                       {tab.label}
                       <span
                         className={cn(
-                          'inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold tabular-nums',
+                          'inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-3xs font-semibold tabular-nums',
                           active ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400',
                         )}
                       >
@@ -2362,7 +2362,7 @@ export function AutomationWorkspace({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">最近运行记录</h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{recentRuns.length} 条运行</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{recentRuns.length} 条运行</p>
                   </div>
                   <button
                     type="button"
@@ -2370,7 +2370,7 @@ export function AutomationWorkspace({
                       setActiveTab('recent')
                       setSortKey('recent')
                     }}
-                    className="inline-flex items-center gap-0.5 text-[11px] font-medium text-[var(--agenthub-accent)] hover:underline"
+                    className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                   >
                     查看全部
                     <ChevronRight className="size-3" />
@@ -2386,13 +2386,13 @@ export function AutomationWorkspace({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">运行概览</h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">最近 {trendRange} 天运行趋势</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">最近 {trendRange} 天运行趋势</p>
                   </div>
                   <select
                     value={trendRange}
                     onChange={(event) => changeTrendRange(Number(event.target.value) as AutomationTrendRange)}
                     aria-label="趋势时间范围"
-                    className="h-7 cursor-pointer rounded-md border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20"
+                    className="h-7 cursor-pointer rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20"
                   >
                     {AUTOMATION_TREND_RANGES.map((range) => (
                       <option key={range} value={range}>最近 {range} 天</option>
@@ -2407,41 +2407,41 @@ export function AutomationWorkspace({
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 dark:border-white/5">
                   <div>
-                    <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">周期运行次数</div>
+                    <div className="text-3xs font-medium uppercase tracking-wide text-slate-400">周期运行次数</div>
                     <div className="mt-1 flex items-baseline gap-1">
                       <span className="text-lg font-semibold tabular-nums text-slate-950 dark:text-slate-50">{trendTotal}</span>
                       {showRunCountDelta ? (
-                        <span className={cn('text-[10px]', runCountDelta > 0 ? 'text-emerald-500' : runCountDelta < 0 ? 'text-rose-500' : 'text-slate-400')}>
+                        <span className={cn('text-3xs', runCountDelta > 0 ? 'text-emerald-500' : runCountDelta < 0 ? 'text-rose-500' : 'text-slate-400')}>
                           {runCountDelta > 0 ? `↑ ${runCountDelta}` : runCountDelta < 0 ? `↓ ${Math.abs(runCountDelta)}` : '持平'}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-slate-400">暂无数据</span>
+                        <span className="text-3xs text-slate-400">暂无数据</span>
                       )}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">成功率</div>
+                    <div className="text-3xs font-medium uppercase tracking-wide text-slate-400">成功率</div>
                     <div className="mt-1 flex items-baseline gap-1">
                       <span className="text-lg font-semibold tabular-nums text-slate-950 dark:text-slate-50">
                         {hasRunData ? `${dashboard?.stats.successRate ?? 0}%` : '—'}
                       </span>
                       {hasRunData ? (
-                        <span className={cn('text-[10px]', successRateDelta > 0 ? 'text-emerald-500' : successRateDelta < 0 ? 'text-rose-500' : 'text-slate-400')}>
+                        <span className={cn('text-3xs', successRateDelta > 0 ? 'text-emerald-500' : successRateDelta < 0 ? 'text-rose-500' : 'text-slate-400')}>
                           {successRateDelta > 0 ? `↑ ${successRateDelta}%` : successRateDelta < 0 ? `↓ ${Math.abs(successRateDelta)}%` : '持平'}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-slate-400">暂无数据</span>
+                        <span className="text-3xs text-slate-400">暂无数据</span>
                       )}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">失败次数</div>
+                    <div className="text-3xs font-medium uppercase tracking-wide text-slate-400">失败次数</div>
                     <div className="mt-1 flex items-baseline gap-1">
                       <span className="text-lg font-semibold tabular-nums text-rose-600 dark:text-rose-300">{recentFailCount}</span>
                       {recentFailCount === 0 ? (
-                        <span className="text-[10px] text-slate-400">运行正常</span>
+                        <span className="text-3xs text-slate-400">运行正常</span>
                       ) : (
-                        <span className={cn('text-[10px]', failCountDelta > 0 ? 'text-rose-500' : 'text-slate-400')}>
+                        <span className={cn('text-3xs', failCountDelta > 0 ? 'text-rose-500' : 'text-slate-400')}>
                           {failCountDelta > 0 ? `↑ ${failCountDelta}` : failCountDelta < 0 ? `↓ ${Math.abs(failCountDelta)}` : '较上周期持平'}
                         </span>
                       )}
@@ -2455,7 +2455,7 @@ export function AutomationWorkspace({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">即将执行</h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">接下来将触发的任务</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">接下来将触发的任务</p>
                   </div>
                   <button
                     type="button"
@@ -2463,7 +2463,7 @@ export function AutomationWorkspace({
                       setActiveTab('enabled')
                       setSortKey('next')
                     }}
-                    className="inline-flex items-center gap-0.5 text-[11px] font-medium text-[var(--agenthub-accent)] hover:underline"
+                    className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                   >
                     查看全部
                     <ChevronRight className="size-3" />
@@ -2482,7 +2482,7 @@ export function AutomationWorkspace({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-medium text-slate-900 dark:text-slate-100">创建更多自动化</span>
-                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">使用 Agent 智能助手自动训练任务，让工作更轻松</span>
+                    <span className="block truncate text-xs text-slate-500 dark:text-slate-400">使用 Agent 智能助手自动训练任务，让工作更轻松</span>
                   </span>
                   <ChevronRight className="size-3.5 shrink-0 text-slate-400" />
                 </button>

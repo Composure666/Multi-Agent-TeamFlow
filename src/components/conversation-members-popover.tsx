@@ -63,7 +63,7 @@ export function ConversationMembersPopover({
             <span className="truncate text-xs font-medium text-slate-500">
               本会话成员 · {total} 位
             </span>
-            <span className="shrink-0 text-[10px] text-slate-400">点头像配置模型</span>
+            <span className="shrink-0 text-3xs text-slate-400">点头像配置模型</span>
           </div>
 
           {agents.length === 0 ? (
@@ -82,10 +82,10 @@ export function ConversationMembersPopover({
                   className="flex min-w-0 flex-col items-center gap-1 rounded-lg px-1 py-2 transition hover:bg-slate-50"
                 >
                   <AgentAvatar agent={agent} size="md" />
-                  <span className="w-full truncate text-center text-[11px] font-medium text-slate-700">
+                  <span className="w-full truncate text-center text-xs font-medium text-slate-700">
                     {agent.name}
                   </span>
-                  <span className="w-full truncate text-center text-[10px] text-slate-400">
+                  <span className="w-full truncate text-center text-3xs text-slate-400">
                     {modelLabel(agent)}
                   </span>
                 </button>

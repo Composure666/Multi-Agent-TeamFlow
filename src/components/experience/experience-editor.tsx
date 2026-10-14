@@ -126,7 +126,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               maxLength={80}
               className="text-sm"
             />
-            <div className="mt-1 text-right text-[10px] text-muted-foreground">{title.length}/80</div>
+            <div className="mt-1 text-right text-3xs text-muted-foreground">{title.length}/80</div>
           </div>
 
           <div>
@@ -155,7 +155,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               maxLength={200}
               className="text-sm"
             />
-            <div className="mt-1 text-right text-[10px] text-muted-foreground">{trigger.length}/200</div>
+            <div className="mt-1 text-right text-3xs text-muted-foreground">{trigger.length}/200</div>
           </div>
 
           <div>
@@ -180,7 +180,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
             <label className="mb-1.5 block text-xs font-medium">标签</label>
             <div className="flex flex-wrap gap-1.5">
               {tags.map((t) => (
-                <Badge key={t} variant="secondary" className="gap-1 text-[11px]">
+                <Badge key={t} variant="secondary" className="gap-1 text-xs">
                   {t}
                   <button onClick={() => removeTag(t)} className="hover:text-foreground">
                     <X className="size-3" />
@@ -198,13 +198,13 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               />
               <Button size="sm" variant="outline" onClick={() => addTags(tagInput)} className="shrink-0 text-xs">添加</Button>
             </div>
-            <p className="mt-1 text-[10px] text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
+            <p className="mt-1 text-3xs text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
             <div>
               <div className="text-xs font-medium">启用状态</div>
-              <div className="text-[10px] text-muted-foreground">启用后将注入 Agent 上下文</div>
+              <div className="text-3xs text-muted-foreground">启用后将注入 Agent 上下文</div>
             </div>
             <button
               type="button"
@@ -248,7 +248,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
                     >
                       {f.fileName}
                     </a>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{formatSize(f.size)}</span>
+                    <span className="shrink-0 text-3xs text-muted-foreground">{formatSize(f.size)}</span>
                     <button
                       onClick={() => void handleRemoveFile(f.id)}
                       className="shrink-0 text-muted-foreground hover:text-foreground"
@@ -265,7 +265,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               <span className="text-xs text-muted-foreground">
                 {uploading ? '上传中…' : '添加参考文件（可选）'}
               </span>
-              <span className="text-[10px] text-muted-foreground/70">支持 PDF、DOC、TXT、MD 等格式，单文件 ≤ 20MB</span>
+              <span className="text-3xs text-muted-foreground/70">支持 PDF、DOC、TXT、MD 等格式，单文件 ≤ 20MB</span>
               <input
                 type="file"
                 multiple

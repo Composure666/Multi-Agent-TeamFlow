@@ -195,7 +195,7 @@ function QuotedSelectionCard({ source, artifactId, filePath, text }: QuotedSegme
   const collapsed = lines.length > 4
   return (
     <div className="overflow-hidden rounded-md border border-[#3370FF]/30 bg-[#3370FF]/5 text-xs">
-      <div className="flex items-center gap-1.5 border-b border-[#3370FF]/20 bg-[#3370FF]/10 px-2.5 py-1 text-[11px]">
+      <div className="flex items-center gap-1.5 border-b border-[#3370FF]/20 bg-[#3370FF]/10 px-2.5 py-1 text-xs">
         <Sparkles className="size-3 text-[#3370FF]" />
         <span className="font-medium text-[#3370FF]">引用</span>
         {source && (
@@ -205,7 +205,7 @@ function QuotedSelectionCard({ source, artifactId, filePath, text }: QuotedSegme
           </>
         )}
         {(artifactId || filePath) && (
-          <code className="ml-1 truncate font-mono text-[10px] text-muted-foreground/70">
+          <code className="ml-1 truncate font-mono text-3xs text-muted-foreground/70">
             {artifactId ?? filePath}
           </code>
         )}
@@ -213,7 +213,7 @@ function QuotedSelectionCard({ source, artifactId, filePath, text }: QuotedSegme
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="ml-auto rounded px-1 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="ml-auto rounded px-1 text-3xs text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             {expanded ? '收起' : '展开'}
           </button>
@@ -221,7 +221,7 @@ function QuotedSelectionCard({ source, artifactId, filePath, text }: QuotedSegme
       </div>
       <pre
         className={cn(
-          'whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/90',
+          'whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs leading-relaxed text-foreground/90',
           !expanded && collapsed && 'line-clamp-3',
         )}
       >
@@ -339,7 +339,7 @@ function ToolUsePart({
           {state === 'running' && <Loader2 className={cn('size-3.5 animate-spin', iconColor)} />}
           {state === 'success' && <Check className={cn('size-3.5', iconColor)} />}
           {state === 'error' && <XCircle className={cn('size-3.5', iconColor)} />}
-          <span className="min-w-0 max-w-[12rem] truncate rounded bg-black/5 px-1.5 py-0.5 text-[11px] font-medium dark:bg-white/10">
+          <span className="min-w-0 max-w-[12rem] truncate rounded bg-black/5 px-1.5 py-0.5 text-xs font-medium dark:bg-white/10">
             {displayName}
           </span>
           <span className="text-muted-foreground">·</span>
@@ -373,7 +373,7 @@ function ToolUsePart({
                 tone={completion.isError ? 'error' : 'neutral'}
               />
             )}
-            <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 font-mono text-[10px] text-muted-foreground">
+            <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 font-mono text-3xs text-muted-foreground">
               <span>{toolName}</span>
               <span>{callId}</span>
             </div>
@@ -470,7 +470,7 @@ function TerminalPreviewBlock({
           : 'border-zinc-200 dark:border-zinc-800',
       )}
     >
-      <div className="flex min-w-0 items-center gap-2 border-b border-zinc-800 px-2.5 py-1.5 text-[10px] text-zinc-400">
+      <div className="flex min-w-0 items-center gap-2 border-b border-zinc-800 px-2.5 py-1.5 text-3xs text-zinc-400">
         <Terminal className="size-3 shrink-0" />
         <span className="shrink-0 font-medium">{label}</span>
         {meta && <span className="min-w-0 truncate font-mono text-zinc-500">{meta}</span>}
@@ -486,7 +486,7 @@ function TerminalPreviewBlock({
       </div>
       <pre
         className={cn(
-          'min-w-0 max-w-full overflow-auto px-2.5 py-2 font-mono text-[11px] leading-relaxed text-zinc-100 whitespace-pre-wrap break-words [overflow-wrap:anywhere]',
+          'min-w-0 max-w-full overflow-auto px-2.5 py-2 font-mono text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap break-words [overflow-wrap:anywhere]',
           expanded ? 'max-h-80' : collapsedMaxClassName,
         )}
       >
@@ -512,10 +512,10 @@ function ToolDetailBlock({
         tone === 'error' && 'border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20',
       )}
     >
-      <div className="border-b border-border/60 px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
+      <div className="border-b border-border/60 px-2.5 py-1 text-3xs font-medium text-muted-foreground">
         {label}
       </div>
-      <pre className="max-h-72 min-w-0 max-w-full overflow-auto px-2.5 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+      <pre className="max-h-72 min-w-0 max-w-full overflow-auto px-2.5 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
         <code>{formatToolValue(value)}</code>
       </pre>
     </div>
@@ -622,7 +622,7 @@ function ToolCluster({
           )}
           <span className="font-medium">工具调用 × {tools.length}</span>
           <span className="text-muted-foreground">·</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
             {successDistribution && (
               <>
                 <span className="font-medium text-emerald-700 dark:text-emerald-400">
@@ -651,12 +651,12 @@ function ToolCluster({
             )}
           </span>
           {runningCount > 0 && (
-            <span className="ml-auto shrink-0 text-[10px] text-amber-600 dark:text-amber-400">
+            <span className="ml-auto shrink-0 text-3xs text-amber-600 dark:text-amber-400">
               {runningCount} 进行中
             </span>
           )}
           {errorCount > 0 && runningCount === 0 && (
-            <span className="ml-auto shrink-0 text-[10px] text-red-600 dark:text-red-400">
+            <span className="ml-auto shrink-0 text-3xs text-red-600 dark:text-red-400">
               {errorCount} 失败
             </span>
           )}
@@ -718,7 +718,7 @@ function ArtifactRefPart({ artifactId }: { artifactId: string }) {
             <div className="text-sm font-medium text-muted-foreground line-through">
               产物已删除
             </div>
-            <div className="font-mono text-[10px] text-muted-foreground">{artifactId}</div>
+            <div className="font-mono text-3xs text-muted-foreground">{artifactId}</div>
           </div>
         </CardContent>
       </Card>
@@ -848,7 +848,7 @@ function DeployCandidatesPart({
                     v{candidate.version} · {agent?.name ?? candidate.createdByAgentId} ·{' '}
                     {formatCompactDate(candidate.createdAt)}
                   </div>
-                  <div className="truncate font-mono text-[10px] text-muted-foreground/70">
+                  <div className="truncate font-mono text-3xs text-muted-foreground/70">
                     {candidate.artifactId}
                   </div>
                 </div>
@@ -931,11 +931,11 @@ function DeployStatusPart({
           </div>
           {ready ? (
             <div className="mt-1 space-y-0.5">
-              <div className="truncate font-mono text-[11px] text-sky-700 dark:text-sky-300">
+              <div className="truncate font-mono text-xs text-sky-700 dark:text-sky-300">
                 {previewUrl}
               </div>
               {fallbackPreviewUrl && fallbackPreviewUrl !== previewUrl && (
-                <div className="truncate text-[11px] text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   本地回退：<span className="font-mono">{fallbackPreviewUrl}</span>
                 </div>
               )}
@@ -946,7 +946,7 @@ function DeployStatusPart({
                 {deployment.error ?? 'Unknown deployment error'}
               </div>
               {fallbackPreviewUrl && (
-                <div className="truncate text-[11px] text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   本地回退：<span className="font-mono">{fallbackPreviewUrl}</span>
                 </div>
               )}

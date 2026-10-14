@@ -181,7 +181,7 @@ export function AgentToolSearchDialog({
               )}
             </select>
 
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-4 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
               MCP 服务默认以本地 stdio 进程运行，请根据 Manifest 中的 command、args 和环境变量调整。
             </div>
@@ -204,7 +204,7 @@ export function AgentToolSearchDialog({
           <div className="agenthub-hide-scrollbar min-h-0 overflow-y-auto">
             <div className="grid gap-2.5 pb-1">
               {hasSearched && !searching && !searchError && (
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{results.length} 条结果{total != null ? ' · 共 ' + total + ' 条' : ''}</span>
                   {sourceStatus && <StatusBadge tone={sourceStatus === 'ok' ? 'success' : 'warning'}>GitHub {sourceStatus}</StatusBadge>}
                 </div>
@@ -241,7 +241,7 @@ export function AgentToolSearchDialog({
                           <StatusBadge tone={presentation.riskTone}>{presentation.riskLabel}</StatusBadge>
                           {isConfigured && <StatusBadge tone="success">已绑定</StatusBadge>}
                         </div>
-                        <p className="mt-1.5 break-words text-[11px] leading-5 text-muted-foreground">{result.description}</p>
+                        <p className="mt-1.5 break-words text-xs leading-5 text-muted-foreground">{result.description}</p>
                       </div>
                       <Button
                         type="button"
@@ -255,7 +255,7 @@ export function AgentToolSearchDialog({
                       </Button>
                     </div>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-3xs text-muted-foreground">
                       {result.githubUrl && <SourceLink href={result.githubUrl} label="GitHub" />}
                       {result.installUrl && <SourceLink href={result.installUrl} label="安装脚本" />}
                       {result.manifestUrl && <SourceLink href={result.manifestUrl} label="Manifest" />}
@@ -263,7 +263,7 @@ export function AgentToolSearchDialog({
                     </div>
 
                     {!presentation.compatible && (
-                      <p className="mt-2 text-[10px] text-rose-600 dark:text-rose-300">当前目标 Agent 无法加载此工具，请检查与 Adapter 的兼容性。</p>
+                      <p className="mt-2 text-3xs text-rose-600 dark:text-rose-300">当前目标 Agent 无法加载此工具，请检查与 Adapter 的兼容性。</p>
                     )}
                   </article>
                 )
@@ -281,7 +281,7 @@ function SearchState({ title, description, loading = false }: { title: string; d
     <div className="flex min-h-28 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 text-center">
       {loading ? <Loader2 className="mb-2 size-5 text-muted-foreground motion-safe:animate-spin" /> : <Search className="mb-2 size-5 text-muted-foreground" />}
       <div className="text-xs font-medium">{title}</div>
-      <p className="mt-1 text-[11px] text-muted-foreground">{description}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
     </div>
   )
 }

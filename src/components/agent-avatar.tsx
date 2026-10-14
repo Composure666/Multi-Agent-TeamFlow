@@ -15,8 +15,8 @@ interface AgentAvatarProps {
 }
 
 const SIZE_CLASS: Record<NonNullable<AgentAvatarProps['size']>, string> = {
-  xs: 'size-5 text-[10px]',
-  sm: 'size-7 text-[11px]',
+  xs: 'size-5 text-3xs',
+  sm: 'size-7 text-xs',
   md: 'size-8 text-xs',
   lg: 'size-9 text-sm',
 }

@@ -140,7 +140,7 @@ export function FileExplorerPanel() {
         <div className="flex min-w-0 items-center gap-1.5">
           <Folder className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate text-sm font-medium">文件</span>
-          <span className="truncate font-mono text-[10px] text-muted-foreground" title={conv.workspaceBoundPath ?? ''}>
+          <span className="truncate font-mono text-3xs text-muted-foreground" title={conv.workspaceBoundPath ?? ''}>
             {conv.workspaceMode === 'local'
               ? (conv.workspaceBoundPath ?? '').split(/[\\/]/).pop()
               : '沙箱'}

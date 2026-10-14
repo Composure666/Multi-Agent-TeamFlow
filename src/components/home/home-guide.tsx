@@ -1,9 +1,9 @@
 'use client'
 
-import { AlertTriangle, ArrowRight, CheckCircle2, CloudUpload, KeyRound, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, CloudUpload, KeyRound, Settings2, type LucideIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
-import { Container, SectionHead, WorkbenchLink, cardClass } from '@/components/home/home-primitives'
+import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
 import { buttonVariants } from '@/components/ui/button'
 import {
   GUIDE_GROUPS,
@@ -21,17 +21,16 @@ import { cn } from '@/lib/utils'
  *  - **内容同源**：条目都读 `user-guide-data.ts`，不在这里重写一遍文案 —— 两处漂移是最难查的 bug；
  *  - **职责不同**：弹窗是「你现在就在产品里，我告诉你点哪」；这里是「你还没进来，我先告诉你要准备什么、
  *    这个产品由哪些模块组成」。所以本分区**不查实时配置状态**（主页是访客面，服务端的配置状态
- *    对访客毫无意义），只把「必须先配好 AI 模型与 OSS」这条前置条件讲清楚，并给出可直接落到
- *    设置分区的工作台深链（`/?setup=<section>`，由 `settings-deeplink.tsx` 接手）。
+ *    对访客毫无意义），只把「必须先配好 AI 模型与 OSS」这条前置条件讲清楚。
+ *
+ * ❗ 这里曾经给出「去配置 AI 模型 / 去配置对象存储」两个深链（`/?setup=<section>`，落到设置分区）。
+ * 2026-10-14 的主页审查判定它必须撤掉：`/` 在**对外托管部署**里位于 nginx Basic 门禁之后，
+ * 匿名访客点下去只会弹浏览器原生登录框（模态窗口、吞掉整页事件、控制台零报错）；
+ * 而本分区的读者恰恰是「还没装、还没进来」的人 —— 给他们的深链必然是死路。
+ * 现在改成**纯文本指引**（写清在应用内的哪个位置配），并由首启弹窗在访客真正进来后再给一次深链。
  *
  * 左导航在 `lg` 以上竖排并吸顶，窄屏塌缩为横向滚动条 —— 与弹窗内保持同一套交互记忆。
  */
-
-/** 工作台深链：`?setup=` 的值必须与 `SettingsSection` 的取值一致。 */
-const SETUP_DEEPLINK = {
-  apiKeys: '/?setup=api-keys',
-  oss: '/?setup=oss',
-} as const
 
 export function HomeGuide() {
   const [activeId, setActiveId] = useState<string>(START_ID)
@@ -51,7 +50,7 @@ export function HomeGuide() {
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <div className="min-w-0">
             <p className="text-sm font-semibold">必须先配置 AI 与 OSS 的 API，否则无法正常使用</p>
-            <p className="mt-1 text-xs leading-6">
+            <p className="mt-1 text-sm leading-6">
               至少填一家模型供应商的 API Key（DeepSeek / OpenAI / Anthropic / 火山方舟任选其一）。
               没配 Key 时，新建任务会直接失败并提示「未配置」。对象存储不配不报错，但换机器或重装后
               就拿不到之前的图片产物了。
@@ -71,7 +70,7 @@ export function HomeGuide() {
           >
             {GUIDE_GROUPS.map((group) => (
               <div key={group} className="flex shrink-0 gap-1 lg:block lg:shrink">
-                <p className="hidden px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:block dark:text-slate-500">
+                <p className="hidden px-3 pb-1 pt-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 lg:block">
                   {group}
                 </p>
                 {GUIDE_ITEMS.filter((item) => item.group === group).map((item) => {
@@ -107,7 +106,7 @@ export function HomeGuide() {
               </span>
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{active.label}</h3>
-                <p className="mt-1 text-sm leading-7 text-slate-500 dark:text-slate-400">{active.summary}</p>
+                <p className="mt-1 text-sm leading-7 text-slate-600">{active.summary}</p>
               </div>
             </div>
 
@@ -116,14 +115,14 @@ export function HomeGuide() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <WorkbenchLink
-            href="/"
+          <a
+            href="#download"
             className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
           >
-            进入工作台
+            下载桌面端
             <ArrowRight className="size-4" aria-hidden="true" />
-          </WorkbenchLink>
-          <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
+          </a>
+          <p className="text-sm leading-6 text-slate-600">
             指南里的每个模块，都是工作台左侧栏里真实存在的入口 —— 不是规划图。
           </p>
         </div>
@@ -147,16 +146,14 @@ function StartPanel() {
           title="AI 模型（必须）"
           tone="required"
           description="Agent 的每次思考、规划、写代码都要调用模型。没有可用的 Key，任务会直接报「未配置」。"
-          href={SETUP_DEEPLINK.apiKeys}
-          action="去配置 AI 模型"
+          where="装好后打开应用 → 设置 → 供应商，填入任意一家的 API Key"
         />
         <PrereqCard
           icon={CloudUpload}
           title="对象存储 OSS（建议）"
           tone="optional"
           description="图片产物的存放位置。不配也能用，图片只留本机；换机器或重装后就拿不到了。"
-          href={SETUP_DEEPLINK.oss}
-          action="去配置对象存储"
+          where="装好后打开应用 → 设置 → 对象存储"
         />
       </div>
 
@@ -164,7 +161,7 @@ function StartPanel() {
         <ol className="flex flex-col gap-2">
           {item.steps.map((step, index) => (
             <li key={step} className="flex gap-2.5 text-sm leading-6">
-              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] font-mono text-[11px] font-semibold text-[var(--agenthub-accent)]">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]">
                 {index + 1}
               </span>
               <span className="text-slate-600 dark:text-slate-300">{step}</span>
@@ -177,12 +174,12 @@ function StartPanel() {
         <GuideBlock title={item.notesTitle}>
           <ul className="flex flex-col gap-2">
             {item.notes.map((note) => (
-              <li key={note} className="flex gap-2.5 text-[13px] leading-6">
+              <li key={note} className="flex gap-2.5 text-sm leading-6">
                 <span
                   className="mt-2.5 size-1 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"
                   aria-hidden="true"
                 />
-                <span className="text-slate-500 dark:text-slate-400">{note}</span>
+                <span className="text-slate-600">{note}</span>
               </li>
             ))}
           </ul>
@@ -203,7 +200,7 @@ function ModulePanel({ item }: { item: GuideItem }) {
         <ol className="flex flex-col gap-2">
           {item.steps.map((step, index) => (
             <li key={step} className="flex gap-2.5 text-sm leading-6">
-              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-surface-muted)] font-mono text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-surface-muted)] font-mono text-xs font-semibold text-slate-600">
                 {index + 1}
               </span>
               <span className="text-slate-600 dark:text-slate-300">{step}</span>
@@ -216,12 +213,12 @@ function ModulePanel({ item }: { item: GuideItem }) {
         <GuideBlock title="小提示">
           <ul className="flex flex-col gap-2">
             {item.tips.map((tip) => (
-              <li key={tip} className="flex gap-2.5 text-[13px] leading-6">
+              <li key={tip} className="flex gap-2.5 text-sm leading-6">
                 <span
                   className="mt-2.5 size-1 shrink-0 rounded-full bg-slate-400 dark:bg-slate-500"
                   aria-hidden="true"
                 />
-                <span className="text-slate-500 dark:text-slate-400">{tip}</span>
+                <span className="text-slate-600">{tip}</span>
               </li>
             ))}
           </ul>
@@ -238,7 +235,7 @@ function ModulePanel({ item }: { item: GuideItem }) {
 function GuideBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3.5">
-      <h4 className="mb-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200">{title}</h4>
+      <h4 className="mb-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h4>
       {children}
     </section>
   )
@@ -249,21 +246,21 @@ function GuideBlock({ title, children }: { title: string; children: ReactNode })
  *
  * `tone` 只区分「必填」与「建议」两种语气 —— 主页拿不到也不该拿运行时配置状态，
  * 所以这里刻意**不**渲染「已就绪 / 未就绪」徽标，避免出现「主页说已配置、进去却发现没有」。
+ *
+ * `where` 是纯文本指引，**刻意不做成链接**（原因见文件顶部注释）。
  */
 function PrereqCard({
   icon: Icon,
   title,
   tone,
   description,
-  href,
-  action,
+  where,
 }: {
   icon: LucideIcon
   title: string
   tone: 'required' | 'optional'
   description: string
-  href: string
-  action: string
+  where: string
 }) {
   const required = tone === 'required'
   return (
@@ -283,27 +280,21 @@ function PrereqCard({
           )}
           aria-hidden="true"
         />
-        <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{title}</span>
+        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</span>
         {required ? (
           <AlertTriangle
             className="ml-auto size-4 shrink-0 text-amber-600 dark:text-amber-400"
             aria-hidden="true"
           />
         ) : (
-          <CheckCircle2 className="ml-auto size-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />
+          <CheckCircle2 className="ml-auto size-4 shrink-0 text-slate-400 dark:text-slate-400" aria-hidden="true" />
         )}
       </div>
-      <p className="text-[12px] leading-5 text-slate-600 dark:text-slate-300">{description}</p>
-      <WorkbenchLink
-        href={href}
-        className={cn(
-          buttonVariants({ variant: required ? 'default' : 'outline', size: 'sm' }),
-          'mt-auto w-fit gap-1.5',
-        )}
-      >
-        {action}
-        <ArrowRight className="size-3.5" aria-hidden="true" />
-      </WorkbenchLink>
+      <p className="text-sm leading-5 text-slate-600 dark:text-slate-300">{description}</p>
+      <p className="mt-auto flex items-start gap-1.5 text-sm font-medium text-[var(--agenthub-accent)]">
+        <Settings2 className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0">{where}</span>
+      </p>
     </div>
   )
 }
