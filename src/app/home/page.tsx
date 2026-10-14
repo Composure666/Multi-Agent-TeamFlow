@@ -30,6 +30,24 @@ export const metadata: Metadata = {
   keywords: ['multi-agent', 'ai-agent', 'agent-orchestration', 'nextjs', 'electron', 'sqlite', '本地优先'],
 }
 
+/**
+ * ❗ 必须强制动态渲染，别删。
+ *
+ * 本页没有任何动态 API（cookies / headers / searchParams），Next 默认会在**构建时**
+ * 把它预渲染成静态 HTML（`.next/server/app/home.html`）。于是 `resolveSiteLinks()` 的
+ * 结论被永久烙进构建产物：构建那一刻 OSS 里没有安装包 ⇒ 页面写死「安装包准备中」，
+ * 之后把安装包传上 OSS 也不会有任何变化，直到下次重新构建。
+ *
+ * 2026-10-14 线上实测到这条：`/api/site-links` 返回 `available:true`（API route 永远动态），
+ * 而 `/home` 连续三次请求字节数完全一致（198121 B = 构建时那份 `home.html`），
+ * 页面里渲染的是 `source !== 'oss'` 的那条分支 —— 因为构建是在未加载 `agenthub.env`
+ * 的 `su - agenthub` 下跑的，`resolveOssConfig()` 当时返回 null。
+ *
+ * 本页内容本来就依赖运行时状态（OSS 对象此刻在不在），静态化在这里不是优化而是错误。
+ * 探测本身有 60s 缓存（`site-links-service.ts`），所以每次请求的代价可控。
+ */
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   // 在服务端解析「下载地址」—— 公开页也必须能拿到这个值，所以走的是服务端函数
   // 而不是需要鉴权的接口（口径与 `/api/site-links` 完全一致）。
