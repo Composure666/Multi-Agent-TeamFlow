@@ -125,11 +125,36 @@ export function SitePanel({
                   ? '阿里云 OSS（由「对象存储」页配置推导）'
                   : '本站静态目录'}
               {preview.source === 'local' && !preview.available && ' · 文件还没放上去'}
+              {preview.source === 'oss' && links && !preview.available && ' · 远端探测未通过'}
             </p>
           </div>
         )}
 
-        {/* 两个只在特定组合下才成立的提醒，措辞必须精确 —— 说错会把人引向错误的操作。 */}
+        {/* 下面几个提醒只在特定组合下才成立，措辞必须精确 —— 说错会把人引向错误的操作。 */}
+
+        {/* 手填的地址不探测：这里明说清楚，免得用户以为「填了就是绿的」。 */}
+        {preview?.source === 'custom' && (
+          <p className="mt-3 text-[11px] leading-4 text-muted-foreground">
+            手填的地址按「你已经确认过」处理，服务端<strong className="font-medium">不会</strong>再去探测它 —— 但也意味着填错的话，
+            主页上就是一个点开报错的链接。想省心就留空，让下面两条规则自动推导。
+          </p>
+        )}
+
+        {preview?.source === 'oss' && !preview.available && (
+          <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 size-4 flex-none" />
+            <p className="min-w-0 text-[11px] leading-4">
+              远端探测
+              {links?.remoteProbe === 'unreachable'
+                ? '请求失败（网络或超时）'
+                : '没找到这个对象'}
+              ，所以主页此刻显示的是「安装包准备中」而不是一个会 404 的下载按钮。把安装包上传到
+              <code className="mx-1 font-mono">downloads/</code>
+              目录并把对象设为公共读即可（最长 60 秒后自动重新探测）。
+            </p>
+          </div>
+        )}
+
         {preview?.source === 'oss' && links && !links.ossPublicRead && (
           <div className="mt-3 flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 size-4 flex-none" />

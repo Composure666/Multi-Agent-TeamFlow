@@ -38,6 +38,9 @@ describe('resolveDesktopDownload 优先级', () => {
       localFileExists: false,
     })
     expect(r.source).toBe('oss')
+    // 注意：纯函数这里给的是「按规则可用」。真正的结论由
+    // `server/site-links-service.ts` 探测远端后覆盖 —— 推导出来的地址必须验证，
+    // 否则会在对象没上传时给访客一个点开 404 的按钮。
     expect(r.available).toBe(true)
     expect(r.url).toBe(
       `https://my-bucket.oss-cn-beijing.aliyuncs.com/downloads/${DESKTOP_INSTALLER_FILENAME}`,

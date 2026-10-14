@@ -1862,6 +1862,8 @@ export interface SiteLinksView {
   localInstallerPath: string
   /** OSS 当前是否公共读；false 时 OSS 直连地址会 403 */
   ossPublicRead: boolean
+  /** 对推导出来的远端地址的探测结论（`skipped` = 用的是手填地址，没探测） */
+  remoteProbe: 'ok' | 'missing' | 'unreachable' | 'skipped'
 }
 
 export async function fetchSiteLinks(): Promise<SiteLinksView> {

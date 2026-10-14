@@ -34,8 +34,13 @@ export interface ResolvedDesktopDownload {
   /**
    * 该地址现在是否可用。
    *
-   * 自定义与 OSS 一律按「可用」处理：对象在不在只有发布者知道，服务端探测不了远端。
-   * 本站兜底则要真去探一下文件在不在 —— 那正是「还没上传安装包」的诚实信号。
+   * 判据分两类，刻意不同：
+   *  - **手填的自定义地址**：按可用处理。用户已经把确切地址写进设置，那是他的声明，
+   *    服务端再去验一遍只会让「临时抖动 = 按钮消失」这种怪事发生。
+   *  - **推导出来的地址**（OSS / 本站）：必须验证。OSS 那一条尤其重要 —— 这个 bucket
+   *    本来是为「图片产物」配的，把安装包地址从它推导出来是一种**猜测**；不验证就会在
+   *    文件根本没上传时给访客一个点开 404 的按钮（线上库的 OSS 来自环境变量，
+   *    就是这个场景）。探测逻辑见 `server/site-links-service.ts`。
    */
   available: boolean
 }
@@ -79,15 +84,21 @@ export function buildOssDownloadUrl(
 /**
  * 优先级：设置里手填的自定义地址 → OSS 推导 → 本站 `/downloads/`。
  * 推导只此一处，主页 / 接口 / 设置面板共用。
+ *
+ * 注意本函数是**纯函数**：它只按规则给出「该用哪个地址」以及「按规则算不算可用」
+ * （本站那一条要看 `localFileExists`）。对**推导出来的远端地址**的实际探测在
+ * `server/site-links-service.ts` 里做 —— 纯函数里不该有网络请求。
  */
 export function resolveDesktopDownload(input: DesktopDownloadInput): ResolvedDesktopDownload {
   const custom = input.customUrl?.trim()
+  // 手填的地址按用户声明处理，不做探测（理由见 ResolvedDesktopDownload.available）
   if (custom) return { url: custom, source: 'custom', available: true }
 
   if (input.oss?.bucket && input.oss.endpoint) {
     return {
       url: buildOssDownloadUrl(input.oss.bucket, input.oss.endpoint),
       source: 'oss',
+      // 先给 true，真正的结论由服务端探测后覆盖 —— 这里保持纯函数
       available: true,
     }
   }

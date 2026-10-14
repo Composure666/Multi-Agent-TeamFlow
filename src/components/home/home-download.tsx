@@ -123,10 +123,18 @@ export function HomeDownload({
                     安装包尚未上传，站点准备好后会在这里直接提供下载。如果你想立刻使用，可以按下面的「快速开始」
                     从源码运行，两者功能完全一致。
                   </p>
-                  <p className="text-[11px] leading-5 text-slate-400 dark:text-slate-500">
-                    站点维护者：把安装包放到 <span className="font-mono">{localInstallerPath}</span>{' '}
-                    （文件名保持 <span className="font-mono">{DESKTOP_INSTALLER_FILENAME}</span>），本页会自动出现下载按钮。
-                  </p>
+                  {download.source === 'oss' ? (
+                    <p className="text-[11px] leading-5 text-slate-400 dark:text-slate-500">
+                      站点维护者：把 <span className="font-mono">{DESKTOP_INSTALLER_FILENAME}</span>{' '}
+                      上传到「设置 → 对象存储」那个 bucket 的{' '}
+                      <span className="font-mono">downloads/</span> 目录，并把对象设为公共读，本页会自动出现下载按钮。
+                    </p>
+                  ) : (
+                    <p className="text-[11px] leading-5 text-slate-400 dark:text-slate-500">
+                      站点维护者：把安装包放到 <span className="font-mono">{localInstallerPath}</span>{' '}
+                      （文件名保持 <span className="font-mono">{DESKTOP_INSTALLER_FILENAME}</span>），本页会自动出现下载按钮。
+                    </p>
+                  )}
                 </>
               )}
             </div>
