@@ -29,21 +29,34 @@ const nextConfig: NextConfig = {
 
   outputFileTracingExcludes: {
     '/*': [
+      // ❗ 目录级排除必须写成 `<dir>/**`。顶层的 `*.md` / `*.txt` 只排得掉**顶层**文件
+      //（glob 的 `*` 不跨 `/`），子目录里的 md 会照进不误。2026-10-14 实测：陈旧
+      // `.next/standalone/` 里躺着 `deliverables/` 17 个文件（含内部审查与合规报告）、
+      // `deploy/` 8 个、`docs/`、`e2e/`、`scripts/` —— 会随 Electron 安装包发给终端用户。
       '.agenthub-data/**',
       '.claude/**',
       '.git/**',
+      '.tmp-probe/**',
       '.understand-anything/**',
+      '.workbuddy/**',
       '*.md',
       '*.txt',
+      'agenthub-dev.log',
       'components.json',
+      'deliverables/**',
+      'deploy/**',
+      'docs/**',
       'drizzle.config.ts',
+      'e2e/**',
       'eslint.config.mjs',
       'apps/**',
       'dist-electron/**',
       'electron/**',
       'next.config.ts',
       'openspec/**',
+      'output/**',
       'packages/**',
+      'playwright.config.ts',
       'pnpm-lock.yaml',
       'pnpm-workspace.yaml',
       'postcss.config.mjs',
@@ -56,6 +69,7 @@ const nextConfig: NextConfig = {
       'src/**',
       'tsconfig*.json',
       'tsconfig.tsbuildinfo',
+      'vitest.config.ts',
     ],
   },
 }
