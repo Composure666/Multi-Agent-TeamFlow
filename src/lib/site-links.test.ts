@@ -4,6 +4,7 @@ import {
   DESKTOP_INSTALLER_FILENAME,
   DESKTOP_INSTALLER_LOCAL_PATH,
   buildOssDownloadUrl,
+  isHttpUrl,
   normalizeOssEndpoint,
   resolveDesktopDownload,
 } from './site-links'
@@ -68,5 +69,36 @@ describe('OSS 地址拼装', () => {
 
   it('本站回退地址与约定文件名同源（改名只需改一处）', () => {
     expect(DESKTOP_INSTALLER_LOCAL_PATH).toBe(`/downloads/${DESKTOP_INSTALLER_FILENAME}`)
+  })
+})
+
+/**
+ * 这个判据的用途是「敢不敢把这个字符串渲染成 `href`」。放行的下限一旦松了，
+ * 后果都是静默的：`javascript:` 被点了会执行、半成品地址被点了报错，
+ * 而设置页看起来一切正常。
+ */
+describe('isHttpUrl（设置页判断能不能渲染成可点链接）', () => {
+  it('放行正常的 http / https 地址', () => {
+    expect(isHttpUrl('http://121.40.240.236/home')).toBe(true)
+    expect(isHttpUrl('https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/x.exe')).toBe(true)
+    expect(isHttpUrl('  https://example.com  ')).toBe(true)
+  })
+
+  it('拦下可执行伪协议与半成品', () => {
+    expect(isHttpUrl('javascript:alert(1)')).toBe(false)
+    expect(isHttpUrl('data:text/html,<script>x</script>')).toBe(false)
+    expect(isHttpUrl('file:///etc/passwd')).toBe(false)
+    // 只贴了主机名 / 只写了协议就停手 —— 渲染成链接只会点开报错
+    expect(isHttpUrl('121.40.240.236/home')).toBe(false)
+    expect(isHttpUrl('https://')).toBe(false)
+    // 站内相对路径（本站兜底地址）由调用方补全 origin，判据本身不算「外部地址」
+    expect(isHttpUrl(DESKTOP_INSTALLER_LOCAL_PATH)).toBe(false)
+  })
+
+  it('空值一律不放行', () => {
+    expect(isHttpUrl(null)).toBe(false)
+    expect(isHttpUrl(undefined)).toBe(false)
+    expect(isHttpUrl('')).toBe(false)
+    expect(isHttpUrl('   ')).toBe(false)
   })
 })

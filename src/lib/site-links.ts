@@ -82,6 +82,23 @@ export function buildOssDownloadUrl(
 }
 
 /**
+ * 这个字符串能不能当「可点击跳转的外部地址」用。
+ *
+ * 只认 `http(s)://` 开头，且中间不含空白 —— 设置面板要把它塞进 `<a href>`，
+ * 判据必须比「非空」严：
+ *  - `javascript:` / `data:` 这类填入即等于给页面一段可执行脚本，绝不能放行；
+ *  - 裸相对路径（本站兜底地址 `/downloads/…`）在浏览器里能开，但桌面端
+ *    `shell.openExternal` 打不开，要调用方先补全 origin（见 `site-panel.tsx`）；
+ *  - 用户常常只贴了 `121.40.240.236/home` 或 `https://` 之后就停手，这类半成品
+ *    渲染成链接只会得到一个点开报错的页面，不如不给。
+ */
+export function isHttpUrl(value: string | null | undefined): boolean {
+  const trimmed = value?.trim()
+  if (!trimmed) return false
+  return /^https?:\/\/[^\s]+$/i.test(trimmed)
+}
+
+/**
  * 优先级：设置里手填的自定义地址 → OSS 推导 → 本站 `/downloads/`。
  * 推导只此一处，主页 / 接口 / 设置面板共用。
  *
