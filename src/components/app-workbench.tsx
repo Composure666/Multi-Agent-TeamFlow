@@ -86,6 +86,7 @@ import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
+import { OfficialSiteLink } from '@/components/official-site-link'
 import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
 
 type WorkbenchView = AppWorkbenchView
@@ -607,6 +608,8 @@ function MobileWorkbenchDrawer({
             <span className="min-w-0 flex-1 truncate">使用指南</span>
           </button>
 
+          <OfficialSiteLink variant="drawer" />
+
           <button
             type="button"
             onClick={() => setAccountOpen((expanded) => !expanded)}
@@ -970,6 +973,10 @@ function WorkbenchNav({
           <CircleHelp className="size-4 shrink-0" />
           {!compact && <span className="text-xs font-medium">使用指南</span>}
         </button>
+
+        {/* 官网入口。地址为空时本组件自己返回 null（见 `official-site-link.tsx`），
+            所以这里不必再判一次「配没配」。 */}
+        <OfficialSiteLink variant="sidebar" compact={compact} />
 
         <button
           type="button"

@@ -139,7 +139,12 @@ export function UserGuideDialog() {
         else void dismiss()
       }}
     >
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden sm:max-w-5xl">
+      {/*
+        ❗ 与设置弹窗同一处理：高度写死，不跟着内容长。
+        左导航 11 个条目的正文长度差很多，高度自适应会让弹窗在每次点击左导航时整体
+        「跳」一下；固定后只有右栏内部滚动，外框纹丝不动。右栏本来就是 `overflow-y-auto`。
+      */}
+      <DialogContent className="grid h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden sm:h-[min(40rem,calc(100vh-2rem))] sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CircleHelp className="size-4 text-[var(--agenthub-accent)]" aria-hidden="true" />
