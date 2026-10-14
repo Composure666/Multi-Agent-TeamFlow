@@ -7,6 +7,7 @@ import {
   Bell,
   CheckCircle2,
   ChevronDown,
+  CircleHelp,
   Coins,
   Copy,
   Grid2X2,
@@ -81,6 +82,7 @@ import {
   type UsageSummary,
 } from '@/lib/api'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
+import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
@@ -596,10 +598,18 @@ function MobileWorkbenchDrawer({
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           )}
 
-          {/* 「使用指南」与「官网」两个独立入口已按需求从左侧栏移除（桌面侧栏 + 本抽屉
-              是同一个左侧栏的两种形态）。功能本体都还在：官网地址仍在「设置 → 官网」页
-              可查看/打开与保存；使用指南弹窗仍挂在根布局上、首启会自动弹出。
-              `OfficialSiteLink` / `user-guide-dialog` 组件均未删除，只是不再由侧栏承载入口。 */}
+          {/* 使用指南常驻入口（桌面侧栏与本抽屉是同一个左侧栏的两种形态，入口保持一致）。
+              首次进入会自动弹一次，关掉之后靠这里再打开。
+              ❗ 官网入口不在这里：设置里已有「官网」页，按用户要求不重复添加
+              （`OfficialSiteLink` 组件本身保留，只是不再由侧栏承载入口）。 */}
+          <button
+            type="button"
+            onClick={() => emitUiCommand('open-user-guide')}
+            className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[#EEF4FF] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800"
+          >
+            <CircleHelp className="size-5 stroke-[2.1]" />
+            <span className="min-w-0 flex-1 truncate">使用指南</span>
+          </button>
 
           <button
             type="button"
@@ -955,7 +965,7 @@ function WorkbenchNav({
           `min-height: 0` 尤其不可省 —— flex 子项默认 `min-height: auto`，
           列表内容会把它顶高，而不是让内部的 ScrollArea 去滚。 */}
       {!compact && view === 'conversations' && (
-        <section className="wb-history mt-1.5 flex flex-col overflow-hidden border-t border-slate-100 pt-1.5 dark:border-white/10">
+        <section className="wb-history flex flex-col overflow-hidden border-t border-slate-100 pt-1.5 dark:border-white/10">
           <ConversationListPanel variant="embedded" />
         </section>
       )}
@@ -964,31 +974,48 @@ function WorkbenchNav({
           `mt-auto` 取代了上一版的弹性占位 <div>：非对话页没有历史区时由它把底部推到最底；
           对话页里历史区已经把剩余高度吃满，`mt-auto` 自然失效（没有剩余空间可占）。
           这样既不需要额外的占位元素，也不会在非对话页留下任何"空白容器"。
-          整块不使用任何 absolute / 覆盖定位 —— 否则它会盖住历史列表的最后几行。 */}
-      <div className="mt-auto shrink-0 border-t border-slate-100 pt-1.5 dark:border-white/10">
-        {/* 账户概览由「absolute bottom-full 浮层」改为**内联展开**：浮层会盖住历史列表。
-            高度封顶 + 内部滚动，避免面板本身把历史区挤成 0。 */}
+          整块不使用任何 absolute / 覆盖定位 —— 否则它会盖住历史列表的最后几行。
+
+          ❗ 内部的尺寸与间距保持改造前的原始值（`space-y-2 pt-3` / `p-2` / `size-9`）：
+             这是用户明确要求「不要动」的区域。曾把它压成 `px-1.5 py-1` + `size-8`，
+             结果 Workspace 那一行连同 Local 徽章被挤到展示不全 —— 不要再压。 */}
+      <div className="mt-auto shrink-0 space-y-2 pt-3">
+        {/* 账户概览：`absolute bottom-full` 浮层改为**内联展开**（浮层会盖住历史列表）。
+            高度封顶 + 内部滚动，避免面板本身把历史区挤成 0。
+            这是本区块唯一保留的「非原样」改动 —— 浮层与「底部不能遮挡历史列表」直接冲突。 */}
         {accountOpen && !compact && (
-          <div className="mb-1.5 min-w-0">
+          <div className="min-w-0">
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           </div>
         )}
 
-        {/* ❗ 上一版这里是「使用指南 + 官网」的横向入口行，已按需求移除 —— 只留下
-            Workspace 区，底部区因此矮了约 42px，这些空间直接进对话历史列表。
-            两个入口的功能本体都没删：官网地址在「设置 → 官网」页；使用指南弹窗
-            仍挂在根布局（`app/page.tsx`）上，首启照常自动弹出。
-            这里刻意**没有**再补新入口 —— 因为「不要重复添加」。 */}
+        {/* 使用指南常驻入口。首次进入会自动弹一次，关掉之后靠这里再打开。
+            走 ui-command 而不是本地 state —— 指南弹窗挂在根布局（app/page.tsx），不在本组件树里。
+            ❗ 官网入口**不在这里**：设置里已有「官网」页，按用户要求不重复添加
+            （`OfficialSiteLink` 组件本身保留，只是不再由侧栏承载入口）。 */}
+        <button
+          type="button"
+          onClick={() => emitUiCommand('open-user-guide')}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+            compact ? 'justify-center px-2 py-2' : 'px-2 py-2',
+          )}
+          title="使用指南"
+          aria-label="使用指南"
+        >
+          <CircleHelp className="size-4 shrink-0" />
+          {!compact && <span className="text-xs font-medium">使用指南</span>}
+        </button>
 
         <button
           type="button"
           onClick={() => compact ? setCollapsed(false) : setAccountOpen((open) => !open)}
           aria-expanded={accountOpen && !compact}
-          className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact ? 'px-2 py-1.5' : 'px-1.5 py-1')}
+          className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact ? 'px-2' : 'p-2')}
           title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
         >
           <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             {!compact && (
               <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">

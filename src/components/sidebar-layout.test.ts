@@ -10,12 +10,14 @@ import { describe, expect, it } from 'vitest'
  * `*.test.ts`，没有 jsx），而是直接对 `globals.css` 与 `app-workbench.tsx` 的**文本**
  * 断言 —— 锁的是「两个文件必须一起改」的契约，不是样式实现细节。
  *
- * 2026-10-14 第二轮（`view` 条件渲染 + 移除侧栏两个入口）后，本文件锁这五条：
+ * 2026-10-14 第三轮（保留「使用指南」入口 / 只移除「官网」入口 / Workspace 恢复原始尺寸）后，
+ * 本文件锁这六条：
  *   ① 导航行高只有一个来源（CSS 变量），组件里不写死 h-*
  *   ② 行高按窗口高度分档，单调不增，且落在可点击区间
  *   ③ 历史区**只在「对话」页渲染**，判据是既有的 `view`
  *   ④ 历史区的弹性尺寸在 CSS（`flex: 1 1 0%` + `min-height: 0`），组件里不重复写
- *   ⑤ 侧栏里没有「使用指南 / 官网」入口，也没有弹性占位元素；底部靠 `mt-auto` 贴底
+ *   ⑤ 侧栏保留「使用指南」入口、不再有「官网」入口；无弹性占位元素，底部靠 `mt-auto` 贴底
+ *   ⑥ 底部 Workspace 行的尺寸/内边距是原始值，不许再压（压了会展示不全）
  */
 
 const root = process.cwd()
@@ -90,21 +92,42 @@ describe('工作台侧栏：垂直空间分配', () => {
     expect(/wb-history[^'"]*min-h-0/.test(workbench)).toBe(false)
   })
 
-  it('侧栏里没有「使用指南 / 官网」入口，也没有弹性占位元素，底部靠 mt-auto 贴底', () => {
-    // 两个入口的 JSX 与唤起命令都必须消失（注释里提到组件名是允许的，所以断言标签与命令）
-    expect(workbench).not.toContain("emitUiCommand('open-user-guide')")
-    expect(workbench).not.toContain('<CircleHelp')
+  it('侧栏保留「使用指南」入口、不再有「官网」入口，底部靠 mt-auto 贴底', () => {
+    // 使用指南是**常驻入口**：首启自动弹一次，关掉之后只能靠它再打开 —— 必须存在。
+    // 桌面侧栏 + 移动端抽屉（同一个左侧栏的两种形态）各一个。
+    expect(
+      workbench.match(/emitUiCommand\('open-user-guide'\)/g)?.length ?? 0,
+      '桌面侧栏与移动端抽屉各要有一个使用指南入口',
+    ).toBeGreaterThanOrEqual(2)
+    expect(workbench).toContain('<CircleHelp')
+    // 官网入口不在侧栏 —— 设置里已有「官网」页，不重复添加
     expect(workbench).not.toContain('<OfficialSiteLink')
     expect(workbench).not.toContain("from '@/components/official-site-link'")
     // 不再有弹性占位 <div>（上一版靠它 + 互斥媒体查询保底），改由底部 mt-auto 接管
     expect(workbench).not.toContain('wb-spacer')
     expect(css).not.toContain('.wb-spacer')
-    expect(/mt-auto shrink-0 border-t/.test(workbench), '底部区必须用 mt-auto 贴底').toBe(true)
+    expect(
+      /mt-auto shrink-0 space-y-2 pt-3/.test(workbench),
+      '底部区必须用 mt-auto 贴底，且尺寸/间距保持改造前的原始值',
+    ).toBe(true)
     // 也不再需要任何「历史区让位」的媒体查询
     expect(
       mediaBlocks('max-height').some((b) => /\.wb-history\s*\{[^}]*display:\s*none/.test(b.body)),
       '非对话页整块不渲染，所以不该再有「太矮就隐藏历史区」的规则',
     ).toBe(false)
+  })
+
+  it('底部 Workspace 行不得被压缩（用户明确要求这一块的样式不要动）', () => {
+    // 头像 36px + 按钮 p-2 是原始值。曾压成 size-8 / px-1.5 py-1，
+    // 结果「Workspace + Local 徽章」那行展示不全。
+    expect(workbench).toContain('flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900')
+    expect(
+      workbench.includes("compact ? 'px-2' : 'p-2'"),
+      'Workspace 按钮两态内边距必须是原始值 px-2 / p-2',
+    ).toBe(true)
+    expect(workbench).not.toContain("compact ? 'px-2 py-1.5' : 'px-1.5 py-1'")
+    // 底部容器间距也必须是原始值（space-y-2 + pt-3），不许换成 pt-1.5 之类的压缩版
+    expect(workbench).not.toContain('mt-auto shrink-0 border-t border-slate-100 pt-1.5')
   })
 
   it('只移除侧栏入口，两个功能本体没有被删除', () => {
