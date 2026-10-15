@@ -302,10 +302,6 @@ Copyright (C) 2026 Multi-Agent TeamFlow contributors.
 
 This program is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General Public License v3.0** (`AGPL-3.0-only`) as published by the Free Software Foundation. See [`LICENSE`](./LICENSE).
 
-This project is a **derivative work (modified version)** of [`lizyoko9/bitdance-agenthub`](https://github.com/lizyoko9/bitdance-agenthub), which is also licensed under AGPL-3.0. Under AGPL-3.0 section 5, the combined work must remain under AGPL-3.0 — it cannot be relicensed under more permissive or proprietary terms.
-
-Upstream copyright notices, the statement of modification, and the itemized list of changes are recorded in [`NOTICE.md`](./NOTICE.md).
-
 **AGPL-3.0 section 13:** if you interact with this software over a network, you are entitled to obtain its Corresponding Source. [`NOTICE.md`](./NOTICE.md) states where to obtain it.
 
 This program is distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
