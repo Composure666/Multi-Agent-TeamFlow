@@ -1,0 +1,84 @@
+name: 缺陷报告 / Bug report
+description: 报告一个明确的错误行为（崩溃、报错、功能不生效）
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    value: |
+      提 bug 前先帮忙确认两件事，能省掉一轮来回：
+      1. 用的是**桌面端**（安装包）还是**网页端**（`pnpm dev` / `pnpm start`）？两者的 Node 进程归属不同，数据落点也不同。
+      2. 控制台（F12）里有没有报错？有的话直接贴过来 —— 本项目大量逻辑在服务端，前台经常「零报错但就是不动」。
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: 出现位置
+      options:
+        - 桌面端（Electron 安装包）
+        - 网页端（本地 dev / start）
+        - 公网部署实例（Basic 认证后的工作台）
+        - 公开主页 /home
+        - 命令行 / 脚本
+        - 不确定
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 实际表现
+      description: 具体看到了什么。越具体越好 —— 「点了没反应」和「点了之后弹出登录框」是两个完全不同的问题。
+      placeholder: |
+        例：在对话历史里把鼠标移到某一项上，背景变成浅灰，但文字还是深色，几乎看不清。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望表现
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点击 …
+        3. 看到 …
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: 控制台 / 日志
+      description: 浏览器 F12 的 Console，或桌面端的 `debug.log`、服务端的 `err.log`。没有就写「无」。
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: `package.json` 里的 version，或安装包的构建时间。
+      placeholder: '0.2.0-rc.1'
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 是否配了自定义模型 / MCP / OSS？有没有改过什么配置？

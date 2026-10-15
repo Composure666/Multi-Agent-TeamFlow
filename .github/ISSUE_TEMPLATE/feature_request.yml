@@ -1,0 +1,47 @@
+name: 功能建议 / Feature request
+description: 提出一个新能力，或对现有能力的改进建议
+title: '[Feature] '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 先说场景和痛点，再说你想要的功能 —— 只写「希望能支持 X」的话，很难判断该不该做。
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它长什么样
+      placeholder: |
+        例：派单时能手动指定某个 Agent 只做 Review，不参与写代码。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 你考虑过的替代方案
+      description: 包括「不改代码、靠配置/提示词 workaround」的办法。
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响面
+      options:
+        - 只是界面上的小改动
+        - 需要新增配置项
+        - 涉及 Agent 编排 / 派单逻辑
+        - 涉及数据模型（要改库表）
+        - 说不好
+    validations:
+      required: true
+
+  - type: markdown
+    value: |
+      ---
+      提醒：本项目是**本地优先、单租户**的设计 —— 数据落在使用者自己的机器上，
+      没有账号体系。凡是「多个人共用一个实例」「给访客开网页账号」类的需求，
+      与这个前提冲突，通常会被婉拒或需要重新讨论架构。

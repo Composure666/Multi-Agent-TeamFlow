@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题先看文档
+    url: https://github.com/Composure666/Multi-Agent-TeamFlow#readme
+    about: README 里有常见问题（FAQ）、安装与配置说明；先看一眼通常能直接解决。
+  - name: 项目主页
+    url: http://121.40.240.236/home
+    about: 产品介绍、界面预览与桌面端下载。
