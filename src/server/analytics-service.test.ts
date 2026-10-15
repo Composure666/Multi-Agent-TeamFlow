@@ -23,6 +23,20 @@ async function rawMinStartedAt(): Promise<number> {
   return Number(row.value ?? 0)
 }
 
+/**
+ * 下面两个用例断言的是「真实 run 数据上的自洽性」，库里没数据时它们无意义。
+ *
+ * 本项目的单测是**直连真实库**的集成测试（没有 setup 文件、不自建 fixture），
+ * 而 `pnpm db:seed` 只种内置 Agent、不造 run。CI 上是全新空库，硬跑只会得到
+ * `expected 0 to be greater than 0` 这种**假失败**。
+ * ⇒ 无数据时显式 skip：报告里显示为 skipped 而非 passed，欠 fixture 这件事不会被藏起来。
+ */
+async function skipIfNoRunData(ctx: { skip: (note?: string) => void }): Promise<void> {
+  if ((await rawCount()) === 0) {
+    ctx.skip('库里没有 run 数据（本项目尚无 run 的 fixture），跳过依赖真实数据的断言')
+  }
+}
+
 describe('analytics-service · 数据概览数据完整性', () => {
   it('全部时间：total 与库内 run 数一致，且明细不被截断', async () => {
     const expected = await rawCount()
@@ -59,7 +73,9 @@ describe('analytics-service · 数据概览数据完整性', () => {
     expect(a.stats.running).toBe((byStatus.get('running') ?? 0) + (byStatus.get('queued') ?? 0))
   })
 
-  it('明细字段完整：任务名、Agent 名、时长、Token、会话 id 都不为空', async () => {
+  it('明细字段完整：任务名、Agent 名、时长、Token、会话 id 都不为空', async (ctx) => {
+    await skipIfNoRunData(ctx)
+
     const a = await getRunAnalytics({ days: 30 })
     expect(a.items.length).toBeGreaterThan(0)
 
@@ -85,7 +101,9 @@ describe('analytics-service · 数据概览数据完整性', () => {
     }
   })
 
-  it('start=0（全部时间）不会生成上千个趋势桶，且起点不早于库内第一条 run', async () => {
+  it('start=0（全部时间）不会生成上千个趋势桶，且起点不早于库内第一条 run', async (ctx) => {
+    await skipIfNoRunData(ctx)
+
     const a = await getRunAnalytics({ start: 0 })
     const earliest = await rawMinStartedAt()
 
