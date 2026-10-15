@@ -273,6 +273,8 @@ export const FOOTER_LINKS: { title: string; links: { label: string; href: string
     title: '产品',
     links: [
       { label: '工作流', href: '#workflow' },
+      { label: '界面预览', href: '#preview' },
+      { label: '架构与流程', href: '#architecture' },
       { label: '功能模块', href: '#features' },
       { label: '内置 Agent', href: '#agents' },
       { label: '快速开始', href: '#quickstart' },

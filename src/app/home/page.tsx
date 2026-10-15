@@ -6,10 +6,12 @@ import { HomeGuide } from '@/components/home/home-guide'
 import { HomeHeader } from '@/components/home/home-header'
 import {
   HomeAgents,
+  HomeArchitecture,
   HomeFeatures,
   HomeFooter,
   HomeHero,
   HomeQuickstart,
+  HomeScreenshot,
   HomeStack,
   HomeWorkflow,
 } from '@/components/home/home-sections'
@@ -66,7 +68,10 @@ export default async function HomePage() {
 
       <main id="main" className="home-anchor flex-1">
         <HomeHero />
+        {/* 首屏之后立刻给「长什么样」，再讲工作流与架构 —— 前两屏就能看懂价值。 */}
+        <HomeScreenshot />
         <HomeWorkflow />
+        <HomeArchitecture />
         <HomeFeatures />
         <HomeAgents />
         <HomeStack />

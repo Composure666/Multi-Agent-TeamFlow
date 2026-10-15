@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" font-family="system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <title>Multi-Agent TeamFlow 架构流程图：目标经 Orchestrator 派单给四个专长 Agent，各自产出带类型产物后收进产物库</title>
+  <desc>主干流程：你的目标 → Orchestrator 判断与派单 → PM 小灰 / UI 设计师 / 前端工程师 / Reviewer 四个专长 Agent 各产出带类型产物 → 统一收进产物库，可预览、可导出、可发布为可分享 URL；文件操作受沙箱工作区的路径守卫与审批约束。</desc>
+
+  <defs>
+    <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2F5FD0" />
+    </marker>
+  </defs>
+
+  <!-- 画布底色：保证在深色背景下也能看清（README / 文档里以图片形式嵌入） -->
+  <rect x="0" y="0" width="800" height="400" rx="16" fill="#FFFFFF" />
+  <rect x="0.5" y="0.5" width="799" height="399" rx="16" fill="none" stroke="#D8DEE9" />
+
+  <!-- 1. 目标 -->
+  <rect x="310" y="12" width="180" height="46" rx="12" fill="#F1F5F9" stroke="#D8DEE9" />
+  <text x="400" y="41" text-anchor="middle" font-size="14" fill="#0F172A">你的目标（自然语言）</text>
+
+  <!-- 目标 → Orchestrator -->
+  <path d="M400 58 V 88" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arch-arrow)" />
+
+  <!-- 2. Orchestrator -->
+  <rect x="290" y="88" width="220" height="56" rx="12" fill="#F3F6FC" stroke="#D8DEE9" />
+  <text x="400" y="112" text-anchor="middle" font-size="15" font-weight="600" fill="#2F5FD0">Orchestrator</text>
+  <text x="400" y="131" text-anchor="middle" font-size="12" fill="#0F172A">判断 · 拆解 · 派单</text>
+
+  <!-- Orchestrator → 四个 Agent（派单总线） -->
+  <path d="M400 144 V 166 M110 166 H 690" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" />
+  <path d="M110 166 V 190" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arch-arrow)" />
+  <path d="M300 166 V 190" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arch-arrow)" />
+  <path d="M490 166 V 190" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arch-arrow)" />
+  <path d="M680 166 V 190" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arch-arrow)" />
+
+  <!-- 3. 四个专长 Agent -->
+  <rect x="30" y="190" width="160" height="56" rx="12" fill="#F1F5F9" stroke="#D8DEE9" />
+  <text x="110" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">PM 小灰</text>
+  <text x="110" y="233" text-anchor="middle" font-size="11" fill="#475569">产出 PRD</text>
+
+  <rect x="220" y="190" width="160" height="56" rx="12" fill="#F1F5F9" stroke="#D8DEE9" />
+  <text x="300" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">UI 设计师</text>
+  <text x="300" y="233" text-anchor="middle" font-size="11" fill="#475569">产出设计规范</text>
+
+  <rect x="410" y="190" width="160" height="56" rx="12" fill="#F1F5F9" stroke="#D8DEE9" />
+  <text x="490" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">前端工程师</text>
+  <text x="490" y="233" text-anchor="middle" font-size="11" fill="#475569">产出 web_app</text>
+
+  <rect x="600" y="190" width="160" height="56" rx="12" fill="#F1F5F9" stroke="#D8DEE9" />
+  <text x="680" y="214" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">Reviewer</text>
+  <text x="680" y="233" text-anchor="middle" font-size="11" fill="#475569">产出评审意见</text>
+
+  <!-- Agent → 产物库（收拢总线） -->
+  <path d="M110 246 V 272" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" />
+  <path d="M300 246 V 272" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" />
+  <path d="M490 246 V 272" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" />
+  <path d="M680 246 V 272" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" />
+  <path d="M110 272 H 680" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" />
+  <path d="M400 272 V 300" fill="none" stroke="#2F5FD0" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arch-arrow)" />
+
+  <!-- 4. 产物库 -->
+  <rect x="260" y="300" width="280" height="56" rx="12" fill="#F3F6FC" stroke="#D8DEE9" />
+  <text x="400" y="324" text-anchor="middle" font-size="14" font-weight="600" fill="#2F5FD0">产物库</text>
+  <text x="400" y="343" text-anchor="middle" font-size="11" fill="#0F172A">预览 · 导出 · 发布为可分享 URL</text>
+
+  <!-- 5. 侧边约束：沙箱工作区 -->
+  <rect x="20" y="300" width="200" height="56" rx="12" fill="#F1F5F9" stroke="#D8DEE9" />
+  <text x="120" y="324" text-anchor="middle" font-size="13" font-weight="600" fill="#0F172A">沙箱工作区</text>
+  <text x="120" y="343" text-anchor="middle" font-size="11" fill="#475569">路径守卫 · 高风险操作审批</text>
+  <path d="M120 300 V 272 H 110" fill="none" stroke="#D8DEE9" stroke-width="2" stroke-dasharray="4 4" />
+</svg>

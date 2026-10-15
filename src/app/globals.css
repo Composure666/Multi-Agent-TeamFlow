@@ -802,9 +802,21 @@
   color: transparent;
 }
 
+/* 架构图里的「派单」流动线条：只动 stroke-dashoffset（SVG 属性），
+   不触发重排，配合 --agenthub-motion-* 之外的独立节奏即可。
+   系统「减少动效」时停掉，与 .home-rise 保持一致。 */
+@keyframes home-flow-dash {
+  to { stroke-dashoffset: -28; }
+}
+
+.home-flow-line {
+  animation: home-flow-dash 1.6s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .home-rise { animation: none; }
   .home-card:hover { transform: none; }
+  .home-flow-line { animation: none; }
 }
 
 /* 锚点跳转时给固定导航留出高度，避免标题被压在导航下面。 */

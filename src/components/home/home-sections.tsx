@@ -17,6 +17,7 @@ import {
   WORKFLOW_STEPS,
 } from '@/components/home/home-data'
 import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
+import { HomeScreenshotFigure } from '@/components/home/home-screenshot'
 import { buttonVariants } from '@/components/ui/button'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -194,6 +195,292 @@ export function HomeWorkflow() {
             ))}
           </div>
         </div>
+      </Container>
+    </section>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   界面预览（截图）
+   ----------------------------------------------------------------------------
+   放在首屏之后、工作流之前：访客往下滚第一屏就该看到「长什么样」，
+   而不是先读一大段抽象描述。截图走仓库内静态资源 + onError 占位文案，
+   不使用任何外链（离线也能看）。
+   ──────────────────────────────────────────────────────────────────────────── */
+
+export function HomeScreenshot() {
+  return (
+    <section id="preview" className="home-anchor border-b border-[var(--agenthub-border)]">
+      <Container className="py-16 sm:py-20">
+        <SectionHead
+          eyebrow="界面预览"
+          title="先看一眼真实界面"
+          description="下面这张截图来自真实运行的工作台：左侧是工作区导航与对话历史，右侧是新建任务入口与多 Agent 协作区。"
+        />
+
+        <div className="mt-10">
+          <HomeScreenshotFigure />
+        </div>
+
+        <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">
+          截图是仓库内的静态资源；若加载失败会显示占位说明。想看真实交互，请下载桌面端或本地启动。
+        </p>
+
+        {/* ❗ CTA 目标必须是访客真能到的地方。`/` 在对外托管部署里位于 nginx Basic 门禁之后，
+            匿名点下去只会弹浏览器原生登录框（模态窗口、吞掉整页事件、控制台零报错）。 */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <a
+            href="#download"
+            className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+          >
+            下载桌面端体验
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </a>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+          >
+            查看源码
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </a>
+        </div>
+      </Container>
+    </section>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   架构与流程
+   ----------------------------------------------------------------------------
+   用一张内联 SVG 讲清「目标 → 派单 → 产出 → 收拢」这条主干。
+   之所以是内联 SVG 而不是图片：颜色要走 `currentColor` / `--agenthub-*`，
+   这样亮暗主题自动生效，且天然随容器缩放、不会因外链失效而空白。
+   连接线上的流动虚线由 globals.css 的 `.home-flow-line` 驱动（减少动效时停）。
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const ARCH_NODES: { name: string; artifact: string; cx: number }[] = [
+  { name: 'PM 小灰', artifact: '产出 PRD', cx: 110 },
+  { name: 'UI 设计师', artifact: '产出设计规范', cx: 300 },
+  { name: '前端工程师', artifact: '产出 web_app', cx: 490 },
+  { name: 'Reviewer', artifact: '产出评审意见', cx: 680 },
+]
+
+export function HomeArchitecture() {
+  return (
+    <section id="architecture" className="home-anchor border-b border-[var(--agenthub-border)]">
+      <Container className="py-16 sm:py-20">
+        <SectionHead
+          eyebrow="架构与流程"
+          title="一句话目标进，一件可交付的产物出"
+          description="Orchestrator 负责判断与派单，专长 Agent 各产出带类型的产物，全部收进产物库；下游直接读上游产物，不必从对话里重新猜上下文。"
+        />
+
+        <figure className={cn(cardClass, 'mt-10 p-5 sm:p-6')}>
+          <svg
+            viewBox="0 0 800 400"
+            className="w-full text-slate-700 dark:text-slate-300"
+            role="img"
+            aria-label="架构流程图：你的目标交给 Orchestrator 判断与派单，再分发给 PM 小灰、UI 设计师、前端工程师与 Reviewer 四个专长 Agent，各自产出带类型的产物后统一收进产物库，可预览、可导出、可发布为可分享的 URL。"
+          >
+            <defs>
+              <marker
+                id="arch-arrow"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--agenthub-accent)" />
+              </marker>
+            </defs>
+
+            {/* 1. 目标 */}
+            <rect
+              x="310"
+              y="12"
+              width="180"
+              height="46"
+              rx="12"
+              fill="var(--agenthub-surface-muted)"
+              stroke="var(--agenthub-border)"
+            />
+            <text x="400" y="41" textAnchor="middle" fontSize="14" fill="currentColor">
+              你的目标（自然语言）
+            </text>
+
+            {/* 目标 → Orchestrator */}
+            <path
+              d="M400 58 V 88"
+              fill="none"
+              stroke="var(--agenthub-accent)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+              markerEnd="url(#arch-arrow)"
+              className="home-flow-line"
+            />
+
+            {/* 2. Orchestrator */}
+            <rect
+              x="290"
+              y="88"
+              width="220"
+              height="56"
+              rx="12"
+              fill="var(--agenthub-accent-soft)"
+              stroke="var(--agenthub-accent-border)"
+            />
+            <text
+              x="400"
+              y="112"
+              textAnchor="middle"
+              fontSize="15"
+              fontWeight="600"
+              fill="var(--agenthub-accent)"
+            >
+              Orchestrator
+            </text>
+            <text x="400" y="131" textAnchor="middle" fontSize="12" fill="currentColor">
+              判断 · 拆解 · 派单
+            </text>
+
+            {/* Orchestrator → 四个 Agent（派单总线） */}
+            <path
+              d="M400 144 V 166 M110 166 H 690"
+              fill="none"
+              stroke="var(--agenthub-accent)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+              className="home-flow-line"
+            />
+            {ARCH_NODES.map((node) => (
+              <path
+                key={`drop-${node.cx}`}
+                d={`M${node.cx} 166 V 190`}
+                fill="none"
+                stroke="var(--agenthub-accent)"
+                strokeWidth="2"
+                strokeDasharray="6 6"
+                markerEnd="url(#arch-arrow)"
+                className="home-flow-line"
+              />
+            ))}
+
+            {/* 3. 四个专长 Agent */}
+            {ARCH_NODES.map((node) => (
+              <g key={node.name}>
+                <rect
+                  x={node.cx - 80}
+                  y="190"
+                  width="160"
+                  height="56"
+                  rx="12"
+                  fill="var(--agenthub-surface-muted)"
+                  stroke="var(--agenthub-border)"
+                />
+                <text
+                  x={node.cx}
+                  y="214"
+                  textAnchor="middle"
+                  fontSize="13"
+                  fontWeight="600"
+                  fill="currentColor"
+                >
+                  {node.name}
+                </text>
+                <text x={node.cx} y="233" textAnchor="middle" fontSize="11" fill="currentColor" opacity="0.72">
+                  {node.artifact}
+                </text>
+              </g>
+            ))}
+
+            {/* Agent → 产物库（收拢总线） */}
+            {ARCH_NODES.map((node) => (
+              <path
+                key={`collect-${node.cx}`}
+                d={`M${node.cx} 246 V 272`}
+                fill="none"
+                stroke="var(--agenthub-accent)"
+                strokeWidth="2"
+                strokeDasharray="6 6"
+                className="home-flow-line"
+              />
+            ))}
+            <path
+              d="M110 272 H 680"
+              fill="none"
+              stroke="var(--agenthub-accent)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+              className="home-flow-line"
+            />
+            <path
+              d="M400 272 V 300"
+              fill="none"
+              stroke="var(--agenthub-accent)"
+              strokeWidth="2"
+              strokeDasharray="6 6"
+              markerEnd="url(#arch-arrow)"
+              className="home-flow-line"
+            />
+
+            {/* 4. 产物库 */}
+            <rect
+              x="260"
+              y="300"
+              width="280"
+              height="56"
+              rx="12"
+              fill="var(--agenthub-accent-soft)"
+              stroke="var(--agenthub-accent-border)"
+            />
+            <text
+              x="400"
+              y="324"
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="600"
+              fill="var(--agenthub-accent)"
+            >
+              产物库
+            </text>
+            <text x="400" y="343" textAnchor="middle" fontSize="11" fill="currentColor">
+              预览 · 导出 · 发布为可分享 URL
+            </text>
+
+            {/* 5. 侧边约束：沙箱与审批 */}
+            <rect
+              x="20"
+              y="300"
+              width="200"
+              height="56"
+              rx="12"
+              fill="var(--agenthub-surface-muted)"
+              stroke="var(--agenthub-border)"
+            />
+            <text x="120" y="324" textAnchor="middle" fontSize="13" fontWeight="600" fill="currentColor">
+              沙箱工作区
+            </text>
+            <text x="120" y="343" textAnchor="middle" fontSize="11" fill="currentColor" opacity="0.72">
+              路径守卫 · 高风险操作审批
+            </text>
+            <path
+              d="M120 300 V 272 H 110"
+              fill="none"
+              stroke="var(--agenthub-border)"
+              strokeWidth="2"
+              strokeDasharray="4 4"
+            />
+          </svg>
+
+          <figcaption className="mt-4 text-center text-xs leading-6 text-slate-500 dark:text-slate-400">
+            主干：目标 → Orchestrator 派单 → 专长 Agent 产出带类型产物 → 收进产物库。
+            全程在本机完成，文件操作受路径守卫约束，高风险命令需你批准。
+          </figcaption>
+        </figure>
       </Container>
     </section>
   )
