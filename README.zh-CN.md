@@ -61,7 +61,7 @@
 
 ```bash
 # 1. 克隆
-git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git multi-agent-teamflow
+git clone https://github.com/Composure666/Multi-Agent-TeamFlow.git multi-agent-teamflow
 cd multi-agent-teamflow
 
 # 2. 安装依赖（packageManager 已固定 pnpm@11.9.0，Corepack 自动取到正确版本）
@@ -251,6 +251,8 @@ public/           静态资源
 
 ### 参与贡献
 
+> 完整规范见 [`CONTRIBUTING.md`](./CONTRIBUTING.md)（含环境硬约束与「必踩坑」清单）；安全相关问题见 [`SECURITY.md`](./SECURITY.md)。
+
 1. 先开分支再改动，每个分支只聚焦一件事。
 2. 行为变化时同步更新对应 spec 或文档。
 3. 开 PR 前跑 `pnpm typecheck`、`pnpm lint`、`pnpm test`。
@@ -270,6 +272,8 @@ public/           静态资源
 | [`openspec/`](./openspec/) | 能力契约 |
 | [`CHANGELOG.md`](./CHANGELOG.md) | 版本变更记录 |
 | [`NOTICE.md`](./NOTICE.md) | 许可与出处声明 |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | 贡献指南（环境约束与已知坑） |
+| [`SECURITY.md`](./SECURITY.md) | 安全策略与自托管风险提示 |
 
 ---
 

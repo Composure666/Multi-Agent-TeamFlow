@@ -31,7 +31,7 @@
 - **本项目是修改后的版本（modified version），并非上游原版，也未获得上游项目的赞助或背书。**
 - **修改起始**：2026-06-27
 - **最近修改**：2026-10-13
-- **完整修改记录**：<https://gitee.com/Composure666/Multi-Agent-TeamFlow/commits>（git 历史，共 124 次提交，截至 2026-10-13）
+- **完整修改记录**：<https://github.com/Composure666/Multi-Agent-TeamFlow/commits>（git 历史，截至 2026-10-15 共 149 次提交）
 
 ### 2.1 改动规模
 
@@ -65,15 +65,17 @@
 
 本项目可通过计算机网络对外提供服务（自托管 Web 服务，以及桌面端内嵌的本地服务）。依 AGPL-3.0 第 13 条，**任何通过网络与本软件交互的用户，都有权获得与其所运行版本对应的完整源码（Corresponding Source）**。
 
-**源码位置（公开可访问）：<https://gitee.com/Composure666/Multi-Agent-TeamFlow>**
+**源码位置（公开可访问）：<https://github.com/Composure666/Multi-Agent-TeamFlow>**
 
-上述地址为**公开仓库**，任何人无需账号即可匿名 `git clone`（含完整 git 历史），因此第 13 条义务已满足。若你通过网络使用本软件却无法访问该地址，请通过上述仓库的 Issue 索取源码。
+**镜像（同一份提交历史，同步更新）：<https://gitee.com/Composure666/Multi-Agent-TeamFlow>**
+
+上述地址均为**公开仓库**，任何人无需账号即可匿名 `git clone`（含完整 git 历史），因此第 13 条义务已满足。若你通过网络使用本软件却无法访问上述地址，请通过任一仓库的 Issue 索取源码。
 
 ## 5. 本衍生作品的版权 / Copyright of this derivative work
 
 ```text
 Copyright (C) 2026 Multi-Agent TeamFlow
-https://gitee.com/Composure666/Multi-Agent-TeamFlow
+https://github.com/Composure666/Multi-Agent-TeamFlow
 ```
 
 上游部分的版权归其各自作者所有。本声明仅主张本项目**新增与修改部分**的权利，不改变上游部分的版权归属。

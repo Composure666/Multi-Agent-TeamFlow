@@ -28,7 +28,7 @@ import {
  */
 
 /** 仓库地址 —— 与 package.json#repository 保持一致。 */
-export const REPO_URL = 'https://gitee.com/Composure666/Multi-Agent-TeamFlow'
+export const REPO_URL = 'https://github.com/Composure666/Multi-Agent-TeamFlow'
 
 /** 上游衍生项目 —— 依据 AGPL-3.0 第 5 条必须显式声明出处。 */
 export const UPSTREAM_URL = 'https://github.com/lizyoko9/bitdance-agenthub'
@@ -258,7 +258,7 @@ export const QUICKSTART_STEPS: { title: string; detail: string }[] = [
 ]
 
 export const QUICKSTART_COMMANDS = [
-  'git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git',
+  'git clone https://github.com/Composure666/Multi-Agent-TeamFlow.git',
   'cd multi-agent-teamflow',
   '',
   'pnpm install',

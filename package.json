@@ -4,7 +4,7 @@
   "description": "Local-first multi-agent workspace with IM-style collaboration, artifacts, approvals, and Electron desktop support.",
   "author": {
     "name": "Multi-Agent TeamFlow",
-    "url": "https://gitee.com/Composure666/Multi-Agent-TeamFlow"
+    "url": "https://github.com/Composure666/Multi-Agent-TeamFlow"
   },
   "contributors": [
     {
@@ -22,11 +22,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/Composure666/Multi-Agent-TeamFlow.git"
+    "url": "https://github.com/Composure666/Multi-Agent-TeamFlow.git"
   },
-  "homepage": "https://gitee.com/Composure666/Multi-Agent-TeamFlow#readme",
+  "homepage": "https://github.com/Composure666/Multi-Agent-TeamFlow#readme",
   "bugs": {
-    "url": "https://gitee.com/Composure666/Multi-Agent-TeamFlow/issues"
+    "url": "https://github.com/Composure666/Multi-Agent-TeamFlow/issues"
   },
   "license": "AGPL-3.0-only",
   "private": true,

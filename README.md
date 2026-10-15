@@ -61,7 +61,7 @@ Instead of juggling one prompt window per task, you get a group chat: a dispatch
 
 ```bash
 # 1. Clone
-git clone https://gitee.com/Composure666/Multi-Agent-TeamFlow.git multi-agent-teamflow
+git clone https://github.com/Composure666/Multi-Agent-TeamFlow.git multi-agent-teamflow
 cd multi-agent-teamflow
 
 # 2. Install dependencies (packageManager pins pnpm@11.9.0; Corepack resolves it)
@@ -251,6 +251,8 @@ public/           Static assets
 
 ### Contributing
 
+> Full guidelines live in [`CONTRIBUTING.md`](./CONTRIBUTING.md) (environment constraints and known pitfalls); security matters are covered in [`SECURITY.md`](./SECURITY.md).
+
 1. Branch for your change; keep each branch focused on one task.
 2. Update specs or docs when behavior changes.
 3. Run `pnpm typecheck`, `pnpm lint`, and `pnpm test` before opening a PR.
@@ -270,6 +272,8 @@ public/           Static assets
 | [`openspec/`](./openspec/) | Capability contracts |
 | [`CHANGELOG.md`](./CHANGELOG.md) | Release history |
 | [`NOTICE.md`](./NOTICE.md) | License and attribution notice |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Contribution guide (environment constraints and known pitfalls) |
+| [`SECURITY.md`](./SECURITY.md) | Security policy and self-hosting risk notes |
 
 ---
 
