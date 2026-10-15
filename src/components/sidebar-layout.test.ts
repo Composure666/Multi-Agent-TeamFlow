@@ -10,14 +10,16 @@ import { describe, expect, it } from 'vitest'
  * `*.test.ts`，没有 jsx），而是直接对 `globals.css` 与 `app-workbench.tsx` 的**文本**
  * 断言 —— 锁的是「两个文件必须一起改」的契约，不是样式实现细节。
  *
- * 2026-10-14 第三轮（保留「使用指南」入口 / 只移除「官网」入口 / Workspace 恢复原始尺寸）后，
- * 本文件锁这六条：
+ * 2026-10-15 第四轮（Workspace 详情改为 Popover 浮层：跨出侧栏、固定宽高、完整展示
+ * Token/模型/会话 + 底部按钮）后，本文件锁这七条：
  *   ① 导航行高只有一个来源（CSS 变量），组件里不写死 h-*
  *   ② 行高按窗口高度分档，单调不增，且落在可点击区间
  *   ③ 历史区**只在「对话」页渲染**，判据是既有的 `view`
  *   ④ 历史区的弹性尺寸在 CSS（`flex: 1 1 0%` + `min-height: 0`），组件里不重复写
  *   ⑤ 侧栏保留「使用指南」入口、不再有「官网」入口；无弹性占位元素，底部靠 `mt-auto` 贴底
  *   ⑥ 底部 Workspace 行的尺寸/内边距是原始值，不许再压（压了会展示不全）
+ *   ⑦ Workspace 详情通过 Popover.Portal 渲染为独立浮层；面板宽度 380px、有固定高度、
+ *      不再内联挤压侧栏
  */
 
 const root = process.cwd()
@@ -128,6 +130,24 @@ describe('工作台侧栏：垂直空间分配', () => {
     expect(workbench).not.toContain("compact ? 'px-2 py-1.5' : 'px-1.5 py-1'")
     // 底部容器间距也必须是原始值（space-y-2 + pt-3），不许换成 pt-1.5 之类的压缩版
     expect(workbench).not.toContain('mt-auto shrink-0 border-t border-slate-100 pt-1.5')
+  })
+
+  it('Workspace 详情改为 Popover 浮层：跨出侧栏、固定尺寸、不再 inline 挤压', () => {
+    // 不再内联展开（内联会被 aside overflow-hidden 裁切、且宽度受限）
+    expect(
+      /\{accountOpen && !compact && \(\s*\n\s*<div className="min-w-0">/.test(workbench),
+      'Workspace 详情不能再以内联 div 展开',
+    ).toBe(false)
+    // 必须使用项目里的 Popover 组件（内部已用 Portal 渲染到 body），从而跨出侧栏
+    expect(workbench).toContain("from '@/components/ui/popover'")
+    expect(workbench).toContain('Popover')
+    expect(workbench).toContain('PopoverContent')
+    expect(workbench).toContain('PopoverTrigger')
+    // 面板宽度约 375–390px，且有固定高度（避免内容被无限压缩）
+    expect(/w-\[380px\]/.test(workbench)).toBe(true)
+    expect(/h-\[\d+px\]/.test(workbench)).toBe(true)
+    // 关闭按钮保留
+    expect(workbench).toContain('aria-label="关闭账户概览"')
   })
 
   it('只移除侧栏入口，两个功能本体没有被删除', () => {

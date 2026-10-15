@@ -59,7 +59,6 @@ import { SettingsDialog } from '@/components/settings-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { WorkbenchViewRouter } from '@/components/workbench-view-router'
-import { Meta } from '@/components/workbench-detail-primitives'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -85,6 +84,7 @@ import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { WORKBENCH_NAVIGATION } from '@/components/workbench-navigation'
 import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
 
@@ -667,30 +667,38 @@ function UserAccountOverview({
   onReload,
   onOpenSettings,
   onClose,
+  className,
 }: {
   usage: { data: UsageSummary | null; loading: boolean; error: string | null }
   onReload: () => void
   onOpenSettings: () => void
   onClose?: () => void
+  className?: string
 }) {
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
-  const topModels = usage.data?.byModel.slice(0, 2) ?? []
-  const topConversations = usage.data?.topConversations.slice(0, 3) ?? []
+  const topModels = usage.data?.byModel.slice(0, 1) ?? []
+  const topConversations = usage.data?.topConversations.slice(0, 5) ?? []
 
   return (
-    <div className="max-h-[min(42vh,15rem)] min-w-0 overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-neutral-800">A</div>
+    <div
+      className={cn(
+        'flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900',
+        className,
+      )}
+    >
+      {/* 顶部 Workspace 信息 */}
+      <div className="flex shrink-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white dark:bg-neutral-800">A</div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <div className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">Workspace</div>
+            <div className="flex items-center gap-2">
+              <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">Workspace</div>
               <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
             </div>
             <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">本地单用户 · 用量概览</div>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">已连接</span>
           {onClose && (
             <button
@@ -707,59 +715,67 @@ function UserAccountOverview({
       </div>
 
       {usage.loading && !usage.data ? (
-        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-5 text-center text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">加载用量数据...</div>
+        <div className="mt-4 flex flex-1 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-5 text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">加载用量数据...</div>
       ) : usage.error ? (
-        <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
+        <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
           <div className="line-clamp-2">{usage.error}</div>
           <button type="button" onClick={onReload} className="mt-2 font-medium text-rose-700 hover:text-rose-900">重试</button>
         </div>
       ) : usage.data ? (
-        <div className="mt-3 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <Meta label="今日 Token" value={formatTok(usage.data.today.totalTokens)} />
-            <Meta label="本周 Token" value={formatTok(usage.data.week.totalTokens)} />
+        <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-neutral-800/40">
+              <div className="text-xs text-slate-400">今日 Token</div>
+              <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">{formatTok(usage.data.today.totalTokens)}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-neutral-800/40">
+              <div className="text-xs text-slate-400">本周 Token</div>
+              <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">{formatTok(usage.data.week.totalTokens)}</div>
+            </div>
           </div>
 
           {topModels.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-3xs font-medium uppercase tracking-wider text-slate-400">
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <span>常用模型</span>
                 <span>{usage.data.today.runs} 次今日运行</span>
               </div>
-              {topModels.slice(0, 1).map((model) => (
+              {topModels.map((model) => (
                 <UsageBarRow key={model.model} label={model.model} value={model.totalTokens} runs={model.runs} max={topModels[0].totalTokens} />
               ))}
             </div>
           )}
 
           {topConversations.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-3xs font-medium uppercase tracking-wider text-slate-400">最近高频会话</div>
-              {topConversations.slice(0, 2).map((conversation) => (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => setActiveConversation(conversation.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-xs transition hover:bg-[#EEF4FF] hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
-                  title={`更新时间 ${new Date(conversation.updatedAt).toLocaleString('zh-CN')}`}
-                >
-                  <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
-                  <span className="shrink-0 font-mono text-xs text-slate-400">
-                    <Coins className="mr-1 inline size-3" />
-                    {formatTok(conversation.totalTokens)}
-                  </span>
-                </button>
-              ))}
+            <div className="mt-4">
+              <div className="mb-2 text-xs text-slate-500 dark:text-slate-400">最近高频会话</div>
+              <div className="space-y-0.5">
+                {topConversations.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => setActiveConversation(conversation.id)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[#EEF4FF] hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+                    title={`更新时间 ${new Date(conversation.updatedAt).toLocaleString('zh-CN')}`}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
+                    <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-slate-400">
+                      <Coins className="size-3" />
+                      {formatTok(conversation.totalTokens)}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {usage.data.allTime.runs === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">还没有用量数据，和 Agent 对话后会显示在这里。</div>
+            <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">还没有用量数据，和 Agent 对话后会显示在这里。</div>
           )}
         </div>
       ) : null}
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-4 grid shrink-0 grid-cols-2 gap-3">
         <button
           type="button"
           onClick={onReload}
@@ -786,12 +802,12 @@ function UsageBarRow({ label, value, runs, max }: { label: string; value: number
   const pct = max > 0 ? (value * 100) / max : 0
 
   return (
-    <div className="space-y-1 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-neutral-950/40">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="min-w-0 flex-1 truncate font-mono text-slate-600 dark:text-slate-300">{label}</span>
-        <span className="shrink-0 font-mono text-xs text-slate-400 dark:text-slate-500">{formatTok(value)} · {runs}</span>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-300">{label}</span>
+        <span className="shrink-0 pl-2 font-mono text-xs text-slate-400 dark:text-slate-500">{formatTok(value)} · {runs}</span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-neutral-800">
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
         <div className="h-full rounded-full bg-[var(--agenthub-accent,#2F5FD0)] transition-all" style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -980,15 +996,6 @@ function WorkbenchNav({
              这是用户明确要求「不要动」的区域。曾把它压成 `px-1.5 py-1` + `size-8`，
              结果 Workspace 那一行连同 Local 徽章被挤到展示不全 —— 不要再压。 */}
       <div className="mt-auto shrink-0 space-y-2 pt-3">
-        {/* 账户概览：`absolute bottom-full` 浮层改为**内联展开**（浮层会盖住历史列表）。
-            高度封顶 + 内部滚动，避免面板本身把历史区挤成 0。
-            这是本区块唯一保留的「非原样」改动 —— 浮层与「底部不能遮挡历史列表」直接冲突。 */}
-        {accountOpen && !compact && (
-          <div className="min-w-0">
-            <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
-          </div>
-        )}
-
         {/* 使用指南常驻入口。首次进入会自动弹一次，关掉之后靠这里再打开。
             走 ui-command 而不是本地 state —— 指南弹窗挂在根布局（app/page.tsx），不在本组件树里。
             ❗ 官网入口**不在这里**：设置里已有「官网」页，按用户要求不重复添加
@@ -1007,30 +1014,46 @@ function WorkbenchNav({
           {!compact && <span className="text-xs font-medium">使用指南</span>}
         </button>
 
-        <button
-          type="button"
-          onClick={() => compact ? setCollapsed(false) : setAccountOpen((open) => !open)}
-          aria-expanded={accountOpen && !compact}
-          className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact ? 'px-2' : 'p-2')}
-          title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
-        >
-          <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
-            {!compact && (
-              <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <div className="truncate text-xs font-medium">Workspace</div>
-                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
-              </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="size-1.5 rounded-full bg-emerald-500" />
-                  本地模式
+        {/* Workspace 入口 + 详情弹出面板。
+            面板通过 Popover.Portal 渲染到 body，因此可以跨出侧栏、不被 aside 的
+            overflow-hidden 裁切；定位在入口上方（side="top"），左侧对齐触发器
+            （align="start"），向右延伸覆盖主内容区。 */}
+        <Popover open={accountOpen && !compact} onOpenChange={(open) => { if (!compact) setAccountOpen(open) }}>
+          <PopoverTrigger
+            onClick={() => compact && setCollapsed(false)}
+            aria-expanded={accountOpen && !compact}
+            className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact ? 'px-2' : 'p-2')}
+            title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
+          >
+            <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
+              {!compact && (
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate text-xs font-medium">Workspace</div>
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-medium text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">Local</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    本地模式
+                  </div>
                 </div>
-              </div>
-            )}
-            {!compact && <ChevronDown className={cn('size-4 shrink-0 text-slate-400 transition-transform', accountOpen && 'rotate-180')} />}
-          </div>
-        </button>
+              )}
+              {!compact && <ChevronDown className={cn('size-4 shrink-0 text-slate-400 transition-transform', accountOpen && 'rotate-180')} />}
+            </div>
+          </PopoverTrigger>
+          {!compact && (
+            <PopoverContent side="top" align="start" sideOffset={8} className="w-[380px] border-none bg-transparent p-0 shadow-none">
+              <UserAccountOverview
+                className="h-[460px] max-h-[min(90vh,520px)] w-[380px]"
+                usage={usage}
+                onReload={usage.reload}
+                onOpenSettings={() => { setAccountOpen(false); onOpenSettings() }}
+                onClose={() => setAccountOpen(false)}
+              />
+            </PopoverContent>
+          )}
+        </Popover>
       </div>
     </aside>
   )
@@ -1712,8 +1735,8 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                   'flex w-full items-center gap-2 rounded-lg px-2 text-left transition',
                   'h-11',
                   activeId === conversation.id
-                    ? 'bg-[var(--agenthub-accent-soft)] text-slate-950'
-                    : 'text-slate-700 hover:bg-slate-100',
+                    ? 'bg-[var(--agenthub-accent-soft)] text-slate-950 dark:text-slate-50'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
                 )}
               >
                 <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-white text-[var(--agenthub-accent)]' : 'bg-slate-100 text-slate-500')}>
@@ -1771,7 +1794,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                     }}
                     title="已归档 · 右键可取消归档或删除"
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-lg px-2 text-left opacity-70 transition hover:bg-slate-50 hover:opacity-100 dark:hover:bg-white/5',
+                      'flex w-full items-center gap-2 rounded-lg px-2 text-left opacity-70 transition hover:bg-slate-50 hover:opacity-100 dark:hover:bg-neutral-800/70 dark:hover:text-slate-100',
                       'h-11',
                       activeId === conversation.id && 'bg-[var(--agenthub-accent-soft)] opacity-100',
                     )}
