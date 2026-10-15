@@ -25,6 +25,24 @@
 
 ---
 
+## 下载桌面端
+
+桌面端是**推荐的使用方式**：内嵌 Node 运行时，装完即用，不需要另外装 Node；会话、Agent、产物、数据库全部落在你本机。
+
+| 渠道 | 地址 | 说明 |
+| --- | --- | --- |
+| GitHub Releases | <https://github.com/Composure666/Multi-Agent-TeamFlow/releases> | 每个版本都附安装包与 SHA-256 校验值，历史版本可回溯 |
+| 国内镜像（OSS 直连） | <https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/Multi-Agent-TeamFlow-Setup.exe> | 下载更快，**永远指向最新版**（对象名不带版本号，发新版覆盖同名文件） |
+
+当前版本 `v0.2.0-rc.1`：`Multi-Agent-TeamFlow-Setup.exe`，570,549,147 字节（约 544 MB），仅 Windows。
+
+- SHA-256：`4bef19742e631983859e42fd0295b00113b497a6d48c37dcec1eab696d31df77`
+- 校验：`certutil -hashfile Multi-Agent-TeamFlow-Setup.exe SHA256`
+
+安装过程不联网、不上传任何数据；桌面端与网页端是同一个应用，只是外壳不同。
+
+---
+
 ## 核心特性
 
 - **Orchestrator 驱动派单。** 内置 `Orchestrator` 读懂目标后，先判断这件事是否真的需要多个角色，再用 `plan_tasks` 拆分与派发；简单问题直接回答，提示词里明确要求**不要过度派单**。

@@ -25,6 +25,24 @@ Instead of juggling one prompt window per task, you get a group chat: a dispatch
 
 ---
 
+## Download the desktop app
+
+The desktop app is the **recommended way to use it**: it bundles its own Node runtime, so there is nothing else to install, and conversations, agents, artifacts and the database all stay on your machine.
+
+| Channel | Link | Note |
+| --- | --- | --- |
+| GitHub Releases | <https://github.com/Composure666/Multi-Agent-TeamFlow/releases> | Every release ships the installer plus its SHA-256; older versions stay available |
+| China mirror (OSS direct) | <https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/Multi-Agent-TeamFlow-Setup.exe> | Faster download, **always the latest build** (the object name carries no version, new releases overwrite the same key) |
+
+Current release `v0.2.0-rc.1`: `Multi-Agent-TeamFlow-Setup.exe`, 570,549,147 bytes (~544 MB), Windows only.
+
+- SHA-256: `4bef19742e631983859e42fd0295b00113b497a6d48c37dcec1eab696d31df77`
+- Verify: `certutil -hashfile Multi-Agent-TeamFlow-Setup.exe SHA256`
+
+The installer never phones home and uploads nothing. Desktop and web are the same app with a different shell.
+
+---
+
 ## Key features
 
 - **Orchestrator-driven dispatch.** The built-in `Orchestrator` reads your goal, decides whether the task genuinely needs multiple roles, and uses `plan_tasks` to split and assign work. Simple questions get answered directly — it is instructed *not* to over-dispatch.
