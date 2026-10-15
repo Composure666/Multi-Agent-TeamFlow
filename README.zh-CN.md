@@ -8,6 +8,7 @@
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-local--first-044A64?logo=sqlite&logoColor=white">
   <img alt="pnpm" src="https://img.shields.io/badge/pnpm-workspace-F69220?logo=pnpm&logoColor=white">
   <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0--only-blue">
+  <a href="https://github.com/Composure666/Multi-Agent-TeamFlow/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Composure666/Multi-Agent-TeamFlow/actions/workflows/ci.yml/badge.svg?branch=master"></a>
 </p>
 
 <p align="center">
