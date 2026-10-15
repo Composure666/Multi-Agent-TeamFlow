@@ -13,7 +13,6 @@ import {
   REPO_URL,
   STACK_GROUPS,
   TRUST_MARKERS,
-  UPSTREAM_URL,
   WORKFLOW_STEPS,
 } from '@/components/home/home-data'
 import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
@@ -274,7 +273,7 @@ export function HomeArchitecture() {
         <SectionHead
           eyebrow="架构与流程"
           title="一句话目标进，一件可交付的产物出"
-          description="Orchestrator 负责判断与派单，专长 Agent 各产出带类型的产物，全部收进产物库；下游直接读上游产物，不必从对话里重新猜上下文。"
+          description="Orchestrator 负责判断与派单，专长 Agent 各产出带类型的产物，全部收进产物库；下游直接读前序产物，不必从对话里重新猜上下文。"
         />
 
         <figure className={cn(cardClass, 'mt-10 p-5 sm:p-6')}>
@@ -731,16 +730,16 @@ export function HomeFooter() {
             Copyright © 2026 {BRAND_NAME} contributors.
           </p>
           <p className="text-xs leading-6 text-slate-600">
-            本项目是{' '}
+            本项目以 AGPL-3.0-only 开源，版权与来源声明、AGPL-3.0 第 13 条源码获取方式见仓库根目录{' '}
             <a
-              href={UPSTREAM_URL}
+              href={`${REPO_URL}/blob/master/NOTICE.md`}
               target="_blank"
               rel="noreferrer"
               className="underline underline-offset-2 transition-colors hover:text-[var(--agenthub-accent)]"
             >
-              lizyoko9/bitdance-agenthub
-            </a>{' '}
-            的 AGPL-3.0 衍生作品，AGPL-3.0 第 13 条源码获取方式见 NOTICE.md。
+              NOTICE.md
+            </a>
+            。
           </p>
         </div>
       </Container>

@@ -48,7 +48,7 @@
 - **Orchestrator 驱动派单。** 内置 `Orchestrator` 读懂目标后，先判断这件事是否真的需要多个角色，再用 `plan_tasks` 拆分与派发；简单问题直接回答，提示词里明确要求**不要过度派单**。
 - **群聊式多 Agent 会话。** 一个会话可放任意多个 Agent：`@` 精确点名，或交给 Orchestrator 自动路由。
 - **产物是一等公民。** `web_app` · `document` · `image` · `ppt` · `diagram` · `code_file` · `diff` · `project` 都能就地预览与导出，并记录生成它的 prompt、模型与参数，结果可复现。
-- **产物依赖链。** 典型链路 `PRD → 设计规范 → web_app → 评审`；下游 Agent 直接读上游产物，而不是从自然语言里重新猜上下文。
+- **产物依赖链。** 典型链路 `PRD → 设计规范 → web_app → 评审`；下游 Agent 直接读前序产物，而不是从自然语言里重新猜上下文。
 - **内置 5 个 Agent，也可无限自建。** Orchestrator · PM 小灰 · UI 设计师 · 前端工程师 · Reviewer（均走 `claude-code`），另有构建器可自定义适配器、模型、工具与提示词。
 - **真实终端 + 审批。** `bash` 是 `node-pty` 真实终端，外面套命令黑名单、出网守卫与**执行前审批**；在你批准之前，什么都不会真的执行。
 - **可插拔适配器。** `claude-code` · `codex` · `custom-agent`（任何 OpenAI 兼容端点）· `image-gen` · `mock`。
@@ -117,7 +117,7 @@ A：都不需要。它是本地优先（local-first）的单租户应用，没�
 A：是的，模型 Key 由你自带（填在 `.env.local` 或界面「设置 → 供应商」里，API 返回时脱敏）。支持 DeepSeek、Anthropic Claude、OpenAI 及任何 OpenAI 兼容端点、火山方舟等；provider 报错时会沿配置好的优先级降级尝试，而不是在第一个错误上失败。
 
 **Q：和普通「一个 Chat 窗口」有什么区别？**
-A：普通窗口里你要自己拆任务、自己传话。这里由 `Orchestrator` 判断是否真的需要多角色、写清责任 Agent 与预期产物并派单；下游 Agent 直接读上游产物，不必从对话里重猜上下文。
+A：普通窗口里你要自己拆任务、自己传话。这里由 `Orchestrator` 判断是否真的需要多角色、写清责任 Agent 与预期产物并派单；下游 Agent 直接读前序产物，不必从对话里重猜上下文。
 
 **Q：Orchestrator 会把简单问题也拆成一大堆任务吗？**
 A：不会。它的提示词里明确要求先判断「这件事是否真的需要多个角色」，不需要时直接回答 —— 刻意避免过度派单。
@@ -132,7 +132,7 @@ A：产物不是聊天里的一段文字，而是产物库里带类型、可预�
 A：桌面端与 Web 是同一个应用、只换外壳，数据落点由「谁跑 Node 进程」决定，库是同一个单文件 SQLite。移动端是 Capacitor 伴随应用，通过局域网或 Tailscale 连接，由设备 token 鉴权。
 
 **Q：许可协议是什么？商用有什么义务？**
-A：AGPL-3.0-only。若你通过网络向他人提供本软件的服务，依据 AGPL-3.0 第 13 条需提供对应源码；本项目同时是上游 `lizyoko9/bitdance-agenthub` 的衍生作品，出处与改动清单见 [`NOTICE.md`](./NOTICE.md)。
+A：AGPL-3.0-only。若你通过网络向他人提供本软件的服务，依据 AGPL-3.0 第 13 条需提供对应源码，获取方式见 [`NOTICE.md`](./NOTICE.md)。
 
 ---
 

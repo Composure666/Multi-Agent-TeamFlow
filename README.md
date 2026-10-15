@@ -48,7 +48,7 @@ The installer never phones home and uploads nothing. Desktop and web are the sam
 - **Orchestrator-driven dispatch.** The built-in `Orchestrator` reads your goal, decides whether the task genuinely needs multiple roles, and uses `plan_tasks` to split and assign work. Simple questions get answered directly — it is instructed *not* to over-dispatch.
 - **Group chats.** A conversation can hold any number of agents; you `@` them or let the orchestrator route.
 - **Artifacts as first-class objects.** `web_app` · `document` · `image` · `ppt` · `diagram` · `code_file` · `diff` · `project` are all previewable and exportable, and each records the prompt, model, and parameters that produced it, so results are reproducible.
-- **Artifact dependency chains.** The typical flow is `PRD → design guide → web_app → review`; downstream agents read upstream artifacts rather than re-deriving context from prose.
+- **Artifact dependency chains.** The typical flow is `PRD → design guide → web_app → review`; downstream agents read the earlier artifacts rather than re-deriving context from prose.
 - **5 built-in agents, infinitely extensible.** Orchestrator · PM 小灰 · UI 设计师 · 前端工程师 · Reviewer (all on `claude-code`), plus a builder for custom adapters, models, tools, and prompts.
 - **A real terminal, with approvals.** `bash` is a real `node-pty` terminal, gated by a command deny-list, an outbound-network guard, and **approval prompts before execution** — nothing runs until you approve.
 - **Pluggable adapters.** `claude-code` · `codex` · `custom-agent` (any OpenAI-compatible endpoint) · `image-gen` · `mock`.
@@ -117,7 +117,7 @@ A: Neither. It is a local-first, single-tenant app — there is no concept of an
 A: Yes — keys are bring-your-own (set them in `.env.local` or under **Settings → Providers**; they are masked in API responses). DeepSeek, Anthropic Claude, OpenAI and any OpenAI-compatible endpoint, Volcano Ark, and more are supported. If a provider starts failing, the dispatcher walks a configured priority list instead of dying on the first error.
 
 **Q: How is this different from a normal single chat window?**
-A: In a normal window you do the splitting and the hand-offs yourself. Here the `Orchestrator` decides whether multiple roles are actually needed, writes down the responsible agent and expected artifact, and dispatches; downstream agents read upstream artifacts instead of re-guessing context from the conversation.
+A: In a normal window you do the splitting and the hand-offs yourself. Here the `Orchestrator` decides whether multiple roles are actually needed, writes down the responsible agent and expected artifact, and dispatches; downstream agents read the earlier artifacts instead of re-guessing context from the conversation.
 
 **Q: Will the Orchestrator over-dispatch a simple question into a swarm of tasks?**
 A: No. Its prompt explicitly requires judging whether the task genuinely needs multiple roles first; when it does not, it answers directly.
@@ -132,7 +132,7 @@ A: An artifact is not chat text — it is a typed, previewable, exportable recor
 A: Desktop and web are the same app with a different shell — the data location is decided by who runs the Node process, and the database is the same single SQLite file. The mobile app is a Capacitor companion that connects over your LAN or a Tailscale netlist, gated by a device token.
 
 **Q: What is the license, and what are my obligations?**
-A: AGPL-3.0-only. If you let others interact with it over a network, AGPL-3.0 section 13 requires you to offer the Corresponding Source. This project is also a derivative work of upstream `lizyoko9/bitdance-agenthub`; see [`NOTICE.md`](./NOTICE.md) for attribution and the itemized list of changes.
+A: AGPL-3.0-only. If you let others interact with it over a network, AGPL-3.0 section 13 requires you to offer the Corresponding Source — see [`NOTICE.md`](./NOTICE.md) for how to obtain it.
 
 ---
 

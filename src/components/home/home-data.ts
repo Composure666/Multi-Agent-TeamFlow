@@ -30,9 +30,6 @@ import {
 /** 仓库地址 —— 与 package.json#repository 保持一致。 */
 export const REPO_URL = 'https://github.com/Composure666/Multi-Agent-TeamFlow'
 
-/** 上游衍生项目 —— 依据 AGPL-3.0 第 5 条必须显式声明出处。 */
-export const UPSTREAM_URL = 'https://github.com/lizyoko9/bitdance-agenthub'
-
 /** 作者微信 —— 唯一真源，联系卡片与页脚都引用这里。 */
 export const AUTHOR_WECHAT = 'a2327664758'
 
@@ -88,7 +85,7 @@ export const WORKFLOW_STEPS: { title: string; description: string }[] = [
   {
     title: '产物依赖链传递上下文',
     description:
-      '下游 Agent 直接读上游产物，不必从对话里重新猜上下文；一次运行产出的多张图片会自动归入同一相册。',
+      '下游 Agent 直接读前序产物，不必从对话里重新猜上下文；一次运行产出的多张图片会自动归入同一相册。',
   },
   {
     title: '收拢、评审与交付',
@@ -296,8 +293,7 @@ export const FOOTER_LINKS: { title: string; links: { label: string; href: string
     links: [
       { label: '源码仓库（Gitee）', href: REPO_URL },
       { label: '问题反馈', href: `${REPO_URL}/issues` },
-      { label: '上游项目（bitdance-agenthub）', href: UPSTREAM_URL },
-      { label: '许可与出处声明（NOTICE）', href: `${REPO_URL}/blob/master/NOTICE.md` },
+      { label: '许可与来源声明（NOTICE）', href: `${REPO_URL}/blob/master/NOTICE.md` },
     ],
   },
 ]

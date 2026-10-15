@@ -3,7 +3,7 @@
 import { ArrowUpRight, Check, Copy, ExternalLink, MessageSquare, TriangleAlert } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
-import { AUTHOR_WECHAT, REPO_URL, UPSTREAM_URL } from '@/components/home/home-data'
+import { AUTHOR_WECHAT, REPO_URL } from '@/components/home/home-data'
 import { Button } from '@/components/ui/button'
 import { BRAND_NAME, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -183,11 +183,11 @@ export function HomeContact() {
               </div>
 
               <p className="mt-4 border-t border-[var(--agenthub-border)] pt-3 text-xs leading-5 text-slate-600">
-                本项目是{' '}
-                <a href={UPSTREAM_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-600 dark:hover:text-slate-300">
-                  lizyoko9/bitdance-agenthub
-                </a>{' '}
-                的 AGPL-3.0 衍生作品。
+                本项目以 AGPL-3.0-only 开源，版权与来源声明见仓库根目录{' '}
+                <a href={`${REPO_URL}/blob/master/NOTICE.md`} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-slate-600 dark:hover:text-slate-300">
+                  NOTICE.md
+                </a>
+                。
               </p>
             </div>
           </div>
