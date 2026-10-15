@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   quality:
-    name: 类型 · Lint · 构建 · 单测
+    name: 类型 · Lint · 单测 · 构建
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -56,18 +56,20 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: 单元测试
+        # ❗❗ 必须排在「生产构建」之前，顺序不能换。
+        # `pnpm build` 会先跑 `sqlite:ensure:electron`，把 better-sqlite3 的原生二进制
+        # 换成 **Electron ABI**；之后 `pnpm test`（内含 `sqlite:ensure:node`）检测到 ABI 不符
+        # 会尝试 `pnpm rebuild better-sqlite3` 换回 Node ABI，但 CI 上 prebuild-install
+        # 0.1 秒就返回「Done」且**没有真正替换掉那份 Electron 二进制** —— 于是 Node 加载
+        # Electron ABI 的 .node 直接 `Segmentation fault (core dumped)`（exit 139）。
+        # 实测：构建在前、单测在后 ⇒ 单测必崩；单测在前 ⇒ 用安装时那份 Node ABI，正常跑完。
+        # （曾经给它挂了 continue-on-error，结果段错误被粉饰成绿灯 —— 绿灯必须真绿。）
+        run: pnpm test
+
       - name: 生产构建
         # 重试一次：next build 在「Collecting page data」阶段会起多个 worker 并发
         # import 路由模块、各自跑一次 bootstrapDatabase，多进程并发写同一个 WAL 库
         # 偶发 `SqliteError: attempt to write a readonly database`（失败页面还不固定）。
         # 重跑一次必过，属于并发抖动而非回归。
         run: pnpm build || pnpm build
-
-      - name: 单元测试
-        # ❗ 刻意不阻塞：当前基线 864 例中有 5 条稳定失败，全部是既存问题 ——
-        #   · context-compaction-service ×2：用例真的会调 LLM（测试 agent 的 apiKey 为 null）
-        #   · dispatch-workspace-evidence ×1、bootstrap ×2：整套并发跑时的 SQLite WAL 争用
-        # 单独重跑这些文件都能过。等它们被真正修好（给 compaction 打桩、给 DB 测试做串行化）
-        # 之后，把下面这行 continue-on-error 删掉即可。
-        continue-on-error: true
-        run: pnpm test
