@@ -2,6 +2,7 @@
 
 import { ArrowLeft, FileText, Globe, RotateCcw, SkipForward } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 
 import { AgentAvatar } from '@/components/agent-avatar'
 import { ArtifactPreviewPanel } from '@/components/artifact-preview-panel'
@@ -45,10 +46,14 @@ export function DemoShowcase() {
   const [hydrated, setHydrated] = useState(false)
   const { status, turnIndex, totalTurns, play, stop, replay, skip } = useDemoReplay()
   const previewArtifactId = useAppStore((s) => s.previewArtifactId)
-  const demoArtifacts = useAppStore((s) =>
-    Object.values(s.artifacts)
-      .filter((a) => a.conversationId === DEMO_CONVERSATION_ID)
-      .sort((a, b) => a.createdAt - b.createdAt),
+  // 注意：派生数组必须包 useShallow，否则 filter+sort 每次返回新引用，
+  // Zustand 5 会误判为状态变化而无限重渲染（React error #185，页面直接崩）。
+  const demoArtifacts = useAppStore(
+    useShallow((s) =>
+      Object.values(s.artifacts)
+        .filter((a) => a.conversationId === DEMO_CONVERSATION_ID)
+        .sort((a, b) => a.createdAt - b.createdAt),
+    ),
   )
 
   // 客户端水合 + 自动播放（同一个 effect，先后顺序有讲究）：
@@ -165,10 +170,12 @@ export function DemoShowcase() {
 
 /** 右栏：产物未打开时，列出回放中已生成的产物，点击打开只读预览。 */
 function DemoArtifactRail({ createdCount }: { createdCount: number }) {
-  const artifacts = useAppStore((s) =>
-    Object.values(s.artifacts)
-      .filter((a) => a.conversationId === DEMO_CONVERSATION_ID)
-      .sort((a, b) => a.createdAt - b.createdAt),
+  const artifacts = useAppStore(
+    useShallow((s) =>
+      Object.values(s.artifacts)
+        .filter((a) => a.conversationId === DEMO_CONVERSATION_ID)
+        .sort((a, b) => a.createdAt - b.createdAt),
+    ),
   )
   const openPreview = useAppStore((s) => s.openArtifactPreview)
   const agentsById = useAppStore((s) => s.agents)
