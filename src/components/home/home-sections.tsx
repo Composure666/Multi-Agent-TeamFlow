@@ -86,23 +86,21 @@ export function HomeHero() {
             className="home-rise mt-8 flex flex-wrap items-center justify-center gap-3"
             style={{ animationDelay: '210ms' }}
           >
-            {/* ❗ 目标必须是访客真能到的地方。`/` 在对外托管部署里位于 nginx Basic 门禁之后，
-                匿名点下去只会弹浏览器原生登录框（模态窗口、吞掉整页事件、控制台零报错）。 */}
-            <a
-              href="#download"
-              className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
-            >
-              下载桌面端
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </a>
             {/* 在线演示是公开的只读回放（/demo，nginx 精确放行），不用登录就能看，
-                与「下载桌面端」「查看源码」并列为访客的三条路。 */}
+                是首页最显眼的主按钮 —— 访客第一眼先看到演示，再看下载与源码。 */}
             <a
               href="/demo"
-              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+              className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
             >
               <Play className="size-4" aria-hidden="true" />
               在线演示
+            </a>
+            <a
+              href="#download"
+              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+            >
+              下载桌面端
+              <ArrowRight className="size-4" aria-hidden="true" />
             </a>
             <a
               href={REPO_URL}
