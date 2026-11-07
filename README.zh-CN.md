@@ -12,6 +12,10 @@
 </p>
 
 <p align="center">
+  <b>🌐 在线演示，无需登录：<a href="http://121.40.240.236/demo">http://121.40.240.236/demo</a></b>
+</p>
+
+<p align="center">
   <a href="./README.md">English</a> · <b>简体中文</b>
 </p>
 

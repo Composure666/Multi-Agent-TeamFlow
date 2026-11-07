@@ -12,6 +12,10 @@
 </p>
 
 <p align="center">
+  <b>🌐 Live demo — no login needed: <a href="http://121.40.240.236/demo">http://121.40.240.236/demo</a></b>
+</p>
+
+<p align="center">
   <b>English</b> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
