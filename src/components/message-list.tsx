@@ -14,7 +14,17 @@ const STICKY_BOTTOM_THRESHOLD_PX = 120
 const STREAM_SCROLL_THROTTLE_MS = 80
 const MESSAGE_PAGE_SIZE = 50
 
-export function MessageList({ conversationId }: { conversationId: string }) {
+/**
+ * readOnly：演示等只读场景。此时不拉任何接口（初始加载 / 跳转加载 / 加载更早消息
+ * 全部跳过，消息完全由调用方事先写进 store），也不渲染写操作入口。
+ */
+export function MessageList({
+  conversationId,
+  readOnly = false,
+}: {
+  conversationId: string
+  readOnly?: boolean
+}) {
   const messages = useMessagesForConversation(conversationId)
   const setMessagesForConversation = useAppStore((s) => s.setMessagesForConversation)
   const messageIdsByConv = useAppStore((s) => s.messageIdsByConv[conversationId])
@@ -98,7 +108,7 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   }, [conversationId, hasMessages])
 
   useEffect(() => {
-    if (messageIdsByConv) return
+    if (readOnly || messageIdsByConv) return
     let cancelled = false
     fetchMessagePage(conversationId, { limit: MESSAGE_PAGE_SIZE })
       .then((page) => {
@@ -113,7 +123,7 @@ export function MessageList({ conversationId }: { conversationId: string }) {
     return () => {
       cancelled = true
     }
-  }, [conversationId, messageIdsByConv, setMessagesForConversation])
+  }, [conversationId, messageIdsByConv, readOnly, setMessagesForConversation])
 
   useEffect(() => {
     if (!messageIdsByConv || nextBefore !== null || messages.length === 0) return
@@ -122,7 +132,7 @@ export function MessageList({ conversationId }: { conversationId: string }) {
   }, [messageIdsByConv, messages, nextBefore])
 
   useEffect(() => {
-    if (!pendingMessageJump || pendingMessageJump.conversationId !== conversationId) return
+    if (readOnly || !pendingMessageJump || pendingMessageJump.conversationId !== conversationId) return
     let cancelled = false
     const jump = pendingMessageJump
 
@@ -158,11 +168,11 @@ export function MessageList({ conversationId }: { conversationId: string }) {
     return () => {
       cancelled = true
     }
-  }, [consumePendingMessageJump, conversationId, messageIdsByConv, messages, pendingMessageJump, setMessagesForConversation])
+  }, [consumePendingMessageJump, conversationId, messageIdsByConv, messages, pendingMessageJump, readOnly, setMessagesForConversation])
 
   const loadOlderMessages = useCallback(async () => {
     const before = nextBefore ?? messages[0]?.createdAt
-    if (!before || loadingOlder || !hasMore) return
+    if (readOnly || !before || loadingOlder || !hasMore) return
     setLoadingOlder(true)
     try {
       const page = await fetchMessagePage(conversationId, { limit: MESSAGE_PAGE_SIZE, before })
@@ -174,7 +184,7 @@ export function MessageList({ conversationId }: { conversationId: string }) {
     } finally {
       setLoadingOlder(false)
     }
-  }, [conversationId, hasMore, loadingOlder, messages, nextBefore, setMessagesForConversation])
+  }, [conversationId, hasMore, loadingOlder, messages, nextBefore, readOnly, setMessagesForConversation])
 
   useLayoutEffect(() => {
     if (messages.length === 0) return
@@ -233,7 +243,7 @@ export function MessageList({ conversationId }: { conversationId: string }) {
           </div>
         )}
         {messages.map((m) => (
-          <MessageItem key={m.id} message={m} />
+          <MessageItem key={m.id} message={m} readOnly={readOnly} />
         ))}
       </div>
     </ScrollArea>

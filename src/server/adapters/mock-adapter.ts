@@ -1,5 +1,8 @@
 import type { StreamEvent } from '@/shared/types'
 import { newMessageId, newToolCallId } from '@/server/ids'
+import { DEMO_SCRIPT_TRIGGER, DEMO_TURNS } from '@/server/demo-seed'
+import type { ScriptStep } from '@/shared/scripted-stream'
+import { streamScriptTurn } from '@/shared/scripted-stream'
 
 import type { AdapterInput, AgentPlatformAdapter } from './types'
 
@@ -15,155 +18,27 @@ import type { AdapterInput, AgentPlatformAdapter } from './types'
  *   - 根据 prompt 关键词选择不同响应脚本（让 demo 看起来"智能"）
  *   - 字符级流式（每 ~15ms 一个 chunk），还原真实体感
  *   - 支持 AbortSignal
+ *   - prompt 含「光影造像工坊」时走演示脚本：按 agentId 取 demo-seed 里对应的
+ *     那一轮（PRD → 设计稿 → 网页 → 评审），事件序列与 /demo 客户端回放同一份数据
  */
 export class MockAdapter implements AgentPlatformAdapter {
   readonly name = 'mock' as const
 
   async *stream(input: AdapterInput, signal: AbortSignal): AsyncIterable<StreamEvent> {
-    const script = pickScript(input.prompt)
-
-    const messageId = newMessageId()
-    yield {
-      type: 'message.start',
-      conversationId: input.conversationId,
-      timestamp: Date.now(),
-      messageId,
-      agentId: input.agentId,
-      runId: input.runId,
-    }
-
-    let partIndex = -1
-
-    for (const step of script) {
-      if (signal.aborted) break
-
-      partIndex++
-
-      if (step.kind === 'text') {
-        yield {
-          type: 'part.start',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          partIndex,
-          part: { type: 'text', content: '' },
-        }
-
-        for (const chunk of chunkText(step.content, 4)) {
-          if (signal.aborted) break
-          await sleep(20)
-          yield {
-            type: 'part.delta',
-            conversationId: input.conversationId,
-            timestamp: Date.now(),
-            messageId,
-            partIndex,
-            delta: { type: 'text.append', text: chunk },
-          }
-        }
-
-        yield {
-          type: 'part.end',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          partIndex,
-        }
-      } else if (step.kind === 'thinking') {
-        yield {
-          type: 'part.start',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          partIndex,
-          part: { type: 'thinking', content: '' },
-        }
-        for (const chunk of chunkText(step.content, 8)) {
-          if (signal.aborted) break
-          await sleep(15)
-          yield {
-            type: 'part.delta',
-            conversationId: input.conversationId,
-            timestamp: Date.now(),
-            messageId,
-            partIndex,
-            delta: { type: 'thinking.append', text: chunk },
-          }
-        }
-        yield {
-          type: 'part.end',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          partIndex,
-        }
-      } else if (step.kind === 'code') {
-        yield {
-          type: 'part.start',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          partIndex,
-          part: { type: 'code', language: step.language, content: '' },
-        }
-        for (const chunk of chunkText(step.content, 8)) {
-          if (signal.aborted) break
-          await sleep(15)
-          yield {
-            type: 'part.delta',
-            conversationId: input.conversationId,
-            timestamp: Date.now(),
-            messageId,
-            partIndex,
-            delta: { type: 'code.append', text: chunk },
-          }
-        }
-        yield {
-          type: 'part.end',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          partIndex,
-        }
-      } else if (step.kind === 'tool') {
-        const callId = newToolCallId()
-        yield {
-          type: 'tool.call',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          callId,
-          toolName: step.toolName,
-          args: step.args,
-        }
-        await sleep(300)
-        yield {
-          type: 'tool.result',
-          conversationId: input.conversationId,
-          timestamp: Date.now(),
-          messageId,
-          callId,
-          result: step.result ?? { ok: true },
-          isError: false,
-        }
-      }
-    }
-
-    yield {
-      type: 'message.end',
-      conversationId: input.conversationId,
-      timestamp: Date.now(),
-      messageId,
-    }
+    const script = pickScript(input.prompt, input.agentId)
+    yield* streamScriptTurn(
+      script,
+      {
+        conversationId: input.conversationId,
+        messageId: newMessageId(),
+        agentId: input.agentId,
+        runId: input.runId,
+      },
+      signal,
+      () => newToolCallId(),
+    )
   }
 }
-
-// ─── 脚本类型 ─────────────────────────────────────────────
-type ScriptStep =
-  | { kind: 'text'; content: string }
-  | { kind: 'thinking'; content: string }
-  | { kind: 'code'; language: string; content: string }
-  | { kind: 'tool'; toolName: string; args: unknown; result?: unknown }
 
 // ─── 内置脚本 ─────────────────────────────────────────────
 const GREETING_SCRIPT: ScriptStep[] = [
@@ -229,23 +104,15 @@ const DEFAULT_SCRIPT: ScriptStep[] = [
   },
 ]
 
-function pickScript(prompt: string): ScriptStep[] {
+function pickScript(prompt: string, agentId: string): ScriptStep[] {
+  if (prompt.includes(DEMO_SCRIPT_TRIGGER)) {
+    const turn = DEMO_TURNS.find((t) => t.agentId === agentId) ?? DEMO_TURNS[0]
+    return turn.steps
+  }
   const p = prompt.toLowerCase()
   if (/(你好|hello|hi|您好)/.test(p)) return GREETING_SCRIPT
   if (/(写代码|代码|code|component|组件)/.test(p)) return CODE_SCRIPT
   if (/(终端|terminal|bash)/.test(p)) return TERMINAL_SCRIPT
   if (/(执行|工具|tool|run|跑)/.test(p)) return TOOL_SCRIPT
   return DEFAULT_SCRIPT
-}
-
-function chunkText(text: string, size: number): string[] {
-  const chunks: string[] = []
-  for (let i = 0; i < text.length; i += size) {
-    chunks.push(text.slice(i, i + size))
-  }
-  return chunks
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }

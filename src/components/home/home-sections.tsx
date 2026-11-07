@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, ChevronRight, Sparkles, Terminal } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, ChevronRight, Play, Sparkles, Terminal } from 'lucide-react'
 import { Fragment } from 'react'
 
 import {
@@ -94,6 +94,15 @@ export function HomeHero() {
             >
               下载桌面端
               <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+            {/* 在线演示是公开的只读回放（/demo，nginx 精确放行），不用登录就能看，
+                与「下载桌面端」「查看源码」并列为访客的三条路。 */}
+            <a
+              href="/demo"
+              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+            >
+              <Play className="size-4" aria-hidden="true" />
+              在线演示
             </a>
             <a
               href={REPO_URL}

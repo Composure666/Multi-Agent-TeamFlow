@@ -31,7 +31,7 @@ import {
   useLatestUserMessageId,
 } from '@/stores/app-store'
 
-function MessageItemImpl({ message }: { message: MessageRow }) {
+function MessageItemImpl({ message, readOnly = false }: { message: MessageRow; readOnly?: boolean }) {
   const agentsMap = useAppStore((s) => s.agents)
   const agent = message.agentId ? agentsMap[message.agentId] : null
   const dispatch = useDispatchForMessage(message.id)
@@ -281,10 +281,11 @@ function MessageItemImpl({ message }: { message: MessageRow }) {
           )}
         </div>
 
-        {/* 操作工具栏 — 永远渲染占位，仅 hover 时可见。
-            放在 bubble 外避免历史/最新消息按钮数量不同导致 meta 行宽度抖动；
-            invisible 而非 hidden 是为了不让 hover 时 bubble 下方多出一行高度导致页面流动。 */}
-        {!editing && (
+        {/* 操作工具栏 — 只读模式下不渲染（引用 / pin / 编辑 / 撤回 / 重生成都会调 API）。
+            永远渲染占位，仅 hover 时可见。放在 bubble 外避免历史/最新消息按钮数量不同导致
+            meta 行宽度抖动；invisible 而非 hidden 是为了不让 hover 时 bubble 下方多出一行高度
+            导致页面流动。 */}
+        {!editing && !readOnly && (
           <div
             className={cn(
               'flex gap-2 text-xs text-muted-foreground invisible group-hover:visible',

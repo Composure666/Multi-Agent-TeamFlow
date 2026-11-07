@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { ArtifactRow } from '@/db/schema'
 import { createArtifactVersion, fetchArtifactVersions, workspaceReadFile, workspaceWriteFile } from '@/lib/api'
-import { artifactPreviewPath } from '@/lib/artifact-preview'
+import { artifactPreviewPath, buildWebAppHtml } from '@/lib/artifact-preview'
 import { normalizeLang } from '@/lib/highlighter'
 import { cn } from '@/lib/utils'
 import { readArtifactImages } from '@/shared/artifact-images'
@@ -39,6 +39,12 @@ type SaveVersionFn = (rawContent: unknown, title?: string) => Promise<void>
 
 type ArtifactPreviewPanelProps = {
   fullHeight?: boolean
+  /**
+   * readOnly：演示等只读场景。此时不拉版本链、不提供编辑 / 对比 / 导出 /
+   * 新窗口打开入口；web_app 用 iframe srcDoc 本地渲染，不走
+   * /api/artifacts/[id]/preview（演示产物不在数据库里，那条路由还会 401）。
+   */
+  readOnly?: boolean
 }
 
 /**
@@ -48,7 +54,7 @@ type ArtifactPreviewPanelProps = {
  * 顶部支持多版本切换：从同一个 root 派生的所有 artifact 通过 /versions API 查回。
  * web_app / document 支持面板内编辑并「提交为新版本」（POST /versions → createArtifactVersion）。
  */
-export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPanelProps) {
+export function ArtifactPreviewPanel({ fullHeight = false, readOnly = false }: ArtifactPreviewPanelProps) {
   const id = useAppStore((s) => s.previewArtifactId)
   const artifact = useAppStore((s) => (id ? s.artifacts[id] : null))
   const upsertArtifact = useAppStore((s) => s.upsertArtifact)
@@ -82,9 +88,9 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
     }
   }, [id, artifact])
 
-  // 切到新 artifact 时拉它的版本链
+  // 切到新 artifact 时拉它的版本链（只读模式跳过：演示产物没有版本链，也不发请求）
   useEffect(() => {
-    if (!id) return
+    if (!id || readOnly) return
     let cancelled = false
     setVersions(null)
     setShowCompare(false)
@@ -107,7 +113,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
     return () => {
       cancelled = true
     }
-  }, [id, upsertArtifact])
+  }, [id, readOnly, upsertArtifact])
 
   const switchVersion = useCallback(
     (targetId: string) => {
@@ -167,7 +173,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {hasMultiple && (
+          {!readOnly && hasMultiple && (
             <>
               <Button
                 size="icon"
@@ -190,7 +196,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
               </Button>
             </>
           )}
-          {artifact.type === 'web_app' && (
+          {!readOnly && artifact.type === 'web_app' && (
             <>
               <Button
                 size="icon"
@@ -218,24 +224,26 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
           >
             {isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
           </Button>
-<a
-            href={`/api/artifacts/${artifact.id}/export`}
-            download
-            title={`下载${
-              artifact.type === 'web_app' || artifact.type === 'project'
-                ? ' .zip'
-                : artifact.type === 'document'
-                  ? ' .md'
-                  : artifact.type === 'diagram'
-                    ? ' .mmd'
-                    : artifact.type === 'ppt'
-                      ? '可编辑 .pptx'
-                      : ''
-            }`}
-            className="inline-flex size-8 items-center justify-center rounded-lg text-foreground/70 transition hover:bg-muted hover:text-foreground"
-          >
-            <Download className="size-4" />
-          </a>
+          {!readOnly && (
+            <a
+              href={`/api/artifacts/${artifact.id}/export`}
+              download
+              title={`下载${
+                artifact.type === 'web_app' || artifact.type === 'project'
+                  ? ' .zip'
+                  : artifact.type === 'document'
+                    ? ' .md'
+                    : artifact.type === 'diagram'
+                      ? ' .mmd'
+                      : artifact.type === 'ppt'
+                        ? '可编辑 .pptx'
+                        : ''
+              }`}
+              className="inline-flex size-8 items-center justify-center rounded-lg text-foreground/70 transition hover:bg-muted hover:text-foreground"
+            >
+              <Download className="size-4" />
+            </a>
+          )}
           <Button size="icon" variant="ghost" onClick={close} title="关闭预览">
             <X className="size-4" />
           </Button>
@@ -292,7 +300,7 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
           onTargetChange={setCompareTargetId}
         />
       ) : (
-        <ArtifactView artifact={artifact} onSaveVersion={handleSaveVersion} />
+        <ArtifactView artifact={artifact} onSaveVersion={handleSaveVersion} readOnly={readOnly} />
       )}
     </aside>
   )
@@ -302,9 +310,11 @@ export function ArtifactPreviewPanel({ fullHeight = false }: ArtifactPreviewPane
 function ArtifactView({
   artifact,
   onSaveVersion,
+  readOnly = false,
 }: {
   artifact: ArtifactRow
   onSaveVersion: SaveVersionFn
+  readOnly?: boolean
 }) {
   const content = artifact.content as ArtifactContent
 
@@ -320,11 +330,24 @@ function ArtifactView({
     </div>
   )
 
+  // 只读模式下只渲染纯内容视图：code_file / project 视图会读工作区文件（走 API），
+  // diff / ppt 的编辑链路也不适用，直接给不支持提示。
+  if (readOnly && content.type !== 'web_app' && content.type !== 'document' && content.type !== 'image') {
+    return <Empty>演示中不支持预览该类型</Empty>
+  }
+
   switch (content.type) {
     case 'web_app':
-      return wrap(<WebAppView artifactId={artifact.id} content={content} onSaveVersion={onSaveVersion} />)
+      return wrap(
+        <WebAppView
+          artifactId={artifact.id}
+          content={content}
+          onSaveVersion={onSaveVersion}
+          readOnly={readOnly}
+        />,
+      )
     case 'document':
-      return wrap(<DocumentView content={content} onSaveVersion={onSaveVersion} />)
+      return wrap(<DocumentView content={content} onSaveVersion={onSaveVersion} readOnly={readOnly} />)
     case 'diagram':
       return wrap(<DiagramView content={content} onSaveVersion={onSaveVersion} />)
     case 'image':
@@ -354,10 +377,12 @@ function WebAppView({
   artifactId,
   content,
   onSaveVersion,
+  readOnly = false,
 }: {
   artifactId: string
   content: Extract<ArtifactContent, { type: 'web_app' }>
   onSaveVersion: SaveVersionFn
+  readOnly?: boolean
 }) {
   const [view, setView] = useState<'render' | 'edit'>('render')
   const [activeFile, setActiveFile] = useState<string>(content.entry)
@@ -403,10 +428,12 @@ function WebAppView({
             <Eye className="size-3.5" />
             预览
           </ViewTab>
-          <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
-            <Pencil className="size-3.5" />
-            编辑
-          </ViewTab>
+          {!readOnly && (
+            <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
+              <Pencil className="size-3.5" />
+              编辑
+            </ViewTab>
+          )}
         </div>
         {showFilePicker && (
           <select
@@ -427,7 +454,12 @@ function WebAppView({
         {view === 'render' && (
           <iframe
             key={artifactId}
-            src={artifactPreviewPath(artifactId)}
+            // 只读模式用 srcDoc 就地渲染：演示产物不在数据库里，/preview 路由既 404
+            // 又在鉴权后面，iframe 走它会弹原生登录框。内容本身是自包含 HTML，
+            // sandbox="allow-scripts"（无 allow-same-origin）下与父页隔离。
+            {...(readOnly
+              ? { srcDoc: buildWebAppHtml(content) }
+              : { src: artifactPreviewPath(artifactId) })}
             sandbox="allow-scripts"
             className="size-full border-0 bg-white"
             title="Artifact preview"
@@ -464,9 +496,11 @@ function WebAppView({
 function DocumentView({
   content,
   onSaveVersion,
+  readOnly = false,
 }: {
   content: Extract<ArtifactContent, { type: 'document' }>
   onSaveVersion: SaveVersionFn
+  readOnly?: boolean
 }) {
   const [view, setView] = useState<'render' | 'edit'>('render')
   const [draft, setDraft] = useState(content.content)
@@ -500,10 +534,12 @@ function DocumentView({
           <Eye className="size-3.5" />
           预览
         </ViewTab>
-        <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
-          <Pencil className="size-3.5" />
-          编辑
-        </ViewTab>
+        {!readOnly && (
+          <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
+            <Pencil className="size-3.5" />
+            编辑
+          </ViewTab>
+        )}
       </div>
       <div className="min-h-0 flex-1">
         {view === 'render' ? (
