@@ -74,6 +74,14 @@ The installer never phones home and uploads nothing. Desktop and web are the sam
 
 > Image not loading? The diagram is a static SVG asset in the repository — open [`docs/images/architecture.svg`](./docs/images/architecture.svg) directly. The trunk is: **goal → Orchestrator dispatch → specialist agents produce typed artifacts → collected into the artifact library**. Everything runs on your machine; file access is confined by a path guard, and risky commands need your approval.
 
+### What this repo adds
+
+- **Public demo mode (`/demo`).** The workbench itself is local-first and behind a login wall, so guests get a separate read-only demo: a scripted replay of a full multi-agent run (the 「光影造像工坊」 showcase — PRD → design guide → web page → review) rendered in the real chat/artifact UI. No account, no API key, no database access, no terminal. The `MockAdapter` scripted flow serves it, and nginx exempts exactly `/demo`, the same way it exempts `/home`. Live demo once deployed: http://121.40.240.236/demo.
+- **Self-hosting.** One-command deploy scripts, nginx config, a systemd service, and a demo checklist live in [`deploy/`](./deploy/) — the public demo above ships with the same setup.
+- **Public homepage (`/home`).** Screenshots, the architecture diagram above, and the desktop download, all public with no login.
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for the full history.
+
 ---
 
 ## Quickstart
