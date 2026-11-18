@@ -49,7 +49,10 @@ import {
 import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
+import { PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { useIsBelowXl } from '@/lib/use-media-query'
 import {
   abortRun,
   fetchAgentRunDebugDetail,
@@ -272,14 +275,18 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
       userAdjustedViewRef.current = false
     }
     const dragged = draggedPositionsRef.current
-    setFlowNodes((previous) => {
-      const previousPositions = new Map(previous.map((node) => [node.id, node.position]))
-      return focusedGraph.nodes.map((node) => ({
+    // 只保留用户亲手拖过的位置（draggedPositionsRef）：旧布局算出的位置不能沿用。
+    // 数据晚到时节点会钉在过期坐标上——实测 Run 节点在消息未到达前按孤儿位置
+    // (640,0) 落位，消息到达后布局已改为 (640,260)，旧位置却被一直保留，导致
+    // Run 卡片与消息卡片完全重叠、消息节点点不到。其余节点一律跟随本次布局；
+    // 布局本身是确定性的，同数据下位置不变，拖过的位置由 draggedPositionsRef 兜底。
+    setFlowNodes(
+      focusedGraph.nodes.map((node) => ({
         ...node,
         draggable: true,
-        position: dragged.get(node.id) ?? previousPositions.get(node.id) ?? node.position,
-      }))
-    })
+        position: dragged.get(node.id) ?? node.position,
+      })),
+    )
     setFlowEdges(focusedGraph.edges)
   }, [canvasLayoutKey, focusedGraph, setFlowNodes])
 
@@ -813,19 +820,20 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
 
   const visibleInspectorDetail = inspectorDetail ?? currentDetail
   const showInspector = !focusMode && inspectorOpen && Boolean(visibleInspectorDetail)
+  // D1：<xl 时检查器不在侧栏轨道里占位（否则 md 下会留出一条 340px 空轨道），改走下方的 Dialog；≥xl 行为不变。
+  const isBelowXl = useIsBelowXl()
+  const showInlineInspector = showInspector && !isBelowXl
+  const showDialogInspector = showInspector && isBelowXl
   // 终端 / 日志要横向空间：这两个 tab 下把 Details 列放宽（纯视觉，不动结构与数据源）
   const inspectorWide = inspectorTab === 'terminal' || inspectorTab === 'logs'
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
-      <div className="sticky top-0 z-30 shrink-0 border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-4 py-3 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="mt-4 flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950">
-              <GitBranch className="size-5" />
-            </div>
-            <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+    <PageShell className="flex flex-col bg-[var(--agenthub-surface-muted)]" contentClassName="w-full max-w-none flex-1 min-h-0">
+      <PageHeader
+        icon={GitBranch}
+        title={headerTitle}
+        breadcrumb={
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <span>分析</span>
               <span>/</span>
               <span>运行调试</span>
@@ -838,13 +846,10 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                 </>
               )}
             </div>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-                {headerTitle}
-              </h1>
+          }
+          meta={
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               {selectedRun && <StatusPill status={selectedRun.status} />}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               <span className="font-mono text-slate-700 dark:text-slate-200">{selectedRun ? formatRunLabel(selectedRun.id) : '暂无 Run'}</span>
               <span>{selectedRun ? formatRunDuration(selectedRun) : '-'}</span>
               <span>{totalTokens === null ? '-' : `${totalTokens.toLocaleString()} Tokens`}</span>
@@ -852,9 +857,9 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
               <span>{selectedRun?.modelId ?? currentDetail?.snapshot?.agent.modelId ?? '-'}</span>
               <span>{workerAgentCount ? `${workerAgentCount} Agents` : '-'}</span>
             </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+          }
+          actions={
+            <>
             <Button
               type="button"
               size="sm"
@@ -942,22 +947,22 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             >
               {focusMode ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
             </Button>
-          </div>
-        </div>
+            </>
+          }
+        />
         {!focusMode && currentDetail && (
-          <div className="mt-2 flex h-12 shrink-0 items-center border-t border-[var(--agenthub-border)]">
+          <PageCard className="flex h-12 shrink-0 items-center px-4 py-0">
             <RunStageProgress
               stages={stages}
               runStatus={currentDetail.agentRun.status}
               activeStageId={selectedStageId}
               onSelectStage={selectStage}
             />
-          </div>
+          </PageCard>
         )}
-      </div>
 
       {error && (
-        <div className="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        <div className="flex shrink-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
           <AlertTriangle className="size-3.5" />
           <span className="min-w-0 flex-1 break-words">{error}</span>
           <button type="button" className="shrink-0" onClick={() => setError(null)} aria-label="关闭错误">
@@ -971,12 +976,12 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
         focusMode
           ? 'grid-cols-1'
           : leftRailCollapsed
-            ? showInspector
+            ? showInlineInspector
               ? inspectorWide
                 ? 'md:grid-cols-[68px_minmax(0,1fr)_340px] xl:grid-cols-[68px_minmax(0,1fr)_560px]'
                 : 'md:grid-cols-[68px_minmax(0,1fr)_340px] xl:grid-cols-[68px_minmax(0,1fr)_420px]'
               : 'md:grid-cols-[68px_minmax(0,1fr)]'
-            : showInspector
+            : showInlineInspector
               ? inspectorWide
                 ? 'md:grid-cols-[228px_minmax(0,1fr)_340px] xl:grid-cols-[240px_minmax(0,1fr)_560px]'
                 : 'md:grid-cols-[228px_minmax(0,1fr)_340px] xl:grid-cols-[240px_minmax(0,1fr)_420px]'
@@ -997,8 +1002,8 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
           </div>
         )}
 
-        <main className="relative flex min-w-0 flex-col overflow-hidden bg-[#f8fbff] dark:bg-[#11151c]">
-          <div className="border-b border-[var(--agenthub-border)] bg-white px-3 py-2 md:hidden dark:bg-neutral-950/60">
+        <main className="relative flex min-w-0 flex-col overflow-hidden bg-[var(--agenthub-surface-muted)]">
+          <div className="border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2 md:hidden">
             <div className="space-y-2">
               <select
                 value={conversationId ?? ''}
@@ -1017,8 +1022,8 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             </div>
           </div>
 
-          <div className="min-h-[360px] flex-1 p-3 pb-2">
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--agenthub-border)] bg-white shadow-sm dark:bg-neutral-950/50">
+          <div className="min-h-[360px] flex-1 p-2">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-sm">
               {conversationId && (
                 <CanvasToolbar
                   graphScope={canvasGraphScope}
@@ -1034,9 +1039,12 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                 />
               )}
               {(loadingRuns || loadingDetail) && !canRenderCanvas ? (
-                <div className="flex h-full items-center justify-center gap-2 text-xs text-slate-500">
-                  <Loader2 className="size-4 animate-spin" />
-                  正在加载会话任务图
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                    <Loader2 className="size-5 animate-spin" />
+                  </div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载会话任务图…</div>
+                  <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在读取 Run 列表与调试快照。</p>
                 </div>
               ) : canRenderCanvas ? (
                 <div className="min-h-0 flex-1">
@@ -1096,13 +1104,13 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                   )}
                 </div>
               ) : (
-                <EmptyBoard runs={runs} />
+                <EmptyBoard runs={runs} onBack={conversationId ? backToConversation : undefined} />
               )}
             </div>
           </div>
         </main>
 
-        {!focusMode && visibleInspectorDetail && showInspector && (
+        {!focusMode && visibleInspectorDetail && showInlineInspector && (
           // 宽度由上面的 grid 轨道决定（终端/日志 tab 会放宽到 420/560），
           // 不要再给 aside 写死 w-[…] —— 写死会溢出轨道，反而逼出页面横向滚动。
           <aside className="hidden min-h-0 min-w-0 xl:block">
@@ -1123,7 +1131,29 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
         )}
       </div>
 
-    </div>
+      {/* D1：<xl 时点节点打开 Dialog 呈现检查器（尺寸走 DIALOG_SIZE_CLASS.md）；≥xl 仍用上面的内联侧栏。 */}
+      {showDialogInspector && visibleInspectorDetail && (
+        <Dialog open onOpenChange={(open) => { if (!open) closeInspector() }}>
+          <DialogContent showCloseButton={false} className={cn(DIALOG_SIZE_CLASS.md, 'flex h-[min(92vh,940px)] flex-col gap-0 overflow-hidden p-0')}>
+            <DialogTitle className="sr-only">{selectedNode?.data.label ?? visibleInspectorDetail.agentRun.agentName ?? '运行详情'}</DialogTitle>
+            <DetailsPanel
+              detail={visibleInspectorDetail}
+              selectedNode={selectedNode}
+              tab={inspectorTab}
+              onTabChange={setInspectorTab}
+              onClose={closeInspector}
+              debugEvents={inspectorDebugEvents}
+              terminalSessions={inspectorTerminalSessions}
+              terminalEventsBySession={terminalEventsBySession}
+              onSelectToolCall={selectToolCall}
+              onTerminalInput={submitTerminalInput}
+              selectedToolCallId={selectedToolCallId}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+    </PageShell>
   )
 }
 
@@ -1137,7 +1167,7 @@ export function AgentRunDebugBoardButton({ conversationId }: { conversationId: s
       variant="ghost"
       title="打开运行展板"
       aria-label="打开运行展板"
-      className="rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+      className="rounded-lg text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
       onClick={() => {
         openRunBoardTarget({ conversationId })
       }}
@@ -1177,8 +1207,13 @@ function CanvasToolbar({
   ]
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-3 border-b border-[var(--agenthub-border)] bg-white/95 px-3 dark:bg-neutral-950/80">
-      <div className="flex shrink-0 items-center gap-1 border-r border-slate-200 pr-3 dark:border-white/10">
+    // 工具栏内容（范围切换 + 视图切换 + 适配/重置 + 4 个筛选）在 1366 宽度下、检查器
+    // 打开时约 910px，放不进 634px 的画布列：旧写法靠中间视图组的 min-w-0 把按钮
+    // 压到 34px 宽、标签折成两行，右侧整组还溢出卡片 441px。改为横向滚动收容：
+    // 所有按钮 shrink-0 + 不换行，窄了就滚、不再挤扁或溢出；提示语只在 2xl 才显示，
+    // 1366 不带检查器时工具栏刚好放得下、不滚动。
+    <div className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/95 px-2.5">
+      <div className="flex shrink-0 items-center gap-1 border-r border-[var(--agenthub-border)] pr-2">
         {[
           { id: 'session' as const, label: '全会话' },
           { id: 'run' as const, label: '当前 Run' },
@@ -1189,10 +1224,10 @@ function CanvasToolbar({
             onClick={() => onGraphScopeChange(item.id)}
             aria-pressed={graphScope === item.id && view === 'graph'}
             className={cn(
-              'h-7 rounded-md px-2.5 text-xs font-medium transition',
+              'h-7 shrink-0 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition',
               graphScope === item.id && view === 'graph'
-                ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
+                ? 'bg-slate-900 text-white shadow-sm dark:bg-[var(--agenthub-surface-muted)] dark:text-slate-100'
+                : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
             )}
           >
             {item.label}
@@ -1203,13 +1238,13 @@ function CanvasToolbar({
         <button
           type="button"
           onClick={onToggleCurrentRunExpansion}
-          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
         >
           {currentRunExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
           {currentRunExpanded ? '收起当前 Run' : '展开当前 Run'}
         </button>
       )}
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         {views.map((item) => (
           <button
             key={item.id}
@@ -1217,10 +1252,10 @@ function CanvasToolbar({
             onClick={() => onViewChange(item.id)}
             aria-pressed={view === item.id}
             className={cn(
-              'h-7 rounded-md px-2.5 text-xs font-medium transition',
+              'h-7 shrink-0 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition',
               view === item.id
                 ? 'bg-[var(--agenthub-accent)] text-white shadow-sm'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
+                : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
             )}
           >
             {item.label}
@@ -1230,12 +1265,12 @@ function CanvasToolbar({
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {view === 'graph' && (
           <>
-            <span className="mr-1 hidden text-xs text-slate-400 lg:inline">拖动卡片可调整位置</span>
+            <span className="mr-1 hidden whitespace-nowrap text-xs text-slate-400 2xl:inline">拖动卡片可调整位置</span>
             <button
               type="button"
               onClick={onFitView}
               title="适配视野：把全部卡片放回可视区"
-              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
             >
               <Scan className="size-3.5" />
               适配视野
@@ -1244,7 +1279,7 @@ function CanvasToolbar({
               type="button"
               onClick={onResetLayout}
               title="重置布局"
-              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
             >
               <Maximize2 className="size-3.5" />
               重置布局
@@ -1257,10 +1292,10 @@ function CanvasToolbar({
             type="button"
             onClick={() => onFilterChange(option.id)}
             className={cn(
-              'h-7 rounded-md border px-2.5 text-xs font-medium transition',
+              'h-7 shrink-0 whitespace-nowrap rounded-md border px-2.5 text-xs font-medium transition',
               filter === option.id
-                ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/30 dark:bg-blue-500/10 dark:text-blue-300'
-                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:bg-white/5',
+                ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
+                : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500 hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5',
             )}
           >
             {option.label}
@@ -1281,22 +1316,22 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
       <Handle type="target" position={Position.Top} className="!size-2 !border-0 !bg-slate-300" />
       <div
         className={cn(
-          'relative rounded-lg border bg-white shadow-[0_16px_40px_rgba(31,55,86,.12)] transition dark:bg-neutral-900',
+          'relative rounded-lg border bg-[var(--agenthub-surface)] shadow-[0_16px_40px_rgba(31,55,86,.12)] transition',
           data.kind === 'message' && 'w-[310px] border-indigo-100 p-3',
-          data.kind === 'run' && 'w-[310px] border-blue-100 p-3',
+          data.kind === 'run' && 'w-[310px] border-[var(--agenthub-accent-border)] p-3',
           data.kind === 'agent' && 'w-[280px] p-3',
           data.kind === 'task' && 'w-[270px] p-3',
           data.kind === 'tool' && 'w-[290px] p-3',
-          data.kind === 'summary' && 'w-[270px] border-slate-200 p-3',
+          data.kind === 'summary' && 'w-[270px] border-[var(--agenthub-border)] p-3',
           selected && 'ring-2 ring-[var(--agenthub-accent)] ring-offset-2 dark:ring-offset-neutral-950',
           data.tone === 'success' && 'border-emerald-300 shadow-[0_0_0_4px_rgba(16,185,129,.10)]',
-          data.tone === 'info' && 'border-blue-300 shadow-[0_0_0_4px_rgba(37,99,235,.10)]',
+          data.tone === 'info' && 'border-[var(--agenthub-accent-border)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--agenthub-accent)_10%,transparent)]',
           data.tone === 'warning' && 'border-amber-300 shadow-[0_0_0_4px_rgba(245,158,11,.10)]',
           data.tone === 'danger' && 'border-rose-300 shadow-[0_0_0_4px_rgba(244,63,94,.10)]',
           muted && 'opacity-70',
           focusMuted && !selected && 'opacity-35 grayscale',
           focusMuted && selected && 'opacity-60 grayscale',
-          isRunning && 'before:absolute before:inset-0 before:rounded-lg before:border before:border-blue-400/60 before:opacity-100 before:[animation:agenthub-pulse-ring_1.6s_ease-out_infinite]',
+          isRunning && 'before:absolute before:inset-0 before:rounded-lg before:border before:border-[var(--agenthub-accent)] before:opacity-100 before:[animation:agenthub-pulse-ring_1.6s_ease-out_infinite]',
         )}
       >
         <div className="flex items-start justify-between gap-3">
@@ -1311,7 +1346,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
               </div>
             </div>
           </div>
-          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium', debuggerStatusBadgeClass(data.status))}>
+          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', debuggerStatusBadgeClass(data.status))}>
             <span className={cn('size-1.5 rounded-full', debuggerStatusDotClass(data.status))} />
             {debuggerStatusLabel(data.status)}
           </span>
@@ -1322,7 +1357,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
                 event.stopPropagation()
                 setExpanded((current) => !current)
               }}
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
               aria-label={expanded ? '收起 Agent 步骤' : '展开 Agent 步骤'}
               title={expanded ? '收起 Agent 步骤' : '展开 Agent 步骤'}
             >
@@ -1332,9 +1367,9 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
         </div>
 
         {data.kind === 'message' && data.message && (
-          <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-white/10">
+          <div className="mt-3 space-y-2 border-t border-[var(--agenthub-border)] pt-3">
             <div className="line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{data.message.preview}</div>
-            <div className="grid grid-cols-2 gap-2 text-3xs">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <NodeMetric label="关联 Run" value={String(data.message.runIds.length)} />
               <NodeMetric label="时间" value={formatClockTime(data.message.createdAt)} />
             </div>
@@ -1342,7 +1377,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
         )}
 
         {(data.kind === 'run' || data.kind === 'summary') && (
-          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-3xs dark:border-white/10">
+          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--agenthub-border)] pt-3 text-xs">
             <NodeMetric label="耗时" value={data.run?.durationMs === null || data.run?.durationMs === undefined ? '-' : formatDurationMs(data.run.durationMs)} />
             <NodeMetric label="Token" value={data.run?.tokenTotal === null || data.run?.tokenTotal === undefined ? '-' : formatCompactNumber(data.run.tokenTotal)} />
             <NodeMetric label="模型" value={compactModelName(data.run?.modelId ?? '-')} />
@@ -1351,7 +1386,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
 
         {data.kind === 'agent' && data.agent && (
           <>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-3xs">
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
               <NodeMetric label="耗时" value={data.agent.durationMs === null ? '-' : formatDurationMs(data.agent.durationMs)} />
               <NodeMetric label="Token" value={data.agent.tokenTotal === null ? '-' : formatCompactNumber(data.agent.tokenTotal)} />
               <NodeMetric label="工具" value={String(data.agent.toolCallCount)} />
@@ -1362,7 +1397,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
         )}
 
         {data.kind === 'tool' && data.tool && (
-          <div className="mt-3 rounded-md bg-slate-50 px-2.5 py-1.5 text-3xs leading-5 text-slate-600 dark:bg-white/5 dark:text-slate-300">
+          <div className="mt-3 rounded-md bg-[var(--agenthub-surface-muted)] px-2.5 py-1.5 text-xs leading-5 text-slate-600 dark:text-slate-300">
             <div className="truncate font-medium text-slate-700 dark:text-slate-200">
               {data.tool.toolName}
               {data.tool.agentName ? <span className="ml-1 font-normal text-slate-500">· {data.tool.agentName}</span> : null}
@@ -1417,21 +1452,21 @@ function NodeAgentCurrentStep({
 
   if (!expanded) {
     return (
-      <div className="mt-3 flex min-w-0 items-center gap-2 rounded-md border-t border-slate-100 pt-3 text-xs dark:border-white/10">
+      <div className="mt-3 flex min-w-0 items-center gap-2 rounded-md border-t border-[var(--agenthub-border)] pt-3 text-xs">
         <span className={cn(
           'flex size-3.5 shrink-0 items-center justify-center rounded-full border',
           currentStep?.status === 'running' || (status === 'running' && !currentStep)
-            ? 'border-blue-300'
+            ? 'border-[var(--agenthub-accent-border)]'
             : currentStep?.status === 'completed'
               ? 'border-emerald-300'
               : currentStep?.status === 'failed' || currentStep?.status === 'cancelled'
                 ? 'border-rose-300'
-                : 'border-slate-300',
+                : 'border-[var(--agenthub-border)]',
         )}>
           <span className={cn(
             'size-1.5 rounded-full',
             currentStep?.status === 'running' || (status === 'running' && !currentStep)
-              ? 'bg-blue-500 animate-pulse'
+              ? 'bg-[var(--agenthub-accent)] animate-pulse'
               : currentStep?.status === 'completed'
                 ? 'bg-emerald-500'
                 : currentStep?.status === 'failed' || currentStep?.status === 'cancelled'
@@ -1440,7 +1475,7 @@ function NodeAgentCurrentStep({
           )} />
         </span>
         <span className="min-w-0 flex-1 truncate text-slate-600 dark:text-slate-300">{currentTitle}</span>
-        <span className="shrink-0 text-3xs text-slate-400">
+        <span className="shrink-0 text-xs text-slate-400">
           {currentIndex >= 0 && totalCount > 1 ? `${currentIndex + 1}/${totalCount}` : `共 ${totalCount}`}
         </span>
       </div>
@@ -1450,7 +1485,7 @@ function NodeAgentCurrentStep({
   const { steps: visibleSteps, hiddenCount } = getVisibleAgentDebuggerSteps(steps, true)
   if (visibleSteps.length === 0) return null
   return (
-    <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 dark:border-white/10">
+    <div className="mt-3 space-y-1.5 border-t border-[var(--agenthub-border)] pt-3">
       {visibleSteps.map((step, index) => {
         const isCurrent = index === currentIndex
         return (
@@ -1458,17 +1493,17 @@ function NodeAgentCurrentStep({
             key={step.id}
             className={cn(
               'min-w-0 rounded-md px-1.5 py-1 text-xs text-slate-600 transition dark:text-slate-300',
-              isCurrent && 'bg-blue-50/80 ring-1 ring-blue-200 dark:bg-blue-500/15 dark:ring-blue-400/30',
+              isCurrent && 'bg-[var(--agenthub-accent-soft)] ring-1 ring-[var(--agenthub-accent-border)]',
             )}
           >
             <div className="flex min-w-0 items-center gap-2">
               <span className={cn('size-2 shrink-0 rounded-full', debuggerStatusDotClass(step.status), isCurrent && 'animate-pulse')} />
               <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-200">{step.title}</span>
               {isCurrent && (
-                <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-3xs font-medium text-blue-700 dark:text-blue-300">当前</span>
+                <span className="shrink-0 rounded bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-xs font-medium text-[var(--agenthub-accent)]">当前</span>
               )}
               {step.dependsOn.length > 0 && !isCurrent && (
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10">
+                <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 font-mono text-xs text-slate-500">
                   dep {step.dependsOn.length}
                 </span>
               )}
@@ -1477,7 +1512,7 @@ function NodeAgentCurrentStep({
         )
       })}
       {hiddenCount > 0 && (
-        <div className="pl-4 text-3xs text-slate-400">+{hiddenCount} 个步骤</div>
+        <div className="pl-4 text-xs text-slate-400">+{hiddenCount} 个步骤</div>
       )}
     </div>
   )
@@ -1498,7 +1533,7 @@ function NodeToolSummary({
   if (!expanded) {
     const preview = tools.slice(0, 3).join(' · ')
     return (
-      <div className="mt-2 flex min-w-0 items-center gap-2 text-3xs text-slate-500 dark:text-slate-400">
+      <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
         <Wrench className="size-3 shrink-0" />
         <span className="shrink-0 font-medium">Tools {toolCount}</span>
         {preview ? (
@@ -1514,17 +1549,17 @@ function NodeToolChips({ tools, expanded = false }: { tools: string[]; expanded?
   if (tools.length === 0) return null
   const visibleTools = expanded ? tools : tools.slice(0, 4)
   return (
-    <div className="mt-3 rounded-lg border border-dashed border-blue-100 bg-blue-50/40 px-2.5 py-2 dark:border-blue-400/20 dark:bg-blue-500/10">
-      <div className="mb-1.5 text-3xs font-medium text-slate-500 dark:text-slate-400">调用工具</div>
+    <div className="mt-3 rounded-lg border border-dashed border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-2.5 py-2">
+      <div className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">调用工具</div>
       <div className="flex flex-wrap gap-1.5">
         {visibleTools.map((tool) => (
-          <span key={tool} className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 font-mono text-3xs text-slate-600 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-300">
+          <span key={tool} className="inline-flex max-w-full items-center gap-1 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-1.5 py-1 font-mono text-xs text-slate-600 dark:text-slate-300">
             <Wrench className="size-3 shrink-0" />
             <span className="truncate">{tool}</span>
           </span>
         ))}
         {tools.length > visibleTools.length && (
-          <span className="inline-flex items-center rounded-md px-1.5 py-1 text-3xs text-slate-400">
+          <span className="inline-flex items-center rounded-md px-1.5 py-1 text-xs text-slate-400">
             +{tools.length - visibleTools.length}
           </span>
         )}
@@ -1549,17 +1584,17 @@ function MessageCircleIcon() {
 
 function debuggerNodeIconClass(tone: AgentRunBoardTone): string {
   if (tone === 'success') return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
-  if (tone === 'info') return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300'
+  if (tone === 'info') return 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
   if (tone === 'warning') return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300'
-  if (tone === 'danger') return 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
-  return 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300'
+  if (tone === 'danger') return 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
+  return 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-300'
 }
 
 function debuggerStatusBadgeClass(status: AgentRunDebuggerStatus): string {
   if (status === 'completed') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-  if (status === 'running') return 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-  if (status === 'failed' || status === 'cancelled') return 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
-  return 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+  if (status === 'running') return 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
+  if (status === 'failed' || status === 'cancelled') return 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
+  return 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
 }
 
 function DetailsPanel({
@@ -1608,11 +1643,11 @@ function DetailsPanel({
   ]
 
   return (
-    <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-[var(--agenthub-border)] bg-white dark:bg-neutral-900">
+    <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-l border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]">
       <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-3xs font-semibold uppercase tracking-wider text-[var(--agenthub-accent)]">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--agenthub-accent)]">
               {inspectorIcon(inspectorView.kind)}
               Details
             </div>
@@ -1628,7 +1663,7 @@ function DetailsPanel({
               {selectedNode ? inspectorView.subtitle : '点击流程图中的节点查看完整详情'}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10" aria-label="关闭详情">
+          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/10" aria-label="关闭详情">
             <X className="size-4" />
           </button>
         </div>
@@ -1644,7 +1679,7 @@ function DetailsPanel({
               'inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium transition',
               tab === item.id
                 ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
+                : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
             )}
           >
             {item.icon}
@@ -1720,7 +1755,7 @@ function DetailsOverview({
       </section>
       <CurrentTaskSummary task={inspectorView.currentTask} />
       {inspectorView.fields.length > 0 && (
-        <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3">
           <div className="grid gap-1 text-xs text-slate-500 dark:text-slate-400">
             {inspectorView.fields.map((field) => (
               <div key={field.label} className="flex items-center justify-between gap-2">
@@ -1735,7 +1770,7 @@ function DetailsOverview({
         <button
           type="button"
           onClick={() => onJumpToTab('terminal')}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-200 dark:hover:bg-white/5"
         >
           <TerminalSquare className="size-3" />
           查看终端
@@ -1743,7 +1778,7 @@ function DetailsOverview({
         <button
           type="button"
           onClick={() => onJumpToTab('trace')}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-200 dark:hover:bg-white/5"
         >
           <Activity className="size-3" />
           查看工具调用
@@ -1751,7 +1786,7 @@ function DetailsOverview({
         <button
           type="button"
           onClick={() => onJumpToTab('logs')}
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200 dark:hover:bg-white/5"
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-200 dark:hover:bg-white/5"
         >
           <FileCode2 className="size-3" />
           查看日志
@@ -1778,13 +1813,13 @@ function ToolInspectorSummary({
 }) {
   return (
     <div className="space-y-2">
-      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">工具</div>
             <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{view.title}</div>
           </div>
-          <span className={cn('rounded px-1.5 py-0.5 text-3xs', view.status === 'completed' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : view.status === 'running' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300' : view.status === 'failed' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300')}>
+          <span className={cn('rounded px-1.5 py-0.5 text-xs', view.status === 'completed' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : view.status === 'running' ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]' : view.status === 'failed' ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300' : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-300')}>
             {view.subtitle}
           </span>
         </div>
@@ -1796,24 +1831,24 @@ function ToolInspectorSummary({
       </div>
       <div className="grid gap-1.5 text-xs">
         {view.fields.map((field) => (
-          <div key={field.label} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 dark:bg-neutral-900">
+          <div key={field.label} className="flex items-center justify-between gap-3 rounded-md bg-[var(--agenthub-surface)] px-3 py-2">
             <span className="shrink-0 text-slate-500 dark:text-slate-400">{field.label}</span>
             <span className="min-w-0 truncate text-right font-medium text-slate-800 dark:text-slate-100">{field.value}</span>
           </div>
         ))}
       </div>
-      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3">
         <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Input</div>
         <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-900 dark:text-slate-100">{view.input || '-'}</p>
       </section>
-      <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Output</div>
           {onJumpToTools && (
             <button
               type="button"
               onClick={onJumpToTools}
-              className="rounded px-1.5 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-soft)]"
+              className="rounded px-1.5 py-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-soft)]"
             >
               查看工具调用
             </button>
@@ -1828,7 +1863,7 @@ function ToolInspectorSummary({
 function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
   if (!task) {
     return (
-      <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-neutral-900">
+      <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2">
         <div className="flex items-center justify-between gap-2 text-xs">
           <span className="font-semibold text-slate-900 dark:text-slate-100">当前任务</span>
           <span className="min-w-0 truncate text-slate-500 dark:text-slate-400">暂无可识别步骤</span>
@@ -1839,7 +1874,7 @@ function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
 
   const progress = task.stepTotal > 0 ? Math.round((task.stepIndex / task.stepTotal) * 100) : task.status === 'completed' ? 100 : 20
   return (
-    <section className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-neutral-900">
+    <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-semibold text-slate-900 dark:text-slate-100">当前任务</span>
         <span className="min-w-0 truncate text-slate-600 dark:text-slate-300">{task.title}</span>
@@ -1850,11 +1885,11 @@ function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
           <span className="shrink-0">{task.stepIndex}/{task.stepTotal}</span>
         </div>
       )}
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--agenthub-surface-muted)]">
         <div
           className={cn(
             'h-full rounded-full',
-            task.status === 'completed' ? 'bg-emerald-500' : task.status === 'running' ? 'bg-blue-500' : task.status === 'failed' ? 'bg-rose-500' : 'bg-amber-400',
+            task.status === 'completed' ? 'bg-emerald-500' : task.status === 'running' ? 'bg-[var(--agenthub-accent)]' : task.status === 'failed' ? 'bg-rose-500' : 'bg-amber-400',
           )}
           style={{ width: `${Math.min(100, Math.max(8, progress))}%` }}
         />
@@ -1918,7 +1953,7 @@ function RunStageProgress({
                   'h-px w-5 xl:w-8',
                   stageVisualState(stages[index - 1], runStatus) === 'done'
                     ? 'bg-emerald-500/70'
-                    : 'bg-slate-200 dark:bg-white/10',
+                    : 'bg-[var(--agenthub-border)]',
                 )}
               />
             )}
@@ -1927,7 +1962,7 @@ function RunStageProgress({
               onClick={() => onSelectStage(stage.id)}
               title={`${stage.title} · ${stage.metric}\n${stage.description}`}
               className={cn(
-                'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs transition hover:bg-slate-100 dark:hover:bg-white/5',
+                'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs transition hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5',
                 visual === 'current' && 'bg-[var(--agenthub-accent-soft)]',
                 activeStageId === stage.id && 'ring-1 ring-inset ring-[var(--agenthub-accent-border)]',
               )}
@@ -1953,7 +1988,7 @@ function StageStateDot({ state }: { state: StageVisualState }) {
   if (state === 'current') {
     return <span className="size-2.5 shrink-0 rounded-full bg-[var(--agenthub-accent)]" />
   }
-  return <span className="size-2.5 shrink-0 rounded-full border-[1.5px] border-slate-300 dark:border-white/25" />
+  return <span className="size-2.5 shrink-0 rounded-full border-[1.5px] border-[var(--agenthub-border)]" />
 }
 
 function stageLabelClass(state: StageVisualState): string {
@@ -2071,12 +2106,12 @@ function TerminalPanel({
         <button
           type="submit"
           disabled={!input || submitting}
-          className="rounded bg-white/10 px-2 py-1 text-3xs text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded bg-white/10 px-2 py-1 text-xs text-slate-200 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
         >
           发送
         </button>
       </form>
-      {inputError && <div className="px-3 pb-2 text-3xs text-rose-300">{inputError}</div>}
+      {inputError && <div className="px-3 pb-2 text-xs text-rose-300">{inputError}</div>}
     </>
   ) : undefined
 
@@ -2278,16 +2313,16 @@ function TerminalDisplay({
         <div className="flex min-w-0 items-center gap-2">
           <TerminalSquare className="size-3.5 shrink-0 text-slate-500" />
           <span className="shrink-0 font-semibold text-slate-200">Terminal</span>
-          <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 font-mono text-3xs text-slate-400">
+          <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-slate-400">
             {activeTerminal.shell}
           </span>
-          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-3xs', statusBadge.cls)}>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-xs', statusBadge.cls)}>
             {statusBadge.label}
           </span>
           {activeTerminal.cwd && (
             <span
               className={cn(
-                'min-w-0 truncate font-mono text-3xs text-slate-500',
+                'min-w-0 truncate font-mono text-xs text-slate-500',
                 expanded ? 'block flex-1' : 'hidden xl:block',
               )}
               title={activeTerminal.cwd}
@@ -2303,7 +2338,7 @@ function TerminalDisplay({
             className={cn(
               'inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs transition',
               autoScroll
-                ? 'bg-blue-500/15 text-blue-300 hover:bg-blue-500/20'
+                ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] hover:bg-[color-mix(in_srgb,var(--agenthub-accent)_20%,transparent)]'
                 : 'text-slate-400 hover:bg-white/10 hover:text-slate-200',
             )}
             aria-label={autoScroll ? '关闭自动滚到底部' : '开启自动滚到底部'}
@@ -2533,7 +2568,7 @@ function EventTimelinePanel({
           <Clock3 className="size-3.5 text-[var(--agenthub-accent)]" />
           时间线
         </div>
-        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-400 dark:bg-white/10">Run / Agent 生命周期</span>
+        <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-xs text-slate-400">Run / Agent 生命周期</span>
       </div>
       {rows.length === 0 ? (
         <PanelEmpty
@@ -2552,14 +2587,14 @@ function EventTimelinePanel({
                 onJumpToEvents?.()
               }}
               title={row.runId ? '选中对应 Run 并跳转到事件流' : undefined}
-              className="grid w-full grid-cols-[64px_20px_minmax(0,1fr)] items-start gap-2 rounded-md px-1 py-1 text-left text-xs transition hover:bg-blue-50/70 dark:hover:bg-blue-500/10"
+              className="grid w-full grid-cols-[64px_20px_minmax(0,1fr)] items-start gap-2 rounded-md px-1 py-1 text-left text-xs transition hover:bg-[var(--agenthub-accent-soft)]"
             >
-              <span className="pt-1 font-mono text-3xs text-slate-400">{row.time}</span>
+              <span className="pt-1 font-mono text-xs text-slate-400">{row.time}</span>
               <span className="flex justify-center pt-0.5"><LifecycleMarker marker={row.marker} /></span>
               <span className="min-w-0">
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="break-words font-medium text-slate-800 dark:text-slate-100">{row.label}</span>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10">{row.scope}</span>
+                  <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 font-mono text-xs text-slate-500">{row.scope}</span>
                 </span>
                 {row.detail && <span className="mt-0.5 block break-words text-xs text-slate-500 dark:text-slate-400">{row.detail}</span>}
               </span>
@@ -2589,7 +2624,7 @@ function RawEventStreamPanel({
           <FileCode2 className="size-3.5 text-[var(--agenthub-accent)]" />
           事件流
         </div>
-        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-400 dark:bg-white/10">原始运行事件</span>
+        <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-xs text-slate-400">原始运行事件</span>
       </div>
       {rows.length === 0 ? (
         <PanelEmpty icon={<FileCode2 className="size-4" />} text="暂无实时事件" />
@@ -2603,7 +2638,7 @@ function RawEventStreamPanel({
               <details
                 key={event.id}
                 className={cn(
-                  'group rounded-md transition hover:bg-blue-50/70 dark:hover:bg-blue-500/10',
+                  'group rounded-md transition hover:bg-[var(--agenthub-accent-soft)]',
                   failed && 'text-rose-700 dark:text-rose-300',
                 )}
               >
@@ -2614,20 +2649,20 @@ function RawEventStreamPanel({
                 >
                   <span className="flex items-center gap-1.5 pt-0.5">
                     <span className={cn('size-2.5 shrink-0 rounded-full', timelineToneDotClass(failed ? 'danger' : event.status === 'running' ? 'info' : 'success'))} />
-                    <span className="font-mono text-3xs text-slate-400">{formatClockTime(event.createdAt)}</span>
+                    <span className="font-mono text-xs text-slate-400">{formatClockTime(event.createdAt)}</span>
                   </span>
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="break-words font-medium text-slate-800 dark:text-slate-100">{desc.label}</span>
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10">{debugEventScope(event)}</span>
+                      <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 font-mono text-xs text-slate-500">{debugEventScope(event)}</span>
                     </span>
                     {desc.detail && <span className="mt-0.5 block break-words text-xs text-slate-500 dark:text-slate-400">{desc.detail}</span>}
                   </span>
                 </summary>
                 {entries.length > 0 && (
-                  <div className="mb-1 ml-[76px] mt-0.5 space-y-1 rounded-md border-l-2 border-slate-100 bg-slate-50/70 px-2 py-1.5 dark:border-white/10 dark:bg-white/5">
+                  <div className="mb-1 ml-[76px] mt-0.5 space-y-1 rounded-md border-l-2 border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-1.5">
                     {entries.map(([key, value]) => (
-                      <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-3xs">
+                      <div key={key} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-xs">
                         <span className="shrink-0 text-slate-400">{key}</span>
                         <span className="break-all font-mono text-slate-600 dark:text-slate-300" title={value}>{value.length > 320 ? `${value.slice(0, 320)}…` : value}</span>
                       </div>
@@ -2698,7 +2733,7 @@ function LifecycleMarker({ marker }: { marker: TimelineRow['marker'] }) {
     )
   }
   if (marker === 'pending') {
-    return <span className="mt-0.5 size-2.5 rounded-full border-[1.5px] border-slate-300 dark:border-white/25" />
+    return <span className="mt-0.5 size-2.5 rounded-full border-[1.5px] border-[var(--agenthub-border)]" />
   }
   return <span className="mt-0.5 size-2.5 rounded-full bg-[var(--agenthub-accent)]" />
 }
@@ -2722,21 +2757,21 @@ function ToolTracePanel({
         <span>共 {items.length} 次调用</span>
         <span className="text-slate-400/80">点击任意一行展开参数与结果</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-[var(--agenthub-border)]">
         {items.map((item, index) => {
           const meta = debugMetaByCallId.get(item.callId)
           const status = meta?.status ?? (item.isError ? 'failed' : item.completed ? 'complete' : 'running')
           const failed = item.isError || status === 'failed' || status === 'aborted'
           return (
-            <details key={item.callId} className="group border-b border-slate-100 last:border-b-0 dark:border-white/5">
+            <details key={item.callId} className="group border-b border-[var(--agenthub-border)] last:border-b-0 dark:border-white/5">
               <summary
-                className="grid cursor-pointer list-none grid-cols-[28px_minmax(0,1fr)_64px_74px_16px] items-center gap-3 px-3 py-2 transition hover:bg-slate-50 dark:hover:bg-white/5"
+                className="grid cursor-pointer list-none grid-cols-[28px_minmax(0,1fr)_64px_74px_16px] items-center gap-3 px-3 py-2 transition hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5"
                 onMouseDown={(event) => {
                   if (event.button === 0) onSelectToolCall?.(item.callId)
                 }}
                 onClick={() => onSelectToolCall?.(item.callId)}
               >
-                <span className="font-mono text-3xs text-slate-400">{String(index + 1).padStart(2, '0')}</span>
+                <span className="font-mono text-xs text-slate-400">{String(index + 1).padStart(2, '0')}</span>
                 <span className="truncate font-mono text-xs text-slate-700 dark:text-slate-200" title={item.toolName}>
                   {item.toolName}
                 </span>
@@ -3001,26 +3036,26 @@ function LogsPanel({
         <span className="text-slate-400/80">点击任意一行展开明细</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-slate-200 dark:border-white/10">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-[var(--agenthub-border)]">
         {rows.map((row) => {
           const expanded = expandedId === row.id
           return (
             <div
               key={row.id}
               className={cn(
-                'border-b border-slate-100 last:border-b-0 dark:border-white/5',
+                'border-b border-[var(--agenthub-border)] last:border-b-0 dark:border-white/5',
                 expanded && 'border-l-2 border-l-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)]',
               )}
             >
               <button
                 type="button"
                 onClick={() => setExpandedId(expanded ? null : row.id)}
-                className="grid w-full grid-cols-[62px_68px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
+                className="grid w-full grid-cols-[62px_68px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5"
               >
                 <span className="font-mono text-xs text-slate-400">
                   {row.time ? formatClockTime(row.time) : '--:--:--'}
                 </span>
-                <span className={cn('font-mono text-3xs font-semibold uppercase tracking-wide', LOG_KIND_CLASS[row.kind])}>
+                <span className={cn('font-mono text-xs font-semibold uppercase tracking-wide', LOG_KIND_CLASS[row.kind])}>
                   {row.kind}
                 </span>
                 <span className="min-w-0">
@@ -3076,7 +3111,7 @@ function LogsPanel({
 function LogMeta({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="min-w-0">
-      <div className="text-3xs uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
       <div className={cn('truncate text-slate-600 dark:text-slate-300', mono && 'font-mono text-xs')} title={value}>
         {value || '-'}
       </div>
@@ -3091,12 +3126,12 @@ function ArtifactsPanel({ detail }: { detail: AgentRunDebugDetail }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {artifacts.map((artifact) => (
-        <div key={artifact.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-neutral-950/40">
+        <div key={artifact.id} className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3">
           <div className="flex items-center gap-2">
             <FileCode2 className="size-4 text-[var(--agenthub-accent)]" />
             <span className="min-w-0 flex-1 break-words text-xs font-medium text-slate-700 dark:text-slate-200">{artifact.title ?? artifact.artifactId}</span>
           </div>
-          <div className="mt-2 text-3xs text-slate-400">{artifact.status ?? artifact.kind} · {artifact.artifactId}</div>
+          <div className="mt-2 text-xs text-slate-400">{artifact.status ?? artifact.kind} · {artifact.artifactId}</div>
         </div>
       ))}
     </div>
@@ -3154,7 +3189,7 @@ function ConversationRail({
     const conversationsLabel = `${conversations.length} 会话`
     return (
       <aside
-        className="flex h-full min-h-0 w-full flex-col items-center border-r border-[var(--agenthub-border)] bg-white py-3 dark:bg-neutral-900"
+        className="flex h-full min-h-0 w-full flex-col items-center border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] py-3"
         aria-label="会话侧栏（已折叠）"
       >
         <button
@@ -3168,7 +3203,7 @@ function ConversationRail({
         </button>
         <div
           className={cn(
-            'mt-3 flex size-9 items-center justify-center rounded-full border text-3xs font-semibold uppercase',
+            'mt-3 flex size-9 items-center justify-center rounded-full border text-xs font-semibold uppercase',
             collapsedIndicatorStatus
               ? 'border-transparent text-white'
               : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] text-slate-400',
@@ -3186,12 +3221,12 @@ function ConversationRail({
         >
           {selectedRun ? formatRunLabel(selectedRun.id) : selectedConversation ? '会话' : '—'}
         </div>
-        <div className="mt-2 px-1 text-center text-3xs font-medium leading-4 text-slate-500">
+        <div className="mt-2 px-1 text-center text-xs font-medium leading-4 text-slate-500">
           {conversationsLabel}
         </div>
         {failedRuns > 0 && (
           <div
-            className="mt-2 flex size-6 items-center justify-center rounded-full bg-red-50 text-3xs font-semibold text-red-600 dark:bg-red-500/15"
+            className="mt-2 flex size-6 items-center justify-center rounded-full bg-red-50 text-xs font-semibold text-red-600 dark:bg-red-500/15"
             title={`${failedRuns} 个异常 Run`}
           >
             {failedRuns}
@@ -3199,7 +3234,7 @@ function ConversationRail({
         )}
         {runningRuns > 0 && (
           <div
-            className="mt-2 flex size-6 items-center justify-center rounded-full bg-blue-50 text-3xs font-semibold text-[var(--agenthub-accent)] dark:bg-blue-500/15"
+            className="mt-2 flex size-6 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-xs font-semibold text-[var(--agenthub-accent)]"
             title={`${runningRuns} 个运行中 Run`}
           >
             {runningRuns}
@@ -3210,7 +3245,7 @@ function ConversationRail({
   }
 
   return (
-    <aside className="flex h-full min-h-0 min-w-0 flex-col border-r border-[var(--agenthub-border)] bg-white dark:bg-neutral-900">
+    <aside className="flex h-full min-h-0 min-w-0 flex-col border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]">
       <div className="shrink-0 border-b border-[var(--agenthub-border)] p-3">
         <div className="flex items-center gap-2">
           <Clock3 className="size-4 text-[var(--agenthub-accent)]" />
@@ -3219,7 +3254,7 @@ function ConversationRail({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              className="flex size-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+              className="flex size-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
               aria-label="折叠会话列表"
               title="折叠会话列表"
             >
@@ -3243,7 +3278,7 @@ function ConversationRail({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        <div className="mb-1 flex items-center justify-between gap-2 px-2 text-3xs font-semibold uppercase tracking-wider text-slate-400">
+        <div className="mb-1 flex items-center justify-between gap-2 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
           <span>Conversation</span>
           <span>{filteredConversations.length}</span>
         </div>
@@ -3264,24 +3299,27 @@ function ConversationRail({
                 className={cn(
                   'mb-1 w-full rounded-lg border px-2.5 py-2 text-left transition',
                   selected
-                    ? 'border-blue-200 bg-blue-50/80 shadow-sm dark:border-blue-400/30 dark:bg-blue-500/10'
-                    : 'border-transparent hover:border-[var(--agenthub-border)] hover:bg-slate-50 dark:hover:bg-white/5',
+                    ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] shadow-sm'
+                    : 'border-transparent hover:border-[var(--agenthub-border)] hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5',
                 )}
               >
                 <div className="flex items-center gap-2">
                   <span className={cn('size-2 shrink-0 rounded-full', latestRunStatus ? statusDotClass(latestRunStatus) : 'bg-slate-300')} />
                   <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{conversation.title}</span>
-                  <span className="shrink-0 text-3xs text-slate-400">{runCount} Runs</span>
+                  <span className="shrink-0 text-xs text-slate-400">{runCount} Runs</span>
                 </div>
-                <div className="mt-1 flex items-center gap-2 pl-4 text-3xs text-slate-500">
-                  <span>{latestRunStatus ? statusLabel(latestRunStatus) : '暂无运行'}</span>
-                  <span className="ml-auto">{relativeTime(latestRunAt)}</span>
+                <div className="mt-1 flex items-center gap-2 pl-4 text-xs text-slate-500">
+                  <span className="whitespace-nowrap">{latestRunStatus ? statusLabel(latestRunStatus) : '暂无运行'}</span>
+                  <span className="ml-auto shrink-0 whitespace-nowrap">{relativeTime(latestRunAt)}</span>
                 </div>
                 {selected && (
-                  <div className="mt-1 flex items-center gap-2 pl-4 text-3xs text-slate-400">
-                    <span>{loading ? '正在加载会话图' : `${topLevelRuns.length} 轮消息关联`}</span>
-                    {selectedRunId && <span className="ml-auto font-mono">{formatRunLabel(selectedRunId)}</span>}
-                    {runningRuns > 0 && <span className="text-blue-500">{runningRuns} running</span>}
+                  // 允许整项换行、不允许词内断行：窄栏下 "N 轮消息关联 + Run #…" 一行放不下时，
+                  // 旧写法会在 token 中间折行（"0 轮消/息关/联"、"Run/#2026…" 各占三行）；
+                  // 改后 Run 标签整体落到第二行右对齐，仍可读。
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-4 text-xs text-slate-400">
+                    <span className="whitespace-nowrap">{loading ? '正在加载会话图' : `${topLevelRuns.length} 轮消息关联`}</span>
+                    {selectedRunId && <span className="ml-auto shrink-0 whitespace-nowrap font-mono" title={selectedRunId}>{formatRunLabel(selectedRunId)}</span>}
+                    {runningRuns > 0 && <span className="shrink-0 whitespace-nowrap text-[var(--agenthub-accent)]">{runningRuns} running</span>}
                   </div>
                 )}
               </button>
@@ -3293,16 +3331,21 @@ function ConversationRail({
   )
 }
 
-function EmptyBoard({ runs }: { runs: AgentRunDebugListItem[] }) {
+function EmptyBoard({ runs, onBack }: { runs: AgentRunDebugListItem[]; onBack?: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-      <div className="flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-[var(--agenthub-accent)] dark:bg-blue-500/10">
+      <div className="flex size-12 items-center justify-center rounded-2xl bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
         {runs.length === 0 ? <Bot className="size-6" /> : <Loader2 className="size-6 animate-spin" />}
       </div>
       <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
         {runs.length === 0 ? '当前会话还没有可展示的 Run' : '正在准备流程展板'}
       </div>
-      <div className="max-w-xs text-xs leading-5 text-slate-500">运行阶段会按触发、上下文、规划、执行和产出依次展开。</div>
+      <div className="max-w-xs text-sm leading-6 text-slate-500">运行阶段会按触发、上下文、规划、执行和产出依次展开。</div>
+      {runs.length === 0 && onBack && (
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={onBack}>
+          回到会话
+        </Button>
+      )}
     </div>
   )
 }
@@ -3324,10 +3367,10 @@ function SegmentedFilter<T extends string>({
           type="button"
           onClick={() => onChange(option.id)}
           className={cn(
-            'h-6 rounded-md border px-2 text-3xs font-medium transition',
+            'h-6 rounded-md border px-2 text-xs font-medium transition',
             value === option.id
               ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-              : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5',
+              : 'border-[var(--agenthub-border)] text-slate-500 hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5',
           )}
         >
           {option.label}
@@ -3340,19 +3383,19 @@ function SegmentedFilter<T extends string>({
 function CodeSnippet({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between gap-2 text-3xs uppercase tracking-wide text-slate-400">
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-slate-400">
         <span>{label}</span>
         <button
           type="button"
           onClick={() => void navigator.clipboard?.writeText(value)}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-3xs normal-case tracking-normal text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs normal-case tracking-normal text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/10 dark:hover:text-slate-200"
         >
           <Copy className="size-3" />
           复制
         </button>
       </div>
       {/* 代码块只横向滚动，不强制折行 —— 命令 / JSON / 路径折碎后基本没法读 */}
-      <pre className="agenthub-terminal-font max-h-56 overflow-auto rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs leading-[1.6] text-slate-700 dark:border-white/10 dark:bg-neutral-950/60 dark:text-slate-300">
+      <pre className="agenthub-terminal-font max-h-56 overflow-auto rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2.5 py-2 text-xs leading-[1.6] text-slate-700 dark:text-slate-300">
         {value}
       </pre>
     </div>
@@ -3393,7 +3436,7 @@ function dedupeDebugEvents(events: AgentRunDebugEventRecord[]): AgentRunDebugEve
 
 function statusDotClass(status: AgentRunBoardStageStatus | AgentRunDebugListItem['status']): string {
   if (status === 'complete') return 'bg-emerald-500'
-  if (status === 'running') return 'bg-blue-500 animate-pulse'
+  if (status === 'running') return 'bg-[var(--agenthub-accent)] animate-pulse'
   if (status === 'failed' || status === 'aborted') return 'bg-rose-500'
   if (status === 'pending' || status === 'queued') return 'bg-amber-400'
   return 'bg-slate-300'
@@ -3409,7 +3452,7 @@ function statusDotHex(status: AgentRunBoardStageStatus | AgentRunDebugListItem['
 
 function debuggerStatusDotClass(status: AgentRunDebuggerStatus): string {
   if (status === 'completed') return 'bg-emerald-500'
-  if (status === 'running') return 'bg-blue-500 animate-pulse'
+  if (status === 'running') return 'bg-[var(--agenthub-accent)] animate-pulse'
   if (status === 'failed' || status === 'cancelled') return 'bg-rose-500'
   return 'bg-amber-400'
 }
@@ -3542,7 +3585,7 @@ function formatClockTime(value: number): string {
 
 function timelineToneDotClass(tone: AgentRunBoardTone): string {
   if (tone === 'success') return 'bg-emerald-500'
-  if (tone === 'info') return 'bg-blue-500'
+  if (tone === 'info') return 'bg-[var(--agenthub-accent)]'
   if (tone === 'warning') return 'bg-amber-400'
   if (tone === 'danger') return 'bg-rose-500'
   return 'bg-slate-300'
@@ -3586,7 +3629,7 @@ function PanelMetric({
     tone === 'success'
       ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-400/20 dark:bg-emerald-500/10'
       : tone === 'info'
-        ? 'border-blue-200 bg-blue-50/60 dark:border-blue-400/20 dark:bg-blue-500/10'
+        ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]'
         : tone === 'warning'
           ? 'border-amber-200 bg-amber-50/60 dark:border-amber-400/20 dark:bg-amber-500/10'
           : tone === 'danger'
@@ -3594,7 +3637,7 @@ function PanelMetric({
             : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] dark:bg-white/[0.03]'
   return (
     <div className={cn('rounded-lg border px-2.5 py-1.5', toneClass)}>
-      <div className="truncate text-3xs text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="truncate text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-0.5 truncate font-mono text-xs font-semibold text-slate-800 dark:text-slate-100">{value}</div>
     </div>
   )

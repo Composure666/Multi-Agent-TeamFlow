@@ -14,6 +14,8 @@ import { useState } from 'react'
 import { AgentDraftPreview } from '@/components/agent-draft-preview'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { InlineError } from '@/components/workbench-primitives'
+import { cn } from '@/lib/utils'
 import { createAgentDraft } from '@/lib/api'
 import type { AgentConfigDraft } from '@/shared/agent-builder-config'
 
@@ -93,14 +95,13 @@ export function AgentCreateWizard({
   if (draft) {
     return (
       <div className="flex min-h-0 flex-col gap-3">
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <AgentDraftPreview draft={draft} />
-      </div>
+        <WizardSteps current={3} />
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <AgentDraftPreview draft={draft} />
+        </div>
 
         {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
-            {error}
-          </div>
+          <InlineError message={error} onRetry={() => void generateDraft({ regenerate: true })} />
         )}
 
         {notice && !error && (
@@ -137,6 +138,7 @@ export function AgentCreateWizard({
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
+      <WizardSteps current={1} />
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         <div className="rounded-md border bg-muted/20 px-3 py-3">
           <div className="flex items-start gap-2">
@@ -166,11 +168,7 @@ export function AgentCreateWizard({
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
-          {error}
-        </div>
-      )}
+      {error && <InlineError message={error} onRetry={() => void generateDraft()} />}
 
       <div className="flex items-center justify-between gap-2">
         <Button variant="outline" onClick={onBack}>
@@ -188,5 +186,43 @@ export function AgentCreateWizard({
         </div>
       </div>
     </div>
+  )
+}
+
+/** 向导三步指示：1 描述信息 → 2 能力草稿 → 3 确认创建（草稿页即确认页）。 */
+function WizardSteps({ current }: { current: 1 | 3 }) {
+  const steps = ['描述信息', '能力草稿', '确认创建']
+  return (
+    <ol className="flex shrink-0 items-center gap-1.5" aria-label="创建步骤">
+      {steps.map((label, index) => {
+        const step = index + 1
+        const done = step < current
+        const active = step === current
+        return (
+          <li key={label} className="flex min-w-0 flex-1 items-center gap-1.5 last:flex-none">
+            <span
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
+                done && 'bg-[var(--agenthub-accent)] text-white',
+                active && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent-border)]',
+                !done && !active && 'bg-muted text-muted-foreground',
+              )}
+              aria-current={active ? 'step' : undefined}
+            >
+              {done ? <Check className="size-3" /> : step}
+            </span>
+            <span
+              className={cn(
+                'truncate text-xs',
+                active ? 'font-medium text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {label}
+            </span>
+            {index < steps.length - 1 && <span className="h-px flex-1 bg-border" aria-hidden="true" />}
+          </li>
+        )
+      })}
+    </ol>
   )
 }

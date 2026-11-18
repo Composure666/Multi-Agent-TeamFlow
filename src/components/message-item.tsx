@@ -190,7 +190,7 @@ function MessageItemImpl({ message, readOnly = false }: { message: MessageRow; r
 
       <div className={cn('flex max-w-[80%] min-w-0 flex-1 flex-col gap-1', isUser && 'items-end')}>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-medium">{name}</span>
+          <span className="font-medium text-foreground">{name}</span>
           <span>{formatTime(message.createdAt)}</span>
           {isBookmarked && (
             <span className="text-amber-500" title="已收藏（导航书签）">
@@ -228,7 +228,7 @@ function MessageItemImpl({ message, readOnly = false }: { message: MessageRow; r
             'min-w-0 rounded-lg border bg-card px-3 py-2',
             isUser && 'bg-primary/5 border-primary/20',
             message.status === 'error' && 'border-red-300 bg-red-50/40 dark:border-red-900/50 dark:bg-red-950/20',
-            message.status === 'aborted' && 'border-zinc-300 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/40',
+            message.status === 'aborted' && 'border-zinc-300 bg-[var(--agenthub-surface-muted)]/60 dark:border-zinc-700 dark:bg-[var(--agenthub-surface)]/40',
             editing && 'w-full max-w-xl',
             isHighlighted && 'message-glow',
           )}

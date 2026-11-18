@@ -33,7 +33,7 @@ export function ChatToolbar({
 
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white/80 p-0.5 dark:border-white/10 dark:bg-neutral-900/70">
+      <div className="flex items-center gap-1 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/80 p-0.5 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]/70">
         <ToolbarButton active={fileExplorerOpen} label={fileExplorerOpen ? '关闭工作区' : '打开工作区'} onClick={onToggleFileExplorer}>
           <FolderTree className="size-4" />
         </ToolbarButton>
@@ -61,7 +61,7 @@ export function ChatToolbar({
           <MoreHorizontal className="size-4" />
         </ToolbarButton>
         {moreOpen && (
-          <div className="absolute right-0 top-full z-20 mt-2 grid min-w-44 gap-1 rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg dark:border-white/10 dark:bg-neutral-900">
+          <div className="absolute right-0 top-full z-20 mt-2 grid min-w-44 gap-1 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-1.5 shadow-lg dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]">
             <MobileAction label="添加 Agent" onClick={() => { setMoreOpen(false); onAddAgent() }}>
               <UserPlus className="size-4" />
             </MobileAction>
@@ -99,7 +99,7 @@ function ToolbarButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={cn('rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100', active && 'bg-blue-50 text-[#3370ff] hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/15')}
+      className={cn('rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100', active && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-soft)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)] dark:hover:bg-[var(--agenthub-accent-soft)]')}
     >
       {children}
     </Button>
@@ -108,7 +108,7 @@ function ToolbarButton({
 
 function MobileAction({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className="flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800">
+    <button type="button" onClick={onClick} className="flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5">
       {children}
       {label}
     </button>

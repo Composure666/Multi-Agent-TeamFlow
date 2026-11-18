@@ -3,31 +3,38 @@
 import {
   Archive,
   ArchiveRestore,
+  ArrowRight,
   BarChart3,
   Bell,
+  Check,
   CheckCircle2,
   ChevronDown,
   CircleHelp,
+  Code,
   Coins,
   Copy,
+  FileText,
   Grid2X2,
+  Image,
+  ImagePlus,
+  LayoutTemplate,
   Menu,
   MessageCircle,
   MessageSquare,
   Paperclip,
+  PenLine,
   Pencil,
   Pin,
   PinOff,
   Plus,
   Search,
-  Send,
   Settings,
   Sparkles,
   Trash2,
   Users,
-  Waypoints,
   X
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -163,14 +170,14 @@ export function AppWorkbench() {
   }
 
   return (
-    <div className="flex h-full min-h-0 bg-gradient-to-b from-[#FCFDFF] to-[#F4F6FB] dark:from-[#12151B] dark:to-[#0F1115] text-slate-950 dark:text-slate-50">
+    <div className="flex h-full min-h-0 bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {view !== 'conversations' && !analyticsFocusMode && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
         <WorkbenchViewRouter
           view={view}
           renderers={{
-            'new-task': () => <NewTaskView onOpenConversations={() => setView('conversations')} />,
+            'new-task': () => <NewTaskView onOpenConversations={() => setView('conversations')} onOpenAgents={() => setView('agents')} />,
             conversations: () => <ConversationWorkspace />,
             agents: () => <AgentWorkspace onOpenConversations={() => setView('conversations')} onOpenTeamDetail={openTeamDetail} />,
             'capability-center': () => <CapabilityCenterWorkspace />,
@@ -279,7 +286,7 @@ function TeamSummonDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(760px,calc(100vh-2rem))] max-w-3xl grid-rows-none flex-col overflow-hidden border border-slate-200 bg-white p-0 dark:border-white/10 dark:bg-[#1C1F26] sm:max-w-3xl">
+      <DialogContent className="flex max-h-[min(760px,calc(100vh-2rem))] max-w-3xl grid-rows-none flex-col overflow-hidden border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-0 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] sm:max-w-3xl">
         <div className={cn('relative overflow-hidden bg-gradient-to-br px-5 pb-5 pt-6 text-white', team.coverClassName)}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(15,23,42,0.72))]" />
           <DialogHeader className="relative z-10 gap-3 pr-10">
@@ -302,7 +309,7 @@ function TeamSummonDialog({
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-4 p-5 pb-8">
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#121418]/70">
+            <section className="rounded-xl border border-[var(--agenthub-border)] bg-slate-50 p-4 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-sunken)]/70">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">
                   工作流说明
@@ -328,7 +335,7 @@ function TeamSummonDialog({
               <h3 className="mb-2 text-sm font-semibold text-slate-950 dark:text-slate-100">擅长领域</h3>
               <div className="flex flex-wrap gap-2">
                 {team.tags.map((tag) => (
-                  <span key={tag} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                  <span key={tag} className="rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 py-1 text-xs text-slate-600 dark:border-[var(--agenthub-border)] dark:bg-white/5 dark:text-slate-300">
                     {tag}
                   </span>
                 ))}
@@ -344,8 +351,8 @@ function TeamSummonDialog({
                 <div className="max-h-[250px] overflow-y-auto pr-1">
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {team.members.map((member) => (
-                      <div key={member.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#252932]">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-lg dark:border-white/10 dark:bg-[#121418]">{member.avatar}</div>
+                      <div key={member.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-raised)]">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--agenthub-border)] bg-slate-50 text-lg dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-sunken)]">{member.avatar}</div>
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-2">
                             <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
@@ -363,11 +370,11 @@ function TeamSummonDialog({
                 </div>
               </section>
             ) : (
-              <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#252932]">
+              <section className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-raised)]">
                 <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">能力介绍</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{team.systemPromptTemplate}</p>
                 <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="flex size-7 items-center justify-center rounded-md bg-slate-100 text-base dark:bg-[#121418]">{leadMember.avatar}</span>
+                  <span className="flex size-7 items-center justify-center rounded-md bg-slate-100 text-base dark:bg-[var(--agenthub-surface-sunken)]">{leadMember.avatar}</span>
                   <span>{leadMember.name}</span>
                   <span>·</span>
                   <span className="font-mono">{leadMember.modelName}</span>
@@ -375,20 +382,20 @@ function TeamSummonDialog({
               </section>
             )}
 
-            <section className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#121418]/70">
+            <section className="rounded-xl border border-dashed border-[var(--agenthub-border)] bg-slate-50 p-4 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-sunken)]/70">
               <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">召唤上下文</h3>
               <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{team.systemPromptTemplate}</p>
             </section>
           </div>
         </ScrollArea>
 
-        <DialogFooter className="sticky bottom-0 z-10 m-0 shrink-0 flex-row items-center justify-between rounded-none border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-[#1C1F26]">
+        <DialogFooter className="sticky bottom-0 z-10 m-0 shrink-0 flex-row items-center justify-between rounded-none border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex -space-x-2">
               {team.members.slice(0, 3).map((member) => (
-                <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-100 text-sm dark:border-[#1C1F26] dark:bg-[#252932]">{member.avatar}</span>
+                <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-100 text-sm dark:border-[var(--agenthub-surface)] dark:bg-[var(--agenthub-surface-raised)]">{member.avatar}</span>
               ))}
-              {hiddenMemberCount > 0 && <span className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-200 text-3xs text-slate-600 dark:border-[#1C1F26] dark:bg-[#252932] dark:text-slate-300">+{hiddenMemberCount}</span>}
+              {hiddenMemberCount > 0 && <span className="flex size-7 items-center justify-center rounded-full border border-white bg-slate-200 text-3xs text-slate-600 dark:border-[var(--agenthub-surface)] dark:bg-[var(--agenthub-surface-raised)] dark:text-slate-300">+{hiddenMemberCount}</span>}
             </div>
             <span className="truncate text-xs text-slate-500 dark:text-slate-400">{team.type === 'team' ? `${team.members.length} 位成员协作` : '单 Agent 对话'}</span>
           </div>
@@ -400,7 +407,7 @@ function TeamSummonDialog({
       </Dialog>
 
       <Dialog open={workflowOpen} onOpenChange={setWorkflowOpen}>
-        <DialogContent className="border border-slate-200 bg-white dark:border-white/10 dark:bg-[#1C1F26] sm:max-w-lg">
+        <DialogContent className="border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>工作流设置</DialogTitle>
             <DialogDescription>
@@ -444,16 +451,16 @@ function MobileWorkbenchTopBar({
 }) {
   const unreadNotificationCount = useAppStore((s) => s.unreadNotificationCount)
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-white/10 dark:bg-neutral-900 md:hidden">
+    <div className="flex shrink-0 items-center gap-3 border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-4 py-2.5 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex size-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
+        className="flex size-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-white/5 dark:active:bg-white/10"
         title="打开菜单"
       >
         <Menu className="size-5 stroke-[2.2]" />
       </button>
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-raised)]">
         <Sparkles className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1">
@@ -463,7 +470,7 @@ function MobileWorkbenchTopBar({
       <button
         type="button"
         onClick={onOpenInformationCenter}
-        className="relative flex size-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+        className="relative flex size-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
         title="信息中心"
         aria-label="信息中心"
       >
@@ -511,13 +518,13 @@ function MobileWorkbenchDrawer({
         aria-label="移动工作台菜单"
         inert={!open}
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col border-r border-slate-200 bg-white shadow-lg transition-transform duration-200 dark:border-white/10 dark:bg-neutral-900 md:hidden',
+          'fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-lg transition-transform duration-200 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:hidden',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-white/10">
+        <div className="flex items-center justify-between border-b border-[var(--agenthub-border)] px-4 py-4 dark:border-[var(--agenthub-border)]">
           <button type="button" onClick={() => onViewChange('new-task')} className="flex min-w-0 items-center gap-3 text-left">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-white/10 dark:bg-neutral-800">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-raised)]">
               <Sparkles className="size-4" />
             </div>
             <div className="min-w-0">
@@ -529,7 +536,7 @@ function MobileWorkbenchDrawer({
             type="button"
             onClick={onClose}
             aria-label="关闭菜单"
-            className="flex size-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100 dark:active:bg-neutral-700"
+            className="flex size-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100 dark:active:bg-white/10"
             title="关闭菜单"
           >
             <X className="size-4 stroke-[2.2]" />
@@ -537,7 +544,7 @@ function MobileWorkbenchDrawer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
-          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-neutral-950/40">
+          <div className="mb-3 rounded-lg border border-[var(--agenthub-border)] bg-slate-50 p-3 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)]">
             <div className="flex items-center gap-2 text-xs font-medium text-slate-900 dark:text-slate-100">
               <CheckCircle2 className="size-3.5 text-emerald-500 dark:text-emerald-300" />
               个人工作区
@@ -549,8 +556,8 @@ function MobileWorkbenchDrawer({
             type="button"
             onClick={() => onViewChange('new-task')}
             className={cn(
-              'mb-3 flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-300 bg-white px-3 text-left text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.99] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800',
-              view === 'new-task' && 'border-[var(--agenthub-accent,#2F5FD0)] text-[var(--agenthub-accent,#2F5FD0)]',
+              'mb-3 flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-300 bg-[var(--agenthub-surface)] px-3 text-left text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.99] dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
+              view === 'new-task' && 'border-[var(--agenthub-accent)] text-[var(--agenthub-accent)]',
             )}
           >
             <Plus className="size-5" />
@@ -574,8 +581,8 @@ function MobileWorkbenchDrawer({
                       className={cn(
                         'relative flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition active:scale-[0.99]',
                         active
-                          ? 'bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-2 before:h-6 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:bg-neutral-800'
-                          : 'text-slate-600 hover:bg-[#EEF5FF] active:bg-slate-200 dark:text-slate-400 dark:hover:bg-neutral-800 dark:active:bg-neutral-700',
+                          ? 'bg-[var(--agenthub-accent-soft)] font-semibold text-[var(--agenthub-accent)] before:absolute before:left-0 before:top-2 before:h-6 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:bg-[var(--agenthub-surface-raised)]'
+                          : 'text-slate-600 hover:bg-[var(--agenthub-accent-soft)] active:bg-slate-200 dark:text-slate-400 dark:hover:bg-white/5 dark:active:bg-white/10',
                       )}
                     >
                       <Icon className="size-5 stroke-[2.1]" />
@@ -593,7 +600,7 @@ function MobileWorkbenchDrawer({
           </nav>
         </div>
 
-        <div className="space-y-2 border-t border-slate-100 p-3 dark:border-white/10">
+        <div className="space-y-2 border-t border-[var(--agenthub-border)] p-3 dark:border-[var(--agenthub-border)]">
           {accountOpen && (
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           )}
@@ -605,7 +612,7 @@ function MobileWorkbenchDrawer({
           <button
             type="button"
             onClick={() => emitUiCommand('open-user-guide')}
-            className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[#EEF4FF] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800"
+            className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5"
           >
             <CircleHelp className="size-5 stroke-[2.1]" />
             <span className="min-w-0 flex-1 truncate">使用指南</span>
@@ -615,7 +622,7 @@ function MobileWorkbenchDrawer({
             type="button"
             onClick={() => setAccountOpen((expanded) => !expanded)}
             aria-expanded={accountOpen}
-            className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:active:bg-neutral-700"
+            className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-left transition hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:hover:border-white/15 dark:hover:bg-white/5 dark:active:bg-white/10"
           >
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">A</div>
             <div className="min-w-0 flex-1">
@@ -682,14 +689,14 @@ function UserAccountOverview({
   return (
     <div
       className={cn(
-        'flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900',
+        'agenthub-card-container flex min-w-0 flex-col overflow-hidden p-4',
         className,
       )}
     >
       {/* 顶部 Workspace 信息 */}
       <div className="flex shrink-0 items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white dark:bg-neutral-800">A</div>
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white dark:bg-[var(--agenthub-surface-raised)]">A</div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">Workspace</div>
@@ -704,7 +711,7 @@ function UserAccountOverview({
             <button
               type="button"
               onClick={onClose}
-              className="flex size-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+              className="flex size-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-slate-100"
               aria-label="关闭账户概览"
               title="关闭账户概览"
             >
@@ -715,7 +722,7 @@ function UserAccountOverview({
       </div>
 
       {usage.loading && !usage.data ? (
-        <div className="mt-4 flex flex-1 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-5 text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">加载用量数据...</div>
+        <div className="mt-4 flex flex-1 items-center justify-center rounded-xl border border-[var(--agenthub-border)] bg-slate-50 px-3 py-5 text-xs text-slate-500 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)] dark:text-slate-400">加载用量数据...</div>
       ) : usage.error ? (
         <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
           <div className="line-clamp-2">{usage.error}</div>
@@ -724,11 +731,11 @@ function UserAccountOverview({
       ) : usage.data ? (
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-neutral-800/40">
+            <div className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]/60 p-3 dark:border-white/5 dark:bg-white/5">
               <div className="text-xs text-slate-400">今日 Token</div>
               <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">{formatTok(usage.data.today.totalTokens)}</div>
             </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 dark:border-white/5 dark:bg-neutral-800/40">
+            <div className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]/60 p-3 dark:border-white/5 dark:bg-white/5">
               <div className="text-xs text-slate-400">本周 Token</div>
               <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">{formatTok(usage.data.week.totalTokens)}</div>
             </div>
@@ -755,7 +762,7 @@ function UserAccountOverview({
                     key={conversation.id}
                     type="button"
                     onClick={() => setActiveConversation(conversation.id)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[#EEF4FF] hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[var(--agenthub-accent-soft)] hover:text-slate-900 dark:hover:bg-white/5 dark:hover:text-slate-100"
                     title={`更新时间 ${new Date(conversation.updatedAt).toLocaleString('zh-CN')}`}
                   >
                     <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
@@ -770,7 +777,7 @@ function UserAccountOverview({
           )}
 
           {usage.data.allTime.runs === 0 && (
-            <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">还没有用量数据，和 Agent 对话后会显示在这里。</div>
+            <div className="mt-4 rounded-xl border border-dashed border-[var(--agenthub-border)] bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)] dark:text-slate-400">还没有用量数据，和 Agent 对话后会显示在这里。</div>
           )}
         </div>
       ) : null}
@@ -780,7 +787,7 @@ function UserAccountOverview({
           type="button"
           onClick={onReload}
           disabled={usage.loading}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] hover:text-slate-900 disabled:opacity-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5 dark:hover:text-slate-100"
         >
           <BarChart3 className="size-3.5" />
           {usage.loading ? '刷新中' : '刷新'}
@@ -788,7 +795,7 @@ function UserAccountOverview({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] hover:text-slate-900 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5 dark:hover:text-slate-100"
         >
           <Settings className="size-3.5" />
           设置
@@ -807,8 +814,8 @@ function UsageBarRow({ label, value, runs, max }: { label: string; value: number
         <span className="min-w-0 flex-1 truncate font-medium text-slate-700 dark:text-slate-300">{label}</span>
         <span className="shrink-0 pl-2 font-mono text-xs text-slate-400 dark:text-slate-500">{formatTok(value)} · {runs}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
-        <div className="h-full rounded-full bg-[var(--agenthub-accent,#2F5FD0)] transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-[var(--agenthub-surface-raised)]">
+        <div className="h-full rounded-full bg-[var(--agenthub-accent)] transition-all" style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
@@ -845,7 +852,7 @@ function WorkbenchNav({
       // 会让底部「Workspace」溢出到容器外，再被 page.tsx 的 overflow-hidden 裁掉
       // —— 表现就是「底部那块不见了 / 被遮挡」。配合 `.wb-history` 的 min-height:0，
       // 高度不足时是历史区收缩，而不是固定区块被挤出去。
-      className={cn('wb-sidebar hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white px-3 py-2.5 transition-[width] duration-200 dark:border-white/10 dark:bg-neutral-900 md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
+      className={cn('wb-sidebar hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2.5 transition-[width] duration-200 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
     >
       {/* ① 品牌区（shrink-0） */}
       <div className={cn('flex shrink-0 items-center gap-2 px-2 pb-1.5', compact && 'flex-col gap-2 px-0 pb-1')}>
@@ -869,8 +876,16 @@ function WorkbenchNav({
           )}
           {!compact && (
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold tracking-tight dark:text-slate-50">{BRAND_NAME}</div>
-              <div className="truncate text-xs text-slate-500/60 dark:text-slate-400/60">{BRAND_TAGLINE_EN}</div>
+              {/* Q15：非 compact 品牌名也折成两行（与 72px 窄轨同一规范），去掉该行 truncate；
+                  否则 288px 侧栏可用宽约 104px，14px 的 "Multi-Agent TeamFlow" 必然被裁成 "Multi-Age…"。
+                  副标题改换行显示（batch 3 项 5）：同一 104px 宽度下 12px 的
+                  "Multi-Agent Collaboration & Workflow" 单行必然截成 "Multi-Agent…"，
+                  换行 3 行完整显示，不只缩字号。 */}
+              <div className="text-sm font-semibold leading-tight tracking-tight dark:text-slate-50">
+                <span className="block">Multi-Agent</span>
+                <span className="block">TeamFlow</span>
+              </div>
+              <div className="text-xs leading-snug text-slate-500/60 dark:text-slate-400/60">{BRAND_TAGLINE_EN}</div>
             </div>
           )}
         </button>
@@ -880,7 +895,7 @@ function WorkbenchNav({
             <button
               type="button"
               onClick={onOpenSettings}
-              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
               title="设置"
             >
               <Settings className="size-4 stroke-[2.2]" />
@@ -888,7 +903,7 @@ function WorkbenchNav({
             <button
               type="button"
               onClick={() => setCollapsed(true)}
-              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100"
+              className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
               title="收起侧边栏"
             >
               <Menu className="size-4 stroke-[2.2]" />
@@ -912,9 +927,9 @@ function WorkbenchNav({
         type="button"
         onClick={() => onViewChange('new-task')}
         className={cn(
-          'mb-1.5 flex h-10 items-center justify-center gap-2 rounded-[14px] border border-slate-200 bg-white px-3 text-base font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[#EEF5FF] hover:text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-50',
+          'mb-1.5 flex h-10 items-center justify-center gap-2 rounded-[14px] border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 text-base font-medium text-slate-700 transition hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] hover:text-[var(--agenthub-accent)] dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5 dark:hover:text-slate-50',
           compact && 'px-0',
-          view === 'new-task' && 'border-[var(--agenthub-accent,#2F5FD0)] bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)] dark:border-white/15 dark:bg-[#1E2A3A] dark:text-slate-50',
+          view === 'new-task' && 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)] font-semibold text-[var(--agenthub-accent)] dark:border-white/15 dark:bg-[var(--agenthub-accent-soft)] dark:text-slate-50',
         )}
       >
         <Plus className="size-4" />
@@ -933,7 +948,7 @@ function WorkbenchNav({
           return (
             <Fragment key={item.id}>
               {item.id === 'run-board' && !compact && (
-                <div className="mb-0.5 mt-2 border-t border-slate-100 px-[18px] pt-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-white/10">
+                <div className="mb-0.5 mt-2 border-t border-[var(--agenthub-border)] px-[18px] pt-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:border-[var(--agenthub-border)]">
                   分析
                 </div>
               )}
@@ -947,8 +962,8 @@ function WorkbenchNav({
                   compact && 'justify-center px-0',
                   item.id === 'run-board' && !compact && 'pl-5',
                   active
-                    ? 'bg-[#E7F0FF] font-semibold text-[var(--agenthub-accent,#2F5FD0)]  dark:bg-[#1E2A3A]'
-                    : 'font-medium text-slate-600 hover:bg-[#EEF5FF] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+                    ? 'bg-[var(--agenthub-accent-soft)] font-semibold text-[var(--agenthub-accent)]  dark:bg-[var(--agenthub-accent-soft)]'
+                    : 'font-medium text-slate-600 hover:bg-[var(--agenthub-accent-soft)] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100',
                   showAutomationResultNotice && 'animate-pulse ring-1 ring-[var(--agenthub-accent-border)]',
                 )}
               >
@@ -981,7 +996,7 @@ function WorkbenchNav({
           `min-height: 0` 尤其不可省 —— flex 子项默认 `min-height: auto`，
           列表内容会把它顶高，而不是让内部的 ScrollArea 去滚。 */}
       {!compact && view === 'conversations' && (
-        <section className="wb-history flex flex-col overflow-hidden border-t border-slate-100 pt-1.5 dark:border-white/10">
+        <section className="wb-history flex flex-col overflow-hidden border-t border-[var(--agenthub-border)] pt-1.5 dark:border-[var(--agenthub-border)]">
           <ConversationListPanel variant="embedded" />
         </section>
       )}
@@ -1004,7 +1019,7 @@ function WorkbenchNav({
           type="button"
           onClick={() => emitUiCommand('open-user-guide')}
           className={cn(
-            'flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white text-left text-slate-600 transition hover:border-slate-300 hover:bg-[#EEF4FF] hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+            'flex w-full items-center gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-left text-slate-600 transition hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] hover:text-slate-900 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5 dark:hover:text-slate-100',
             compact ? 'justify-center px-2 py-2' : 'px-2 py-2',
           )}
           title="使用指南"
@@ -1022,7 +1037,7 @@ function WorkbenchNav({
           <PopoverTrigger
             onClick={() => compact && setCollapsed(false)}
             aria-expanded={accountOpen && !compact}
-            className={cn('w-full rounded-lg border border-slate-200 bg-white text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800', compact ? 'px-2' : 'p-2')}
+            className={cn('w-full rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:hover:border-white/15 dark:hover:bg-white/5', compact ? 'px-2' : 'p-2')}
             title={compact ? '展开账户概览' : accountOpen ? '收起账户概览' : '展开账户概览'}
           >
             <div className={cn('flex items-center gap-2', compact && 'justify-center')}>
@@ -1059,10 +1074,58 @@ function WorkbenchNav({
   )
 }
 
+// 新任务页 A 方案「聚焦型」常量（只供 NewTaskView 使用）。
+type OutputKindId = 'image-text' | 'docs' | 'code' | 'data'
+
+// 产出 chip：现有代码里没有独立的“产出类型”字段，此处映射到既有的场景分类
+// （设计产物 / 内容文档 / 代码开发 / 金融投资），切换改变最近团队行的候选顺序。
+const OUTPUT_KINDS: { id: OutputKindId; label: string; category: SceneCategoryId; icon: LucideIcon }[] = [
+  { id: 'image-text', label: '图文', category: 'design', icon: Image },
+  { id: 'docs', label: '文档', category: 'docs', icon: FileText },
+  { id: 'code', label: '代码', category: 'code', icon: Code },
+  { id: 'data', label: '数据分析', category: 'finance', icon: BarChart3 },
+]
+
+// 示例 pills：点按填入输入框（不改团队选择）。
+const EXAMPLE_PILLS: { label: string; icon: LucideIcon }[] = [
+  { label: '做一套产品宣传图', icon: Image },
+  { label: '写一篇公众号推文', icon: PenLine },
+  { label: '分析这份销售数据', icon: BarChart3 },
+  { label: '生成一个落地页', icon: LayoutTemplate },
+]
+
+// 最近团队行单字色块配色（按效果图顺序：工程蓝 / 钢蓝 / 金 / 灰）。
+const RECENT_TEAM_COLORS = ['var(--agenthub-accent)', '#3E7CB1', 'var(--agenthub-gold)']
+const NEW_TEAM_COLOR = '#5B606B'
+
+// W6 新建任务页背景（方案一：淡网格 + 柔光，用户 2026-11-18 已选）。
+// 网格选 38px color-mix 直线网格，而不用 --agenthub-pattern：浅色六套的 pattern
+// 是圆点阵（非 mock 的直线网格），深色 pattern 仅约 5% 且无固定格距；38px 直线网格
+// 按每主题 primary 走 7%（浅）/ 9%（深），与 mock 几何一致、切主题跟着换。
+// 7%/9% 落地值按 mock 代码（深色 9%）而非说明卡文字的“各主题 7%”。
+const NEWTASK_GRID_MASK = 'radial-gradient(ellipse 90% 75% at 50% 38%, #000 30%, transparent 78%)'
+const NEWTASK_GRID_IMAGE = (alpha: string) =>
+  `linear-gradient(color-mix(in srgb, var(--primary) ${alpha}, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--primary) ${alpha}, transparent) 1px, transparent 1px)`
+// 柔光实测定位：composer 顶 220.5px、高 244.3px（1366 与 1920 实测一致，顶部锚定
+// 布局），中心约 342.6px。旧 640×340 top:173 使光心落在输入框中心，但 composer 是
+// 不透明白卡、比柔光宽 370px，柔光被整块盖住、仅上下边缘透出暖晕（batch 3 项 3）。
+// 改法：椭圆加宽到 1500px（max-w-full 兜底，1366 下取容器宽 1078、仍比 composer 宽
+// 68px；1920 下 1500 比 composer 宽 156px），光心上移到 310px，柔光上沿 130px、
+// 在 composer 上方露出一道约 90px 的暖晕带，左右也溢出卡外；金 28% + primary 12%
+// 的浓度不变，保持克制、不抢内容。外层容器另加 overflow-x-hidden，兜住加宽后
+// blur(28px) 向两侧漫出的像素，避免横向滚动条。
+// 深浅共用同一团柔光（与 mock 一致）。
+const NEWTASK_GLOW_TOP = 130
+const NEWTASK_GLOW_HEIGHT = 360
+const NEWTASK_GLOW_BACKGROUND =
+  'radial-gradient(closest-side, color-mix(in srgb, var(--agenthub-gold) 28%, transparent), color-mix(in srgb, var(--primary) 12%, transparent) 55%, transparent)'
+
 function NewTaskView({
   onOpenConversations,
+  onOpenAgents,
 }: {
   onOpenConversations: () => void
+  onOpenAgents: () => void
 }) {
   const agents = useAgentList()
   const defaultAgent = findOrchestratorAgent(agents) ?? agents[0]
@@ -1078,8 +1141,15 @@ function NewTaskView({
   const [enhancedText, setEnhancedText] = useState('')
   const [enhanceError, setEnhanceError] = useState<string | null>(null)
   const [enhanceOriginalText, setEnhanceOriginalText] = useState('')
-  const [activeCategory, setActiveCategory] = useState<SceneCategoryId>(SUMMON_SCENE_CATEGORIES[0].id)
+  const [activeCategory, setActiveCategory] = useState<SceneCategoryId>('design')
   const [activeSubcategoryId, setActiveSubcategoryId] = useState<string | null>(null)
+  // A 方案 chips：产出类型（现有代码里没有独立的“产出类型”字段，此处映射到既有
+  // 场景分类——设计产物/内容文档/代码开发/金融投资；切换会改变下方最近团队行的
+  // 候选顺序与 chip 文案，见 recentTeams）。参考图/团队/更多三枚 chip 均接真实功能。
+  const [outputKind, setOutputKind] = useState<OutputKindId>('image-text')
+  const [teamMenuOpen, setTeamMenuOpen] = useState(false)
+  const [outputMenuOpen, setOutputMenuOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const upsertConversation = useAppStore((s) => s.upsertConversation)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
@@ -1117,8 +1187,19 @@ function NewTaskView({
 
   const activeAgentIds = selectedAgentIds.length > 0 ? selectedAgentIds : defaultAgent ? [defaultAgent.id] : []
   const activeAgents = activeAgentIds.map((id) => agents.find((agent) => agent.id === id)).filter((agent): agent is AgentRow => Boolean(agent))
-  const activeCategoryMeta = SUMMON_SCENE_CATEGORIES.find((category) => category.id === activeCategory) ?? SUMMON_SCENE_CATEGORIES[0]
-  const quickTeams = SUMMON_TEAMS.filter((team) => team.category === activeCategory)
+  // 最近团队行：只取真实可召唤的团队（type === 'team'）。效果图里的「光影造像工坊 /
+  // 文案小队 / 数据分析组」在代码库中不是可召唤团队（光影造像工坊只存在于 /demo 的
+  // showcase 回放数据），按“不造假数据”改用真实团队名；单字色块是 fallback——全部
+  // 8 个团队均未填 iconUrl，无真实头像可用。产出 chip 选中的分类排在前面。
+  const recentTeams = [
+    ...SUMMON_TEAMS.filter((team) => team.type === 'team' && team.category === activeCategory),
+    ...SUMMON_TEAMS.filter((team) => team.type === 'team' && team.category !== activeCategory),
+  ].slice(0, 3)
+  const closeAllMenus = () => {
+    setTeamMenuOpen(false)
+    setOutputMenuOpen(false)
+    setMoreMenuOpen(false)
+  }
 
   const uploadFiles = async (conversationId: string) => {
     if (pendingFiles.length === 0) return []
@@ -1172,23 +1253,12 @@ function NewTaskView({
     }
   }
 
-  const applySubcategoryPrompt = async (team: SummonableTeam) => {
-    const category = SUMMON_SCENE_CATEGORIES.find((item) => item.id === team.category)
-    const memberNames = team.members.map((member) => member.name).join('、')
-    const lines = [
-      `我想使用「${team.name}」完成一个任务。`,
-      category ? `场景：${category.label}` : '',
-      `目标：${team.description}`,
-      `建议工作流：${team.workflow}`,
-      memberNames ? `建议参与 Agent：${memberNames}` : '',
-      '请基于以上场景，先帮我澄清目标、拆解步骤，并给出可执行方案。',
-    ].filter((line) => line.length > 0)
-
+  // 只选团队、不动输入框内容：供团队 chip 菜单与最近团队行使用（与旧版 agent 下拉
+  // 行为一致——换人选不覆盖已打好的字）。
+  const selectTeam = async (team: SummonableTeam) => {
     setActiveSubcategoryId(team.id)
-    setContent(lines.join('\n'))
     setSceneAgentError(null)
     setSelectingTeamId(team.id)
-
     try {
       const teamAgents = includeOrchestrator(await resolveOrCreateTeamAgents(team, agents, upsertAgent), agents)
       if (teamAgents.length > 0) {
@@ -1249,375 +1319,398 @@ function NewTaskView({
   }
 
   return (
-    <div className="agenthub-hide-scrollbar flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-gradient-to-b from-[#FCFDFF] to-[#F4F6FB] dark:from-[#12151B] dark:to-[#0F1115]">
-      {/* 主内容区 - 垂直居中；全幅铺满，内容锚点随屏幕放宽（1280 → 1440） */}
-      <div className="flex min-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-64px)] flex-1 items-center justify-center md:min-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-16px)]">
-        <div className="mx-auto w-full max-w-[1280px] px-8 pb-12 2xl:max-w-[1440px] 2xl:px-12">
-          {/* Hero Section - 左侧标题/说明/场景/快捷 Agent，右侧放大版机器人吉祥物 */}
-          <div className="grid items-center gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,500px)] xl:gap-10 2xl:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
-            <div className="min-w-0 translate-y-5">
-              <h1 className="text-[38px] font-[760] leading-[1.25] tracking-tight text-slate-950 dark:text-slate-50 xl:text-[42px] 2xl:text-[46px]">
-                <span className="block">{BRAND_NAME}</span>
-                <span className="block">
-                  多 Agent <span className="text-[var(--agenthub-accent)]">团队协作</span>工作流
-                </span>
-              </h1>
-              <p className="mt-3 text-base leading-relaxed text-slate-500 dark:text-slate-400 xl:text-base 2xl:text-[1.0625rem]">{activeCategoryMeta.description}</p>
+    <div className="agenthub-hide-scrollbar relative flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden overflow-y-auto bg-[var(--agenthub-surface-muted)]">
+      {/* W6 背景层（方案一）：淡网格 + 柔光，z-0 在内容之下，pointer-events-none 不挡交互。
+          内容容器只加 relative（不设 z-index），靠 DOM 顺序盖在背景层之上——避免新建
+          stacking context 困住 composer 内的 fixed 菜单遮罩。 */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 dark:hidden"
+        style={{ backgroundImage: NEWTASK_GRID_IMAGE('7%'), backgroundSize: '38px 38px', maskImage: NEWTASK_GRID_MASK, WebkitMaskImage: NEWTASK_GRID_MASK }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 hidden dark:block"
+        style={{ backgroundImage: NEWTASK_GRID_IMAGE('9%'), backgroundSize: '38px 38px', maskImage: NEWTASK_GRID_MASK, WebkitMaskImage: NEWTASK_GRID_MASK }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 z-0 w-[1500px] max-w-full -translate-x-1/2"
+        style={{ top: NEWTASK_GLOW_TOP, height: NEWTASK_GLOW_HEIGHT, background: NEWTASK_GLOW_BACKGROUND, filter: 'blur(28px)' }}
+      />
+      {/* A 方案「聚焦型」：原版通栏宽度（1280px / 2xl 1440px）居中单列，文字居中；工作台外壳（侧栏）不动 */}
+      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-8 pb-12 pt-10 text-center md:pt-14 2xl:max-w-[1440px] 2xl:px-12">
+        <p className="text-[11px] font-bold tracking-[0.1em] text-[#9A958A] dark:text-slate-500">WORKBENCH — NEW TASK</p>
+        <h1 className="font-heading mt-4 text-[27px] font-black leading-[1.15] text-[#17181C] dark:text-[#EDE9E1] md:text-[34px]">
+          一句话，<span className="text-[var(--agenthub-accent)]">组一支队</span>开工
+        </h1>
+        {/* 副文案照抄效果图。2026-11-18 batch 3 项 4：后半句原承诺“系统在你打字时
+            就帮你配好”实时匹配，真实实现暂无该逻辑，已改成“创建后”才配好，不再承诺打字时匹配。 */}
+        <p className="mt-3 max-w-[480px] text-[13.5px] leading-[1.7] text-[#777268] dark:text-slate-400">
+          把目标说清楚就行——选谁、怎么分工、产出什么，创建后系统帮你把人和分工配好。
+        </p>
 
-              {/* 一级场景切换 Tabs */}
-              <div className="mt-6 flex flex-nowrap items-center gap-2.5">
-                {SUMMON_SCENE_CATEGORIES.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory(category.id)
-                      setActiveSubcategoryId(null)
-                      setSelectedTeam(null)
-                    }}
-                    className={cn(
-                      'h-[42px] shrink-0 whitespace-nowrap rounded-full px-[16px] text-sm transition active:scale-[0.98]',
-                      activeCategory === category.id
-                        ? 'bg-[var(--agenthub-accent)] font-semibold text-white shadow-[0_10px_24px_rgba(47,95,208,0.28)] hover:bg-[var(--agenthub-accent-hover)]'
-                        : 'bg-white font-medium text-slate-600 ring-1 ring-[rgba(120,140,180,0.12)] hover:bg-[#F7F9FD] hover:text-slate-900 hover:ring-[rgba(120,140,180,0.20)] dark:bg-white/5 dark:text-slate-300 dark:ring-white/10 dark:hover:bg-white/10 dark:hover:text-slate-100',
-                    )}
-                  >
-                    {category.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 二级快捷 Agent 胶囊 */}
-              <div className="mt-4 flex flex-wrap gap-2.5">
-                {quickTeams.map((team) => {
-                  const active = activeSubcategoryId === team.id
-                  const TeamIcon = team.type === 'team' ? Users : Sparkles
-                  return (
-                    <button
-                      key={team.id}
-                      type="button"
-                      onClick={() => void applySubcategoryPrompt(team)}
-                      disabled={selectingTeamId === team.id}
-                      className={cn(
-                        'inline-flex h-[40px] items-center gap-2 rounded-full border px-4 text-sm font-medium transition active:scale-[0.98] disabled:cursor-wait disabled:opacity-70',
-                        active
-                          ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100',
-                      )}
-                      title={team.description}
-                    >
-                      <TeamIcon className="size-4 shrink-0 text-[var(--agenthub-accent)]" />
-                      {selectingTeamId === team.id ? '匹配中…' : team.name}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <RobotMascot />
+        {/* 大输入框 composer：白底卡片；金色只在左上一角（两条 38% 渐变描边），非整圈金框。
+            增高上限 32vh（batch 3 项 6，选了降上限而非压间距：空态与 500 字态不动，
+            1920 下 320px 先封顶、无回归；1366×768 顶格时 textarea 245.8px、最近团队行底约 756px、
+            无需滚动即可见）。 */}
+        <section className="relative mt-7 w-full rounded-[18px] border-[1.5px] border-[#D9DDE6] bg-white p-4 text-left shadow-[0_12px_32px_color-mix(in_srgb,var(--agenthub-accent)_10%,transparent)] dark:border-[#2E2A24] dark:bg-[#1C1A17] dark:shadow-none">
+          <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[1.5px] w-[38%] rounded-tl-[18px] bg-[linear-gradient(90deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
+          <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[38%] w-[1.5px] rounded-tl-[18px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
+          <PromptEnhanceModal
+            visible={enhanceOpen}
+            originalText={enhanceOriginalText || content}
+            enhancedText={enhancedText}
+            loading={enhancingPrompt}
+            error={enhanceError}
+            onOpenChange={(open) => {
+              if (!enhancingPrompt) setEnhanceOpen(open)
+            }}
+            onKeepOriginal={() => setEnhanceOpen(false)}
+            onUseEnhanced={() => {
+              setContent(enhancedText)
+              setEnhanceOpen(false)
+            }}
+          />
+          <div className="relative">
+            <Textarea
+              ref={taskInputRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void submit()
+                }
+              }}
+              onPaste={handleTaskPaste}
+              placeholder="帮我为「光影造像工坊」做一套小红书宣传：主图 1 张、详情长图 1 张，配一段 120 字以内的文案，风格温暖、电影感。"
+              className="min-h-[150px] max-h-[min(320px,32vh)] resize-none overflow-y-auto border-0 bg-transparent px-2 pb-3 pt-2 text-[15px] leading-[1.65] text-[#17181C] shadow-none placeholder:text-slate-400 focus-visible:ring-0 dark:text-[#EDE9E1]"
+            />
+            {contentOverflow && (
+              <span className="pointer-events-none absolute bottom-2 right-2 z-10 rounded-full bg-[var(--agenthub-surface)]/85 px-2 py-0.5 text-xs font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-[var(--agenthub-surface)]/85 dark:text-slate-400">
+                已省略 · 框内滑动查看
+              </span>
+            )}
           </div>
 
-          {/* 核心交互输入框 - 悬浮白色大卡片（输入 + 工具栏合并在一个阴影卡片中） */}
-          <section className="mt-7 overflow-hidden rounded-[18px] border border-[rgba(120,140,180,0.08)] bg-white shadow-[0_18px_60px_rgba(80,120,220,0.10)] dark:border-white/10 dark:bg-[#1C1F26]">
-            {/* 上半部：输入区 */}
-            <PromptEnhanceModal
-              visible={enhanceOpen}
-              originalText={enhanceOriginalText || content}
-              enhancedText={enhancedText}
-              loading={enhancingPrompt}
-              error={enhanceError}
-              onOpenChange={(open) => {
-                if (!enhancingPrompt) setEnhanceOpen(open)
-              }}
-              onKeepOriginal={() => setEnhanceOpen(false)}
-              onUseEnhanced={() => {
-                setContent(enhancedText)
-                setEnhanceOpen(false)
-              }}
-            />
-            <div className="relative">
-              <Textarea
-                ref={taskInputRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    void submit()
-                  }
-                }}
-                onPaste={handleTaskPaste}
-                placeholder={`今天想让 ${BRAND_NAME} 帮你完成什么？`}
-                className="min-h-[150px] max-h-[280px] resize-none overflow-y-auto border-0 bg-transparent px-6 pb-3.5 pt-8 text-base shadow-none placeholder:text-slate-400 focus-visible:ring-0 2xl:min-h-[168px] 2xl:max-h-[320px] 2xl:px-7 2xl:text-base"
-              />
-              {contentOverflow && (
-                <span className="pointer-events-none absolute bottom-2 right-6 z-10 rounded-full bg-white/85 px-2 py-0.5 text-xs font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-neutral-900/85 dark:text-slate-400">
-                  已省略 · 框内滑动查看
+          {/* 附件列表（参考图 chip / 粘贴上传均落在这里） */}
+          {enhanceError && !enhanceOpen && <div className="px-2 pb-3 text-xs text-red-600">{enhanceError}</div>}
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 pb-3">
+              {pendingFiles.map((file) => (
+                <span key={`${file.name}-${file.lastModified}`} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--agenthub-border)] bg-slate-50 px-3 py-1 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                  <Paperclip className="size-3" />
+                  {file.name}
+                  <button
+                    type="button"
+                    onClick={() => setPendingFiles((list) => list.filter((item) => item !== file))}
+                    className="text-slate-400 transition hover:text-slate-700"
+                  >
+                    <X className="size-3" />
+                  </button>
                 </span>
+              ))}
+            </div>
+          )}
+
+          {/* 分隔线 + chips / CTA 行 */}
+          <div className="mx-2 h-px bg-[#E7E5E0] dark:bg-[#2E2A24]" />
+          <div className="flex flex-wrap items-center gap-2 px-2 pb-1 pt-3">
+            {/* 团队 chip：接既有团队/Agent 选择（旧版 agent 下拉 + 快捷团队胶囊合一） */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setOutputMenuOpen(false)
+                  setMoreMenuOpen(false)
+                  setTeamMenuOpen((open) => !open)
+                }}
+                aria-expanded={teamMenuOpen}
+                aria-haspopup="true"
+                title={selectedTeam ? `已选择小队：${selectedTeam.name}` : '选择团队或 Agent'}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E5E0] bg-[var(--agenthub-surface-muted)] px-[10px] py-[7px] text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-[#2E2A24] dark:bg-white/5 dark:text-slate-300 dark:hover:text-slate-100"
+              >
+                <Users className="size-3.5 shrink-0 text-[var(--agenthub-accent)]" />
+                <span className="max-w-[160px] truncate">
+                  {selectingTeamId ? '匹配中…' : selectedTeam ? selectedTeam.name : activeAgents.length === 1 ? getAgentDisplayName(activeAgents[0]) : activeAgents.length > 1 ? `${getAgentDisplayName(activeAgents[0])} 等 ${activeAgents.length} 位` : '选择团队'}
+                </span>
+                <ChevronDown className={cn('size-3.5 shrink-0 transition-transform', teamMenuOpen && 'rotate-180')} />
+              </button>
+              {teamMenuOpen && (
+                <>
+                  <button type="button" aria-label="关闭菜单" tabIndex={-1} className="fixed inset-0 z-10 cursor-default border-0 bg-transparent p-0" onClick={closeAllMenus} />
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-20 max-h-[320px] w-[280px] overflow-y-auto rounded-xl border border-[var(--agenthub-border)] bg-white py-1.5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.16)] dark:border-[#2E2A24] dark:bg-[#1C1A17]">
+                    <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold text-slate-400">团队</p>
+                    {SUMMON_TEAMS.map((team) => {
+                      const TeamIcon = team.type === 'team' ? Users : Sparkles
+                      const isSelected = selectedTeam?.id === team.id
+                      return (
+                        <button
+                          key={team.id}
+                          type="button"
+                          onClick={() => {
+                            closeAllMenus()
+                            void selectTeam(team)
+                          }}
+                          disabled={selectingTeamId === team.id}
+                          title={team.description}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-70 dark:hover:bg-white/5',
+                            isSelected ? 'font-semibold text-[var(--agenthub-accent)]' : 'text-slate-700 dark:text-slate-200',
+                          )}
+                        >
+                          <TeamIcon className="size-4 shrink-0 text-[var(--agenthub-accent)]" />
+                          <span className="min-w-0 flex-1 truncate">{team.name}</span>
+                          <span className="shrink-0 text-xs text-slate-400">{team.type === 'team' ? `${team.members.length} 位成员` : '单 Agent'}</span>
+                          {isSelected && <Check className="size-4 shrink-0" />}
+                        </button>
+                      )
+                    })}
+                    <div className="mx-3 my-1.5 h-px bg-[#E7E5E0] dark:bg-[#2E2A24]" />
+                    <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold text-slate-400">单个 Agent</p>
+                    {agents.map((agent) => {
+                      const isSelected = !selectedTeam && activeAgentIds[0] === agent.id
+                      return (
+                        <button
+                          key={agent.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedAgentIds([agent.id])
+                            setSelectedTeam(null)
+                            setActiveSubcategoryId(null)
+                            closeAllMenus()
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition hover:bg-slate-50 dark:hover:bg-white/5',
+                            isSelected ? 'font-semibold text-[var(--agenthub-accent)]' : 'text-slate-700 dark:text-slate-200',
+                          )}
+                        >
+                          <AgentAvatar agent={agent} size="xs" />
+                          <span className="min-w-0 flex-1 truncate">{getAgentDisplayName(agent)}</span>
+                          {isSelected && <Check className="size-4 shrink-0" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </div>
 
-            {/* 附件列表 */}
-            {enhanceError && !enhanceOpen && <div className="px-6 pb-3 text-xs text-red-600">{enhanceError}</div>}
-            {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 px-6 pb-3">
-                {pendingFiles.map((file) => (
-                  <span key={`${file.name}-${file.lastModified}`} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-                    <Paperclip className="size-3" />
-                    {file.name}
-                    <button
-                      type="button"
-                      onClick={() => setPendingFiles((list) => list.filter((item) => item !== file))}
-                      className="text-slate-400 transition hover:text-slate-700"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* 中间浅灰分割线 */}
-            <div className="mx-7 h-px bg-slate-100/60 dark:bg-white/10" />
-
-            {/* 下半部：参数配置栏 */}
-            <div className="flex flex-wrap items-center gap-2.5 px-5 py-4">
-              <span className="pl-1 text-xs font-medium text-slate-400">Workspace</span>
-              <div className="relative">
-                <Waypoints className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--agenthub-accent)]" />
-                <select
-                  value={selectedTeam ? selectedTeam.id : activeAgentIds[0] ?? ''}
-                  onChange={(e) => {
-                    setSelectedAgentIds(e.target.value ? [e.target.value] : [])
-                    setSelectedTeam(null)
-                  }}
-                  className="h-10 appearance-none rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-[var(--agenthub-accent)] dark:border-white/10 dark:bg-transparent dark:text-slate-200"
-                >
-                  {selectedTeam && <option value={selectedTeam.id}>{selectedTeam.name} · {activeAgents.length} 位协作</option>}
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>{getAgentDisplayName(agent)}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              </div>
-
+            {/* 产出 chip：映射到既有场景分类（无独立产出类型字段，见文件顶部注释） */}
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => setApprovalMode((mode) => (mode === 'review' ? 'auto' : 'review'))}
-                title="切换写入审批模式"
-                className={cn(
-                  'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition',
-                  approvalMode === 'review'
-                    ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200/70 hover:bg-emerald-100/70 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20'
-                    : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200/70 hover:bg-slate-200/60 dark:bg-white/5 dark:text-slate-400 dark:ring-white/10',
-                )}
+                onClick={() => {
+                  setTeamMenuOpen(false)
+                  setMoreMenuOpen(false)
+                  setOutputMenuOpen((open) => !open)
+                }}
+                aria-expanded={outputMenuOpen}
+                aria-haspopup="true"
+                title="选择产出类型"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E5E0] bg-[var(--agenthub-surface-muted)] px-[10px] py-[7px] text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-[#2E2A24] dark:bg-white/5 dark:text-slate-300 dark:hover:text-slate-100"
               >
-                {approvalMode === 'review' ? '✓ Review' : 'Auto'}
+                <span>产出：{OUTPUT_KINDS.find((kind) => kind.id === outputKind)?.label}</span>
+                <ChevronDown className={cn('size-3.5 shrink-0 transition-transform', outputMenuOpen && 'rotate-180')} />
               </button>
-
-              {/* 分割线 + 右侧操作区 */}
-              <div className="ml-auto flex items-center gap-1.5">
-                <div className="mr-1.5 h-6 w-px bg-slate-200/50 dark:bg-white/10" />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="附件上传"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="size-10 rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
-                >
-                  <Paperclip className="size-[18px]" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title={enhancingPrompt ? '提示词增强中' : '增强提示词'}
-                  onClick={() => void enhancePrompt()}
-                  disabled={enhancingPrompt || sending || uploading}
-                  className="size-10 rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-white/10 dark:hover:text-slate-300"
-                >
-                  {enhancingPrompt ? (
-                    <Spinner size="sm" className="size-[18px]" />
-                  ) : (
-                    <Sparkles className="size-[18px]" />
-                  )}
-                </Button>
-                <Button
-                  onClick={() => void submit()}
-                  disabled={!content.trim() || activeAgentIds.length === 0 || sending || uploading}
-                  size="icon"
-                  className="ml-1 size-11 rounded-xl bg-[var(--agenthub-accent,#2F5FD0)] text-white shadow-[0_8px_20px_rgba(47,95,208,0.32)] transition hover:bg-[var(--agenthub-accent-hover,#244FB3)] disabled:opacity-70"
-                  title={uploading ? '上传中' : '发送'}
-                >
-                  <Send className="size-[18px]" />
-                </Button>
-              </div>
+              {outputMenuOpen && (
+                <>
+                  <button type="button" aria-label="关闭菜单" tabIndex={-1} className="fixed inset-0 z-10 cursor-default border-0 bg-transparent p-0" onClick={closeAllMenus} />
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[180px] rounded-xl border border-[var(--agenthub-border)] bg-white py-1.5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.16)] dark:border-[#2E2A24] dark:bg-[#1C1A17]">
+                    {OUTPUT_KINDS.map((kind) => {
+                      const KindIcon = kind.icon
+                      const isSelected = outputKind === kind.id
+                      return (
+                        <button
+                          key={kind.id}
+                          type="button"
+                          onClick={() => {
+                            setOutputKind(kind.id)
+                            setActiveCategory(kind.category)
+                            closeAllMenus()
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition hover:bg-slate-50 dark:hover:bg-white/5',
+                            isSelected ? 'font-semibold text-[var(--agenthub-accent)]' : 'text-slate-700 dark:text-slate-200',
+                          )}
+                        >
+                          <KindIcon className="size-4 shrink-0 text-[var(--agenthub-accent)]" />
+                          <span className="min-w-0 flex-1 truncate">{kind.label}</span>
+                          {isSelected && <Check className="size-4 shrink-0" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </div>
-          </section>
 
-          {/* 底部状态栏 - 居中对齐 */}
-          {sceneAgentError && <div className="mt-3 text-center text-xs text-amber-600 dark:text-amber-300">{sceneAgentError}</div>}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
-            <span className="inline-flex items-center gap-1.5 rounded-md px-1">
-              选择工作空间
-            </span>
-            <span className="text-slate-300">·</span>
-            <span className="inline-flex items-center gap-1.5 rounded-md px-1">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              本地沙箱 · 运行中
-            </span>
-            <span className="text-slate-300">·</span>
-            <span className="inline-flex items-center gap-1.5 rounded-md px-1">
-              {selectedTeam ? `已选择小队：${selectedTeam.name} · ${activeAgents.length} 位协作` : approvalMode === 'review' ? 'Review 保护 enabled' : 'Auto 模式 · 直接生效'}
-            </span>
-            {activeAgents.length > 0 && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1.5 rounded-md px-1 text-[var(--agenthub-accent)]">
-                  <AgentAvatar agent={activeAgents[0]} size="xs" />
-                  {selectedTeam ? `${selectedTeam.name} · ${activeAgents.length} 位协作` : activeAgents.length === 1 ? getAgentDisplayName(activeAgents[0]) : `${getAgentDisplayName(activeAgents[0])} 等 ${activeAgents.length} 位 Agent`}
-                </span>
-              </>
-            )}
+            {/* 参考图 chip：接既有附件上传流程（与旧版回形针按钮同一 file input） */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="上传参考图"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E5E0] bg-[var(--agenthub-surface-muted)] px-[10px] py-[7px] text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-[#2E2A24] dark:bg-white/5 dark:text-slate-300 dark:hover:text-slate-100"
+            >
+              <ImagePlus className="size-3.5 shrink-0 text-[var(--agenthub-accent)]" />
+              参考图
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => setPendingFiles(Array.from(event.target.files ?? []))}
+            />
+
+            {/* 增强提示词 chip：直接可见（原版工具栏按钮，A 方案曾收进“更多”菜单，用户要求放回） */}
+            <button
+              type="button"
+              onClick={() => void enhancePrompt()}
+              disabled={enhancingPrompt || sending || uploading}
+              title={enhancingPrompt ? '提示词增强中' : '增强提示词'}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E5E0] bg-[var(--agenthub-surface-muted)] px-[10px] py-[7px] text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60 dark:border-[#2E2A24] dark:bg-white/5 dark:text-slate-300 dark:hover:text-slate-100"
+            >
+              {enhancingPrompt ? (
+                <Spinner size="sm" className="size-3.5 shrink-0" />
+              ) : (
+                <Sparkles className="size-3.5 shrink-0 text-[var(--agenthub-accent)]" />
+              )}
+              {enhancingPrompt ? '增强中…' : '增强提示词'}
+            </button>
+
+            {/* 更多 chip：高级选项收进这里——目前只有真实存在的一项（写入审批）；
+                提示词增强已移回工具栏直接可见。“优先级”在现有代码里没有对应功能，不造假项。 */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setTeamMenuOpen(false)
+                  setOutputMenuOpen(false)
+                  setMoreMenuOpen((open) => !open)
+                }}
+                aria-expanded={moreMenuOpen}
+                aria-haspopup="true"
+                title="更多选项"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E5E0] bg-[var(--agenthub-surface-muted)] px-[10px] py-[7px] text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 dark:border-[#2E2A24] dark:bg-white/5 dark:text-slate-300 dark:hover:text-slate-100"
+              >
+                更多
+                <ChevronDown className={cn('size-3.5 shrink-0 transition-transform', moreMenuOpen && 'rotate-180')} />
+              </button>
+              {moreMenuOpen && (
+                <>
+                  <button type="button" aria-label="关闭菜单" tabIndex={-1} className="fixed inset-0 z-10 cursor-default border-0 bg-transparent p-0" onClick={closeAllMenus} />
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[220px] rounded-xl border border-[var(--agenthub-border)] bg-white py-1.5 text-left shadow-[0_12px_32px_rgba(15,23,42,0.16)] dark:border-[#2E2A24] dark:bg-[#1C1A17]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setApprovalMode((mode) => (mode === 'review' ? 'auto' : 'review'))
+                        closeAllMenus()
+                      }}
+                      title="切换写入审批模式"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5"
+                    >
+                      <span className="min-w-0 flex-1 truncate">写入审批</span>
+                      <span className={cn(
+                        'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium',
+                        approvalMode === 'review'
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
+                          : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400',
+                      )}
+                      >
+                        {approvalMode === 'review' ? 'Review' : 'Auto'}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* CTA：创建任务（旧版圆形发送按钮的同一 submit） */}
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={!content.trim() || activeAgentIds.length === 0 || sending || uploading}
+              title={uploading ? '上传中' : '创建任务'}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[var(--agenthub-accent)] px-[18px] py-[10px] text-[13.5px] font-extrabold text-[var(--primary-foreground)] transition hover:bg-[var(--agenthub-accent-hover)] disabled:opacity-60"
+            >
+              {sending || uploading ? '创建中…' : (
+                <>
+                  创建任务
+                  <ArrowRight className="size-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </section>
+
+        {/* 示例 pills：点按填入输入框 */}
+        <p className="mt-7 text-xs text-[#9A958A] dark:text-slate-500">不知道怎么开头？试试这些</p>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          {EXAMPLE_PILLS.map((pill) => {
+            const PillIcon = pill.icon
+            return (
+              <button
+                key={pill.label}
+                type="button"
+                onClick={() => {
+                  setContent(pill.label)
+                  taskInputRef.current?.focus()
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#E7E5E0] bg-white px-3 py-2 text-[12.5px] font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 dark:border-[#2E2A24] dark:bg-[#1C1A17] dark:text-slate-200 dark:hover:text-white"
+              >
+                <PillIcon className="size-3.5 shrink-0 text-[var(--agenthub-accent)]" />
+                {pill.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* 最近团队：真实可召唤团队 + 新建团队；与侧栏最近对话列表并存（后者在会话视图，不动） */}
+        <div className="mt-[26px] flex items-start justify-center gap-[18px]">
+          {recentTeams.map((team, index) => {
+            const active = activeSubcategoryId === team.id
+            return (
+              <div key={team.id} className="flex w-[72px] flex-col items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void selectTeam(team)}
+                  disabled={selectingTeamId === team.id}
+                  title={team.description}
+                  aria-pressed={active}
+                  className={cn(
+                    'flex size-[38px] items-center justify-center rounded-full text-[15px] font-bold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70',
+                    active && 'ring-2 ring-[var(--agenthub-accent)] ring-offset-2 ring-offset-[var(--agenthub-surface-muted)]',
+                  )}
+                  style={{ backgroundColor: RECENT_TEAM_COLORS[index % RECENT_TEAM_COLORS.length] }}
+                >
+                  {selectingTeamId === team.id ? '…' : team.name.charAt(0)}
+                </button>
+                <span className="text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">{team.name}</span>
+              </div>
+            )
+          })}
+          <div className="flex w-[72px] flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onOpenAgents}
+              title="去 Agent 库新建团队"
+              className="flex size-[38px] items-center justify-center rounded-full text-white transition hover:opacity-90"
+              style={{ backgroundColor: NEW_TEAM_COLOR }}
+            >
+              <Plus className="size-4" />
+            </button>
+            <span className="text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">新建团队</span>
           </div>
         </div>
+
+        {sceneAgentError && <div className="mt-4 text-xs text-amber-600 dark:text-amber-300">{sceneAgentError}</div>}
       </div>
     </div>
   )
 }
 
-function RobotMascot() {
-  return (
-    <div aria-hidden className="relative hidden h-[380px] w-[420px] shrink-0 select-none xl:block">
-      <div className="absolute inset-0">
-        {/* 轻蓝色氛围光 */}
-        <div className="absolute left-1/2 top-1/2 size-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.16),transparent_60%)] blur-3xl" />
-
-        <svg
-          viewBox="0 0 420 380"
-          className="absolute inset-0 h-full w-full"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <linearGradient id="rm-orbit" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#22D3EE" />
-              <stop offset="55%" stopColor="#5B8DEF" />
-              <stop offset="100%" stopColor="#8B5CF6" />
-            </linearGradient>
-            <linearGradient id="rm-shell" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#DDE6F2" />
-            </linearGradient>
-            <linearGradient id="rm-face" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1E2A4A" />
-              <stop offset="100%" stopColor="#0B1124" />
-            </linearGradient>
-            <linearGradient id="rm-ear" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#7AAEFF" />
-              <stop offset="100%" stopColor="#2F5FD0" />
-            </linearGradient>
-            <linearGradient id="rm-chipBlue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#7AAEFF" />
-              <stop offset="100%" stopColor="#3B6BE0" />
-            </linearGradient>
-            <linearGradient id="rm-chipTeal" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34D399" />
-              <stop offset="100%" stopColor="#0F9D7A" />
-            </linearGradient>
-            <linearGradient id="rm-chipPurple" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#A78BFA" />
-              <stop offset="100%" stopColor="#7C4DEF" />
-            </linearGradient>
-            <filter id="rm-shadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#0F1125" floodOpacity="0.18" />
-            </filter>
-          </defs>
-
-          {/* 轨道环（居中靠下，呼应参考图） */}
-          <ellipse cx="210" cy="252" rx="170" ry="48" fill="none" stroke="url(#rm-orbit)" strokeWidth="9" opacity="0.9" />
-          <ellipse cx="210" cy="252" rx="170" ry="48" fill="none" stroke="#FFFFFF" strokeWidth="2" opacity="0.55" />
-
-          {/* 聊天方块（左上） */}
-          <g transform="translate(54 60) rotate(-8 38 38)" filter="url(#rm-shadow)">
-            <rect x="0" y="0" width="76" height="76" rx="18" fill="#FFFFFF" />
-            <rect x="12" y="18" width="52" height="40" rx="10" fill="url(#rm-chipBlue)" />
-            <rect x="42" y="62" width="10" height="8" rx="2" fill="#FFFFFF" />
-            <rect x="20" y="28" width="34" height="5" rx="2.5" fill="#FFFFFF" opacity="0.95" />
-            <rect x="20" y="40" width="22" height="5" rx="2.5" fill="#FFFFFF" opacity="0.7" />
-          </g>
-
-          {/* 用户方块（右上） */}
-          <g transform="translate(252 30) rotate(8 42 42)" filter="url(#rm-shadow)">
-            <rect x="0" y="0" width="84" height="84" rx="20" fill="#FFFFFF" />
-            <rect x="14" y="18" width="56" height="48" rx="11" fill="url(#rm-chipTeal)" />
-            <circle cx="42" cy="34" r="9" fill="#FFFFFF" />
-            <path d="M22 60 c4 -10 16 -10 20 -10 c4 0 16 0 20 10 v4 H22 z" fill="#FFFFFF" />
-          </g>
-
-          {/* 工具方块（右下） */}
-          <g transform="translate(282 246) rotate(12 38 38)" filter="url(#rm-shadow)">
-            <rect x="0" y="0" width="76" height="76" rx="18" fill="#FFFFFF" />
-            <rect x="12" y="18" width="52" height="40" rx="10" fill="url(#rm-chipPurple)" />
-            <path d="M24 36 a8 8 0 1 1 11 11 l-12 12 -6 -2 -2 -6 z" fill="#FFFFFF" />
-            <path d="M48 26 l9 9" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
-          </g>
-
-          {/* 耳朵（机器人两侧） */}
-          <g transform="translate(86 174)">
-            <rect x="0" y="0" width="32" height="68" rx="16" fill="url(#rm-ear)" />
-            <rect x="6" y="6" width="20" height="56" rx="10" fill="#1E2A4A" opacity="0.18" />
-          </g>
-          <g transform="translate(302 174)">
-            <rect x="0" y="0" width="32" height="68" rx="16" fill="url(#rm-ear)" />
-            <rect x="6" y="6" width="20" height="56" rx="10" fill="#1E2A4A" opacity="0.18" />
-          </g>
-
-          {/* 头部主体 */}
-          <g transform="translate(120 84)">
-            {/* 外壳 */}
-            <rect x="0" y="0" width="180" height="148" rx="56" fill="url(#rm-shell)" filter="url(#rm-shadow)" />
-            {/* 天线 */}
-            <rect x="80" y="-22" width="20" height="24" rx="6" fill="#DDE6F2" />
-            <circle cx="90" cy="-32" r="12" fill="#5B8DEF" />
-            <circle cx="90" cy="-32" r="20" fill="#5B8DEF" opacity="0.18" />
-            {/* 脸 */}
-            <rect x="22" y="28" width="136" height="92" rx="32" fill="url(#rm-face)" />
-            {/* 闭眼弧 */}
-            <g stroke="#6AA6FF" strokeWidth="9" strokeLinecap="round" fill="none">
-              <path d="M48 84 q14 -22 28 0" />
-              <path d="M104 84 q14 -22 28 0" />
-            </g>
-          </g>
-        </svg>
-
-        {/* 底部柔光椭圆 */}
-        <div className="absolute bottom-[40px] left-1/2 h-[28px] w-[150px] -translate-x-1/2 rounded-[50%] bg-[#6E9EFF] opacity-[0.10] blur-xl" />
-      </div>
-
-      {/* 机器人下方的轻量装饰胶囊（保留原「Orchestrator / Working… / Review Enabled」） */}
-      <div className="absolute inset-x-0 bottom-[10px] flex items-center justify-center gap-2.5">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
-          <Waypoints className="size-3 text-[var(--agenthub-accent)]/70" />
-          Orchestrator
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
-          <Sparkles className="size-3 text-[var(--agenthub-accent)]/70" />
-          Working…
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs text-slate-400 ring-1 ring-slate-200/60 shadow-sm backdrop-blur-sm dark:bg-white/5 dark:text-slate-400 dark:ring-white/10">
-          <span className="text-emerald-500/80">✓</span>
-          Review Enabled
-        </span>
-      </div>
-    </div>
-  )
-}
 
 function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalone' | 'embedded' }) {
   const allConversations = useConversationList()
@@ -1692,12 +1785,12 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
   return (
     <aside className={cn(
       'flex min-h-0 flex-col',
-      variant === 'standalone' && 'hidden w-[292px] shrink-0 rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60 lg:flex',
+      variant === 'standalone' && 'agenthub-card-container hidden w-[292px] shrink-0 lg:flex',
       variant === 'embedded' && 'h-full',
     )}>
       {/* embedded（侧栏内）时它是 flex 列里的固定块：标题 + 说明 + 搜索钉在历史区顶部，
           真正的列表在下面的 ScrollArea 里独立滚动。`shrink-0` 保证它不被列表内容压扁。 */}
-      <div className={cn('shrink-0 border-b border-slate-100', variant === 'embedded' ? 'pb-2' : 'p-4')}>
+      <div className={cn('shrink-0 border-b border-[var(--agenthub-border)]', variant === 'embedded' ? 'pb-2' : 'p-4')}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className={cn('font-semibold', variant === 'embedded' ? 'text-sm' : 'text-base')}>对话历史</h2>
@@ -1736,10 +1829,10 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                   'h-11',
                   activeId === conversation.id
                     ? 'bg-[var(--agenthub-accent-soft)] text-slate-950 dark:text-slate-50'
-                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800 dark:hover:text-slate-100',
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-slate-100',
                 )}
               >
-                <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-white text-[var(--agenthub-accent)]' : 'bg-slate-100 text-slate-500')}>
+                <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg', activeId === conversation.id ? 'bg-[var(--agenthub-surface)] text-[var(--agenthub-accent)]' : 'bg-slate-100 text-slate-500')}>
                   {isGroup ? <Grid2X2 className="size-3.5" /> : <MessageCircle className="size-3.5" />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1770,7 +1863,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
           )}
 
           {archivedConversations.length > 0 && (
-            <div className="mt-2 border-t border-slate-100 pt-2 dark:border-white/5">
+            <div className="mt-2 border-t border-[var(--agenthub-border)] pt-2 dark:border-white/5">
               <button
                 type="button"
                 onClick={() => setShowArchived((v) => !v)}
@@ -1794,7 +1887,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                     }}
                     title="已归档 · 右键可取消归档或删除"
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-lg px-2 text-left opacity-70 transition hover:bg-slate-50 hover:opacity-100 dark:hover:bg-neutral-800/70 dark:hover:text-slate-100',
+                      'flex w-full items-center gap-2 rounded-lg px-2 text-left opacity-70 transition hover:bg-slate-50 hover:opacity-100 dark:hover:bg-white/5 dark:hover:text-slate-100',
                       'h-11',
                       activeId === conversation.id && 'bg-[var(--agenthub-accent-soft)] opacity-100',
                     )}

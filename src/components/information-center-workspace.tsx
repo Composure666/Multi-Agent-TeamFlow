@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Info,
+  Loader2,
   MoreHorizontal,
   Package,
   Search,
@@ -26,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { InlineError, PageHeader, PageShell } from "@/components/workbench-primitives"
+import { InlineError, PageHeader, PageShell, EmptyState } from "@/components/workbench-primitives"
 import {
   getNotificationGroup,
   getNotificationOpenLabel,
@@ -53,7 +54,7 @@ type Filter = "all" | "unread" | AppNotificationCategory
 
 const FILTERS: Array<{ id: Filter; label: string; accent: string }> = [
   { id: "all", label: "全部", accent: "bg-slate-500" },
-  { id: "unread", label: "未读", accent: "bg-blue-500" },
+  { id: "unread", label: "未读", accent: "bg-[var(--agenthub-accent)]" },
   { id: "error", label: "异常", accent: "bg-rose-500" },
   { id: "task", label: "任务", accent: "bg-sky-500" },
   { id: "system", label: "系统", accent: "bg-slate-400" },
@@ -96,9 +97,9 @@ const LEVEL_BAR: Record<AppNotificationLevel, string> = {
 // Icon container tint per level
 const LEVEL_TINT: Record<AppNotificationLevel, string> = {
   error: "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300",
-  warning: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300",
-  success: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300",
-  info: "bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300",
+  warning: "bg-amber-100 text-amber-600 dark:text-amber-400 dark:bg-amber-500/20 dark:text-amber-300",
+  success: "bg-emerald-100 text-emerald-600 dark:text-emerald-400 dark:bg-emerald-500/20 dark:text-emerald-300",
+  info: "bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]",
 }
 
 // Default level for categories missing one
@@ -130,26 +131,34 @@ export function InformationCenterWorkspace() {
   const openNotificationTarget = useAppStore((s) => s.openNotificationTarget)
   const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
 
+  // Counts must come from the full, unfiltered dataset: fetching with the
+  // active pill filter here used to replace the store list with a filtered
+  // subset, so every pill count was derived from that subset and changed
+  // whenever the filter changed (e.g. all pills read 0 under "unread" when
+  // nothing was unread). Filtering stays client-side in visibleNotifications.
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchNotifications({
-        status: filter === "unread" ? "unread" : "all",
-        category: isCategory(filter) ? filter : undefined,
-        limit: 80,
-      })
+      const result = await fetchNotifications({ limit: 80 })
       setPersistentNotifications(result.notifications, result.unreadCount)
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载通知失败")
     } finally {
       setLoading(false)
     }
-  }, [filter, setPersistentNotifications])
+  }, [setPersistentNotifications])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  // Pill counts are derived from the full unfiltered list, never from the
+  // filtered/search view: switching pills only changes what is listed.
+  const countableNotifications = useMemo(
+    () => notifications.filter((item) => !item.deletedAt),
+    [notifications],
+  )
 
   const visibleNotifications = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -277,7 +286,7 @@ export function InformationCenterWorkspace() {
   }
 
   return (
-    <PageShell className="p-2 lg:p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" contentClassName="w-full max-w-none gap-3 lg:gap-4">
+    <PageShell contentClassName="w-full max-w-none gap-3 lg:gap-4">
       <PageHeader
         icon={Bell}
         title="信息中心"
@@ -316,7 +325,7 @@ export function InformationCenterWorkspace() {
         <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-center gap-1">
             {FILTERS.map((item) => {
-              const count = countForFilter(visibleNotifications, item.id)
+              const count = countForFilter(countableNotifications, item.id)
               const active = filter === item.id
               return (
                 <button
@@ -326,13 +335,13 @@ export function InformationCenterWorkspace() {
                   className={cn(
                     "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition",
                     active
-                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5",
+                      ? "bg-[var(--agenthub-accent)] text-white"
+                      : "text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5",
                   )}
                 >
                   <span className={cn("size-1.5 rounded-full", item.accent, !active && "opacity-70")} />
                   {item.label}
-                  <span className={cn("rounded-full px-1.5 py-0.5 text-3xs tabular-nums", active ? "bg-white/15 dark:bg-black/15" : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400")}>
+                  <span className={cn("rounded-full px-1.5 py-0.5 text-xs tabular-nums", active ? "bg-white/15 dark:bg-black/15" : "bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400")}>
                     {count}
                   </span>
                 </button>
@@ -355,7 +364,7 @@ export function InformationCenterWorkspace() {
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="清除搜索"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 dark:hover:bg-white/10"
               >
                 <X className="size-3" />
               </button>
@@ -366,12 +375,22 @@ export function InformationCenterWorkspace() {
 
       {error && <InlineError message={error} onRetry={() => void load()} />}
 
-      <ScrollArea className="max-h-[calc(100vh-220px)] min-h-[260px] [scrollbar-width:none] [&_[data-slot=scroll-area-scrollbar]]:hidden [&_[data-slot=scroll-area-thumb]]:hidden [&_[data-slot=scroll-area-viewport]]:[scrollbar-width:none] [&_[data-slot=scroll-area-viewport]::-webkit-scrollbar]:hidden">
+      <ScrollArea className="max-h-[calc(100vh-220px)] min-h-[260px]">
         {loading && visibleNotifications.length === 0 && (
-          <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">正在加载通知...</div>
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载通知…</div>
+            <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在汇总任务结果、异常告警和系统消息。</p>
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => void load()}>
+              重新加载
+            </Button>
+          </div>
         )}
         {!loading && visibleNotifications.length === 0 && (
-          <EmptyStateLite
+          <EmptyState
+            icon={Bell}
             title={emptyState.title}
             description={emptyState.description}
             action={emptyState.action
@@ -393,11 +412,11 @@ export function InformationCenterWorkspace() {
                 type="button"
                 onClick={() => toggleGroup(group.id)}
                 aria-expanded={!isCollapsed}
-                className="group flex w-full items-center gap-2.5 rounded-md px-1 py-1.5 text-left transition hover:bg-slate-50 dark:hover:bg-white/5"
+                className="group flex w-full items-center gap-2.5 rounded-md px-1 py-1.5 text-left transition hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5"
               >
                 <span className={cn("size-2 rounded-full", group.accent)} aria-hidden />
                 <span className="text-base font-semibold text-slate-900 dark:text-slate-100">{group.label}</span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <span className="rounded-full bg-[var(--agenthub-surface-muted)] px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
                   {group.rows.length}
                 </span>
                 <ChevronDown
@@ -467,9 +486,8 @@ function NotificationRow({
       className={cn(
         "group/row relative flex items-start gap-3 rounded-lg border px-3.5 py-2.5 pr-2.5 transition-all duration-150",
         "border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]",
-        "hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50/70 hover:shadow-md",
-        "dark:hover:border-white/20 dark:hover:bg-white/[0.04] dark:hover:shadow-black/30",
-        unread && "bg-blue-50/40 dark:bg-blue-950/20",
+        "hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-surface-muted)]",
+        unread && "bg-[var(--agenthub-accent-soft)]",
       )}
     >
       {/* Left color bar — widens on hover */}
@@ -501,9 +519,9 @@ function NotificationRow({
           >
             {notification.title}
           </button>
-          {unread && <span className="size-1.5 shrink-0 rounded-full bg-blue-500" aria-label="未读" />}
+          {unread && <span className="size-1.5 shrink-0 rounded-full bg-[var(--agenthub-accent)]" aria-label="未读" />}
           {urgent && (
-            <span className="shrink-0 rounded-full bg-rose-50 px-1.5 py-0.5 text-3xs font-medium text-rose-600 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30">
+            <span className="shrink-0 rounded-full bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 text-xs font-medium text-rose-600 ring-1 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30">
               紧急
             </span>
           )}
@@ -511,7 +529,7 @@ function NotificationRow({
         </div>
 
         {notification.body && (
-          <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+          <div className="mt-0.5 line-clamp-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
             {notification.body}
           </div>
         )}
@@ -554,7 +572,7 @@ function NotificationRow({
           <button
             type="button"
             onClick={() => onMarkRead(notification)}
-            className="hidden shrink-0 text-xs text-slate-400 transition hover:text-slate-700 group-hover/row:inline dark:hover:text-slate-200"
+            className="hidden shrink-0 text-xs text-slate-400 transition hover:text-slate-700 group-hover/row:inline group-focus-within/row:inline [@media(hover:none)]:inline dark:hover:text-slate-200"
             title="标为已读"
           >
             标已读
@@ -575,7 +593,7 @@ function RowMenu({ onMarkRead, onDelete }: { onMarkRead?: () => void; onDelete: 
           variant="ghost"
           size="icon-xs"
           aria-label="更多操作"
-          className="text-slate-400 opacity-0 transition group-hover/row:opacity-100"
+          className="text-slate-400 opacity-0 transition group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(hover:none)]:opacity-100"
         >
           <MoreHorizontal className="size-3.5" />
         </Button>
@@ -600,11 +618,11 @@ function CategoryTag({ category, level }: { category: AppNotificationCategory; l
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-3xs font-medium",
-        level === "error" && "bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
-        level === "warning" && "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-        level === "success" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-        level === "info" && "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium",
+        level === "error" && "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
+        level === "warning" && "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+        level === "success" && "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+        level === "info" && "bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]",
       )}
     >
       {NOTIFICATION_CATEGORY_LABEL[category]}
@@ -615,34 +633,9 @@ function CategoryTag({ category, level }: { category: AppNotificationCategory; l
 function ListEndMarker({ hasUnread }: { hasUnread: boolean }) {
   return (
     <div className="flex items-center justify-center gap-3 py-5 text-xs text-slate-400 dark:text-slate-500">
-      <span className="h-px w-20 bg-slate-200 dark:bg-white/10" aria-hidden />
+      <span className="h-px w-20 bg-[var(--agenthub-border)]" aria-hidden />
       <span>{hasUnread ? "没有更多通知" : "今日通知已全部处理 ✓"}</span>
-      <span className="h-px w-20 bg-slate-200 dark:bg-white/10" aria-hidden />
-    </div>
-  )
-}
-
-function EmptyStateLite({
-  title,
-  description,
-  action,
-}: {
-  title: string
-  description?: string
-  action?: { label: string; onClick: () => void }
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[var(--agenthub-border)] py-10 text-center">
-      <div className="flex size-9 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-white/5">
-        <Bell className="size-4" />
-      </div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
-      {description && <p className="max-w-md text-xs leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
-      {action && (
-        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={action.onClick}>
-          {action.label}
-        </Button>
-      )}
+      <span className="h-px w-20 bg-[var(--agenthub-border)]" aria-hidden />
     </div>
   )
 }

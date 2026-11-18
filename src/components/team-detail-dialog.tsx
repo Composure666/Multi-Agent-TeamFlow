@@ -1,11 +1,13 @@
 'use client'
 
-import { MessageSquare, Pencil, Trash2, Users } from 'lucide-react'
+import { Loader2, MessageSquare, Pencil, Trash2, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
 import { CreateAgentDialog } from '@/components/create-agent-dialog'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState, InlineError } from '@/components/workbench-primitives'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { LoadingIndicator } from '@/components/ui/loading-indicator'
 import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow, ConversationWithMeta } from '@/db/schema'
+import { cn } from '@/lib/utils'
 import type { TeamWithMembers } from '@/server/team-service'
 
 interface TeamDetailDialogProps {
@@ -35,6 +38,7 @@ interface TeamDetailDialogProps {
 export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpdated, onStartChat }: TeamDetailDialogProps) {
   const [team, setTeam] = useState<TeamWithMembers | null>(null)
   const [loading, setLoading] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -75,7 +79,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
         .then((d) => setAllAgents(d.agents ?? []))
         .catch(() => {})
     }
-  }, [open, teamId])
+  }, [open, teamId, retryKey])
 
   const handleSave = async () => {
     if (!teamId || !editName.trim()) return
@@ -199,7 +203,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-4xl overflow-hidden">
+      <DialogContent className={cn("max-h-[90vh] w-[calc(100vw-2rem)] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="size-4" />
@@ -210,14 +214,16 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
           </DialogDescription>
         </DialogHeader>
 
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-            {error}
-          </div>
-        )}
+        {error && <InlineError message={error} onRetry={() => setRetryKey((k) => k + 1)} />}
 
         {loading ? (
-          <LoadingIndicator variant="spinner" size="md" className="py-14" />
+          <div className="flex flex-col items-center justify-center gap-2 py-14">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">正在加载团队详情…</p>
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => setRetryKey((k) => k + 1)}>
+              重新加载
+            </Button>
+          </div>
         ) : team ? (
           <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-0.5 py-1">
             {/* 基本信息 */}
@@ -241,7 +247,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border bg-muted/30 p-4">
+              <div className="agenthub-card p-4">
                 <div className="text-sm font-medium">{team.name}</div>
                 {team.description && <div className="mt-1 text-xs text-muted-foreground">{team.description}</div>}
                 {team.goal && (
@@ -268,9 +274,12 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
             </div>
 
             {showAddMember && (
-              <div className="max-h-40 overflow-y-auto rounded-md border">
+              <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--agenthub-border)]">
                 {availableAgents.length === 0 ? (
-                  <div className="px-3 py-3 text-center text-xs text-muted-foreground">所有 Agent 已在团队中</div>
+                  <div className="flex flex-col items-center gap-1.5 px-3 py-3 text-center">
+                    <Users className="size-4 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">所有 Agent 已在团队中</p>
+                  </div>
                 ) : (
                   availableAgents.map((a) => (
                     <button
@@ -289,7 +298,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
 
             <div className="flex flex-col gap-2">
               {team.members.map((m) => (
-                <div key={m.id} className="group flex items-center gap-3 rounded-md border bg-card px-3 py-2.5">
+                <div key={m.id} className="agenthub-card group flex items-center gap-3 px-3 py-2.5">
                   <AgentAvatar agent={{ id: m.agentId, name: m.agentName, avatar: m.agentAvatar } as AgentRow} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -326,7 +335,12 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
                 </div>
               ))}
               {team.members.length === 0 && (
-                <div className="px-3 py-6 text-center text-xs text-muted-foreground">团队暂无成员</div>
+                <EmptyState
+                  icon={Users}
+                  title="团队暂无成员"
+                  description="从 Agent 库里添加成员，团队才能开始对话。"
+                  action={{ label: '添加成员', onClick: () => setShowAddMember(true) }}
+                />
               )}
             </div>
           </div>

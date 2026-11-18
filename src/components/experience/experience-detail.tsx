@@ -16,6 +16,7 @@ import {
   Repeat2,
   CheckCircle2,
   XCircle,
+  Loader2,
 } from 'lucide-react'
 import type { ExperienceRow } from '@/db/schema'
 import { Badge } from '@/components/ui/badge'
@@ -42,9 +43,9 @@ const KIND_LABEL: Record<string, string> = {
 }
 
 const KIND_COLOR: Record<string, string> = {
-  experience: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+  experience: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] border-[var(--agenthub-accent-border)]',
   reflection: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
-  profile_fact: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  profile_fact: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
 }
 
 /** 迭代快照的四种来源：内容修订 / 验证有效 / 停用 / 回滚 */
@@ -52,26 +53,26 @@ const REVISION_META: Record<string, { label: string; icon: typeof History; badge
   refine: {
     label: '内容修订',
     icon: Repeat2,
-    badge: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+    badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
     iconBg: 'bg-amber-500/10 text-amber-500',
   },
   confirm: {
     label: '验证有效',
     icon: CheckCircle2,
-    badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+    badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
     iconBg: 'bg-emerald-500/10 text-emerald-500',
   },
   retire: {
     label: '自动停用',
     icon: XCircle,
     badge: 'bg-rose-500/10 text-rose-600 border-rose-500/20',
-    iconBg: 'bg-rose-500/10 text-rose-500',
+    iconBg: 'bg-rose-500/10 text-rose-500 dark:text-rose-400',
   },
   restore: {
     label: '回滚到此处',
     icon: RotateCcw,
-    badge: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-    iconBg: 'bg-blue-500/10 text-blue-500',
+    badge: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] border-[var(--agenthub-accent-border)]',
+    iconBg: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
   },
 }
 
@@ -153,7 +154,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
       {/* 顶部操作栏 */}
-      <div className="flex shrink-0 items-center justify-between border-b px-6 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--agenthub-border)] px-6 py-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <button onClick={onBack} className="flex items-center gap-1 hover:text-foreground">
             <ArrowLeft className="size-3.5" />
@@ -174,15 +175,15 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
         {/* 标题区 */}
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="min-w-0 break-words text-xl font-semibold">{item.title}</h1>
-            <Badge className={cn('border text-3xs font-normal', KIND_COLOR[item.kind])}>
+            <h1 className="font-heading min-w-0 break-words text-xl font-semibold">{item.title}</h1>
+            <Badge className={cn('border text-xs font-normal', KIND_COLOR[item.kind])}>
               {KIND_LABEL[item.kind]}
             </Badge>
             <Badge className={cn(
-              'border text-3xs font-normal',
+              'border text-xs font-normal',
               item.active
-                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                : 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
             )}>
               {item.active ? '已启用' : '草稿'}
             </Badge>
@@ -204,7 +205,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
             {item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {item.tags.map((tag) => (
-                  <span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
+                  <span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                     #{tag}
                   </span>
                 ))}
@@ -228,7 +229,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
         <div>
           <h2 className="mb-2 text-sm font-medium">经验内容</h2>
           <div
-            className="prose prose-sm max-w-none overflow-hidden rounded-xl border bg-card p-4 text-sm leading-relaxed break-words [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5"
+            className="prose prose-sm max-w-none overflow-hidden agenthub-card p-4 text-sm leading-relaxed break-words [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5"
             dangerouslySetInnerHTML={{ __html: safeContent || '<p class="text-muted-foreground">暂无内容</p>' }}
           />
         </div>
@@ -241,10 +242,14 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
               {revisions.length > 0 ? `${revisions.length} 个快照` : ''}
             </span>
           </div>
-          <div className="rounded-xl border bg-card">
+          <div className="agenthub-card">
             {revisions.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                暂无迭代记录。经验被运行复盘修订或人工编辑后，会在这里留下可回滚的快照。
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <History className="size-5" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">暂无迭代记录</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">经验被运行复盘修订或人工编辑后，会在这里留下可回滚的快照。</p>
               </div>
             ) : (
               <div className="divide-y">
@@ -259,12 +264,12 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-medium">{meta.label}</span>
-                          <Badge className={cn('border text-3xs font-normal', meta.badge)}>
+                          <Badge className={cn('border text-xs font-normal', meta.badge)}>
                             {rev.source === 'auto' ? 'Agent 自动' : '人工'}
                           </Badge>
                           <span className="text-xs text-muted-foreground">{formatDate(rev.createdAt)}</span>
                           {rev.runId && (
-                            <span className="font-mono text-3xs text-muted-foreground">
+                            <span className="font-mono text-xs text-muted-foreground">
                               Run {rev.runId.slice(0, 8)}
                             </span>
                           )}
@@ -296,7 +301,7 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
             {revisions.length > 5 && (
               <div className="border-t px-4 py-2 text-center">
                 <button
-                  className="text-xs text-blue-500 hover:underline"
+                  className="text-xs text-[var(--agenthub-accent)] hover:underline"
                   onClick={() => setShowAllRevisions(!showAllRevisions)}
                 >
                   {showAllRevisions ? '收起' : `查看全部 (${revisions.length})`}
@@ -310,27 +315,31 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-medium">使用记录</h2>
-            <button className="text-xs text-blue-500 hover:underline" onClick={() => setShowAllUsage(!showAllUsage)}>{showAllUsage ? "收起" : `查看全部 (${usageRecords.length})`}</button>
+            <button className="text-xs text-[var(--agenthub-accent)] hover:underline" onClick={() => setShowAllUsage(!showAllUsage)}>{showAllUsage ? "收起" : `查看全部 (${usageRecords.length})`}</button>
           </div>
-          <div className="rounded-xl border bg-card">
+          <div className="agenthub-card">
             {visibleUsage.length > 0 ? (
               <div className="divide-y">
                 {visibleUsage.map((rec) => (
                   <div key={rec.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                      <History className="size-4 text-blue-500" />
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--agenthub-accent-soft)]">
+                      <History className="size-4 text-[var(--agenthub-accent)]" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-medium">经验注入</div>
                       <div className="text-xs text-muted-foreground">{formatDate(rec.createdAt)}</div>
                     </div>
-                    <Badge className="border-0 bg-blue-500/10 text-3xs text-blue-600">Run {rec.runId.slice(0, 8)}</Badge>
+                    <Badge className="border-0 bg-[var(--agenthub-accent-soft)] text-xs text-[var(--agenthub-accent)]">Run {rec.runId.slice(0, 8)}</Badge>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                暂无使用记录
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <History className="size-5" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">暂无使用记录</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">经验被注入 Agent 任务后，使用记录会出现在这里。</p>
               </div>
             )}
           </div>
@@ -344,9 +353,14 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
               <span className="text-xs text-muted-foreground">{files.length} 个文件</span>
             )}
           </div>
-          <div className="rounded-xl border bg-card">
+          <div className="agenthub-card">
             {filesLoading ? (
-              <div className="px-4 py-6 text-center text-xs text-muted-foreground">加载中…</div>
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Loader2 className="size-5 animate-spin" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载附件…</div>
+              </div>
             ) : files.length > 0 ? (
               <div className="divide-y">
                 {files.map((f) => (
@@ -380,8 +394,12 @@ export function ExperienceDetail({ item, agentName, onBack, onEdit, onUpdated }:
                 ))}
               </div>
             ) : (
-              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                暂无参考附件
+              <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Paperclip className="size-5" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">暂无参考附件</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">编辑经验时可以添加参考文件，随经验一起保留。</p>
               </div>
             )}
           </div>
@@ -399,7 +417,7 @@ function formatFileSize(bytes: number): string {
 
 function StatBox({ icon: Icon, label, value }: { icon: typeof Zap; label: string; value: string }) {
   return (
-    <div className="rounded-xl border bg-card px-3 py-2.5">
+    <div className="agenthub-card px-3 py-2.5">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icon className="size-3" />
         {label}

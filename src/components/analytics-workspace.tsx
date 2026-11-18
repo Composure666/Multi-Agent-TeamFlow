@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  BarChart3,
   Bot,
   Calendar,
   CheckCircle2,
@@ -16,6 +17,8 @@ import {
   Coins,
   Download,
   Filter,
+  Inbox,
+  Loader2,
   LogIn,
   MoreHorizontal,
   RefreshCw,
@@ -35,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { EmptyState, InlineError, PageCard } from '@/components/workbench-primitives'
+import { EmptyState, InlineError, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import {
   fetchAutomationDashboard,
   fetchRunAnalytics,
@@ -82,12 +85,12 @@ type LiveActivityItem = {
 
 type TaskListTab = '全部' | '运行中' | '成功' | '失败' | '已中止'
 
-const CHART_COLORS = ['#2F5FD0', '#7C3AED', '#10B981', '#F59E0B', '#6B7280']
+const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
 const STATUS_COLORS: Record<RunStatus, string> = {
-  成功: '#10B981',
-  运行中: '#2F5FD0',
-  失败: '#F43F5E',
+  成功: 'var(--agenthub-success)',
+  运行中: 'var(--chart-1)',
+  失败: 'var(--agenthub-error)',
   已中止: '#94A3B8',
 }
 
@@ -287,275 +290,302 @@ export function AnalyticsWorkspace() {
     : `${dateStart} ~ ${dateEnd}`
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F0F2F5] dark:bg-[#0F1115]">
-      {/* Header */}
-      <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-6">
-        <div className="min-w-0">
-          <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">数据概览</h1>
-          <p className="mt-1 text-sm text-slate-500">多维度了解 Agent 的运行情况、任务效率与资源使用</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative" ref={dateRangeRef}>
-            <button type="button" onClick={() => setDateRangeOpen(!dateRangeOpen)} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-50">
-              <Calendar className="size-3.5 text-slate-400" />
-              <span>{datePreset}</span>
-              <ChevronDown className={cn('size-3 text-slate-400 transition', dateRangeOpen && 'rotate-180')} />
-            </button>
-            {dateRangeOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                {DATE_PRESETS.map((p) => (
-                  <button key={p} type="button" onClick={() => { const r = getDateRangeForPreset(p); setDatePreset(p); setDateStart(r.start); setDateEnd(r.end); setDateRangeOpen(false) }} className={cn('block w-full px-3 py-2 text-left text-xs transition hover:bg-slate-50', datePreset === p ? 'bg-blue-50/50 font-medium text-[#2F5FD0]' : 'text-slate-600')}>{p}</button>
-                ))}
-                <div className="my-1 border-t border-slate-100" />
-                <div className="px-3 py-2">
-                  <div className="mb-1.5 text-3xs font-medium text-slate-400">自定义范围</div>
-                  <div className="flex items-center gap-1">
-                    <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
-                    <span className="text-slate-300">~</span>
-                    <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="h-7 w-full rounded border border-slate-200 px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-200" />
+    <PageShell contentClassName="w-full max-w-none">
+      <PageHeader
+        title="数据概览"
+        description="多维度了解 Agent 的运行情况、任务效率与资源使用"
+        actions={
+          <>
+            <div className="relative" ref={dateRangeRef}>
+              <button type="button" onClick={() => setDateRangeOpen(!dateRangeOpen)} className="flex items-center gap-1.5 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-1.5 text-xs text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)]">
+                <Calendar className="size-3.5 text-slate-400" />
+                <span>{datePreset}</span>
+                <ChevronDown className={cn('size-3 text-slate-400 transition', dateRangeOpen && 'rotate-180')} />
+              </button>
+              {dateRangeOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] py-1 shadow-lg">
+                  {DATE_PRESETS.map((p) => (
+                    <button key={p} type="button" onClick={() => { const r = getDateRangeForPreset(p); setDatePreset(p); setDateStart(r.start); setDateEnd(r.end); setDateRangeOpen(false) }} className={cn('block w-full px-3 py-2 text-left text-xs transition hover:bg-[var(--agenthub-surface-muted)]', datePreset === p ? 'bg-[var(--agenthub-accent-soft)] font-medium text-[var(--agenthub-accent)]' : 'text-slate-600')}>{p}</button>
+                  ))}
+                  <div className="my-1 border-t border-[var(--agenthub-border)]" />
+                  <div className="px-3 py-2">
+                    <div className="mb-1.5 text-xs font-medium text-slate-400">自定义范围</div>
+                    <div className="flex items-center gap-1">
+                      <input type="date" value={dateStart} onChange={(e) => setDateStart(e.target.value)} className="h-7 w-full rounded border border-[var(--agenthub-border)] px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-[var(--agenthub-accent-border)]" />
+                      <span className="text-slate-300">~</span>
+                      <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="h-7 w-full rounded border border-[var(--agenthub-border)] px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-[var(--agenthub-accent-border)]" />
+                    </div>
+                    <button type="button" onClick={() => { setDatePreset('自定义' as DatePreset); setDateRangeOpen(false) }} className="mt-1.5 w-full rounded bg-[var(--agenthub-accent)] py-1 text-xs font-medium text-white transition hover:bg-[var(--agenthub-accent-hover)]">应用</button>
                   </div>
-                  <button type="button" onClick={() => { setDatePreset('自定义' as DatePreset); setDateRangeOpen(false) }} className="mt-1.5 w-full rounded bg-[#2F5FD0] py-1 text-xs font-medium text-white transition hover:bg-[#244FB3]">应用</button>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-1.5 text-xs text-slate-500">
+              <span>{rangeLabel}</span>
+            </div>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg border-[var(--agenthub-border)] text-xs" disabled={loading} onClick={() => void load()}>
+              <RefreshCw className={cn('size-3', loading && 'animate-spin')} />
+              刷新
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg border-[var(--agenthub-border)] text-xs" onClick={() => handleExport()}>
+              <Download className="size-3" />
+              导出
+            </Button>
+          </>
+        }
+      />
+      {loadError && <InlineError message={loadError} onRetry={() => void load()} />}
+      {isInitialLoading && (
+        <PageCard className="flex flex-col items-center gap-2 py-10 text-center">
+          <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+            <Loader2 className="size-5 animate-spin" />
+          </div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载分析数据…</div>
+          <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在汇总运行记录、用量与自动化数据。</p>
+          <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => void load()}>
+            重新加载
+          </Button>
+        </PageCard>
+      )}
+
+      {!isInitialLoading && (
+        <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:gap-4">
+            <KpiCard
+              icon={Bot}
+              label="Agent 运行数"
+              value={`${totalRuns}`}
+              trend={runsTrend}
+              caption={isAllTime ? '全部时间累计' : `较上周期 ${stats?.prevTotal ?? 0}`}
+              subCaption={`今日 ${todayRuns} 次 · 全部 ${allTimeRuns} 次`}
+              sparkline={trend.map((p) => p.value)}
+              tone="blue"
+            />
+            <KpiCard
+              icon={Coins}
+              label="Token 用量"
+              value={formatTok(selectedTokens)}
+              trend={tokensTrend}
+              caption={`较上周期 ${formatTok(prevSelectedTokens)}`}
+              subCaption={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`}
+              sparkline={trend.map((p) => p.value)}
+              tone="purple"
+            />
+            <KpiCard
+              icon={Workflow}
+              label="自动化任务"
+              value={`${automationCount}`}
+              trend={null}
+              caption={`${activeAutomationCount} 个任务进行中`}
+              subCaption={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`}
+              sparkline={trend.map((p) => p.completed)}
+              tone="emerald"
+            />
+            <KpiCard
+              icon={CheckCircle2}
+              label="任务成功率"
+              value={`${successRate}%`}
+              trend={null}
+              caption={`成功 ${stats?.success ?? 0} / 已结束 ${(stats?.success ?? 0) + (stats?.failed ?? 0) + (stats?.aborted ?? 0)}`}
+              subCaption={
+                (stats?.failed ?? 0) + (stats?.aborted ?? 0) > 0
+                  ? `失败 ${stats?.failed ?? 0} · 中止 ${stats?.aborted ?? 0} · 平均耗时 ${formatDuration(stats?.avgDurationMs ?? null)}`
+                  : `全部成功 · 平均耗时 ${formatDuration(stats?.avgDurationMs ?? null)}`
+              }
+              sparkline={trend.map((p) => (p.value > 0 ? Math.round((p.completed / p.value) * 100) : 0))}
+              tone={(stats?.failed ?? 0) > 0 ? 'rose' : 'emerald'}
+            />
+          </div>
+
+          {/* Main area: 3-column layout */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(220px,1fr)_minmax(240px,1.1fr)] lg:gap-5">
+            {/* Left: Trend Chart */}
+            <div className="agenthub-card p-5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">运行趋势</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {isAllTime ? '全部时间' : `${dateStart} ~ ${dateEnd}`} Agent 运行次数与成功次数
+                    {trend.length > 31 && '（按周聚合）'}
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
-            <span>{rangeLabel}</span>
-          </div>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg border-slate-200 text-xs" disabled={loading} onClick={() => void load()}>
-            <RefreshCw className={cn('size-3', loading && 'animate-spin')} />
-            刷新
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg border-slate-200 text-xs" onClick={() => handleExport()}>
-            <Download className="size-3" />
-            导出
-          </Button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="agenthub-hide-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5 xl:px-8 xl:py-6">
-        {loadError && <InlineError message={loadError} onRetry={() => void load()} />}
-        {isInitialLoading && <PageCard className="py-6 text-center text-sm text-slate-500">正在加载分析数据...</PageCard>}
-
-        {!isInitialLoading && (
-          <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:gap-4">
-              <KpiCard
-                icon={Bot}
-                label="Agent 运行数"
-                value={`${totalRuns}`}
-                trend={runsTrend}
-                caption={isAllTime ? '全部时间累计' : `较上周期 ${stats?.prevTotal ?? 0}`}
-                subCaption={`今日 ${todayRuns} 次 · 全部 ${allTimeRuns} 次`}
-                sparkline={trend.map((p) => p.value)}
-                tone="blue"
-              />
-              <KpiCard
-                icon={Coins}
-                label="Token 用量"
-                value={formatTok(selectedTokens)}
-                trend={tokensTrend}
-                caption={`较上周期 ${formatTok(prevSelectedTokens)}`}
-                subCaption={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`}
-                sparkline={trend.map((p) => p.value)}
-                tone="purple"
-              />
-              <KpiCard
-                icon={Workflow}
-                label="自动化任务"
-                value={`${automationCount}`}
-                trend={null}
-                caption={`${activeAutomationCount} 个任务进行中`}
-                subCaption={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`}
-                sparkline={trend.map((p) => p.completed)}
-                tone="emerald"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                label="任务成功率"
-                value={`${successRate}%`}
-                trend={null}
-                caption={`成功 ${stats?.success ?? 0} / 已结束 ${(stats?.success ?? 0) + (stats?.failed ?? 0) + (stats?.aborted ?? 0)}`}
-                subCaption={
-                  (stats?.failed ?? 0) + (stats?.aborted ?? 0) > 0
-                    ? `失败 ${stats?.failed ?? 0} · 中止 ${stats?.aborted ?? 0} · 平均耗时 ${formatDuration(stats?.avgDurationMs ?? null)}`
-                    : `全部成功 · 平均耗时 ${formatDuration(stats?.avgDurationMs ?? null)}`
-                }
-                sparkline={trend.map((p) => (p.value > 0 ? Math.round((p.completed / p.value) * 100) : 0))}
-                tone={(stats?.failed ?? 0) > 0 ? 'rose' : 'emerald'}
-              />
+              <div className="mt-3 flex items-center gap-5 text-sm text-slate-500">
+                <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[var(--agenthub-accent)]" />Agent 运行次数</span>
+                <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[var(--agenthub-success)]" />成功次数</span>
+              </div>
+              {trend.length === 0 ? (
+                <PanelEmpty icon={BarChart3} title="该时间段内没有运行记录" description="调整时间范围后，运行趋势会出现在这里。" />
+              ) : (
+                <TrendChart data={trend} maxTrend={maxTrend} hoveredBar={hoveredBar} hoveredLine={hoveredLine} onHoverBar={setHoveredBar} onHoverLine={setHoveredLine} />
+              )}
             </div>
 
-            {/* Main area: 3-column layout */}
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(220px,1fr)_minmax(240px,1.1fr)] lg:gap-5">
-              {/* Left: Trend Chart */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h2 className="text-base font-semibold tracking-tight text-slate-900">运行趋势</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {isAllTime ? '全部时间' : `${dateStart} ~ ${dateEnd}`} Agent 运行次数与成功次数
-                      {trend.length > 31 && '（按周聚合）'}
-                    </p>
+            {/* Middle: Agent Distribution Donut */}
+            <div className="agenthub-card p-5">
+              <div className="flex items-center justify-between"><h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">Agent 运行分布</h2></div>
+              <DonutChart items={agentDistribution} total={totalRuns} />
+              <div className="mt-3 space-y-2">
+                {agentDistribution.map((item, i) => (
+                  <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-sm">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      <span className="truncate text-slate-600">{item.label}</span>
+                    </span>
+                    <span className="shrink-0 text-slate-500">{item.value}% <span className="ml-1.5 text-slate-400">{item.count}</span></span>
                   </div>
-                </div>
-                <div className="mt-3 flex items-center gap-5 text-sm text-slate-500">
-                  <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[#2F5FD0]" />Agent 运行次数</span>
-                  <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[#10B981]" />成功次数</span>
-                </div>
-                {trend.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-slate-400">该时间段内没有运行记录</div>
-                ) : (
-                  <TrendChart data={trend} maxTrend={maxTrend} hoveredBar={hoveredBar} hoveredLine={hoveredLine} onHoverBar={setHoveredBar} onHoverLine={setHoveredLine} />
-                )}
+                ))}
+                {agentDistribution.length === 0 && <PanelEmpty title="暂无分布数据" description="有 Agent 运行记录后，这里会显示各 Agent 的占比。" />}
               </div>
+            </div>
 
-              {/* Middle: Agent Distribution Donut */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                <div className="flex items-center justify-between"><h2 className="text-base font-semibold tracking-tight text-slate-900">Agent 运行分布</h2></div>
-                <DonutChart items={agentDistribution} total={totalRuns} />
-                <div className="mt-3 space-y-2">
-                  {agentDistribution.map((item, i) => (
-                    <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-sm">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        <span className="truncate text-slate-600">{item.label}</span>
-                      </span>
-                      <span className="shrink-0 text-slate-500">{item.value}% <span className="ml-1.5 text-slate-400">{item.count}</span></span>
-                    </div>
-                  ))}
-                  {agentDistribution.length === 0 && <div className="py-3 text-center text-xs text-slate-400">暂无分布数据</div>}
+            {/* Right: Sidebar */}
+            <div className="space-y-4 lg:row-span-2">
+              {/* Live Activity */}
+              <div className="agenthub-card p-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">最近运行动态</h2>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
                 </div>
-              </div>
-
-              {/* Right: Sidebar */}
-              <div className="space-y-4 lg:row-span-2">
-                {/* Live Activity */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold tracking-tight text-slate-900">最近运行动态</h2>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
-                  </div>
-                  <div className="mt-3 space-y-0">
-                    {liveActivities.length === 0 ? (
-                      <div className="py-3 text-center text-xs text-slate-400">暂无运行动态</div>
-                    ) : liveActivities.map((item, i) => {
-                      const dotColor = item.status === '成功' ? 'bg-emerald-500' : item.status === '运行中' ? 'bg-blue-500' : item.status === '已中止' ? 'bg-slate-400' : 'bg-rose-500'
-                      const prevStatus = i > 0 ? liveActivities[i - 1].status : item.status
-                      const lineColor = prevStatus === '成功' ? 'bg-emerald-200' : prevStatus === '运行中' ? 'bg-blue-200' : prevStatus === '已中止' ? 'bg-slate-200' : 'bg-rose-200'
-                      const isLast = i === liveActivities.length - 1
-                      return (
-                        <div key={`live-${i}-${item.title}`} className="flex gap-3">
-                          <div className="flex w-12 shrink-0 flex-col items-center">
-                            <span className="text-xs leading-none text-slate-400">{item.time}</span>
-                            <div className="relative mt-1.5 flex flex-1 flex-col items-center">
-                              <span className={cn('size-2.5 shrink-0 rounded-full ring-2 ring-white', dotColor, item.status === '运行中' && 'animate-pulse')} />
-                              {!isLast && <span className={cn('mt-0.5 w-px flex-1', lineColor)} />}
-                            </div>
-                          </div>
-                          <div className="min-w-0 flex-1 pb-3.5">
-                            <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
-                            <p className="mt-0.5 truncate text-sm text-slate-400">{item.description}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Status Distribution */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-                  <h2 className="text-base font-semibold tracking-tight text-slate-900">运行状态分布</h2>
-                  <div className="mt-3 space-y-2.5">
-                    {statusDistribution.map((item) => (
-                      <div key={`st-${item.label}`}>
-                        <div className="mb-1.5 flex items-center justify-between text-sm">
-                          <span className="flex items-center gap-2 text-slate-600"><span className="size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[item.label as RunStatus] ?? '#94A3B8' }} />{item.label}</span>
-                          <span className="font-medium text-slate-700">{item.count} 次 · {item.value}%</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full transition-all" style={{ width: `${item.value}%`, backgroundColor: STATUS_COLORS[item.label as RunStatus] ?? '#94A3B8' }} /></div>
-                      </div>
-                    ))}
-                    {statusDistribution.length === 0 && <div className="py-3 text-center text-xs text-slate-400">暂无分布数据</div>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Task List */}
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md lg:col-span-2">
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold tracking-tight text-slate-900">任务列表</h2>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      数据源 agent_runs · 范围内共 {totalRuns} 条
-                      {analytics?.truncated && `（列表展示最近 ${analytics.items.length} 条）`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
-                      <Input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="搜索任务 / Agent..." className="h-8 w-60 rounded-lg border-slate-200 bg-slate-50 pl-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-blue-200" />
-                    </div>
-                    <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={cn('h-8 w-8 rounded-lg border-slate-200 p-0', taskAgentFilter.size > 0 && 'border-[#2F5FD0] bg-blue-50/60 text-[#2F5FD0]')}
-                          aria-label="按 Agent 筛选"
-                        >
-                          <Filter className="size-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-52">
-                        <DropdownMenuLabel className="flex items-center justify-between">
-                          <span>按 Agent 筛选</span>
-                          {taskAgentFilter.size > 0 && (
-                            <button type="button" onClick={() => setTaskAgentFilter(new Set())} className="text-xs font-normal text-[#2F5FD0] hover:underline">清除 ({taskAgentFilter.size})</button>
-                          )}
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {availableAgents.length === 0 && <div className="px-2 py-2 text-sm text-slate-400">暂无 Agent</div>}
-                        {availableAgents.map((name) => (
-                          <DropdownMenuCheckboxItem
-                            key={`agent-${name}`}
-                            checked={taskAgentFilter.has(name)}
-                            onCheckedChange={(checked) => {
-                              setTaskAgentFilter((prev) => {
-                                const next = new Set(prev)
-                                if (checked) next.add(name)
-                                else next.delete(name)
-                                return next
-                              })
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {name}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-5">
-                  {(['全部', '运行中', '成功', '失败', '已中止'] as TaskListTab[]).map((tab) => {
-                    const count = tab === '全部' ? runs.length : runs.filter((r) => r.status === tab).length
+                <div className="mt-3 space-y-0">
+                  {liveActivities.length === 0 ? (
+                    <PanelEmpty title="暂无运行动态" description="新的运行开始或结束时会出现在这里。" />
+                  ) : liveActivities.map((item, i) => {
+                    const dotColor = item.status === '成功' ? 'bg-emerald-500' : item.status === '运行中' ? 'bg-[var(--agenthub-accent)]' : item.status === '已中止' ? 'bg-slate-400' : 'bg-rose-500'
+                    const prevStatus = i > 0 ? liveActivities[i - 1].status : item.status
+                    const lineColor = prevStatus === '成功' ? 'bg-emerald-200' : prevStatus === '运行中' ? 'bg-[var(--agenthub-accent-border)]' : prevStatus === '已中止' ? 'bg-[var(--agenthub-border)]' : 'bg-rose-200'
+                    const isLast = i === liveActivities.length - 1
                     return (
-                      <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative shrink-0 px-3 py-2.5 text-sm font-medium transition', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-500 hover:text-slate-700')}>
-                        {tab}<span className={cn('ml-1.5 text-xs', taskTab === tab ? 'text-[#2F5FD0]' : 'text-slate-400')}>{count}</span>
-                        {taskTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#2F5FD0]" />}
-                      </button>
+                      <div key={`live-${i}-${item.title}`} className="flex gap-3">
+                        <div className="flex w-12 shrink-0 flex-col items-center">
+                          <span className="text-xs leading-none text-slate-400">{item.time}</span>
+                          <div className="relative mt-1.5 flex flex-1 flex-col items-center">
+                            <span className={cn('size-2.5 shrink-0 rounded-full ring-2 ring-white', dotColor, item.status === '运行中' && 'animate-pulse')} />
+                            {!isLast && <span className={cn('mt-0.5 w-px flex-1', lineColor)} />}
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1 pb-3.5">
+                          <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-medium text-slate-800">{item.title}</span><StatusBadge status={item.status} /></div>
+                          <p className="mt-0.5 truncate text-sm text-slate-400">{item.description}</p>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
-                <TaskTable tasks={filteredTasks} onOpenRun={openRunTarget} onOpenConversation={openConversation} />
+              </div>
+
+              {/* Status Distribution */}
+              <div className="agenthub-card p-5">
+                <h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">运行状态分布</h2>
+                <div className="mt-3 space-y-2.5">
+                  {statusDistribution.map((item) => (
+                    <div key={`st-${item.label}`}>
+                      <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2 text-slate-600"><span className="size-1.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[item.label as RunStatus] ?? '#94A3B8' }} />{item.label}</span>
+                        <span className="font-medium text-slate-700">{item.count} 次 · {item.value}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-[var(--agenthub-surface-muted)]"><div className="h-full rounded-full transition-all" style={{ width: `${item.value}%`, backgroundColor: STATUS_COLORS[item.label as RunStatus] ?? '#94A3B8' }} /></div>
+                    </div>
+                  ))}
+                  {statusDistribution.length === 0 && <PanelEmpty title="暂无分布数据" description="有运行记录后，这里会显示各状态的占比。" />}
+                </div>
               </div>
             </div>
+
+            {/* Task List */}
+            <div className="agenthub-card overflow-hidden lg:col-span-2">
+              <div className="flex items-center justify-between gap-2 border-b border-[var(--agenthub-border)] px-5 py-3.5">
+                <div className="min-w-0">
+                  <h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">任务列表</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    数据源 agent_runs · 范围内共 {totalRuns} 条
+                    {analytics?.truncated && `（列表展示最近 ${analytics.items.length} 条）`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} placeholder="搜索任务 / Agent..." className="h-8 w-60 rounded-lg border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] pl-8 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-[var(--agenthub-accent-border)]" />
+                  </div>
+                  <DropdownMenu open={filterMenuOpen} onOpenChange={setFilterMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn('h-8 w-8 rounded-lg border-[var(--agenthub-border)] p-0', taskAgentFilter.size > 0 && 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
+                        aria-label="按 Agent 筛选"
+                      >
+                        <Filter className="size-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuLabel className="flex items-center justify-between">
+                        <span>按 Agent 筛选</span>
+                        {taskAgentFilter.size > 0 && (
+                          <button type="button" onClick={() => setTaskAgentFilter(new Set())} className="text-xs font-normal text-[var(--agenthub-accent)] hover:underline">清除 ({taskAgentFilter.size})</button>
+                        )}
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {availableAgents.length === 0 && <div className="px-2 py-2 text-sm text-slate-400">暂无 Agent</div>}
+                      {availableAgents.map((name) => (
+                        <DropdownMenuCheckboxItem
+                          key={`agent-${name}`}
+                          checked={taskAgentFilter.has(name)}
+                          onCheckedChange={(checked) => {
+                            setTaskAgentFilter((prev) => {
+                              const next = new Set(prev)
+                              if (checked) next.add(name)
+                              else next.delete(name)
+                              return next
+                            })
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {name}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] px-5">
+                {(['全部', '运行中', '成功', '失败', '已中止'] as TaskListTab[]).map((tab) => {
+                  const count = tab === '全部' ? runs.length : runs.filter((r) => r.status === tab).length
+                  return (
+                    <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative shrink-0 px-3 py-2.5 text-sm font-medium transition', taskTab === tab ? 'text-[var(--agenthub-accent)]' : 'text-slate-500 hover:text-slate-700')}>
+                      {tab}<span className={cn('ml-1.5 text-xs', taskTab === tab ? 'text-[var(--agenthub-accent)]' : 'text-slate-400')}>{count}</span>
+                      {taskTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[var(--agenthub-accent)]" />}
+                    </button>
+                  )
+                })}
+              </div>
+              <TaskTable tasks={filteredTasks} onOpenRun={openRunTarget} onOpenConversation={openConversation} />
+            </div>
           </div>
-        )}
+        </div>
+      )}
+    </PageShell>
+  )
+}
+
+/* ── 卡片内空态：图标 + 一句话 + 说明，与 EmptyState 同一视觉语言 ── */
+function PanelEmpty({
+  icon: Icon = Inbox,
+  title,
+  description,
+}: {
+  icon?: React.ComponentType<{ className?: string }>
+  title: string
+  description?: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 py-8 text-center">
+      <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+        <Icon className="size-5" />
       </div>
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
+      {description && <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
     </div>
   )
 }
@@ -567,13 +597,13 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
   tone: 'blue' | 'purple' | 'emerald' | 'rose'
 }) {
   const tones: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-600', purple: 'bg-purple-50 text-purple-600',
-    emerald: 'bg-emerald-50 text-emerald-600', rose: 'bg-rose-50 text-rose-600',
+    blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400', purple: 'bg-purple-50 text-purple-600',
+    emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600',
   }
-  const sparkColor = tone === 'blue' ? '#2F5FD0' : tone === 'purple' ? '#7C3AED' : tone === 'emerald' ? '#10B981' : '#F43F5E'
+  const sparkColor = tone === 'blue' ? 'var(--primary)' : tone === 'purple' ? '#7C3AED' : tone === 'emerald' ? 'var(--agenthub-success)' : 'var(--agenthub-error)'
   const trendUp = (trend ?? 0) >= 0
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+    <article className="agenthub-card p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className={cn('flex size-9 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4" /></div>
@@ -586,7 +616,7 @@ function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkli
           {trend === null ? (
             <div className="mt-2 text-sm text-slate-400">{caption}</div>
           ) : (
-            <div className={cn('mt-2 flex items-center gap-1 text-sm font-medium', trendUp ? 'text-emerald-600' : 'text-rose-500')}>
+            <div className={cn('mt-2 flex items-center gap-1 text-sm font-medium', trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}>
               <TrendingUp className={cn('size-3.5', !trendUp && 'rotate-180')} />
               <span>{trendUp ? '+' : ''}{trend > 100 ? `${Math.round(trend / 10) / 10}%` : `${trend}%`}</span>
               <span className="ml-1 font-normal text-slate-400">{caption}</span>
@@ -607,12 +637,12 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   const pts = data.map((v, i) => `${data.length > 1 ? (i / (data.length - 1)) * w : 0},${h - ((v - min) / range) * (h - 4) - 2}`)
   const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p}`).join(' ')
   const areaD = `${pathD} L${w},${h} L0,${h} Z`
-  const gid = `sp-${color.replace('#', '')}`
+  const gid = `sp-${color.replace(/[^a-zA-Z0-9]/g, '')}`
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
-      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.2" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style={{ stopColor: color }} stopOpacity="0.2" /><stop offset="100%" style={{ stopColor: color }} stopOpacity="0" /></linearGradient></defs>
       <path d={areaD} fill={`url(#${gid})`} />
-      <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={pathD} fill="none" style={{ stroke: color }} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -655,8 +685,8 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
       <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-auto max-h-[300px] min-w-[440px] w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="trend-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10B981" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+            <stop offset="0%" style={{ stopColor: 'var(--agenthub-success)' }} stopOpacity="0.15" />
+            <stop offset="100%" style={{ stopColor: 'var(--agenthub-success)' }} stopOpacity="0" />
           </linearGradient>
         </defs>
         {yTicks.map((tick, i) => {
@@ -679,19 +709,19 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
           const isH = hoveredBar === i
           return (
             <g key={`bar-${point.date}`} onMouseEnter={() => onHoverBar(i)} onMouseLeave={() => onHoverBar(null)} className="cursor-pointer">
-              <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx="3" fill={isH ? '#1d4ed8' : '#2F5FD0'} opacity={isH ? 1 : 0.85} />
+              <rect x={cx - barW / 2} y={y} width={barW} height={barH} rx="3" style={{ fill: isH ? 'var(--agenthub-accent-hover)' : 'var(--chart-1)' }} opacity={isH ? 1 : 0.85} />
               {i % xLabelStride === 0 && (
                 <text x={cx} y={padT + plotH + 18} textAnchor="middle" fontSize="12" className="fill-slate-500 dark:fill-slate-400">{point.label}</text>
               )}
             </g>
           )
         })}
-        <path d={linePath} fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={linePath} fill="none" style={{ stroke: 'var(--agenthub-success)' }} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         {linePts.map((p, i) => {
           const isH = hoveredLine === i
           return (
             <g key={`lp-${p.idx}`} onMouseEnter={() => onHoverLine(i)} onMouseLeave={() => onHoverLine(null)} className="cursor-pointer">
-              <circle cx={p.x} cy={p.y} r={isH ? 5 : 3.5} fill="white" stroke="#10B981" strokeWidth="2" />
+              <circle cx={p.x} cy={p.y} r={isH ? 5 : 3.5} fill="white" style={{ stroke: 'var(--agenthub-success)' }} strokeWidth="2" />
             </g>
           )
         })}
@@ -703,14 +733,14 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
         const flipX = cxPct > 70
         const left = flipX ? `calc(${cxPct}% - ${TT_W}px - 12px)` : `calc(${cxPct}% + 12px)`
         return (
-          <div className="pointer-events-none absolute top-2 z-10 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-lg" style={{ left, width: TT_W }}>
+          <div className="pointer-events-none absolute top-2 z-10 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2 shadow-lg" style={{ left, width: TT_W }}>
             <div className="text-xs font-medium text-slate-500">{hoverPoint.label}</div>
             <div className="mt-1 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-sm text-slate-600"><span className="size-2 rounded-full bg-[#2F5FD0]" />运行次数</span>
+              <span className="flex items-center gap-1.5 text-sm text-slate-600"><span className="size-2 rounded-full bg-[var(--agenthub-accent)]" />运行次数</span>
               <span className="text-sm font-semibold text-slate-900">{hoverPoint.value}</span>
             </div>
             <div className="mt-0.5 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-sm text-slate-600"><span className="size-2 rounded-full bg-[#10B981]" />成功次数</span>
+              <span className="flex items-center gap-1.5 text-sm text-slate-600"><span className="size-2 rounded-full bg-[var(--agenthub-success)]" />成功次数</span>
               <span className="text-sm font-semibold text-slate-900">{hoverPoint.completed}</span>
             </div>
           </div>
@@ -741,7 +771,7 @@ function DonutChart({ items, total }: { items: DistributionItem[]; total: number
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg font-bold text-slate-900">{total}</span>
-        <span className="text-3xs text-slate-400">运行总数</span>
+        <span className="text-xs text-slate-400">运行总数</span>
       </div>
     </div>
   )
@@ -750,12 +780,12 @@ function DonutChart({ items, total }: { items: DistributionItem[]; total: number
 /* ─ Status Badge ── */
 function StatusBadge({ status }: { status: RunStatus }) {
   const s: Record<string, string> = {
-    运行中: 'bg-blue-50 text-blue-600',
-    成功: 'bg-emerald-50 text-emerald-600',
-    失败: 'bg-rose-50 text-rose-600',
-    已中止: 'bg-slate-100 text-slate-500',
+    运行中: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
+    成功: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    失败: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600',
+    已中止: 'bg-[var(--agenthub-surface-muted)] text-slate-500',
   }
-  return <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-3xs font-medium', s[status] ?? 'bg-slate-100 text-slate-500')}>{status}</span>
+  return <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-medium', s[status] ?? 'bg-[var(--agenthub-surface-muted)] text-slate-500')}>{status}</span>
 }
 
 /* ─ Task Table ── */
@@ -775,9 +805,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
 
   if (tasks.length === 0) {
     return (
-      <div className="py-10 text-center text-sm text-slate-400">
-        <EmptyState title="暂无匹配任务" description="尝试调整时间范围、筛选条件或搜索关键词" />
-      </div>
+      <EmptyState title="暂无匹配任务" description="尝试调整时间范围、筛选条件或搜索关键词" />
     )
   }
 
@@ -785,7 +813,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-slate-100 text-sm font-medium text-slate-400">
+          <tr className="border-b border-[var(--agenthub-border)] text-sm font-medium text-slate-400">
             <th className="px-5 py-2.5">任务名称</th>
             <th className="px-5 py-2.5">Agent</th>
             <th className="px-5 py-2.5">开始时间</th>
@@ -797,15 +825,15 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
         </thead>
         <tbody>
           {pagedTasks.map((run) => (
-            <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-slate-50/50">
+            <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-[var(--agenthub-surface-muted)]">
               <td className="max-w-[280px] px-5 py-3">
                 <div className="truncate font-medium text-slate-800" title={run.title}>{run.title}</div>
-                {run.isSubRun && <span className="text-3xs text-slate-400">子任务</span>}
+                {run.isSubRun && <span className="text-xs text-slate-400">子任务</span>}
               </td>
               <td className="px-5 py-3">
                 <div className="flex items-center gap-1.5">
                   <span className="max-w-[120px] truncate text-slate-700" title={run.agentName}>{run.agentName}</span>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500">{run.category}</span>
+                  <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-xs text-slate-500">{run.category}</span>
                 </div>
               </td>
               <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.createdAt}</td>
@@ -813,13 +841,13 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
               <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.totalTokens > 0 ? formatTok(run.totalTokens) : '—'}</td>
               <td className="px-5 py-3"><StatusBadge status={run.status} /></td>
               <td className="px-5 py-3 text-right">
-                <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-sm font-medium text-[#2F5FD0] hover:text-[#244FB3]">查看</button>
+                <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-sm font-medium text-[var(--agenthub-accent)] hover:text-[var(--agenthub-accent-hover)]">查看</button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
                       aria-label={`任务「${run.title}」的操作`}
-                      className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                      className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-600"
                     >
                       <MoreHorizontal className="size-4" />
                     </button>
@@ -842,14 +870,14 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
       </table>
       {/* 分页控件 */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-[var(--agenthub-border)] px-5 py-3">
           <span className="text-sm text-slate-400">共 {tasks.length} 条，第 {currentPage}/{totalPages} 页</span>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
-              className="flex h-7 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] px-2.5 text-sm text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ChevronLeft className="size-3.5" />上一页
             </button>
@@ -863,7 +891,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
                   onClick={() => setPage(p as number)}
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition',
-                    p === currentPage ? 'bg-[#2F5FD0] text-white' : 'text-slate-600 hover:bg-slate-100',
+                    p === currentPage ? 'bg-[var(--agenthub-accent)] text-white' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)]',
                   )}
                 >
                   {p}
@@ -874,7 +902,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage >= totalPages}
-              className="flex h-7 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-sm text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] px-2.5 text-sm text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页<ChevronRight className="size-3.5" />
             </button>

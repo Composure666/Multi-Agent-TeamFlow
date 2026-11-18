@@ -208,11 +208,11 @@ function MemoryCard({
   onDelete: () => void
 }) {
   return (
-    <div className={cn('rounded-xl border p-3 text-sm', active ? 'border-blue-200 bg-blue-50/50' : 'border-slate-100 bg-white')}>
+    <div className={cn('rounded-xl border p-3 text-sm', active ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]' : 'border-slate-100 bg-white')}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            {memory.pinned && <Pin className="size-3 text-blue-500" />}
+            {memory.pinned && <Pin className="size-3 text-[var(--agenthub-accent)]" />}
             <div className="truncate text-xs font-semibold text-slate-900">{memory.title}</div>
           </div>
           <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-slate-600">

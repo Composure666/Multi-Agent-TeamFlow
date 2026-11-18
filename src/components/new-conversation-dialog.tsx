@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 import { AgentAvatar } from '@/components/agent-avatar'
 import { DirPickerDialog } from '@/components/dir-picker-dialog'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState, InlineError } from '@/components/workbench-primitives'
 import {
   Dialog,
   DialogContent,
@@ -103,7 +105,7 @@ export function NewConversationDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className={cn("max-h-[85vh] overflow-y-auto", DIALOG_SIZE_CLASS.md)}>
         <DialogHeader>
           <DialogTitle>新建对话</DialogTitle>
           <DialogDescription>
@@ -113,10 +115,10 @@ export function NewConversationDialog({
 
         <div className="space-y-2 py-2">
           {agents.length === 0 ? (
-            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              暂无可用 Agent
-              <div className="mt-1 text-xs">点 Sidebar 里的「Agents」入口创建一个，或重启应用</div>
-            </div>
+            <EmptyState
+              title="暂无可用 Agent"
+              description="点 Sidebar 里的「Agents」入口创建一个，或重启应用。"
+            />
           ) : (
             agents.map((a) => {
               const isSelected = selected.has(a.id)
@@ -126,7 +128,7 @@ export function NewConversationDialog({
                   type="button"
                   onClick={() => toggle(a.id)}
                   className={cn(
-                    'flex w-full items-start gap-3 rounded-md border p-3 text-left transition hover:border-foreground/30',
+                    'flex w-full items-start gap-3 rounded-md border border-[var(--agenthub-border)] p-3 text-left transition hover:border-foreground/30',
                     isSelected && 'border-primary bg-primary/5',
                   )}
                 >
@@ -151,7 +153,7 @@ export function NewConversationDialog({
         {/* 工作目录 */}
         <div className="space-y-2 border-t pt-3">
           <div className="text-xs font-medium text-muted-foreground">工作目录</div>
-          <label className="flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30">
+          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-[var(--agenthub-border)] px-3 py-2 transition hover:border-foreground/30">
             <input
               type="radio"
               checked={workspaceMode === 'sandbox'}
@@ -167,7 +169,7 @@ export function NewConversationDialog({
           </label>
           <label
             className={cn(
-              'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+              'flex cursor-pointer items-start gap-2 rounded-md border border-[var(--agenthub-border)] px-3 py-2 transition hover:border-foreground/30',
               workspaceMode === 'local' && 'border-amber-300 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20',
             )}
           >
@@ -208,11 +210,7 @@ export function NewConversationDialog({
           </label>
         </div>
 
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
-            {error}
-          </div>
-        )}
+        {error && <InlineError message={error} />}
 
         <DialogFooter>
           <div className="mr-auto text-xs text-muted-foreground">

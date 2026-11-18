@@ -1,8 +1,9 @@
 'use client'
 
-import { AlertTriangle, CheckCircle2, CloudUpload, Eye, EyeOff, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, CloudUpload, Eye, EyeOff, Info, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { OssSettingsView } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,8 @@ export type OssSecretField = 'accessKeyId' | 'accessKeySecret'
 export function OssPanel({
   values,
   view,
+  statusError,
+  onRetryStatus,
   secretsEdited,
   onChange,
   onSecretEdited,
@@ -41,6 +44,9 @@ export function OssPanel({
   values: OssFormValues
   /** 服务端算出的运行时状态；null = 还没加载出来 */
   view: OssSettingsView | null
+  /** 状态读取失败时的错误信息；非空时状态横幅显示重试入口而不是一直转圈 */
+  statusError?: string | null
+  onRetryStatus?: () => void
   /** 用户是否动过某个密钥输入框（动过才参与保存） */
   secretsEdited: Record<OssSecretField, boolean>
   onChange: (patch: Partial<OssFormValues>) => void
@@ -61,9 +67,9 @@ export function OssPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <StatusBanner view={view} />
+      <StatusBanner view={view} statusError={statusError} onRetryStatus={onRetryStatus} />
 
-      <section className="rounded-xl border bg-muted/30 p-3">
+      <section className="agenthub-card p-3">
         <div className="mb-3 flex items-center gap-2">
           <CloudUpload className="size-4 text-muted-foreground" />
           <div>
@@ -211,11 +217,36 @@ export function OssPanel({
 
 // ─── 子组件 ─────────────────────────────────────────────
 
-function StatusBanner({ view }: { view: OssSettingsView | null }) {
+function StatusBanner({
+  view,
+  statusError,
+  onRetryStatus,
+}: {
+  view: OssSettingsView | null
+  statusError?: string | null
+  onRetryStatus?: () => void
+}) {
   if (!view) {
     return (
-      <div className="flex h-12 items-center justify-center rounded-xl border bg-muted/30">
-        <span className="text-xs text-muted-foreground">正在读取对象存储状态…</span>
+      <div className="agenthub-card flex h-12 items-center justify-center gap-2">
+        {statusError ? (
+          <>
+            <AlertTriangle className="size-4 shrink-0 text-rose-500" />
+            <span className="min-w-0 truncate text-sm text-rose-600 dark:text-rose-300">
+              对象存储状态读取失败
+            </span>
+            {onRetryStatus && (
+              <Button type="button" variant="outline" size="sm" className="h-7 shrink-0" onClick={onRetryStatus}>
+                重试
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">正在读取对象存储状态…</span>
+          </>
+        )}
       </div>
     )
   }

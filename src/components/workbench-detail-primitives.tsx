@@ -15,10 +15,10 @@ export function DetailSection({
   children: ReactNode
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-950/30">
+    <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)]">
       <div className="mb-2.5 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 dark:bg-neutral-800 dark:text-slate-400">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 dark:bg-[var(--agenthub-surface-raised)] dark:text-slate-400">
             {icon}
           </div>
           <h3 className="truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
@@ -41,8 +41,8 @@ export function SavedState() {
 
 export function HistoryRow({ icon, title, description, time }: { icon: ReactNode; title: string; description: string; time: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{icon}</div>
+    <div className="flex items-center gap-3 rounded-lg border border-[var(--agenthub-border)] bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)] dark:hover:border-white/15 dark:hover:bg-white/5">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--agenthub-surface)] text-slate-500 dark:bg-[var(--agenthub-surface-raised)] dark:text-slate-400">{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{title}</div>
         <div className="mt-0.5 truncate text-3xs text-slate-500 dark:text-slate-400">{description}</div>
@@ -68,8 +68,8 @@ export function Meta({
       className={cn(
         'rounded-lg border p-2.5',
         highlight
-          ? 'border-sky-300 bg-sky-50/70 dark:border-sky-500/40 dark:bg-sky-500/10'
-          : 'border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-neutral-950/40',
+          ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]'
+          : 'border-[var(--agenthub-border)] bg-slate-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)]',
       )}
     >
       <div className="text-3xs text-slate-400 dark:text-slate-500">{label}</div>
@@ -83,7 +83,7 @@ export function Meta({
 
 export function LibraryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
+    <div className="rounded-lg border border-[var(--agenthub-border)] bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)] dark:hover:border-white/15 dark:hover:bg-white/5">
       <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-1 truncate text-base font-semibold text-slate-900 dark:text-slate-50">{value}</div>
     </div>

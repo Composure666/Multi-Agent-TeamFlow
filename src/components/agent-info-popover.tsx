@@ -122,7 +122,7 @@ export function AgentInfoPopover({
           <button
             type="button"
             onClick={() => setEditOpen(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border bg-card px-2 py-1.5 text-xs font-medium transition hover:border-foreground/30 hover:bg-accent"
+            className="agenthub-card-interactive flex w-full items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium"
           >
             <Pencil className="size-3" />
             编辑配置

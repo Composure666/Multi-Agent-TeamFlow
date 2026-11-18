@@ -1,6 +1,6 @@
 'use client'
 
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Bot, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
@@ -20,6 +20,8 @@ import type { AgentRow } from '@/db/schema'
 import { deleteAgent as deleteAgentAPI } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { TeamLibrary } from '@/components/team-library'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState } from '@/components/workbench-primitives'
 import { useAgentList, useAppStore } from '@/stores/app-store'
 
 /**
@@ -100,8 +102,13 @@ export function AgentLibrary() {
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-1 p-2">
           {agents.length === 0 ? (
-            <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-              没有 Agent
+            <div className="p-2">
+              <EmptyState
+                icon={Bot}
+                title="还没有 Agent"
+                description="创建一个 Agent，它会出现在新建对话的选择列表里。"
+                action={{ label: '创建 Agent', onClick: openCreate }}
+              />
             </div>
           ) : (
             agents.map((a) => (
@@ -132,7 +139,7 @@ export function AgentLibrary() {
                     {a.modelId ? ` · ${a.modelId}` : ''}
                   </div>
                 </div>
-                <div className="flex shrink-0 self-center gap-1 opacity-0 transition group-hover:opacity-100">
+                <div className="flex shrink-0 self-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -171,7 +178,7 @@ export function AgentLibrary() {
       />
 
       <Dialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
           <DialogHeader>
             <DialogTitle>删除 Agent</DialogTitle>
             <DialogDescription>

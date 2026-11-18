@@ -16,6 +16,7 @@ import {
 } from '@/components/agent-config-form'
 import { AgentCreateWizard } from '@/components/agent-create-wizard'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ import {
   type UpdateAgentBody,
 } from '@/lib/api'
 import type { AgentConfigDraft } from '@/shared/agent-builder-config'
+import { cn } from '@/lib/utils'
 import { useAppStore } from '@/stores/app-store'
 
 type CreateStep = 'choose' | 'wizard' | 'detail'
@@ -184,7 +186,7 @@ export function CreateAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-2xl">
+      <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden", DIALOG_SIZE_CLASS.md)}>
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑 Agent' : '创建 Agent'}</DialogTitle>
           <DialogDescription>{descriptionText}</DialogDescription>
@@ -260,7 +262,7 @@ function CreateModeChoice({
         <button
           type="button"
           onClick={onConversational}
-          className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 text-left transition hover:border-primary hover:bg-primary/5"
+          className="agenthub-card-interactive flex cursor-pointer items-start gap-3 px-3 py-3 text-left"
         >
           <div className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <MessageSquareText className="size-4" />
@@ -279,7 +281,7 @@ function CreateModeChoice({
         <button
           type="button"
           onClick={onDetailed}
-          className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 text-left transition hover:border-foreground/30"
+          className="agenthub-card-interactive flex cursor-pointer items-start gap-3 px-3 py-3 text-left"
         >
           <div className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
             <SlidersHorizontal className="size-4" />

@@ -113,7 +113,7 @@ export function ChatPanel() {
 
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-      <header className="flex shrink-0 items-center gap-3 overflow-hidden border-b border-slate-100 px-5 py-3">
+      <header className="flex shrink-0 items-center gap-3 overflow-hidden border-b border-[var(--agenthub-border)] px-5 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
           {/* 移动端汉堡按钮：打开 sidebar 抽屉 */}
           <Button
@@ -169,7 +169,7 @@ export function ChatPanel() {
 
       {/* Tab bar：仅在有打开的文件 / diff 时显示（避免单 chat tab 时浪费空间） */}
       {openFiles.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-100 bg-slate-50/50 px-3 py-1.5 text-xs">
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]/50 px-3 py-1.5 text-xs">
           <TabButton
             label="对话"
             active={activeTab === 'chat'}
@@ -184,7 +184,7 @@ export function ChatPanel() {
                   key={tabId}
                   label={`diff: ${name}`}
                   tooltip={pw?.path}
-                  icon={<FilePenLine className="size-3 text-[#3370FF]" />}
+                  icon={<FilePenLine className="size-3 text-[var(--agenthub-accent)]" />}
                   active={activeTab === tabId}
                   onClick={() => setActiveTab(conv.id, tabId)}
                   onClose={() => closeFile(conv.id, tabId)}
@@ -306,9 +306,9 @@ function TabButton({
         'group flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 transition',
         active
           ? highlight
-            ? 'border-[#3370FF]/30 bg-[#3370FF]/5 text-slate-900 shadow-sm'
-            : 'border-slate-200 bg-white text-slate-900 shadow-sm'
-          : 'border-transparent text-slate-500 hover:bg-white hover:text-slate-900',
+            ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-slate-900 shadow-sm'
+            : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-900 shadow-sm'
+          : 'border-transparent text-slate-500 hover:bg-[var(--agenthub-surface)] hover:text-slate-900',
       )}
     >
       {icon}

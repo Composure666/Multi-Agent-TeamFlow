@@ -72,7 +72,7 @@ function OpenAffordance({ href, title }: { href: string | null; title: string })
       href={href}
       target="_blank"
       rel="noreferrer"
-      className={`${className} text-muted-foreground transition hover:border-slate-300 hover:text-foreground dark:hover:border-white/25`}
+      className={`${className} text-muted-foreground transition hover:border-[var(--agenthub-accent-border)] hover:text-foreground`}
       title={title}
     >
       打开
@@ -140,7 +140,7 @@ export function SitePanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-xl border bg-muted/30 p-3">
+      <section className="agenthub-card p-3">
         <div className="mb-3 flex items-center gap-2">
           <Globe className="size-4 text-muted-foreground" />
           <div>
@@ -196,7 +196,7 @@ export function SitePanel({
         )}
       </section>
 
-      <section className="rounded-xl border bg-muted/30 p-3">
+      <section className="agenthub-card p-3">
         <div className="mb-3 flex items-center gap-2">
           <Download className="size-4 text-muted-foreground" />
           <div>

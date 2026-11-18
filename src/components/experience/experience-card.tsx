@@ -17,8 +17,8 @@ const KIND_META: Record<ExperienceKind, { label: string; icon: typeof FileText; 
   experience: {
     label: '经验',
     icon: FileText,
-    badge: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-    iconBg: 'bg-blue-500/10 text-blue-500',
+    badge: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] border-[var(--agenthub-accent-border)]',
+    iconBg: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
   },
   reflection: {
     label: '反思',
@@ -29,7 +29,7 @@ const KIND_META: Record<ExperienceKind, { label: string; icon: typeof FileText; 
   profile_fact: {
     label: '画像',
     icon: Bot,
-    badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+    badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
     iconBg: 'bg-emerald-500/10 text-emerald-500',
   },
 }
@@ -64,7 +64,7 @@ export function ExperienceCard({
 
   return (
     <div
-      className="group flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm transition-all hover:border-blue-400/40 hover:shadow-md"
+      className="agenthub-card-interactive group flex min-w-0 cursor-pointer items-start gap-3 px-4 py-3"
       onClick={() => onOpen(item.id)}
     >
       <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', meta.iconBg)}>
@@ -74,12 +74,12 @@ export function ExperienceCard({
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="min-w-0 truncate text-sm font-medium">{item.title}</h3>
-          <Badge className={cn('shrink-0 border text-3xs font-normal', meta.badge)}>
+          <Badge className={cn('shrink-0 border text-xs font-normal', meta.badge)}>
             {meta.label}
           </Badge>
         </div>
         {/* 描述与触发条件都必须「收口」：超长内容省略，绝不允许把卡片撑宽（页面横向溢出） */}
-        <p className="mt-0.5 line-clamp-2 min-w-0 text-xs break-words text-muted-foreground">
+        <p className="mt-0.5 line-clamp-2 min-w-0 text-sm break-words text-muted-foreground">
           {item.content.replace(/<[^>]*>/g, '')}
         </p>
         <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -98,7 +98,7 @@ export function ExperienceCard({
           <span className="whitespace-nowrap text-xs text-muted-foreground">使用 {item.usageCount} 次</span>
           {revisionCount > 0 && (
             <Badge
-              className="hidden shrink-0 whitespace-nowrap border-amber-500/20 bg-amber-500/10 text-3xs font-normal text-amber-600 sm:inline-flex"
+              className="hidden shrink-0 whitespace-nowrap border-amber-500/20 bg-amber-500/10 text-xs font-normal text-amber-600 dark:text-amber-400 sm:inline-flex"
               title={`已被迭代修订 ${revisionCount} 次（Agent 运行后自动复盘或人工编辑）`}
             >
               <Repeat2 className="size-3" />
@@ -106,10 +106,10 @@ export function ExperienceCard({
             </Badge>
           )}
           <Badge className={cn(
-            'border text-3xs font-normal',
+            'border text-xs font-normal',
             item.active
-              ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-              : 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
           )}>
             {item.active ? '已启用' : '草稿'}
           </Badge>
@@ -132,7 +132,7 @@ export function ExperienceCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <span className="text-3xs text-muted-foreground/70">{formatDate(item.updatedAt)}</span>
+        <span className="text-xs text-muted-foreground/70">{formatDate(item.updatedAt)}</span>
       </div>
     </div>
   )

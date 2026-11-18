@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 
 interface ExperienceSidebarProps {
   items: ExperienceRow[]
@@ -26,9 +27,9 @@ const KIND_LABEL: Record<string, string> = {
 }
 
 const KIND_COLOR: Record<string, string> = {
-  experience: 'bg-blue-500/10 text-blue-600',
+  experience: 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
   reflection: 'bg-purple-500/10 text-purple-600',
-  profile_fact: 'bg-emerald-500/10 text-emerald-600',
+  profile_fact: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
 }
 
 function formatRelative(ts: number): string {
@@ -54,12 +55,12 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
   const recent = recentSorted.slice(0, showAllRecent ? recentSorted.length : 4)
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-l bg-muted/20 px-4 py-4">
+    <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-l border-[var(--agenthub-border)] bg-muted/20 px-4 py-4">
       {/* 快速使用指南 */}
-      <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <div className="agenthub-card p-4">
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-blue-500/10">
-            <Lightbulb className="size-4 text-blue-500" />
+          <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--agenthub-accent-soft)]">
+            <Lightbulb className="size-4 text-[var(--agenthub-accent)]" />
           </div>
           <h3 className="text-sm font-medium">快速使用指南</h3>
         </div>
@@ -73,14 +74,14 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
 
       {/* 热门经验 */}
       {hot.length > 0 && (
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="agenthub-card p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="size-4 text-amber-500" />
               <h3 className="text-sm font-medium">热门经验</h3>
             </div>
             <button
-              className="text-xs text-blue-500 hover:underline"
+              className="text-xs text-[var(--agenthub-accent)] hover:underline"
               onClick={() => setShowAllHot((v) => !v)}
             >
               {showAllHot ? '收起' : `查看更多 (${hotSorted.length})`}
@@ -94,8 +95,8 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/50"
               >
                 <span className={cn(
-                  'flex size-5 shrink-0 items-center justify-center rounded text-3xs font-semibold',
-                  idx === 0 ? 'bg-amber-500/15 text-amber-600'
+                  'flex size-5 shrink-0 items-center justify-center rounded text-xs font-semibold',
+                  idx === 0 ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                   : idx === 1 ? 'bg-slate-400/15 text-slate-500'
                   : idx === 2 ? 'bg-orange-500/15 text-orange-600'
                   : 'bg-muted text-muted-foreground',
@@ -103,10 +104,10 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
                   {idx + 1}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-xs">{item.title}</span>
-                <Badge className={cn('shrink-0 border-0 text-3xs', KIND_COLOR[item.kind])}>
+                <Badge className={cn('shrink-0 border-0 text-xs', KIND_COLOR[item.kind])}>
                   {KIND_LABEL[item.kind]}
                 </Badge>
-                <span className="shrink-0 text-3xs text-muted-foreground">{item.usageCount} 次</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{item.usageCount} 次</span>
               </button>
             ))}
           </div>
@@ -115,14 +116,14 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
 
       {/* 最近使用 */}
       {recent.length > 0 && (
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="agenthub-card p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="size-4 text-blue-500" />
+              <Clock className="size-4 text-[var(--agenthub-accent)]" />
               <h3 className="text-sm font-medium">最近使用</h3>
             </div>
             <button
-              className="text-xs text-blue-500 hover:underline"
+              className="text-xs text-[var(--agenthub-accent)] hover:underline"
               onClick={() => setShowAllRecent((v) => !v)}
             >
               {showAllRecent ? '收起' : `查看更多 (${recentSorted.length})`}
@@ -135,11 +136,11 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
                 onClick={() => onOpen(item.id)}
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/50"
               >
-                <Badge className={cn('shrink-0 border-0 text-3xs', KIND_COLOR[item.kind])}>
+                <Badge className={cn('shrink-0 border-0 text-xs', KIND_COLOR[item.kind])}>
                   {KIND_LABEL[item.kind]}
                 </Badge>
                 <span className="min-w-0 flex-1 truncate text-xs">{item.title}</span>
-                <span className="shrink-0 text-3xs text-muted-foreground">
+                <span className="shrink-0 text-xs text-muted-foreground">
                   {item.lastUsedAt ? formatRelative(item.lastUsedAt) : ''}
                 </span>
               </button>
@@ -149,14 +150,14 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
       )}
 
       {/* 底部推广 */}
-      <div className="mt-auto rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4">
+      <div className="mt-auto rounded-xl bg-[var(--agenthub-accent-soft)] p-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-blue-500" />
+          <Sparkles className="size-4 text-[var(--agenthub-accent)]" />
           <h3 className="text-sm font-medium">让经验沉淀，发挥更大价值</h3>
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">经验资产，让 AI 不断成长</p>
         <div className="mt-3 flex justify-end">
-          <div className="flex size-8 items-center justify-center rounded-full bg-blue-500 text-white">
+          <div className="flex size-8 items-center justify-center rounded-full bg-[var(--agenthub-accent)] text-white">
             <ArrowRight className="size-4" />
           </div>
         </div>
@@ -164,7 +165,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
 
       {/* 使用指南 */}
       <Dialog open={guideOpen} onOpenChange={setGuideOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn(DIALOG_SIZE_CLASS.sm)}>
           <DialogHeader>
             <DialogTitle>经验资产使用指南</DialogTitle>
             <DialogDescription>经验是 Agent 运行后沉淀的可复用知识，按触发条件注入后续任务。</DialogDescription>
@@ -178,7 +179,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
               </div>
             </div>
             <div className="flex gap-2.5">
-              <CircleCheck className="mt-0.5 size-4 shrink-0 text-blue-500" />
+              <CircleCheck className="mt-0.5 size-4 shrink-0 text-[var(--agenthub-accent)]" />
               <div>
                 <div className="font-medium text-foreground">按需注入</div>
                 <div>后续任务根据关键词命中「触发条件」注入系统提示（最多 6 条、预算 1500 token）；未命中时不注入。</div>

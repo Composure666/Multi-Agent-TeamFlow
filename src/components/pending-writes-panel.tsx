@@ -45,7 +45,7 @@ export function PendingWritesPanel({ conversationId }: { conversationId: string 
   if (pending.length === 0) return null
 
   return (
-    <div className="shrink-0 space-y-2 border-t bg-amber-50/40 px-4 py-2.5 dark:bg-amber-950/10">
+    <div className="shrink-0 space-y-2 border-t bg-[var(--agenthub-surface)] px-4 py-2.5">
       {pending.map((p) => (
         <PendingWriteCard key={p.id} conversationId={conversationId} pending={p} />
       ))}
@@ -108,8 +108,9 @@ function PendingWriteCard({
   return (
     <div
       className={cn(
-        'agenthub-motion-enter flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-xs shadow-sm transition-[border-color,box-shadow,background-color] duration-[var(--agenthub-motion-normal)]',
-        isViewing && 'border-[#3370FF]/50 ring-1 ring-[#3370FF]/20',
+        'agenthub-motion-enter agenthub-card flex items-center gap-3 border-amber-200 px-3 py-2 text-xs transition-[border-color,box-shadow,background-color] duration-[var(--agenthub-motion-normal)]',
+        'dark:border-amber-900/50',
+        isViewing && 'border-[var(--agenthub-accent)]/50 ring-1 ring-[var(--agenthub-accent)]/20',
       )}
     >
       <div className="flex shrink-0 items-center gap-2">
@@ -121,7 +122,7 @@ function PendingWriteCard({
         {isNew ? (
           <FilePlus2 className="size-4 text-emerald-600" />
         ) : (
-          <FilePenLine className="size-4 text-[#3370FF]" />
+          <FilePenLine className="size-4 text-[var(--agenthub-accent)]" />
         )}
       </div>
 
@@ -169,7 +170,7 @@ function PendingWriteCard({
           size="sm"
           onClick={handleApprove}
           disabled={!!busy}
-          className="h-7 bg-[#3370FF] px-2.5 text-white hover:bg-[#2860e5]"
+          className="h-7 bg-[var(--agenthub-accent)] px-2.5 text-white hover:bg-[var(--agenthub-accent-hover)]"
           title="应用"
         >
           {busy === 'approve' ? (

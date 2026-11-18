@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Check, Loader2, RotateCcw, Save } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/workbench-primitives'
 import type { LlmModelAssignmentRow, LlmProviderRow } from '@/db/schema'
 import { MODALITY_CAPABILITIES } from '@/lib/llm-shared'
 
@@ -24,13 +25,18 @@ export function ModelAssignmentPanel({ refreshKey }: ModelAssignmentPanelProps) 
   const [providers, setProviders] = useState<LlmProviderRow[]>([])
   const [assignments, setAssignments] = useState<LlmModelAssignmentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [states, setStates] = useState<Record<string, ModalityState>>({})
 
+  const retry = () => setRetryKey((k) => k + 1)
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     Promise.all([
       fetch('/api/providers').then((r) => r.json()),
       fetch('/api/model-assignments').then((r) => r.json()),
@@ -55,14 +61,17 @@ export function ModelAssignmentPanel({ refreshKey }: ModelAssignmentPanelProps) 
         }
         setStates(next)
       })
-      .catch((err) => console.error('[ModelAssignmentPanel] load failed', err))
+      .catch((err) => {
+        console.error('[ModelAssignmentPanel] load failed', err)
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, retryKey])
 
   const handleChange = (capKey: string, field: keyof ModalityState, value: string) => {
     setStates((prev) => ({
@@ -124,15 +133,23 @@ export function ModelAssignmentPanel({ refreshKey }: ModelAssignmentPanelProps) 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">正在加载模型分配…</p>
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={retry}>
+          重新加载
+        </Button>
       </div>
     )
   }
 
+  if (loadError) {
+    return <InlineError message={`模型分配加载失败：${loadError}`} onRetry={retry} />
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
+      <div className="rounded-lg border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-3 py-2 text-xs text-[var(--agenthub-accent)]">
         创建 Agent 时会按提示词自动推断模态，并匹配这里配置的模型。未配置的模态走全局默认策略。
       </div>
 
@@ -143,7 +160,7 @@ export function ModelAssignmentPanel({ refreshKey }: ModelAssignmentPanelProps) 
           const models: string[] = Array.isArray(selectedProvider?.models) ? selectedProvider.models : []
 
           return (
-            <div key={cap.key} className="rounded-xl border bg-muted/30 p-3">
+            <div key={cap.key} className="agenthub-card p-3">
               <div className="mb-2 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium">{cap.label}</div>

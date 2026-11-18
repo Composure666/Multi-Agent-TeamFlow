@@ -623,7 +623,7 @@ function ConversationItem({
               onToggleArchive()
             }}
             title={isArchived ? '取消归档' : '归档'}
-            className="transition-colors hover:text-sky-500"
+            className="transition-colors hover:text-[var(--agenthub-accent)]"
           >
             {isArchived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
           </button>

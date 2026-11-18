@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { TeamDetailDialog } from '@/components/team-detail-dialog'
 import { Button } from '@/components/ui/button'
 import { LoadingIndicator } from '@/components/ui/loading-indicator'
+import { InlineError } from '@/components/workbench-primitives'
 import type { ConversationWithMeta } from '@/db/schema'
 import { createConversation } from '@/lib/api'
 import type { TeamWithMembers } from '@/server/team-service'
@@ -22,16 +23,21 @@ interface TeamLibraryProps {
 export function TeamLibrary({ refreshKey, onStartChat, onCreateTeam }: TeamLibraryProps) {
   const [teams, setTeams] = useState<Array<TeamWithMembers & { memberCount: number }>>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [detailTeamId, setDetailTeamId] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [startingChat, setStartingChat] = useState<string | null>(null)
 
   const loadTeams = () => {
     setLoading(true)
+    setLoadError(null)
     fetch('/api/teams')
       .then((r) => r.json())
       .then((d) => setTeams(d.teams ?? []))
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[TeamLibrary] load failed', err)
+        setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => setLoading(false))
   }
 
@@ -72,24 +78,36 @@ export function TeamLibrary({ refreshKey, onStartChat, onCreateTeam }: TeamLibra
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
         {loading ? (
-          <LoadingIndicator variant="both" size="sm" label="加载团队…" className="py-8" />
+          <div className="flex flex-col items-center gap-2 py-8">
+            <LoadingIndicator variant="both" size="sm" label="加载团队…" />
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => loadTeams()}>
+              重新加载
+            </Button>
+          </div>
+        ) : loadError ? (
+          <InlineError message={`团队列表加载失败：${loadError}`} onRetry={() => loadTeams()} />
         ) : teams.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
-            <Users className="size-8 text-muted-foreground/40" />
-            <div className="text-xs text-muted-foreground">还没有团队</div>
-            <div className="text-xs text-muted-foreground/70">创建团队，让多个 Agent 协作完成复杂任务</div>
+          <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+              <Users className="size-5" />
+            </div>
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">还没有团队</div>
+            <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">创建团队，让多个 Agent 协作完成复杂任务。</p>
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => onCreateTeam?.()}>
+              创建团队
+            </Button>
           </div>
         ) : (
           <div className="space-y-1.5">
             {teams.map((t) => (
               <div
                 key={t.id}
-                className="group flex w-full items-center gap-3 rounded-md border bg-card px-3 py-3 transition hover:border-foreground/20"
+                className="agenthub-card-interactive group flex w-full items-center gap-3 px-3 py-3"
               >
                 <button className="min-w-0 flex-1 text-left" onClick={() => openDetail(t.id)}>
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-medium">{t.name}</span>
-                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                       {t.memberCount} 人
                     </span>
                   </div>
@@ -101,14 +119,14 @@ export function TeamLibrary({ refreshKey, onStartChat, onCreateTeam }: TeamLibra
                       {t.members.slice(0, 4).map((m) => (
                         <div
                           key={m.id}
-                          className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-3xs"
+                          className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-xs"
                           title={m.agentName}
                         >
                           {m.agentName[0]}
                         </div>
                       ))}
                       {t.members.length > 4 && (
-                        <div className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-3xs text-muted-foreground">
+                        <div className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-xs text-muted-foreground">
                           +{t.members.length - 4}
                         </div>
                       )}

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 
 import { formatSize } from '@/components/attachment-chip'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState, InlineError } from '@/components/workbench-primitives'
 import {
   Dialog,
   DialogContent,
@@ -27,7 +29,8 @@ import { useAppStore, usePendingAttachments } from '@/stores/app-store'
 /**
  * FileLibraryDialog — 单会话文件库视图。
  *
- * 顶部上传 button；图片网格 + 文件列表两个分组；hover 显示删除；
+ * 底部固定上传 button（flex 列布局 + ScrollArea flex-1：列表再长上传入口也不被顶出可视区，
+ * 1366×768 下空态 / 错误态均无需滚动即可见）；图片网格 + 文件列表两个分组；hover 显示删除；
  * 删除走二次确认。删除后只清 attachments，不会影响已发消息里的引用——
  * 那些 AttachmentChip 会根据 404 显示「已删除」（沿用 ArtifactRefPart 思路）。
  */
@@ -42,6 +45,8 @@ export function FileLibraryDialog({
 }) {
   const [attachments, setAttachments] = useState<AttachmentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [uploadingCount, setUploadingCount] = useState(0)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -60,11 +65,15 @@ export function FileLibraryDialog({
   useEffect(() => {
     if (!open) return
     setLoading(true)
+    setLoadError(null)
     fetchAttachments(conversationId)
       .then(setAttachments)
-      .catch((err) => console.error('[FileLibraryDialog] load', err))
+      .catch((err) => {
+        console.error('[FileLibraryDialog] load', err)
+        setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => setLoading(false))
-  }, [open, conversationId])
+  }, [open, conversationId, retryKey])
 
   const images = attachments.filter((a) => a.kind === 'image')
   const files = attachments.filter((a) => a.kind === 'file')
@@ -105,15 +114,87 @@ export function FileLibraryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[85vh] overflow-x-hidden overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
+        {/* flex 列布局：头部 / 错误条 / 底部上传固定，ScrollArea flex-1 占剩余高度；
+            覆盖 ui/dialog 的 grid + overflow-y-auto，超高时只由 ScrollArea 内部滚动，
+            对话框自身不滚动（max-h-[85vh] 与 md 档位不变）。gap-3 是为 1366×768
+            留出列表高度而收紧的 4px。 */}
+        <DialogContent className={cn("flex max-h-[85vh] flex-col gap-3 overflow-hidden", DIALOG_SIZE_CLASS.md)}>
+          <DialogHeader className="shrink-0">
             <DialogTitle>会话文件库</DialogTitle>
             <DialogDescription>
               当前会话上传的所有图片和文件。Agent 可以在 prompt 中引用它们。
             </DialogDescription>
           </DialogHeader>
 
-          {/* 上传 */}
+          {loadError && !loading && (
+            <div className="shrink-0">
+              <InlineError
+                message={`文件列表加载失败：${loadError}`}
+                onRetry={() => setRetryKey((k) => k + 1)}
+              />
+            </div>
+          )}
+
+          <ScrollArea className="-mx-6 min-h-0 flex-1 overflow-x-hidden">
+            <div className="min-w-0 space-y-3 overflow-hidden px-6 py-1">
+              {/* 图片分组 */}
+              <Section title="图片" icon={<ImageIcon className="size-4" />} count={images.length}>
+                {loading ? (
+                  <SkeletonGrid />
+                ) : images.length === 0 ? (
+                  <EmptyState
+                    icon={ImageIcon}
+                    title="没有图片"
+                    description="上传图片后会在这里出现，Agent 可以在 prompt 中引用它们。"
+                    action={{ label: '上传文件 / 图片', onClick: () => fileInputRef.current?.click() }}
+                  />
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {images.map((a) => (
+                      <ImageGridItem
+                        key={a.id}
+                        attachment={a}
+                        attached={pendingIds.has(a.id)}
+                        onToggleAttach={() => toggleAttach(a)}
+                        onDelete={() => setDeleteTargetId(a.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Section>
+
+              {/* 文件分组 */}
+              <Section title="文件" icon={<FileIcon className="size-4" />} count={files.length}>
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    正在加载文件…
+                  </div>
+                ) : files.length === 0 ? (
+                  <EmptyState
+                    icon={FileIcon}
+                    title="没有文件"
+                    description="上传文件后会在这里出现，Agent 可以在 prompt 中引用它们。"
+                    action={{ label: '上传文件 / 图片', onClick: () => fileInputRef.current?.click() }}
+                  />
+                ) : (
+                  <div className="min-w-0 space-y-1 overflow-hidden">
+                    {files.map((a) => (
+                      <FileRow
+                        key={a.id}
+                        attachment={a}
+                        attached={pendingIds.has(a.id)}
+                        onToggleAttach={() => toggleAttach(a)}
+                        onDelete={() => setDeleteTargetId(a.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </div>
+          </ScrollArea>
+
+          {/* 上传 — 固定底部，不随列表滚动 */}
           <div className="shrink-0">
             <input
               ref={fileInputRef}
@@ -135,60 +216,12 @@ export function FileLibraryDialog({
               {uploadingCount > 0 ? `上传中 (${uploadingCount})…` : '上传文件 / 图片'}
             </Button>
           </div>
-
-          <ScrollArea className="-mx-6 max-h-[55vh] overflow-x-hidden">
-            <div className="min-w-0 space-y-5 overflow-hidden px-6 py-2">
-              {/* 图片分组 */}
-              <Section title="图片" icon={<ImageIcon className="size-4" />} count={images.length}>
-                {loading ? (
-                  <SkeletonGrid />
-                ) : images.length === 0 ? (
-                  <EmptyHint>没有图片</EmptyHint>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    {images.map((a) => (
-                      <ImageGridItem
-                        key={a.id}
-                        attachment={a}
-                        attached={pendingIds.has(a.id)}
-                        onToggleAttach={() => toggleAttach(a)}
-                        onDelete={() => setDeleteTargetId(a.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Section>
-
-              {/* 文件分组 */}
-              <Section title="文件" icon={<FileIcon className="size-4" />} count={files.length}>
-                {loading ? (
-                  <EmptyHint>
-                    <Loader2 className="mr-1 inline size-3 animate-spin" /> 加载中
-                  </EmptyHint>
-                ) : files.length === 0 ? (
-                  <EmptyHint>没有文件</EmptyHint>
-                ) : (
-                  <div className="min-w-0 space-y-1 overflow-hidden">
-                    {files.map((a) => (
-                      <FileRow
-                        key={a.id}
-                        attachment={a}
-                        attached={pendingIds.has(a.id)}
-                        onToggleAttach={() => toggleAttach(a)}
-                        onDelete={() => setDeleteTargetId(a.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Section>
-            </div>
-          </ScrollArea>
         </DialogContent>
       </Dialog>
 
       {/* 删除确认 */}
       <Dialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
           <DialogHeader>
             <DialogTitle>删除附件</DialogTitle>
             <DialogDescription className="min-w-0">
@@ -232,7 +265,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-w-0 space-y-2 overflow-hidden">
+    <div className="min-w-0 space-y-1 overflow-hidden">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         {icon}
         <span>{title}</span>
@@ -241,10 +274,6 @@ function Section({
       {children}
     </div>
   )
-}
-
-function EmptyHint({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 py-4 text-center text-xs text-muted-foreground">{children}</div>
 }
 
 function SkeletonGrid() {
@@ -271,7 +300,7 @@ function ImageGridItem({
   return (
     <div
       className={cn(
-        'group relative aspect-square overflow-hidden rounded-md border bg-muted',
+        'group relative aspect-square overflow-hidden rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]',
         attached && 'ring-2 ring-primary',
       )}
     >
@@ -340,7 +369,7 @@ function FileRow({
   return (
     <div
       className={cn(
-        'group grid w-full min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 overflow-hidden rounded-md border bg-card px-3 py-2 transition hover:border-foreground/20',
+        'agenthub-card group grid w-full min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 overflow-hidden px-3 py-2 transition hover:border-foreground/20',
         attached && 'border-primary/40 bg-primary/5',
       )}
     >

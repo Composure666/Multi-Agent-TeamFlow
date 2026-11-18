@@ -48,7 +48,7 @@ export function HorizontalScrollControls({ children, className, contentClassName
     element.scrollBy({ left: event.deltaY, behavior: 'smooth' })
   }
 
-  const buttonClassName = 'absolute top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm backdrop-blur transition hover:border-slate-300 hover:bg-white hover:text-slate-900 group-hover:flex dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-400 dark:hover:bg-white/[0.12] dark:hover:text-slate-100 dark:hover:border-white/20'
+  const buttonClassName = 'absolute top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/90 text-slate-500 shadow-sm backdrop-blur transition hover:border-slate-300 hover:bg-[var(--agenthub-surface)] hover:text-slate-900 group-hover:flex dark:border-[var(--agenthub-border)] dark:bg-white/[0.06] dark:text-slate-400 dark:hover:bg-white/[0.12] dark:hover:text-slate-100 dark:hover:border-white/20'
 
   return (
     <div className={cn('group relative', className)}>
@@ -57,14 +57,14 @@ export function HorizontalScrollControls({ children, className, contentClassName
       <div
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute inset-y-0 left-8 z-[5] w-10 bg-gradient-to-r from-white to-white/0 transition-opacity duration-200 dark:from-[var(--agenthub-surface,#1C1F26)] dark:to-transparent',
+          'pointer-events-none absolute inset-y-0 left-8 z-[5] w-10 bg-gradient-to-r from-[var(--agenthub-surface)] to-transparent transition-opacity duration-200 dark:from-[var(--agenthub-surface,#1C1F26)] dark:to-transparent',
           showLeft ? 'opacity-100' : 'opacity-0',
         )}
       />
       <div
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute inset-y-0 right-8 z-[5] w-10 bg-gradient-to-l from-white to-white/0 transition-opacity duration-200 dark:from-[var(--agenthub-surface,#1C1F26)] dark:to-transparent',
+          'pointer-events-none absolute inset-y-0 right-8 z-[5] w-10 bg-gradient-to-l from-[var(--agenthub-surface)] to-transparent transition-opacity duration-200 dark:from-[var(--agenthub-surface,#1C1F26)] dark:to-transparent',
           showRight ? 'opacity-100' : 'opacity-0',
         )}
       />

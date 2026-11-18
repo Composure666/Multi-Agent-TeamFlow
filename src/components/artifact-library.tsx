@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { EmptyState, InlineError } from '@/components/workbench-primitives'
 import { deleteArtifact, fetchArtifact, fetchArtifacts, type ArtifactListItem } from '@/lib/api'
 import { groupArtifactVersions } from '@/lib/artifact-groups'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,7 @@ export function ArtifactLibrary({
 }) {
   const [items, setItems] = useState<ArtifactListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [pendingPreviewId, setPendingPreviewId] = useState<string | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
@@ -51,11 +53,13 @@ export function ArtifactLibrary({
 
   const refresh = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const list = await fetchArtifacts()
       setItems(list)
     } catch (err) {
       console.error('[ArtifactLibrary] load failed', err)
+      setLoadError(err instanceof Error ? err.message : '产物加载失败')
     } finally {
       setLoading(false)
     }
@@ -151,25 +155,46 @@ export function ArtifactLibrary({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜索产物..."
-            className="h-8 pl-8 text-xs"
+            className="h-8 pl-8 text-sm"
           />
         </div>
-        <div className="mt-1 text-3xs text-muted-foreground">
+        <div className="mt-1 text-xs text-muted-foreground">
           {loading ? '加载中…' : `共 ${filteredGroups.length} 组 / ${scopedItems.length} 个版本`}
         </div>
       </div>
+
+      {loadError && (
+        <div className="shrink-0 px-3 pb-2">
+          <InlineError message={loadError} onRetry={() => void refresh()} />
+        </div>
+      )}
 
       {/* 列表 */}
       <ScrollArea className="min-h-0 min-w-0 flex-1">
         <div className="min-w-0 space-y-1 overflow-hidden px-2 pb-2">
           {loading && mergedItems.length === 0 ? (
-            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
-              <Loader2 className="mr-2 size-3 animate-spin" /> 加载中
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载产物…</div>
+              <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在从产物库读取列表。</p>
             </div>
           ) : filteredGroups.length === 0 ? (
-            <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-              {scopedItems.length === 0 || !query.trim() ? '还没有产物' : '没有匹配项'}
-            </div>
+            <EmptyState
+              icon={query.trim() ? Search : Layers}
+              title={scopedItems.length === 0 || !query.trim() ? '还没有产物' : '没有匹配的产物'}
+              description={
+                scopedItems.length === 0
+                  ? 'Agent 生成代码、文档或网页后会出现在这里。'
+                  : '换个关键词，或清除搜索条件后再查看。'
+              }
+              action={
+                query.trim()
+                  ? { label: '清除搜索', onClick: () => setQuery('') }
+                  : { label: '重新加载', onClick: () => void refresh() }
+              }
+            />
           ) : (
             filteredGroups.map((group) => {
               const latest = group.latest
@@ -196,14 +221,14 @@ export function ArtifactLibrary({
                       <TypeIcon type={latest.type} />
                       <div className="min-w-0 overflow-hidden">
                         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 overflow-hidden">
-                          <span className="block min-w-0 truncate text-xs font-medium" title={latest.title}>
+                          <span className="block min-w-0 truncate text-sm font-medium" title={latest.title}>
                             {latest.title}
                           </span>
-                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
+                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                             v{latest.version}
                           </span>
                         </div>
-                        <div className="mt-0.5 min-w-0 truncate text-3xs text-muted-foreground">
+                        <div className="mt-0.5 min-w-0 truncate text-xs text-muted-foreground">
                           <span className="font-mono">{latest.type}</span>
                           <span className="mx-1">·</span>
                           {versions.length > 1 ? `${versions.length} 个版本` : '1 个版本'}
@@ -211,7 +236,7 @@ export function ArtifactLibrary({
                           {formatTime(latest.createdAt)}
                         </div>
                         {showConversationTitle && (
-                          <div className="mt-0.5 min-w-0 truncate text-3xs text-muted-foreground">
+                          <div className="mt-0.5 min-w-0 truncate text-xs text-muted-foreground">
                             {latest.conversationTitle ?? '（无会话）'}
                           </div>
                         )}
@@ -225,7 +250,7 @@ export function ArtifactLibrary({
                       }}
                       title="删除最新版本"
                       className={cn(
-                        'shrink-0 self-center opacity-0 transition group-hover:opacity-100 hover:text-red-600',
+                        'shrink-0 self-center opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:text-red-600',
                       )}
                     >
                       <Trash2 className="size-3.5" />
@@ -246,7 +271,7 @@ export function ArtifactLibrary({
                             aria-pressed={isSelected}
                             title={`${version.title} · ${formatTime(version.createdAt)}`}
                             className={cn(
-                              'inline-flex h-5 shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-3xs transition',
+                              'inline-flex h-5 shrink-0 items-center gap-1 rounded border px-1.5 font-mono text-xs transition',
                               isSelected
                                 ? 'border-primary/30 bg-primary/10 text-foreground'
                                 : 'border-border/70 bg-background/60 text-muted-foreground hover:border-foreground/25 hover:text-foreground',

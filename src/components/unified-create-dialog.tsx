@@ -8,9 +8,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 
 interface UnifiedCreateDialogProps {
   open: boolean
@@ -42,7 +44,7 @@ export function UnifiedCreateDialog({ open, onOpenChange, onCreateAgent, onCreat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_SIZE_CLASS.sm}>
         <DialogHeader>
           <DialogTitle>创建</DialogTitle>
           <DialogDescription>选择要创建的类型</DialogDescription>
@@ -53,7 +55,7 @@ export function UnifiedCreateDialog({ open, onOpenChange, onCreateAgent, onCreat
             type="button"
             onClick={() => handleSelect('agent')}
             disabled={creating !== null}
-            className="flex flex-col items-center gap-2 rounded-lg border p-6 text-center transition hover:border-primary hover:bg-primary/5 disabled:opacity-50"
+            className="agenthub-card-interactive flex flex-col items-center gap-2 p-6 text-center disabled:opacity-50"
           >
             <Bot className="size-8 text-primary" />
             <div className="text-sm font-medium">单个 Agent</div>
@@ -64,7 +66,7 @@ export function UnifiedCreateDialog({ open, onOpenChange, onCreateAgent, onCreat
             type="button"
             onClick={() => handleSelect('team')}
             disabled={creating !== null}
-            className="flex flex-col items-center gap-2 rounded-lg border p-6 text-center transition hover:border-primary hover:bg-primary/5 disabled:opacity-50"
+            className="agenthub-card-interactive flex flex-col items-center gap-2 p-6 text-center disabled:opacity-50"
           >
             <Users className="size-8 text-primary" />
             <div className="text-sm font-medium">Agent 团队</div>
@@ -72,11 +74,11 @@ export function UnifiedCreateDialog({ open, onOpenChange, onCreateAgent, onCreat
           </button>
         </div>
 
-        <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

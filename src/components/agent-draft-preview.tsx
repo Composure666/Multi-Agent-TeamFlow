@@ -28,7 +28,7 @@ export function AgentDraftPreview({
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="rounded-md border bg-muted/20 px-3 py-3">
+      <div className="agenthub-card px-3 py-3">
         <div className="flex items-start gap-2">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
           <div className="min-w-0">
@@ -51,13 +51,13 @@ export function AgentDraftPreview({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <div className="rounded-md border px-3 py-2">
+        <div className="agenthub-card px-3 py-2">
           <div className="text-3xs text-muted-foreground">模型</div>
           <div className="mt-1 text-xs font-medium">
             {providerLabel} / {draft.modelId ?? 'SDK 默认'}
           </div>
         </div>
-        <div className="rounded-md border px-3 py-2">
+        <div className="agenthub-card px-3 py-2">
           <div className="text-3xs text-muted-foreground">视觉</div>
           <div className="mt-1 text-xs font-medium">
             {draft.supportsVision ? '默认开启' : '默认关闭'}
@@ -65,7 +65,7 @@ export function AgentDraftPreview({
         </div>
       </div>
 
-      <section className="rounded-md border px-3 py-2">
+      <section className="agenthub-card px-3 py-2">
         <div className="flex items-center gap-1.5 text-xs font-medium">
           <Wrench className="size-3.5" />
           工具权限
@@ -92,7 +92,7 @@ export function AgentDraftPreview({
       </section>
 
       {draft.assumptions.length > 0 && (
-        <section className="rounded-md border px-3 py-2">
+        <section className="agenthub-card px-3 py-2">
           <div className="flex items-center gap-1.5 text-xs font-medium">
             <ShieldCheck className="size-3.5" />
             默认假设
@@ -108,7 +108,7 @@ export function AgentDraftPreview({
         </section>
       )}
 
-      <section className="rounded-md border px-3 py-2">
+      <section className="agenthub-card px-3 py-2">
         <div className="text-xs font-medium">System Prompt</div>
         <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono text-3xs leading-4 text-muted-foreground">
           {draft.systemPrompt}

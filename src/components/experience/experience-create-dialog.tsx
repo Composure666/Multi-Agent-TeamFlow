@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { RichTextEditor } from '@/components/experience/rich-text-editor'
 import { uploadExperienceFiles } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 
 const KIND_OPTIONS: { value: ExperienceKind; label: string }[] = [
   { value: 'experience', label: '经验' },
@@ -97,43 +98,43 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o) }}>
-      <DialogContent className="sm:max-w-3xl [&>button]:hidden">
+      <DialogContent className={cn('grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden [&>button]:hidden', DIALOG_SIZE_CLASS.md)}>
         <DialogHeader>
           <DialogTitle>新建经验资产</DialogTitle>
           <DialogDescription>手动录入一条可复用的经验，将按触发条件注入后续 Agent 任务的系统提示。</DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-5">
+        <div className="flex min-h-0 gap-5 overflow-y-auto">
           {/* 左侧表单 */}
           <div className="flex w-64 shrink-0 flex-col gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium">标题 *</label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="请输入经验标题" maxLength={80} className="text-xs" />
+              <label className="mb-1 block text-sm font-medium">标题 *</label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="请输入经验标题" maxLength={80} className="text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">分类</label>
+              <label className="mb-1 block text-sm font-medium">分类</label>
               <select value={kind} onChange={(e) => setKind(e.target.value as ExperienceKind)}
-                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--agenthub-accent-border)]">
                 {KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">触发条件 *</label>
-              <Input value={trigger} onChange={(e) => setTrigger(e.target.value)} placeholder="如：用户画像识别 / 会话结束" maxLength={200} className="text-xs" />
+              <label className="mb-1 block text-sm font-medium">触发条件 *</label>
+              <Input value={trigger} onChange={(e) => setTrigger(e.target.value)} placeholder="如：用户画像识别 / 会话结束" maxLength={200} className="text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">关联 Agent *</label>
+              <label className="mb-1 block text-sm font-medium">关联 Agent *</label>
               <select value={agentId ?? ''} onChange={(e) => setAgentId(e.target.value || null)}
-                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--agenthub-accent-border)]">
                 <option value="">全局（所有 Agent 可用）</option>
                 {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">标签</label>
+              <label className="mb-1 block text-sm font-medium">标签</label>
               <div className="flex flex-wrap gap-1">
                 {tags.map((t) => (
-                  <Badge key={t} variant="secondary" className="gap-1 text-3xs">
+                  <Badge key={t} variant="secondary" className="gap-1 text-xs">
                     {t}
                     <button onClick={() => setTags(tags.filter((x) => x !== t))}><X className="size-2.5" /></button>
                   </Badge>
@@ -142,23 +143,23 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
               <div className="mt-1 flex gap-1">
                 <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTags(tagInput) } }}
-                  placeholder="输入标签，回车或逗号添加" className="text-xs" />
+                  placeholder="输入标签，回车或逗号添加" className="text-sm" />
                 <Button size="sm" variant="outline" onClick={() => addTags(tagInput)} className="shrink-0 text-xs">添加</Button>
               </div>
-              <p className="mt-1 text-3xs text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
+              <p className="mt-1 text-xs text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-              <span className="text-xs font-medium">启用</span>
+              <span className="text-sm font-medium">启用</span>
               <button type="button" onClick={() => setActive(!active)}
-                className={cn('relative h-5 w-9 rounded-full transition-colors', active ? 'bg-blue-500' : 'bg-muted')}>
-                <span className={cn('absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform', active ? 'translate-x-4' : 'translate-x-0.5')} />
+                className={cn('relative h-5 w-9 rounded-full transition-colors', active ? 'bg-[var(--agenthub-accent)]' : 'bg-muted')}>
+                <span className={cn('absolute top-0.5 size-4 rounded-full bg-[var(--agenthub-surface)] shadow transition-transform', active ? 'translate-x-4' : 'translate-x-0.5')} />
               </button>
             </div>
           </div>
 
           {/* 右侧富文本 */}
           <div className="flex min-w-0 flex-1 flex-col">
-            <label className="mb-1 block text-xs font-medium">经验内容 *</label>
+            <label className="mb-1 block text-sm font-medium">经验内容 *</label>
             <RichTextEditor value={content} onChange={setContent} placeholder="请输入经验内容…" minHeight={240} />
             {pendingFiles.length > 0 && (
               <div className="mt-2 space-y-1">
@@ -166,7 +167,7 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
                   <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-md border bg-background px-2 py-1">
                     <Paperclip className="size-3 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate text-xs">{f.name}</span>
-                    <span className="shrink-0 text-3xs text-muted-foreground">{formatFileSize(f.size)}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(f.size)}</span>
                     <button
                       onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
                       className="shrink-0 text-muted-foreground hover:text-foreground"
@@ -181,7 +182,7 @@ export function ExperienceCreateDialog({ open, onOpenChange, agents, onCreate }:
             <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40">
               <Upload className="size-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{creating ? '创建中…' : '添加参考文件（可选）'}</span>
-              <span className="text-3xs text-muted-foreground/70">创建后自动上传</span>
+              <span className="text-xs text-muted-foreground/70">创建后自动上传</span>
               <input
                 type="file"
                 multiple

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, CheckCircle2, Loader2, Plus, Save, XCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/workbench-primitives'
 import { BUILTIN_PROVIDERS } from '@/lib/llm-shared'
 import type { LlmProviderRow } from '@/db/schema'
 
@@ -24,12 +25,17 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
   const [providers, setProviders] = useState<LlmProviderRow[]>([])
   const [priority, setPriority] = useState<PriorityItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+
+  const retry = () => setRetryKey((k) => k + 1)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     Promise.all([
       fetch('/api/providers').then((r) => r.json()),
       fetch(`/api/provider-priority?capabilityKey=${encodeURIComponent(GLOBAL_KEY)}`).then((r) => r.json()),
@@ -39,14 +45,17 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
         setProviders(pData.providers ?? [])
         setPriority(prData.assignments ?? [])
       })
-      .catch((err) => console.error('[ProviderPriorityPanel] load failed', err))
+      .catch((err) => {
+        console.error('[ProviderPriorityPanel] load failed', err)
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, retryKey])
 
   const moveItem = (index: number, direction: -1 | 1) => {
     const newIndex = index + direction
@@ -95,10 +104,18 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-6">
+      <div className="flex flex-col items-center justify-center gap-2 py-6">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">正在加载供应商优先级…</p>
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={retry}>
+          重新加载
+        </Button>
       </div>
     )
+  }
+
+  if (loadError) {
+    return <InlineError message={`供应商优先级加载失败：${loadError}`} onRetry={retry} />
   }
 
   return (
@@ -121,7 +138,7 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
       </div>
 
       {showAdd && availableProviders.length > 0 && (
-        <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/5">
+        <div className="flex flex-wrap gap-2 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-2">
           {availableProviders.map((p) => (
             <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => addProvider(p.id)}>
               + {p.displayName}
@@ -131,8 +148,9 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
       )}
 
       {priority.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-200 py-6 text-center text-xs text-muted-foreground dark:border-white/10">
-          尚未配置优先级，点击「添加」把已配置的供应商加入优先级列表
+        <div className="flex flex-col items-center gap-1.5 rounded-md border border-dashed border-[var(--agenthub-border)] py-6 text-center">
+          <ArrowUp className="size-4 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">尚未配置优先级，点击「添加」把已配置的供应商加入优先级列表</p>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
@@ -142,7 +160,7 @@ export function ProviderPriorityPanel({ refreshKey }: ProviderPriorityPanelProps
             return (
               <div
                 key={item.providerId}
-                className="flex items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-neutral-900"
+                className="flex items-center gap-3 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2"
               >
                 <span className="w-5 text-center text-xs font-medium text-muted-foreground">{index + 1}</span>
                 <StatusDot status={item.status} />

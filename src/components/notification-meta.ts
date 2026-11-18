@@ -29,8 +29,8 @@ export const NOTIFICATION_CATEGORY_META: Record<AppNotificationCategory, { icon:
     bar: 'bg-rose-500',
   },
   system: {
-    icon: 'bg-slate-100 text-slate-600 dark:bg-neutral-800 dark:text-slate-300',
-    chip: 'bg-slate-100 text-slate-500 dark:bg-neutral-800 dark:text-slate-400',
+    icon: 'bg-[var(--agenthub-surface-muted)] text-slate-600 dark:text-slate-300',
+    chip: 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
     bar: 'bg-slate-300',
   },
   configuration: {
@@ -62,7 +62,7 @@ export const NOTIFICATION_LEVEL_META: Record<AppNotification['level'], {
   },
   info: {
     icon: Info,
-    className: 'border-slate-200 bg-white text-slate-950 shadow-slate-950/10 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-100',
+    className: 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-950 shadow-slate-950/10 dark:text-slate-100',
     iconClassName: 'text-[var(--agenthub-accent)]',
   },
 }

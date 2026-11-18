@@ -64,6 +64,8 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState, InlineError, PageHeader, PageShell } from '@/components/workbench-primitives'
 import { Meta } from '@/components/workbench-detail-primitives'
 import {
   AUTOMATION_TREND_RANGES,
@@ -110,25 +112,25 @@ const STAT_TILES: StatPill[] = [
 const TONE_CLASS: Record<StatPill['tone'], { wrap: string; chip: string; text: string; bar: string }> = {
   sky: {
     wrap: 'bg-sky-50 dark:bg-sky-500/10',
-    chip: 'bg-white/80 text-sky-700 dark:bg-white/10 dark:text-sky-300',
+    chip: 'bg-white/80 text-sky-700 dark:text-sky-300',
     text: 'text-sky-600 dark:text-sky-300',
     bar: 'bg-sky-500/30 dark:bg-sky-500/40',
   },
   violet: {
     wrap: 'bg-violet-50 dark:bg-violet-500/10',
-    chip: 'bg-white/80 text-violet-700 dark:bg-white/10 dark:text-violet-300',
+    chip: 'bg-white/80 text-violet-700 dark:text-violet-300',
     text: 'text-violet-600 dark:text-violet-300',
     bar: 'bg-violet-500/30 dark:bg-violet-500/40',
   },
   emerald: {
     wrap: 'bg-emerald-50 dark:bg-emerald-500/10',
-    chip: 'bg-white/80 text-emerald-700 dark:bg-white/10 dark:text-emerald-300',
+    chip: 'bg-white/80 text-emerald-700 dark:text-emerald-300',
     text: 'text-emerald-600 dark:text-emerald-300',
     bar: 'bg-emerald-500/30 dark:bg-emerald-500/40',
   },
   rose: {
     wrap: 'bg-rose-50 dark:bg-rose-500/10',
-    chip: 'bg-white/80 text-rose-700 dark:bg-white/10 dark:text-rose-300',
+    chip: 'bg-white/80 text-rose-700 dark:text-rose-300',
     text: 'text-rose-600 dark:text-rose-300',
     bar: 'bg-rose-500/30 dark:bg-rose-500/40',
   },
@@ -211,7 +213,7 @@ function hashString(value: string): number {
 }
 
 function categoryChipClass(category: string): string {
-  if (!category.trim()) return 'bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-slate-400'
+  if (!category.trim()) return 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400'
   return CATEGORY_CHIP_TONES[hashString(category) % CATEGORY_CHIP_TONES.length]
 }
 
@@ -305,15 +307,15 @@ const STATUS_TONE_CHIP: Record<AutomationTaskView['statusTone'], { dot: string; 
     label: '运行中',
   },
   enabled: {
-    dot: 'bg-sky-500',
-    text: 'text-sky-700 dark:text-sky-300',
-    ring: 'bg-sky-50 dark:bg-sky-500/10',
+    dot: 'bg-[var(--agenthub-accent)]',
+    text: 'text-[var(--agenthub-accent)]',
+    ring: 'bg-[var(--agenthub-accent-soft)]',
     label: '已启用',
   },
   paused: {
     dot: 'bg-slate-400',
     text: 'text-slate-600 dark:text-slate-300',
-    ring: 'bg-slate-100 dark:bg-white/5',
+    ring: 'bg-[var(--agenthub-surface-muted)]',
     label: '已暂停',
   },
   failed: {
@@ -510,7 +512,7 @@ function RateRing({ rate, invalid }: { rate: number; invalid?: boolean }) {
 function RatioBar({ ratio, className }: { ratio: number; className: string }) {
   const pct = Math.min(100, Math.max(0, ratio * 100))
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" aria-hidden>
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--agenthub-surface-muted)]" aria-hidden>
       <div className={cn('h-full rounded-full transition-all', className)} style={{ width: `${pct}%` }} />
     </div>
   )
@@ -542,7 +544,7 @@ function DashboardTile({
   const Icon = stat.icon
   const tone = TONE_CLASS[stat.tone]
   return (
-    <div className={cn('group relative flex min-h-[128px] flex-col gap-3 rounded-2xl border border-slate-200/70 p-4 transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_10px_30px_-15px_rgba(15,23,42,0.18)] dark:border-white/10', tone.wrap)}>
+    <div className={cn('agenthub-card group relative flex min-h-[128px] flex-col gap-3 p-4', tone.wrap)}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-xl', tone.chip)}>
@@ -553,7 +555,7 @@ function DashboardTile({
             <div className="mt-0.5 flex items-baseline gap-1.5">
               <span className="text-xl font-semibold tracking-tight tabular-nums text-slate-950 dark:text-slate-50">{value}</span>
               {delta && (
-                <span className={cn('inline-flex items-center gap-0.5 text-xs font-medium', delta.startsWith('-') ? 'text-rose-500' : 'text-emerald-600')}>
+                <span className={cn('inline-flex items-center gap-0.5 text-xs font-medium', delta.startsWith('-') ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
                   <TrendingUp className={cn('size-3', delta.startsWith('-') && 'rotate-180')} />
                   {delta}
                 </span>
@@ -565,7 +567,7 @@ function DashboardTile({
           <button
             type="button"
             onClick={onAction}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-white/90 px-2 py-1 text-3xs font-medium text-slate-700 shadow-sm transition hover:bg-white hover:text-[var(--agenthub-accent)] dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-white/90 px-2 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-[var(--agenthub-surface)] hover:text-[var(--agenthub-accent)] dark:text-slate-200 dark:hover:bg-white/10"
           >
             {actionLabel}
             <ChevronRight className="size-3" />
@@ -604,7 +606,7 @@ function TaskMoreMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         onClick={(e) => e.stopPropagation()}
-        className="flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10"
+        className="flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 dark:hover:bg-white/10"
         aria-label="更多操作"
       >
         <MoreHorizontal className="size-3.5" />
@@ -647,10 +649,10 @@ function AutomationCard({
     <article
       onClick={() => onSelect(task.id)}
       className={cn(
-        'group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white p-4 text-left transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_10px_30px_-15px_rgba(15,23,42,0.2)] dark:bg-neutral-950/40',
+        'agenthub-card-interactive group relative flex cursor-pointer flex-col overflow-hidden p-4 text-left',
         selected
           ? 'border-[var(--agenthub-accent-border)] shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)]'
-          : 'border-slate-200 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/15',
+          : 'border-[var(--agenthub-border)] hover:border-[var(--agenthub-accent-border)]',
       )}
     >
       {/* Header — icon, title, always-visible favorite star + status pill */}
@@ -677,7 +679,7 @@ function AutomationCard({
               >
                 <Star className={cn('size-3.5', favorite && 'fill-amber-400')} />
               </button>
-              <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium', tone.ring, tone.text)}>
+              <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', tone.ring, tone.text)}>
                 <span className={cn('size-1.5 rounded-full', tone.dot, task.statusTone === 'running' && 'animate-pulse')} />
                 {tone.label}
               </span>
@@ -688,22 +690,22 @@ function AutomationCard({
       </div>
 
       {/* Trigger + category tag */}
-      <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-white/5">
+      <div className="mt-3 flex items-center gap-2 rounded-lg bg-[var(--agenthub-surface-muted)] px-2.5 py-2">
         <TriggerIcon className={cn('size-3.5 shrink-0', trigger.tone)} />
         <span className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{task.cadence}</span>
         {task.category.trim() && (
-          <span className={cn('ml-auto inline-flex max-w-[45%] shrink-0 items-center truncate rounded-full px-2 py-0.5 text-3xs font-medium', categoryChipClass(task.category))}>
+          <span className={cn('ml-auto inline-flex max-w-[45%] shrink-0 items-center truncate rounded-full px-2 py-0.5 text-xs font-medium', categoryChipClass(task.category))}>
             {task.category}
           </span>
         )}
       </div>
 
       {/* Footer — last run + hover actions */}
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-white/5 dark:text-slate-400">
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--agenthub-border)] pt-3 text-xs text-slate-500 dark:border-white/5 dark:text-slate-400">
         <div className="flex min-w-0 items-center gap-1.5">
           {task.statusTone === 'failed' ? (
             <>
-              <CircleAlert className="size-3 shrink-0 text-rose-500" />
+              <CircleAlert className="size-3 shrink-0 text-rose-500 dark:text-rose-400" />
               <span className="truncate text-rose-600 dark:text-rose-300">最近失败</span>
               <span aria-hidden>·</span>
               <span className="shrink-0">{task.latestRun}</span>
@@ -725,7 +727,7 @@ function AutomationCard({
               onRun(task.id)
             }}
             disabled={task.statusTone === 'running'}
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-3xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
             title="立即运行"
           >
             <Play className="size-3" />
@@ -766,10 +768,10 @@ function AutomationRow({
     <article
       onClick={() => onSelect(task.id)}
       className={cn(
-        'group flex cursor-pointer items-center gap-3 rounded-xl border bg-white p-3 text-left transition-all duration-200 hover:shadow-[0_6px_20px_-12px_rgba(15,23,42,0.18)] dark:bg-neutral-950/40',
+        'agenthub-card-interactive group flex cursor-pointer items-center gap-3 p-3 text-left',
         selected
           ? 'border-[var(--agenthub-accent-border)]'
-          : 'border-slate-200 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/15',
+          : 'border-[var(--agenthub-border)] hover:border-[var(--agenthub-accent-border)]',
       )}
     >
       <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl', task.iconWrapClassName)}>
@@ -779,7 +781,7 @@ function AutomationRow({
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-medium leading-tight text-slate-950 dark:text-slate-50">{task.title || '未命名任务'}</h3>
           {task.category.trim() && (
-            <span className={cn('hidden shrink-0 rounded-full px-2 py-0.5 text-3xs font-medium sm:inline-flex', categoryChipClass(task.category))}>
+            <span className={cn('hidden shrink-0 rounded-full px-2 py-0.5 text-xs font-medium sm:inline-flex', categoryChipClass(task.category))}>
               {task.category}
             </span>
           )}
@@ -790,7 +792,7 @@ function AutomationRow({
         <TriggerIcon className={cn('size-3.5', trigger.tone)} />
         <span className="w-24 truncate">{task.cadence}</span>
       </div>
-      <span className={cn('hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium sm:inline-flex', tone.ring, tone.text)}>
+      <span className={cn('hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:inline-flex', tone.ring, tone.text)}>
         <span className={cn('size-1.5 rounded-full', tone.dot, task.statusTone === 'running' && 'animate-pulse')} />
         {tone.label}
       </span>
@@ -818,7 +820,7 @@ function AutomationRow({
             onRun(task.id)
           }}
           disabled={task.statusTone === 'running'}
-          className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-3xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
           title="立即运行"
         >
           <Play className="size-3" />
@@ -836,12 +838,31 @@ function AutomationRow({
 
 const RUN_ROW_LIMIT = 4
 
+/* ── 面板内空态：图标 + 一句话 + 说明，与 EmptyState 同一视觉语言 ── */
+function MiniEmpty({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon
+  title: string
+  description?: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
+      <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+        <Icon className="size-5" />
+      </div>
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
+      {description && <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
+    </div>
+  )
+}
+
 function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomationRun>[]; nowMs: number }) {
   if (runs.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
-        暂无运行记录
-      </div>
+      <MiniEmpty icon={Activity} title="暂无运行记录" description="任务运行后，记录会出现在这里。" />
     )
   }
   const visible = runs.slice(0, RUN_ROW_LIMIT)
@@ -853,18 +874,18 @@ function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomatio
         const dotBg = success
           ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
           : running
-            ? 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-300'
+            ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
             : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
         const StatusIcon = success ? CheckCircle2 : running ? Play : CircleAlert
         const chip = success
           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
           : running
-            ? 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300'
+            ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
             : 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
         return (
           <li
             key={run.id}
-            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+            className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/[0.04]"
           >
             <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-md', dotBg)}>
               <StatusIcon className="size-3.5" />
@@ -882,7 +903,7 @@ function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomatio
                 )}
               </div>
             </div>
-            <span className={cn('inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-3xs font-medium', chip)}>
+            <span className={cn('inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-xs font-medium', chip)}>
               {run.status}
             </span>
           </li>
@@ -937,23 +958,28 @@ function DetailPanel({
   const promptLineCount = task.prompt.trim() ? task.prompt.trim().split('\n').length : 0
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex w-[880px] max-w-[calc(100%-2rem)] sm:max-w-none max-h-[min(993px,calc(100vh-2rem))] flex-col gap-0 overflow-hidden rounded-2xl border-2 border-sky-300 bg-white p-0 shadow-2xl dark:border-sky-500/40 dark:bg-neutral-950">
+      <DialogContent
+        className={cn(
+          DIALOG_SIZE_CLASS.lg,
+          'flex max-h-[min(993px,calc(100vh-2rem))] flex-col gap-0 overflow-hidden rounded-2xl border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-0 shadow-2xl',
+        )}
+      >
         {/* Header — selected tag + category chip + title + status + close */}
-        <DialogHeader className="shrink-0 border-b border-slate-100 px-7 pt-6 pb-4 dark:border-white/5">
+        <DialogHeader className="shrink-0 border-b border-[var(--agenthub-border)] px-7 pt-6 pb-4 dark:border-white/5">
           <div className="flex min-w-0 flex-1 items-start gap-3 pr-10">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-sky-500 text-white shadow-sm">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm">
               <Sparkles className="size-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                <span className="inline-flex items-center rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-0.5 text-xs font-medium text-[var(--agenthub-accent)]">
                   选中任务 / Selected
                 </span>
-                <span className="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                <span className="inline-flex items-center rounded-md bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--agenthub-accent)]">
                   {task.category.trim() || '未分类'}
                 </span>
               </div>
-              <DialogTitle className="mt-2 truncate text-[22px] font-bold leading-tight text-slate-900 dark:text-slate-50">
+              <DialogTitle className="mt-2 truncate text-2xl font-bold leading-tight text-slate-900 dark:text-slate-50">
                 {task.title}
               </DialogTitle>
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[0.8125rem] text-slate-500 dark:text-slate-400">
@@ -994,7 +1020,7 @@ function DetailPanel({
                           latestRun.status === 'success'
                             ? 'text-emerald-600 dark:text-emerald-400'
                             : latestRun.status === 'running'
-                              ? 'text-sky-600 dark:text-sky-400'
+                              ? 'text-[var(--agenthub-accent)]'
                               : 'text-rose-600 dark:text-rose-400',
                         )}
                       >
@@ -1017,11 +1043,11 @@ function DetailPanel({
                   <Sparkles className="size-3.5 text-slate-500 dark:text-slate-400" />
                   任务提示词预览
                 </h3>
-                <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
                   <Lock className="size-3" />只读 · line-clamp 3
                 </span>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-4">
                 <p
                   className={cn(
                     'whitespace-pre-wrap break-words text-[0.8125rem] leading-relaxed text-slate-700 dark:text-slate-300',
@@ -1034,7 +1060,7 @@ function DetailPanel({
                   <button
                     type="button"
                     onClick={() => setPromptExpanded((v) => !v)}
-                    className="mt-2 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+                    className="mt-2 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                   >
                     {promptExpanded
                       ? '收起'
@@ -1064,7 +1090,7 @@ function DetailPanel({
                   <Button
                     variant="outline"
                     onClick={() => onOpenConversation(task.conversationId as string)}
-                    className="h-9 rounded-full border-slate-200 px-4 text-[0.8125rem] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
+                    className="h-9 rounded-full border-[var(--agenthub-border)] px-4 text-[0.8125rem] font-medium hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/[0.04]"
                   >
                     <ExternalLink className="mr-1.5 size-3.5" />查看结果会话
                   </Button>
@@ -1072,7 +1098,7 @@ function DetailPanel({
                 <Button
                   variant="outline"
                   onClick={onEdit}
-                  className="h-9 rounded-full border-slate-200 px-4 text-[0.8125rem] font-medium hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/[0.04]"
+                  className="h-9 rounded-full border-[var(--agenthub-border)] px-4 text-[0.8125rem] font-medium hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/[0.04]"
                 >
                   <Settings2 className="mr-1.5 size-3.5" />编辑
                 </Button>
@@ -1081,7 +1107,7 @@ function DetailPanel({
                     variant="outline"
                     onClick={onTogglePause}
                     disabled={busyAction !== null}
-                    className="h-9 rounded-full border-amber-300 bg-amber-50 px-4 text-[0.8125rem] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200"
+                    className="h-9 rounded-full border-amber-300 bg-amber-50 dark:bg-amber-500/10 px-4 text-[0.8125rem] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200"
                   >
                     <Pause className="mr-1.5 size-3.5" />暂停
                   </Button>
@@ -1090,7 +1116,7 @@ function DetailPanel({
                     variant="outline"
                     onClick={onTogglePause}
                     disabled={busyAction !== null}
-                    className="h-9 rounded-full border-emerald-300 bg-emerald-50 px-4 text-[0.8125rem] font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
+                    className="h-9 rounded-full border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 px-4 text-[0.8125rem] font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200"
                   >
                     <Play className="mr-1.5 size-3.5" />启用
                   </Button>
@@ -1098,7 +1124,7 @@ function DetailPanel({
                 <Button
                   onClick={onRun}
                   disabled={busyAction === 'run' || task.statusTone === 'running'}
-                  className="h-9 rounded-full bg-sky-600 px-4 text-[0.8125rem] font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-50"
+                  className="h-9 rounded-full bg-[var(--primary)] px-4 text-[0.8125rem] font-medium text-[var(--primary-foreground)] shadow-sm hover:bg-[var(--agenthub-accent-hover)] disabled:opacity-50"
                 >
                   <Play className="mr-1.5 size-3.5 fill-white" />
                   {busyAction === 'run' ? '运行中…' : '立即运行'}
@@ -1107,7 +1133,7 @@ function DetailPanel({
                   variant="outline"
                   onClick={onDelete}
                   disabled={busyAction === 'delete'}
-                  className="h-9 rounded-full border-rose-300 px-4 text-[0.8125rem] font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-500/40 dark:hover:bg-rose-500/10"
+                  className="h-9 rounded-full border-rose-300 px-4 text-[0.8125rem] font-medium text-rose-600 hover:bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/40 dark:hover:bg-rose-500/10"
                 >
                   <Trash2 className="mr-1.5 size-3.5" />删除
                 </Button>
@@ -1118,14 +1144,14 @@ function DetailPanel({
                   onClick={onCopy}
                   aria-label="复制任务提示词"
                   title="复制任务提示词"
-                  className="flex size-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:border-white/20 dark:hover:text-slate-200"
+                  className="flex size-9 items-center justify-center rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500 transition hover:border-[var(--agenthub-accent-border)] hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 >
                   <Copy className="size-3.5" />
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     aria-label="更多操作"
-                    className="flex size-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:border-white/20 dark:hover:text-slate-200"
+                    className="flex size-9 items-center justify-center rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500 transition hover:border-[var(--agenthub-accent-border)] hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                   >
                     <MoreHorizontal className="size-3.5" />
                   </DropdownMenuTrigger>
@@ -1168,7 +1194,7 @@ function DetailPanel({
                     <button
                       type="button"
                       onClick={() => setHistoryExpanded((v) => !v)}
-                      className="inline-flex items-center gap-0.5 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                     >
                       {historyExpanded ? '收起' : '查看全部'}
                       <ChevronRight className={cn('size-3 transition-transform', historyExpanded && '-rotate-90')} />
@@ -1190,7 +1216,7 @@ function DetailPanel({
                         'flex items-center gap-3 rounded-xl border px-3.5 py-2.5',
                         failed
                           ? 'border-rose-200 bg-rose-50/50 dark:border-rose-500/30 dark:bg-rose-500/[0.08]'
-                          : 'border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]',
+                          : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] dark:bg-white/[0.03]',
                       )}
                     >
                       <div
@@ -1199,7 +1225,7 @@ function DetailPanel({
                           success
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
                             : running
-                              ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300'
+                              ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
                               : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
                         )}
                       >
@@ -1208,7 +1234,7 @@ function DetailPanel({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-slate-800 dark:text-slate-200">
                           {index === 0 && runHistory.length > 0 && (
-                            <span className="inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-3xs font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                            <span className="inline-flex items-center rounded-md bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-xs font-semibold text-[var(--agenthub-accent)]">
                               最新
                             </span>
                           )}
@@ -1225,7 +1251,7 @@ function DetailPanel({
                           type="button"
                           onClick={() => onOpenConversation(run.conversationId as string)}
                           title="打开这次运行的产出会话"
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/40 hover:text-[var(--agenthub-accent)] dark:border-white/10 dark:text-slate-300"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--agenthub-border)] px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/40 hover:text-[var(--agenthub-accent)] dark:text-slate-300"
                         >
                           <ExternalLink className="size-3" />
                           查看会话
@@ -1240,9 +1266,7 @@ function DetailPanel({
                   )
                 })}
                 {!runHistoryLoading && runHistory.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
-                    暂无运行历史
-                  </p>
+                  <MiniEmpty icon={History} title="暂无运行历史" description="该任务运行后，历史记录会出现在这里。" />
                 )}
               </div>
             </section>
@@ -1273,8 +1297,8 @@ const FORM_STATUS_OPTIONS: {
   dot: string
   chip: string
 }[] = [
-  { value: 'enabled', label: '启用', hint: '保存后按计划自动运行', dot: 'bg-sky-500', chip: 'bg-sky-50 dark:bg-sky-500/10' },
-  { value: 'paused', label: '暂停', hint: '保留配置，暂不触发', dot: 'bg-slate-400', chip: 'bg-slate-100 dark:bg-white/5' },
+  { value: 'enabled', label: '启用', hint: '保存后按计划自动运行', dot: 'bg-[var(--agenthub-accent)]', chip: 'bg-[var(--agenthub-accent-soft)]' },
+  { value: 'paused', label: '暂停', hint: '保留配置，暂不触发', dot: 'bg-slate-400', chip: 'bg-[var(--agenthub-surface-muted)]' },
   { value: 'draft', label: '草稿', hint: '先保存，稍后完善', dot: 'bg-amber-500', chip: 'bg-amber-50 dark:bg-amber-500/10' },
 ]
 
@@ -1289,7 +1313,7 @@ const WEEKDAY_FORM_OPTIONS: { value: string; label: string }[] = [
 ]
 
 const SELECT_CLASS =
-  'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm transition focus:border-[var(--agenthub-accent-border)] focus:outline-none dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200'
+  'h-9 w-full rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 text-sm text-slate-700 shadow-sm transition focus:border-[var(--agenthub-accent-border)] focus:outline-none dark:text-slate-200'
 
 // Vertical upcoming list (used in the bottom-right panel)
 
@@ -1312,9 +1336,7 @@ function UpcomingList({
   )
   if (upcoming.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-3 py-6 text-center text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">
-        暂无即将执行的任务
-      </div>
+      <MiniEmpty icon={Clock4} title="暂无即将执行的任务" description="启用定时任务后，下一次触发时间会出现在这里。" />
     )
   }
   return (
@@ -1326,7 +1348,7 @@ function UpcomingList({
             <button
               type="button"
               onClick={() => onSelect(task.id)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-50 dark:hover:bg-white/[0.04]"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/[0.04]"
             >
               <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400">
                 {formatAbsoluteClock(task.nextRunAt ?? nowMs, nowMs)}
@@ -1456,14 +1478,19 @@ function TaskFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex w-[720px] max-w-[calc(100%-2rem)] sm:max-w-none max-h-[min(993px,calc(100vh-2rem))] flex-col gap-0 overflow-hidden rounded-2xl border-slate-200 bg-white p-0 shadow-2xl dark:border-white/10 dark:bg-neutral-950">
+      <DialogContent
+        className={cn(
+          DIALOG_SIZE_CLASS.lg,
+          'flex max-h-[min(993px,calc(100vh-2rem))] flex-col gap-0 overflow-hidden rounded-2xl border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-0 shadow-2xl',
+        )}
+      >
         {/* Header — tag + title + description (close button rendered by DialogContent) */}
         <DialogHeader className="shrink-0 px-7 pt-6 pb-4">
           <div className="min-w-0 pr-10">
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+            <span className="inline-flex items-center rounded-full bg-[var(--agenthub-accent-soft)] px-2.5 py-0.5 text-xs font-medium text-[var(--agenthub-accent)]">
               {topTag}
             </span>
-            <DialogTitle className="mt-2.5 text-[22px] font-bold leading-tight text-slate-900 dark:text-slate-50">
+            <DialogTitle className="mt-2.5 text-2xl font-bold leading-tight text-slate-900 dark:text-slate-50">
               {isEdit ? '编辑自动化任务' : '创建自动化任务'}
             </DialogTitle>
             <DialogDescription className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
@@ -1505,7 +1532,7 @@ function TaskFormDialog({
                 <label className="block space-y-1.5">
                   <span className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
                     <span>标题 / Title</span>
-                    <span className="text-rose-500">必填</span>
+                    <span className="text-rose-500 dark:text-rose-400">必填</span>
                   </span>
                   <Input
                     value={form.title}
@@ -1560,7 +1587,7 @@ function TaskFormDialog({
                   </button>
                 </div>
               </div>
-              <div className="overflow-hidden rounded-xl border border-slate-200 focus-within:border-[var(--agenthub-accent-border)] dark:border-white/10 dark:focus-within:border-[var(--agenthub-accent-border)]">
+              <div className="overflow-hidden rounded-xl border border-[var(--agenthub-border)] focus-within:border-[var(--agenthub-accent-border)] dark:focus-within:border-[var(--agenthub-accent-border)]">
                 <Textarea
                   value={form.prompt}
                   onChange={(event) => onFormChange({ prompt: event.target.value.slice(0, 800) })}
@@ -1612,7 +1639,7 @@ function TaskFormDialog({
               </div>
 
               {/* 预览框 */}
-              <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-white/[0.04]">
+              <div className="flex items-center gap-2 rounded-lg bg-[var(--agenthub-surface-muted)] px-3 py-2.5">
                 <TriggerIcon className={cn('size-3.5 shrink-0', trigger.tone)} />
                 <span className="text-[0.8125rem] font-medium text-slate-700 dark:text-slate-200">
                   预览：{scheduleSummaryText(form)}
@@ -1645,7 +1672,7 @@ function TaskFormDialog({
                       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-slate-400">分钟</span>
                     </div>
                   ) : form.scheduleType === 'manual' ? (
-                    <div className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 dark:border-white/10 dark:bg-white/[0.02]">—</div>
+                    <div className="flex h-9 items-center rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 text-xs text-slate-400">—</div>
                   ) : (
                     <div className="relative">
                       <Input type="time" value={form.timeOfDay} onChange={(event) => onFormChange({ timeOfDay: event.target.value })} className="h-9 pr-12" />
@@ -1678,7 +1705,7 @@ function TaskFormDialog({
                           'flex size-7 items-center justify-center rounded-md border text-xs font-medium transition',
                           active
                             ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white shadow-sm'
-                            : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800 dark:border-white/10 dark:text-slate-400 dark:hover:text-slate-200',
+                            : 'border-[var(--agenthub-border)] text-slate-600 hover:border-[var(--agenthub-accent-border)] hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
                         )}
                       >
                         {option.label}
@@ -1689,7 +1716,7 @@ function TaskFormDialog({
               )}
 
               {/* 条件字段说明 */}
-              <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2 text-xs text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+              <div className="flex items-start gap-2 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2 text-xs text-slate-500 dark:bg-white/[0.03] dark:text-slate-400">
                 <Info className="mt-0.5 size-3.5 shrink-0 text-slate-400" />
                 <span className="leading-relaxed">
                   {form.scheduleType === 'interval'
@@ -1716,19 +1743,19 @@ function TaskFormDialog({
         </div>
 
         {/* Footer — 快捷键 + 取消 + 主按钮 */}
-        <DialogFooter className="mx-0 mb-0 shrink-0 flex-row items-center justify-between gap-3 border-t border-slate-100 bg-white px-7 py-4 sm:justify-between dark:border-white/5 dark:bg-neutral-950">
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+        <DialogFooter className="mx-0 mb-0 shrink-0 flex-row items-center justify-between gap-3 border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-7 py-4 sm:justify-between dark:border-white/5">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:text-slate-400">
             <Keyboard className="size-3" />
             按 ⌘/Ctrl + Enter 保存
           </div>
           <div className="flex shrink-0 items-center gap-2.5">
-            <Button variant="outline" onClick={onClose} disabled={submitting || promptFilling} className="h-10 rounded-full border-slate-200 px-5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/[0.04]">
+            <Button variant="outline" onClick={onClose} disabled={submitting || promptFilling} className="h-10 rounded-full border-[var(--agenthub-border)] px-5 text-sm font-medium text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-200 dark:hover:bg-white/[0.04]">
               取消
             </Button>
             <Button
               onClick={onSave}
               disabled={submitting || promptFilling || missingRequired}
-              className="h-10 rounded-full bg-sky-600 px-5 text-sm font-medium text-white shadow-sm hover:bg-sky-700 disabled:opacity-50"
+              className="h-10 rounded-full bg-[var(--primary)] px-5 text-sm font-medium text-[var(--primary-foreground)] shadow-sm hover:bg-[var(--agenthub-accent-hover)] disabled:opacity-50"
             >
               <Save className="mr-1.5 size-3.5" />
               {submitting ? '保存中…' : primaryLabel}
@@ -2133,21 +2160,19 @@ export function AutomationWorkspace({
   }, [dashboard?.stats])
 
   return (
-    <div className="h-full p-4 xl:p-6">
-      <section className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/70">
-        {/* Header */}
-        <div className="shrink-0 border-b border-slate-100 p-4 xl:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">自动化</h1>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">让 Agent 按计划自动执行任务，解放重复劳动，提升工作效率。</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 dark:bg-white/5 dark:text-slate-400">
+    <PageShell className="flex flex-col" contentClassName="w-full max-w-none flex-1 min-h-0">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden agenthub-card-container overflow-hidden">
+        {/* Header — 仍在卡片内，迁为 PageHeader 变体 */}
+        <PageHeader
+          title="自动化"
+          description="让 Agent 按计划自动执行任务，解放重复劳动，提升工作效率。"
+          actions={
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--agenthub-surface-muted)] px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                 <span className={cn('size-1.5 rounded-full', hasRunningState ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400')} />
                 {formatSyncTime(lastUpdatedAt, nowMs)}
               </span>
-              <Button variant="outline" disabled={refreshing} onClick={() => void loadDashboard()} className="h-9 rounded-xl border-slate-200 px-3 text-xs text-slate-700 transition hover:border-[var(--agenthub-accent-border)] hover:bg-slate-100 hover:text-slate-900">
+              <Button variant="outline" disabled={refreshing} onClick={() => void loadDashboard()} className="h-9 rounded-xl border-[var(--agenthub-border)] px-3 text-xs text-slate-700 transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-900">
                 <RefreshCw className={cn('mr-1.5 size-3.5', refreshing && 'animate-spin')} />
                 {refreshing ? '同步中' : '刷新'}
               </Button>
@@ -2155,20 +2180,13 @@ export function AutomationWorkspace({
                 <Plus className="mr-1.5 size-3.5" />
                 新建自动化
               </Button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
 
-        <ScrollArea className="min-h-0 flex-1" scrollbarClassName="hidden">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-5 p-4 xl:p-5">
-            {error && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-600">
-                <span>自动化数据加载失败：{error}</span>
-                <Button variant="outline" onClick={() => void loadDashboard()} className="h-8 rounded-xl border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-100">
-                  重试
-                </Button>
-              </div>
-            )}
+            {error && <InlineError message={`自动化数据加载失败：${error}`} onRetry={() => void loadDashboard()} />}
 
             {/* Stat tiles — real KPI visuals: ratio bar / sparkline / ring */}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -2217,7 +2235,7 @@ export function AutomationWorkspace({
             {/* Filters — row 1: search + sort + view toggle; row 2: category tabs */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 shadow-sm transition focus-within:border-[var(--agenthub-accent-border)] dark:border-white/10 dark:bg-neutral-950/40 dark:focus-within:border-[var(--agenthub-accent-border)]">
+                <div className="flex h-9 min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 shadow-sm transition focus-within:border-[var(--agenthub-accent-border)] dark:focus-within:border-[var(--agenthub-accent-border)]">
                   <Search className="size-3.5 shrink-0 text-slate-400" />
                   <Input
                     value={searchQuery}
@@ -2227,7 +2245,7 @@ export function AutomationWorkspace({
                   />
                 </div>
                 <DropdownMenu>
-                  <DropdownMenuTrigger className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-slate-100">
+                  <DropdownMenuTrigger className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 text-xs font-medium text-slate-600 shadow-sm transition hover:border-[var(--agenthub-accent-border)] hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
                     <ArrowUpDown className="size-3.5 text-slate-400" />
                     {SORT_OPTIONS.find((option) => option.value === sortKey)?.label}
                   </DropdownMenuTrigger>
@@ -2243,7 +2261,7 @@ export function AutomationWorkspace({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className="flex h-9 shrink-0 items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm dark:border-white/10 dark:bg-neutral-950/40" role="group" aria-label="视图切换">
+                <div className="flex h-9 shrink-0 items-center rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-0.5 shadow-sm" role="group" aria-label="视图切换">
                   <button
                     type="button"
                     onClick={() => setViewMode('grid')}
@@ -2252,7 +2270,7 @@ export function AutomationWorkspace({
                     className={cn(
                       'flex size-7 items-center justify-center rounded-lg transition',
                       viewMode === 'grid'
-                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                        ? 'bg-[var(--agenthub-accent)] text-white'
                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
                     )}
                   >
@@ -2266,7 +2284,7 @@ export function AutomationWorkspace({
                     className={cn(
                       'flex size-7 items-center justify-center rounded-lg transition',
                       viewMode === 'list'
-                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                        ? 'bg-[var(--agenthub-accent)] text-white'
                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
                     )}
                   >
@@ -2286,15 +2304,15 @@ export function AutomationWorkspace({
                       className={cn(
                         'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition',
                         active
-                          ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
-                          : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5',
+                          ? 'bg-slate-900 text-white shadow-sm dark:bg-[var(--agenthub-surface)] dark:text-slate-900'
+                          : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5',
                       )}
                     >
                       {tab.label}
                       <span
                         className={cn(
-                          'inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-3xs font-semibold tabular-nums',
-                          active ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400',
+                          'inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums',
+                          active ? 'bg-white/20 text-white/20 dark:text-slate-900' : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
                         )}
                       >
                         {count}
@@ -2322,7 +2340,7 @@ export function AutomationWorkspace({
                   />
                 ))}
                 {initialLoading && Array.from({ length: 6 }, (_, index) => (
-                  <div key={index} className="min-h-[156px] rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.02]" />
+                  <div key={index} className="min-h-[156px] rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]" />
                 ))}
               </div>
             ) : (
@@ -2341,27 +2359,36 @@ export function AutomationWorkspace({
                   />
                 ))}
                 {initialLoading && Array.from({ length: 6 }, (_, index) => (
-                  <div key={index} className="h-16 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.02]" />
+                  <div key={index} className="h-16 rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]" />
                 ))}
               </div>
             )}
             {!initialLoading && displayTasks.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                {tasks.length === 0
-                  ? '暂无自动化任务，点击「新建自动化」创建第一个任务。'
-                  : searchQuery.trim()
-                    ? '没有匹配搜索条件的任务。'
-                    : '当前分类下没有任务。'}
-              </div>
+              <EmptyState
+                icon={Zap}
+                title={tasks.length === 0 ? '暂无自动化任务' : searchQuery.trim() ? '没有匹配的任务' : '当前分类下没有任务'}
+                description={
+                  tasks.length === 0
+                    ? '创建第一个自动化任务，让 Agent 按计划自动执行。'
+                    : searchQuery.trim()
+                      ? '换个关键词，或清除搜索条件后再查看。'
+                      : '切换分类，或新建一个自动化任务。'
+                }
+                action={
+                  searchQuery.trim()
+                    ? { label: '清除搜索', onClick: () => setSearchQuery('') }
+                    : { label: '新建自动化', onClick: openCreateDialog }
+                }
+              />
             )}
 
             {/* Bottom: Activity feed + Run overview + Upcoming (3-column dashboard row) */}
             <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1.05fr)_minmax(0,1.05fr)]">
               {/* ① 最近运行记录 */}
-              <section className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-neutral-950/40">
+              <section className="agenthub-card flex h-full flex-col p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">最近运行记录</h2>
+                    <h2 className="font-heading text-sm font-semibold text-slate-950 dark:text-slate-50">最近运行记录</h2>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{recentRuns.length} 条运行</p>
                   </div>
                   <button
@@ -2382,17 +2409,17 @@ export function AutomationWorkspace({
               </section>
 
               {/* ② 运行概览 */}
-              <section className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-neutral-950/40">
+              <section className="agenthub-card flex h-full flex-col p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">运行概览</h2>
+                    <h2 className="font-heading text-sm font-semibold text-slate-950 dark:text-slate-50">运行概览</h2>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">最近 {trendRange} 天运行趋势</p>
                   </div>
                   <select
                     value={trendRange}
                     onChange={(event) => changeTrendRange(Number(event.target.value) as AutomationTrendRange)}
                     aria-label="趋势时间范围"
-                    className="h-7 cursor-pointer rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20"
+                    className="h-7 cursor-pointer rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 text-xs font-medium text-slate-500 transition hover:border-[var(--agenthub-accent-border)] hover:text-slate-700 dark:text-slate-300"
                   >
                     {AUTOMATION_TREND_RANGES.map((range) => (
                       <option key={range} value={range}>最近 {range} 天</option>
@@ -2405,43 +2432,43 @@ export function AutomationWorkspace({
                     weekdayLabels={trend.map((p) => p.label)}
                   />
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 dark:border-white/5">
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--agenthub-border)] pt-3 dark:border-white/5">
                   <div>
-                    <div className="text-3xs font-medium uppercase tracking-wide text-slate-400">周期运行次数</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-400">周期运行次数</div>
                     <div className="mt-1 flex items-baseline gap-1">
                       <span className="text-lg font-semibold tabular-nums text-slate-950 dark:text-slate-50">{trendTotal}</span>
                       {showRunCountDelta ? (
-                        <span className={cn('text-3xs', runCountDelta > 0 ? 'text-emerald-500' : runCountDelta < 0 ? 'text-rose-500' : 'text-slate-400')}>
+                        <span className={cn('text-xs', runCountDelta > 0 ? 'text-emerald-500' : runCountDelta < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400')}>
                           {runCountDelta > 0 ? `↑ ${runCountDelta}` : runCountDelta < 0 ? `↓ ${Math.abs(runCountDelta)}` : '持平'}
                         </span>
                       ) : (
-                        <span className="text-3xs text-slate-400">暂无数据</span>
+                        <span className="text-xs text-slate-400">暂无数据</span>
                       )}
                     </div>
                   </div>
                   <div>
-                    <div className="text-3xs font-medium uppercase tracking-wide text-slate-400">成功率</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-400">成功率</div>
                     <div className="mt-1 flex items-baseline gap-1">
                       <span className="text-lg font-semibold tabular-nums text-slate-950 dark:text-slate-50">
                         {hasRunData ? `${dashboard?.stats.successRate ?? 0}%` : '—'}
                       </span>
                       {hasRunData ? (
-                        <span className={cn('text-3xs', successRateDelta > 0 ? 'text-emerald-500' : successRateDelta < 0 ? 'text-rose-500' : 'text-slate-400')}>
+                        <span className={cn('text-xs', successRateDelta > 0 ? 'text-emerald-500' : successRateDelta < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400')}>
                           {successRateDelta > 0 ? `↑ ${successRateDelta}%` : successRateDelta < 0 ? `↓ ${Math.abs(successRateDelta)}%` : '持平'}
                         </span>
                       ) : (
-                        <span className="text-3xs text-slate-400">暂无数据</span>
+                        <span className="text-xs text-slate-400">暂无数据</span>
                       )}
                     </div>
                   </div>
                   <div>
-                    <div className="text-3xs font-medium uppercase tracking-wide text-slate-400">失败次数</div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-400">失败次数</div>
                     <div className="mt-1 flex items-baseline gap-1">
                       <span className="text-lg font-semibold tabular-nums text-rose-600 dark:text-rose-300">{recentFailCount}</span>
                       {recentFailCount === 0 ? (
-                        <span className="text-3xs text-slate-400">运行正常</span>
+                        <span className="text-xs text-slate-400">运行正常</span>
                       ) : (
-                        <span className={cn('text-3xs', failCountDelta > 0 ? 'text-rose-500' : 'text-slate-400')}>
+                        <span className={cn('text-xs', failCountDelta > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400')}>
                           {failCountDelta > 0 ? `↑ ${failCountDelta}` : failCountDelta < 0 ? `↓ ${Math.abs(failCountDelta)}` : '较上周期持平'}
                         </span>
                       )}
@@ -2451,10 +2478,10 @@ export function AutomationWorkspace({
               </section>
 
               {/* ③ 即将执行 */}
-              <section className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-neutral-950/40">
+              <section className="agenthub-card flex h-full flex-col p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">即将执行</h2>
+                    <h2 className="font-heading text-sm font-semibold text-slate-950 dark:text-slate-50">即将执行</h2>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">接下来将触发的任务</p>
                   </div>
                   <button
@@ -2475,7 +2502,7 @@ export function AutomationWorkspace({
                 <button
                   type="button"
                   onClick={openCreateDialog}
-                  className="mt-3 flex w-full items-center gap-2.5 rounded-xl border border-dashed border-slate-200 px-3 py-2.5 text-left transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/30 dark:border-white/10"
+                  className="mt-3 flex w-full items-center gap-2.5 rounded-xl border border-dashed border-[var(--agenthub-border)] px-3 py-2.5 text-left transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]/30"
                 >
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
                     <Plus className="size-3.5" />
@@ -2555,6 +2582,6 @@ export function AutomationWorkspace({
           notifyAutomation({ title: '提示词已更新', body: '已使用 AI 处理后的提示词。', level: 'success' })
         }}
       />
-    </div>
+    </PageShell>
   )
 }

@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { addAgentsToConversation } from '@/lib/api'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState, InlineError } from '@/components/workbench-primitives'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore } from '@/stores/app-store'
 
@@ -73,7 +75,7 @@ export function AddAgentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={DIALOG_SIZE_CLASS.md}>
         <DialogHeader>
           <DialogTitle>添加 Agent 到会话</DialogTitle>
           <DialogDescription>
@@ -88,11 +90,13 @@ export function AddAgentDialog({
             placeholder="搜索 Agent 名称、模型或说明"
             className="h-9"
           />
-          {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>}
+          {error && <InlineError message={error} />}
           {candidates.length === 0 ? (
-            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              {query.trim() ? '没有匹配的可添加 Agent' : '当前会话已包含所有可用 Agent'}
-            </div>
+            <EmptyState
+              title={query.trim() ? '没有匹配的可添加 Agent' : '当前会话已包含所有可用 Agent'}
+              description={query.trim() ? '换个关键词试试，或先去 Agent 库创建一个。' : undefined}
+              action={query.trim() ? { label: '清空搜索', onClick: () => setQuery('') } : undefined}
+            />
           ) : (
             <div className="max-h-[420px] overflow-y-auto pr-1">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -104,7 +108,7 @@ export function AddAgentDialog({
                       type="button"
                       onClick={() => toggle(a.id)}
                       className={cn(
-                        'flex min-w-0 items-start gap-3 rounded-md border p-3 text-left transition hover:border-foreground/30',
+                        'flex min-w-0 items-start gap-3 rounded-md border border-[var(--agenthub-border)] p-3 text-left transition hover:border-foreground/30',
                         isSelected && 'border-primary bg-primary/5',
                       )}
                     >

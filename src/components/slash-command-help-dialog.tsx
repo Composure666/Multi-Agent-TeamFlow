@@ -1,6 +1,8 @@
 'use client'
 
 import type { SlashCommandItem } from '@/components/slash-command-menu'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { EmptyState } from '@/components/workbench-primitives'
 import {
   Dialog,
   DialogContent,
@@ -22,11 +24,14 @@ export function SlashCommandHelpDialog({
 }: SlashCommandHelpDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={DIALOG_SIZE_CLASS.sm}>
         <DialogHeader>
           <DialogTitle>Slash 命令</DialogTitle>
           <DialogDescription>当前对话输入框支持的快捷命令。</DialogDescription>
         </DialogHeader>
+        {commands.length === 0 ? (
+          <EmptyState title="暂无可用命令" description="当前对话没有可用的斜杠命令。" />
+        ) : (
         <div className="flex flex-col gap-1">
           {commands.map((command) => {
             const Icon = command.icon
@@ -45,6 +50,7 @@ export function SlashCommandHelpDialog({
             )
           })}
         </div>
+        )}
       </DialogContent>
     </Dialog>
   )

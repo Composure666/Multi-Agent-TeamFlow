@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { presentToolSearchResult } from '@/components/agent-tool-search-presentation'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { InlineError, StatusBadge } from '@/components/workbench-primitives'
@@ -133,7 +134,7 @@ export function AgentToolSearchDialog({
         </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden sm:max-w-3xl">
+        <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
           <DialogHeader>
             <DialogTitle>联网搜索 Skills / MCP</DialogTitle>
             <DialogDescription>从 GitHub 远程项目中评估兼容性和风险并绑定到指定 Agent。</DialogDescription>
@@ -214,7 +215,11 @@ export function AgentToolSearchDialog({
               {!hasSearched && <SearchState title="远程搜索结果" description="输入关键词后查看兼容性、完整性与执行风险。" />}
               {searching && <SearchState loading title="正在搜索 GitHub" description="正在读取远程项目目录…" />}
               {hasSearched && !searching && !searchError && results.length === 0 && (
-                <SearchState title="未找到结果" description="试试修改关键词，或切换 Skill / MCP 类型。" />
+                <SearchState
+                  title="未找到结果"
+                  description="试试修改关键词，或切换 Skill / MCP 类型。"
+                  action={{ label: '清空搜索', onClick: () => setQuery('') }}
+                />
               )}
 
               {results.map((result, index) => {
@@ -225,7 +230,7 @@ export function AgentToolSearchDialog({
                   <article
                     key={result.kind + ':' + result.id}
                     className={cn(
-                      'agenthub-motion-item min-w-0 rounded-lg border bg-background p-3',
+                      'agenthub-motion-item agenthub-card min-w-0 p-3',
                       isConfigured && 'border-emerald-300 bg-emerald-50/40 dark:border-emerald-500/30 dark:bg-emerald-500/5',
                       isImporting && 'opacity-70',
                     )}
@@ -276,12 +281,27 @@ export function AgentToolSearchDialog({
   )
 }
 
-function SearchState({ title, description, loading = false }: { title: string; description: string; loading?: boolean }) {
+function SearchState({
+  title,
+  description,
+  loading = false,
+  action,
+}: {
+  title: string
+  description: string
+  loading?: boolean
+  action?: { label: string; onClick: () => void }
+}) {
   return (
-    <div className="flex min-h-28 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-4 text-center">
-      {loading ? <Loader2 className="mb-2 size-5 text-muted-foreground motion-safe:animate-spin" /> : <Search className="mb-2 size-5 text-muted-foreground" />}
+    <div className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center">
+      {loading ? <Loader2 className="size-5 text-muted-foreground motion-safe:animate-spin" /> : <Search className="size-5 text-muted-foreground" />}
       <div className="text-xs font-medium">{title}</div>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      {action && (
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
     </div>
   )
 }

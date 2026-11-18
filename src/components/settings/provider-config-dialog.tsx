@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { InlineError } from '@/components/workbench-primitives'
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,8 @@ const EMPTY_FORM: ProviderForm = { displayName: '', apiKey: '', baseUrl: '', mod
 export function ProviderConfigDialog({ open, onOpenChange, providerId }: ProviderConfigDialogProps) {
   const [form, setForm] = useState<ProviderForm>(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ connected: boolean; error?: string; models?: string[] } | null>(null)
@@ -46,11 +50,14 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
   const isBuiltin = providerId ? BUILTIN_PROVIDER_IDS.includes(providerId) : false
   const isNew = providerId === null
 
+  const retry = () => setRetryKey((k) => k + 1)
+
   // 加载供应商详情
   useEffect(() => {
     if (!open || !providerId) return
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     setTestResult(null)
     fetch(`/api/providers/${encodeURIComponent(providerId)}`)
       .then(async (r) => {
@@ -67,14 +74,17 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
         })
         setKeyDirty(false)
       })
-      .catch((err) => console.error('[ProviderConfigDialog] load failed', err))
+      .catch((err) => {
+        console.error('[ProviderConfigDialog] load failed', err)
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [open, providerId])
+  }, [open, providerId, retryKey])
 
   // 新建时重置表单
   useEffect(() => {
@@ -166,7 +176,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={DIALOG_SIZE_CLASS.md}>
         <DialogHeader>
           <DialogTitle>{isNew ? '添加供应商' : `配置 · ${form.displayName || providerId}`}</DialogTitle>
           <DialogDescription>
@@ -174,9 +184,15 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
           </DialogDescription>
         </DialogHeader>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
+        {loadError ? (
+          <InlineError message={`供应商配置加载失败：${loadError}`} onRetry={retry} />
+        ) : loading ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-8">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">正在加载供应商配置…</p>
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={retry}>
+              重新加载
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -247,7 +263,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
                 {testResult.connected && testResult.models && testResult.models.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {testResult.models.slice(0, 12).map((m) => (
-                      <span key={m} className="rounded bg-white/60 px-1.5 py-0.5 text-3xs text-green-800 dark:bg-black/20 dark:text-green-300">
+                      <span key={m} className="rounded bg-[var(--agenthub-surface)]/60 px-1.5 py-0.5 text-3xs text-green-800 dark:bg-black/20 dark:text-green-300">
                         {m}
                       </span>
                     ))}
@@ -264,13 +280,13 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
         <DialogFooter className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {!isNew && !isBuiltin && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => void handleDelete()} className="text-red-600 hover:text-red-700">
+              <Button type="button" variant="ghost" size="sm" onClick={() => void handleDelete()} disabled={!!loadError} className="text-red-600 hover:text-red-700">
                 <Trash2 className="size-4" />
                 删除
               </Button>
             )}
             {!isNew && (
-              <Button type="button" variant="outline" size="sm" onClick={() => void handleFetchModels()} disabled={fetchingModels || testing || loading}>
+              <Button type="button" variant="outline" size="sm" onClick={() => void handleFetchModels()} disabled={fetchingModels || testing || loading || !!loadError}>
                 {(fetchingModels || testing) && <Loader2 className="size-4 animate-spin" />}
                 测试并拉取模型
               </Button>
@@ -280,7 +296,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button type="button" onClick={() => void handleSave()} disabled={saving || loading}>
+            <Button type="button" onClick={() => void handleSave()} disabled={saving || loading || !!loadError}>
               {saving && <Loader2 className="size-4 animate-spin" />}
               保存
             </Button>

@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, ChevronRight, Play, Sparkles, Terminal } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, ChevronRight, ClipboardList, Code, Play, Sparkles, Target } from 'lucide-react'
 import { Fragment } from 'react'
 
 import {
@@ -8,15 +8,20 @@ import {
   FEATURES,
   FOOTER_LINKS,
   PIPELINE,
-  QUICKSTART_COMMANDS,
-  QUICKSTART_STEPS,
+  PROOF_STATS,
   REPO_URL,
-  STACK_GROUPS,
   TRUST_MARKERS,
   WORKFLOW_STEPS,
 } from '@/components/home/home-data'
-import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
+import {
+  Container,
+  SectionHead,
+  cardClass,
+  containerCardClass,
+  interactiveCardClass,
+} from '@/components/home/home-primitives'
 import { HomeScreenshotFigure } from '@/components/home/home-screenshot'
+import { CountUp, Reveal } from '@/components/home/home-motion'
 import { buttonVariants } from '@/components/ui/button'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -27,25 +32,28 @@ import { cn } from '@/lib/utils'
  * 设计约束与本项目工作台保持一致：
  *  - 颜色 / 圆角 / 动效一律走 globals.css 的令牌（--agenthub-*、--radius、--agenthub-motion-*），
  *    因此亮暗主题、减少动效偏好都自动生效，不需要在这里写第二套值；
- *  - 卡片规格对齐 `PageCard`（见 `home-primitives.tsx` 的 cardClass）；
+ *  - 卡片按 Phase 1 的三档用：大容器用 `containerCardClass`，内容卡用 `cardClass`，
+ *    可 hover 的卡用 `interactiveCardClass`；
  *  - 文本色沿用工作台的 slate 阶梯（globals.css 里已为 .dark 统一重映射）。
- *
- * `Container` / `SectionHead` / `cardClass` 已抽到 `home-primitives.tsx`，
- * 因为「使用指南」分区是客户端组件、也要用同一套版式（理由见该文件顶部注释）。
+ *  - 分区之间用背景色深浅交替分隔，不再全部用 `border-b`；
+ *    `SectionHead` 居中版只在「界面预览」「架构」两区用，其余左对齐。
  */
 
 /* ────────────────────────────────────────────────────────────────────────────
    首屏
    ──────────────────────────────────────────────────────────────────────────── */
 
+/** Hero 气泡拼贴用的四条真实消息：/demo「光影造像工坊」 showcase 对话的开头四句，源头在 `src/server/demo-seed.ts`，不编造功能。 */
+const HERO_CHAT: { name: string; icon: typeof Target | null; text: string; fromUser: boolean }[] = [
+  { name: '你', icon: null, text: '给「光影造像工坊」做一个品牌落地页，要高级、有电影感，明天给客户看。', fromUser: true },
+  { name: 'Orchestrator', icon: Target, text: '收到，目标很明确：电影感，明天交付。拆成四步：PRD → 设计 → 实现 → 评审，开始。', fromUser: false },
+  { name: 'PM 小灰', icon: ClipboardList, text: 'PRD 写好了：定位高端人像摄影，电影感靠暗色 + 暖金点缀 + 宽幅留白来表达。', fromUser: false },
+  { name: '前端工程师', icon: Code, text: '网页做好了，可以直接预览：首屏大标题 + 作品墙 + 套餐与预约区块。', fromUser: false },
+]
+
 export function HomeHero() {
   return (
-    <section id="top" className="relative overflow-hidden border-b border-[var(--agenthub-border)]">
-      <div className="home-hero-decor" aria-hidden="true">
-        <div className="home-hero-grid" />
-        <div className="home-hero-glow" />
-      </div>
-
+    <section id="top" className="relative overflow-hidden">
       <Container className="relative py-20 sm:py-24 lg:py-28">
         <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
           <span className="home-rise inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] py-1 pl-1 pr-3 text-sm shadow-sm">
@@ -58,7 +66,7 @@ export function HomeHero() {
           </span>
 
           <h1
-            className="home-rise mt-6 text-[2.1rem] leading-[1.15] font-semibold tracking-tight text-slate-900 sm:text-5xl sm:leading-[1.1] dark:text-slate-100"
+            className="home-rise font-heading mt-6 text-[2.1rem] leading-[1.15] font-semibold tracking-tight text-slate-900 sm:text-5xl sm:leading-[1.1] dark:text-slate-100"
             style={{ animationDelay: '60ms' }}
           >
             把 AI 协作
@@ -77,9 +85,8 @@ export function HomeHero() {
             className="home-rise mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300"
             style={{ animationDelay: '160ms' }}
           >
-            不必为每个任务单开一个提示词窗口。这里有内置的调度 Agent 负责把目标拆成子任务、派发给不同专长的
-            Agent，再把它们的交付物收拢成可预览、可留存、可复用的一等公民对象 —— 会话、Agent、产物、审批记录与
-            SQLite 数据库，全部留在你自己的机器上。
+            说清目标，调度 Agent 把它拆成子任务、派给不同专长的 Agent，再把交付物收拢成可预览的产物。
+            会话、Agent、产物与数据库，全部留在你自己的机器上。
           </p>
 
           <div
@@ -128,78 +135,48 @@ export function HomeHero() {
             ))}
           </ul>
         </div>
-      </Container>
-    </section>
-  )
-}
 
-/* ────────────────────────────────────────────────────────────────────────────
-   工作流
-   ──────────────────────────────────────────────────────────────────────────── */
-
-export function HomeWorkflow() {
-  return (
-    <section id="workflow" className="home-anchor border-b border-[var(--agenthub-border)]">
-      <Container className="py-16 sm:py-20">
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-12">
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <SectionHead
-              align="left"
-              eyebrow="工作流"
-              title="从一句目标，到一件可交付的产物"
-              description="你只需要说清要什么。拆分、派单、传递上下文、评审这些事，交给调度 Agent 和它的同伴。"
-            />
-            <a
-              href="#download"
-              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-6 h-10 gap-1.5 px-4')}
-            >
-              下载桌面端
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </a>
-          </div>
-
-          <ol className="relative flex list-none flex-col gap-7 border-l border-dashed border-[var(--agenthub-border)] pl-6">
-            {WORKFLOW_STEPS.map((step, index) => (
-              <li key={step.title} className="relative">
+        {/* 群聊气泡拼贴：静态构图 + home-rise 轻微入场，不引入新动效库。 */}
+        <div
+          className={cn(containerCardClass, 'home-rise mx-auto mt-14 flex max-w-2xl flex-col gap-3 p-4 sm:p-5')}
+          style={{ animationDelay: '310ms' }}
+          aria-label="群聊示例：你发一句话目标，四位 Agent 接力产出"
+        >
+          {HERO_CHAT.map((bubble, index) => {
+            const Icon = bubble.icon
+            return (
+              <div
+                key={bubble.name}
+                className={cn('flex items-start gap-2.5', bubble.fromUser && 'flex-row-reverse')}
+              >
                 <span
-                  className="absolute -left-9 top-0 flex size-6 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-surface)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]"
+                  className={cn(
+                    'flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                    bubble.fromUser
+                      ? 'bg-[var(--agenthub-accent)] text-white'
+                      : 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
+                  )}
                   aria-hidden="true"
                 >
-                  {index + 1}
+                  {Icon ? <Icon className="size-4" /> : '你'}
                 </span>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-7 text-slate-600">
-                  {step.description}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <div className={cn(cardClass, 'mt-14 p-5 sm:p-6')}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-              <Sparkles className="size-4 shrink-0 text-[var(--agenthub-accent)]" aria-hidden="true" />
-              一条典型的端到端链路
-            </div>
-            <code className="font-mono text-sm text-slate-600">
-              “做一个咖啡订阅服务的落地页”
-            </code>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-3">
-            {PIPELINE.map((node, index) => (
-              <Fragment key={node.owner}>
-                {index > 0 && (
-                  <ChevronRight className="size-4 shrink-0 text-slate-300 dark:text-slate-400" aria-hidden="true" />
-                )}
-                <span className="inline-flex flex-col rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2">
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{node.owner}</span>
-                  <span className="text-xs text-slate-600">{node.detail}</span>
-                </span>
-              </Fragment>
-            ))}
-          </div>
+                <div className={cn('min-w-0 max-w-[85%]', bubble.fromUser && 'text-right')}>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{bubble.name}</span>
+                  <p
+                    className={cn(
+                      'home-rise mt-1 rounded-2xl px-3.5 py-2.5 text-left text-sm leading-6 text-slate-800 dark:text-slate-200',
+                      bubble.fromUser
+                        ? 'rounded-tr-sm bg-[var(--agenthub-accent-soft)]'
+                        : 'rounded-tl-sm bg-[var(--agenthub-surface-muted)]',
+                    )}
+                    style={{ animationDelay: `${360 + index * 50}ms` }}
+                  >
+                    {bubble.text}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
         </div>
       </Container>
     </section>
@@ -216,42 +193,119 @@ export function HomeWorkflow() {
 
 export function HomeScreenshot() {
   return (
-    <section id="preview" className="home-anchor border-b border-[var(--agenthub-border)]">
+    <section id="preview" className="home-anchor bg-[var(--agenthub-surface-muted)]">
       <Container className="py-16 sm:py-20">
-        <SectionHead
-          eyebrow="界面预览"
-          title="先看一眼真实界面"
-          description="下面这张截图来自真实运行的工作台：左侧是工作区导航与对话历史，右侧是新建任务入口与多 Agent 协作区。"
-        />
+        <Reveal>
+          <SectionHead
+            eyebrow="界面预览"
+            title="先看一眼真实界面"
+            description="真实运行的工作台：左侧是工作区导航，右侧是品牌标题、任务输入卡片与建议入口。"
+          />
 
-        <div className="mt-10">
-          <HomeScreenshotFigure />
-        </div>
+          <div className="mt-10">
+            <HomeScreenshotFigure />
+          </div>
 
-        <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">
-          截图是仓库内的静态资源；若加载失败会显示占位说明。想看真实交互，请下载桌面端或本地启动。
-        </p>
+          {/* ❗ CTA 目标必须是访客真能到的地方。`/` 在对外托管部署里位于 nginx Basic 门禁之后，
+              匿名点下去只会弹浏览器原生登录框（模态窗口、吞掉整页事件、控制台零报错）。 */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="#download"
+              className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+            >
+              下载桌面端
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-10 gap-1.5 px-5')}
+            >
+              查看源码
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+          </div>
+        </Reveal>
+      </Container>
+    </section>
+  )
+}
 
-        {/* ❗ CTA 目标必须是访客真能到的地方。`/` 在对外托管部署里位于 nginx Basic 门禁之后，
-            匿名点下去只会弹浏览器原生登录框（模态窗口、吞掉整页事件、控制台零报错）。 */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <a
-            href="#download"
-            className={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'h-10 gap-1.5 px-5')}
-          >
-            下载桌面端体验
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </a>
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-10 gap-1.5 px-5')}
-          >
-            查看源码
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </a>
-        </div>
+/* ────────────────────────────────────────────────────────────────────────────
+   工作流
+   ──────────────────────────────────────────────────────────────────────────── */
+
+export function HomeWorkflow() {
+  return (
+    <section id="workflow" className="home-anchor">
+      <Container className="py-16 sm:py-20">
+        <Reveal>
+          <div className="grid gap-10 lg:grid-cols-2 lg:gap-12">
+            <div className="lg:sticky lg:top-24 lg:self-start">
+              <SectionHead
+                align="left"
+                eyebrow="工作流"
+                title="从一句目标，到一件可交付的产物"
+                description="你只需要说清要什么。拆分、派单、传递上下文、评审这些事，交给调度 Agent 和它的同伴。"
+              />
+              <a
+                href="#download"
+                className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'mt-6 h-10 gap-1.5 px-4')}
+              >
+                下载桌面端
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </a>
+            </div>
+
+            <ol className="relative flex list-none flex-col gap-7 border-l border-dashed border-[var(--agenthub-border)] pl-6">
+              {WORKFLOW_STEPS.map((step, index) => (
+                <li key={step.title} className="relative">
+                  <span
+                    className="absolute -left-9 top-0 flex size-6 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-surface)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]"
+                    aria-hidden="true"
+                  >
+                    {index + 1}
+                  </span>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
+                  <p className="mt-1.5 text-sm leading-7 text-slate-600">
+                    {step.description}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.08} className="mt-14">
+          <div className={containerCardClass}>
+            <div className="p-5 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <Sparkles className="size-4 shrink-0 text-[var(--agenthub-accent)]" aria-hidden="true" />
+                  一条典型的端到端链路
+                </div>
+                <code className="font-mono text-sm text-slate-600">
+                  “做一个咖啡订阅服务的落地页”
+                </code>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-3">
+                {PIPELINE.map((node, index) => (
+                  <Fragment key={node.owner}>
+                    {index > 0 && (
+                      <ChevronRight className="size-4 shrink-0 text-slate-300 dark:text-slate-400" aria-hidden="true" />
+                    )}
+                    <span className="inline-flex flex-col rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2">
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{node.owner}</span>
+                      <span className="text-xs text-slate-600">{node.detail}</span>
+                    </span>
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Reveal>
       </Container>
     </section>
   )
@@ -275,16 +329,17 @@ const ARCH_NODES: { name: string; artifact: string; cx: number }[] = [
 
 export function HomeArchitecture() {
   return (
-    <section id="architecture" className="home-anchor border-b border-[var(--agenthub-border)]">
+    <section id="architecture" className="home-anchor bg-[var(--agenthub-surface-muted)]">
       <Container className="py-16 sm:py-20">
-        <SectionHead
-          eyebrow="架构与流程"
-          title="一句话目标进，一件可交付的产物出"
-          description="Orchestrator 负责判断与派单，专长 Agent 各产出带类型的产物，全部收进产物库；下游直接读前序产物，不必从对话里重新猜上下文。"
-        />
+        <Reveal>
+          <SectionHead
+            eyebrow="架构与流程"
+            title="一句话目标进，一件可交付的产物出"
+            description="Orchestrator 负责判断与派单，专长 Agent 各产出带类型的产物，全部收进产物库；下游直接读前序产物，不必从对话里重新猜上下文。"
+          />
 
-        <figure className={cn(cardClass, 'mt-10 p-5 sm:p-6')}>
-          <svg
+          <figure className={cn(containerCardClass, 'mt-10 p-5 sm:p-6')}>
+            <svg
             viewBox="0 0 800 400"
             className="w-full text-slate-700 dark:text-slate-300"
             role="img"
@@ -486,196 +541,120 @@ export function HomeArchitecture() {
             主干：目标 → Orchestrator 派单 → 专长 Agent 产出带类型产物 → 收进产物库。
             全程在本机完成，文件操作受路径守卫约束，高风险命令需你批准。
           </figcaption>
-        </figure>
+          </figure>
+        </Reveal>
       </Container>
     </section>
   )
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
-   主要功能模块
+   主要功能模块 + 内置 Agent 横条（原独立的 Agents 分区并入此处）
    ──────────────────────────────────────────────────────────────────────────── */
 
 export function HomeFeatures() {
   return (
-    <section id="features" className="home-anchor border-b border-[var(--agenthub-border)]">
+    <section id="features" className="home-anchor">
       <Container className="py-16 sm:py-20">
         <SectionHead
+          align="left"
           eyebrow="功能模块"
           title="九个模块，覆盖从协作到交付的全过程"
           description="下面这些不是规划图 —— 它们就是工作台侧边栏里真实存在的九个入口，每个都可用。"
         />
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((feature) => (
-            <article key={feature.id} className={cn(cardClass, 'flex flex-col p-5')}>
-              <span className="flex size-9 items-center justify-center rounded-xl bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-                <feature.icon className="size-[18px]" aria-hidden="true" />
-              </span>
-              <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-slate-100">
-                {feature.label}
-              </h3>
-              <p className="mt-1 text-sm font-medium text-[var(--agenthub-accent)]">{feature.tagline}</p>
-              <p className="mt-2.5 text-sm leading-6 text-slate-600">
-                {feature.description}
-              </p>
-            </article>
-          ))}
-        </div>
-
-        <div className={cn(cardClass, 'mt-4 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-6')}>
-          <span className="shrink-0 text-sm font-semibold tracking-wide text-slate-600">
-            产物类型
-          </span>
-          <ul className="flex flex-wrap gap-2">
-            {ARTIFACT_TYPES.map((type) => (
-              <li
-                key={type}
-                className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-1 font-mono text-xs text-slate-600 dark:text-slate-300"
-              >
-                {type}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Container>
-    </section>
-  )
-}
-
-/* ────────────────────────────────────────────────────────────────────────────
-   内置 Agent
-   ──────────────────────────────────────────────────────────────────────────── */
-
-export function HomeAgents() {
-  return (
-    <section id="agents" className="home-anchor border-b border-[var(--agenthub-border)]">
-      <Container className="py-16 sm:py-20">
-        <SectionHead
-          eyebrow="内置 Agent"
-          title="五个开箱即用的角色"
-          description="全部走 claude-code 适配器。你也可以用 Agent 构建器自定义适配器、模型、工具与 system prompt。"
-        />
-
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {BUILTIN_AGENTS.map((agent) => (
-            <article key={agent.name} className={cn(cardClass, 'flex flex-col p-4')}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-                  <agent.icon className="size-4" aria-hidden="true" />
+        <Reveal>
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((feature) => (
+              <article key={feature.id} className={cn(interactiveCardClass, 'flex flex-col p-5')}>
+                <span className="flex size-9 items-center justify-center rounded-xl bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <feature.icon className="size-[18px]" aria-hidden="true" />
                 </span>
-                <span className="agenthub-status-badge agenthub-status-info">{agent.role}</span>
-              </div>
-              <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{agent.name}</h3>
-              <p className="mt-1.5 text-sm leading-6 text-slate-600">{agent.duty}</p>
-            </article>
-          ))}
-        </div>
-      </Container>
-    </section>
-  )
-}
-
-/* ────────────────────────────────────────────────────────────────────────────
-   技术栈
-   ──────────────────────────────────────────────────────────────────────────── */
-
-export function HomeStack() {
-  return (
-    <section id="stack" className="home-anchor border-b border-[var(--agenthub-border)]">
-      <Container className="py-16 sm:py-20">
-        <SectionHead
-          eyebrow="技术栈"
-          title="选型全部写在明面上"
-          description="没有需要注册的云服务，没有必须联网才能启动的依赖 —— 装完就能离线跑。"
-        />
-
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {STACK_GROUPS.map((group) => (
-            <div key={group.group} className={cn(cardClass, 'p-5')}>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{group.group}</h3>
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {group.items.map((item) => (
-                  <li
-                    key={item}
-                    className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </Container>
-    </section>
-  )
-}
-
-/* ────────────────────────────────────────────────────────────────────────────
-   快速开始
-   ──────────────────────────────────────────────────────────────────────────── */
-
-export function HomeQuickstart() {
-  return (
-    <section id="quickstart" className="home-anchor border-b border-[var(--agenthub-border)]">
-      <Container className="py-16 sm:py-20">
-        <SectionHead
-          align="left"
-          eyebrow="快速开始"
-          title="四条命令，跑起一个本地工作台"
-          description="不需要账号，也不需要先部署点什么。首次启动时应用会自动建库并 seed 内置 Agent。"
-        />
-
-        <div className="mt-10 grid gap-8 lg:grid-cols-2 lg:gap-10">
-          <ol className="flex list-none flex-col gap-5">
-            {QUICKSTART_STEPS.map((step, index) => (
-              <li key={step.title} className="flex gap-3.5">
-                <span
-                  className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] font-mono text-xs font-semibold text-[var(--agenthub-accent)]"
-                  aria-hidden="true"
-                >
-                  {index + 1}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{step.title}</h3>
-                  <p className="mt-1 text-sm leading-7 text-slate-500 dark:text-slate-400">{step.detail}</p>
-                </div>
-              </li>
+                <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {feature.label}
+                </h3>
+                <p className="mt-1 text-sm font-medium text-[var(--agenthub-accent)]">{feature.tagline}</p>
+                <p className="mt-2.5 text-sm leading-6 text-slate-600">
+                  {feature.description}
+                </p>
+              </article>
             ))}
-          </ol>
-
-          {/* 终端样式的代码块：这个产品本身就是「带真实终端的工作台」，
-              所以这里刻意用深色终端外观，与工作台的 agenthub-terminal-font 语境呼应。 */}
-          <div className="overflow-hidden rounded-2xl border border-[var(--agenthub-border)] bg-[#0F1115] dark:bg-[#121418]">
-            <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
-              <span className="size-2.5 rounded-full bg-[#FF5F57]" aria-hidden="true" />
-              <span className="size-2.5 rounded-full bg-[#FEBC2E]" aria-hidden="true" />
-              <span className="size-2.5 rounded-full bg-[#28C840]" aria-hidden="true" />
-              <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-xs text-slate-400">
-                <Terminal className="size-3" aria-hidden="true" />
-                bash · multi-agent-teamflow
-              </span>
-            </div>
-            <pre className="overflow-x-auto px-4 py-4 font-mono text-sm leading-6 text-slate-200">
-              <code>
-                {QUICKSTART_COMMANDS.map((line, index) => (
-                  // 空行保留站位，让分组之间有空隙，读起来更像一段真实会话
-                  <span key={`${index}-${line}`} className="block">
-                    {line || '\u00A0'}
-                  </span>
-                ))}
-              </code>
-            </pre>
           </div>
-        </div>
+
+          <div className={cn(cardClass, 'mt-4 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-6')}>
+            <span className="shrink-0 text-sm font-semibold tracking-wide text-slate-600">
+              产物类型
+            </span>
+            <ul className="flex flex-wrap gap-2">
+              {ARTIFACT_TYPES.map((type) => (
+                <li
+                  key={type}
+                  className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-1 font-mono text-xs text-slate-600 dark:text-slate-300"
+                >
+                  {type}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+
+        {/* 内置 Agent 横条：五个开箱即用的角色，全部走 claude-code 适配器；
+            也可用 Agent 构建器自定义适配器、模型、工具与 system prompt。 */}
+        <Reveal delay={0.08}>
+          <h3 className="font-heading mt-12 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            五个开箱即用的角色
+          </h3>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {BUILTIN_AGENTS.map((agent) => (
+              <article key={agent.name} className={cn(interactiveCardClass, 'flex flex-col p-4')}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                    <agent.icon className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="agenthub-status-badge agenthub-status-info">{agent.role}</span>
+                </div>
+                <h4 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{agent.name}</h4>
+                <p className="mt-1.5 text-sm leading-6 text-slate-600">{agent.duty}</p>
+              </article>
+            ))}
+          </div>
+        </Reveal>
       </Container>
     </section>
   )
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
-   页脚
+   数字证明（新增）：满幅色块条，只讲四个真实数字。
+   数字用金色 —— 金色点缀四处之一（proposal B 节）。
+   ──────────────────────────────────────────────────────────────────────────── */
+
+export function HomeProof() {
+  return (
+    <section id="proof" className="home-anchor bg-[var(--agenthub-accent-soft)]">
+      <Container className="py-14 sm:py-16">
+        <h2 className="font-heading text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">
+          数字先说话
+        </h2>
+        <dl className="mt-8 grid grid-cols-2 gap-6 lg:grid-cols-4">
+          {PROOF_STATS.map((stat) => (
+            <div key={stat.label}>
+              <dt className="sr-only">{stat.label}</dt>
+              <dd className="font-heading text-4xl font-bold tracking-tight text-[var(--agenthub-gold)] sm:text-5xl">
+                <CountUp value={Number(stat.value)} />
+              </dd>
+              <dd className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">{stat.label}</dd>
+            </div>
+          ))}
+        </dl>
+      </Container>
+    </section>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   页脚：原「使用指南」「联系方式」两个独立分区收进这里 ——
+   指南写成一句话指引，联系作者放微信二维码名片，不再各占一个分区。
    ──────────────────────────────────────────────────────────────────────────── */
 
 export function HomeFooter() {
@@ -687,7 +666,7 @@ export function HomeFooter() {
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden="true"
-                className="size-8 shrink-0 rounded-lg bg-[#EAF2FF] bg-cover bg-center bg-no-repeat ring-1 ring-[var(--agenthub-border)]"
+                className="size-8 shrink-0 rounded-lg bg-[var(--agenthub-accent-soft)] bg-cover bg-center bg-no-repeat ring-1 ring-[var(--agenthub-border)]"
                 style={{ backgroundImage: "url('/icons/agenthub-mark-32.png')" }}
               />
               <div className="min-w-0">
@@ -701,6 +680,23 @@ export function HomeFooter() {
               本地优先的多 Agent 协作工作空间。所有会话、产物与数据库都在你自己的机器上，无需注册账号，
               也不经过任何云端中转。
             </p>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">
+              使用指南：装好后打开应用，在「设置」里先配一个模型 API Key（DeepSeek / OpenAI /
+              Anthropic / 火山方舟任选其一），再新建会话。
+            </p>
+            <div className="mt-5 flex items-start gap-3.5">
+              {/* eslint-disable-next-line @next/next/no-img-element -- 仓库内静态资源：作者本人提供的微信二维码名片 */}
+              <img
+                src="/images/wechat-qr.png"
+                alt="作者微信二维码名片：Composure°，湖南郴州，扫码添加好友"
+                className="w-36 shrink-0 rounded-xl border border-[var(--agenthub-border)] bg-white"
+                loading="lazy"
+              />
+              <div className="min-w-0 pt-1">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">微信扫码联系作者</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">扫码添加好友，聊项目、提建议都可以。</p>
+              </div>
+            </div>
             <p className="mt-3 font-mono text-xs text-slate-600">
               {APP_VERSION} · AGPL-3.0-only
             </p>

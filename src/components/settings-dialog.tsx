@@ -11,11 +11,16 @@ import { AlertTriangle,
   KeyRound,
   Loader2,
   Monitor,
+  Moon,
   Network,
+  Palette,
   Power,
   RotateCw,
   Settings as SettingsIcon,
-  Smartphone, Layers, ShieldCheck, BookOpen } from 'lucide-react'
+  Smartphone,
+  Sun,
+  Layers, ShieldCheck, BookOpen } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -27,8 +32,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { AppSettingsRow } from '@/db/schema'
 import { BRAND_NAME } from '@/lib/brand'
@@ -45,13 +50,30 @@ import {
   type SiteLinksView,
 } from '@/lib/api'
 import { subscribeUiCommand } from '@/lib/ui-command-events'
+import { THEMES, type ThemeId, type ThemeMeta } from '@/lib/themes'
+import { useThemeChoice } from '@/components/theme-provider'
 import { ProvidersPanel } from '@/components/settings/providers-panel'
 import { ProviderPriorityPanel } from '@/components/settings/provider-priority-panel'
 import { FailoverPanel } from '@/components/settings/failover-panel'
 import { ModelAssignmentPanel } from '@/components/settings/model-assignment-panel'
+import { InlineError } from '@/components/workbench-primitives'
 import { OssPanel, type OssFormValues, type OssSecretField } from '@/components/settings/oss-panel'
 import { SitePanel, type SiteFormValues } from '@/components/settings/site-panel'
 import { useAppStore } from '@/stores/app-store'
+import { cn } from '@/lib/utils'
+
+/** 左侧导航分区：与用户指南同一套纵向导航样式（小屏横向滚动）。 */
+const SETTINGS_SECTIONS = [
+  { value: 'appearance', label: '外观', icon: Palette },
+  { value: 'keys', label: '供应商', icon: KeyRound },
+  { value: 'oss', label: '对象存储', icon: CloudUpload },
+  { value: 'assignment', label: '模型与分配', icon: Layers },
+  { value: 'failover', label: '故障转移', icon: ShieldCheck },
+  { value: 'mobile', label: '移动端', icon: Smartphone },
+  { value: 'publish', label: '发布', icon: FolderUp },
+  { value: 'site', label: '官网', icon: Globe },
+  { value: 'notifications', label: '通知', icon: Bell },
+] as const
 
 interface SettingsForm {
   anthropicBaseUrl: string
@@ -106,6 +128,10 @@ export function SettingsDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+  const [ossLoadError, setOssLoadError] = useState<string | null>(null)
+  const [ossRetryKey, setOssRetryKey] = useState(0)
   const [busy, setBusy] = useState(false)
   const [hintsLoading, setHintsLoading] = useState(false)
   const [tokenBusy, setTokenBusy] = useState(false)
@@ -166,13 +192,17 @@ export function SettingsDialog({
         if (!cancelled) {
           setRestartRequired(false)
           setLoading(true)
+          setLoadError(null)
         }
         return fetchAppSettings()
       })
       .then((s) => {
         if (!cancelled) setForm(rowToForm(s))
       })
-      .catch((err) => console.error('[SettingsDialog] load failed', err))
+      .catch((err) => {
+        console.error('[SettingsDialog] load failed', err)
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
@@ -180,7 +210,7 @@ export function SettingsDialog({
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, retryKey])
 
   // OSS 状态与主设置分开取：它需要服务端「算出来」的生效来源（本页配置 / 系统环境变量），
   // 不是 app_settings 一行的原始字段。
@@ -188,16 +218,20 @@ export function SettingsDialog({
     if (!open) return
     let cancelled = false
     setOssView(null)
+    setOssLoadError(null)
     setOssSecretsEdited({ accessKeyId: false, accessKeySecret: false })
     void fetchOssSettings()
       .then((view) => {
         if (!cancelled) setOssView(view)
       })
-      .catch((err) => console.error('[SettingsDialog] load oss settings failed', err))
+      .catch((err) => {
+        console.error('[SettingsDialog] load oss settings failed', err)
+        if (!cancelled) setOssLoadError(err instanceof Error ? err.message : String(err))
+      })
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, ossRetryKey])
 
   useEffect(() => {
     if (!open) return
@@ -392,156 +426,179 @@ export function SettingsDialog({
         给外层一个确定高度后，内容多的一页只会内部滚动，弹窗外框纹丝不动。
         高度取 `min(44rem, 100vh-2rem)`：够放下最长的「模型与分配」，又永远不超出视口。
       */}
-      <DialogContent className="grid h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden sm:h-[min(44rem,calc(100vh-2rem))] sm:max-w-3xl">
+      <DialogContent
+        className={cn(
+          'grid h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden sm:h-[min(44rem,calc(100vh-2rem))]',
+          DIALOG_SIZE_CLASS.lg,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription className="sr-only">{BRAND_NAME} 设置</DialogDescription>
         </DialogHeader>
 
-        {loading ? (
-          <div className="flex min-h-0 items-center justify-center">
+        {loadError ? (
+          <InlineError message={`设置加载失败：${loadError}`} onRetry={() => setRetryKey((k) => k + 1)} />
+        ) : loading ? (
+          <div className="flex min-h-0 flex-col items-center justify-center gap-2 text-center">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">正在加载设置…</p>
+            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => setRetryKey((k) => k + 1)}>
+              重新加载
+            </Button>
           </div>
         ) : (
-          <Tabs value={tab} onValueChange={setTab} className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <TabsList className="h-auto max-w-full flex-wrap justify-start overflow-x-auto">
-                <TabsTrigger value="keys">
-                  <KeyRound className="size-3.5" />
-                  供应商
-                </TabsTrigger>
-                <TabsTrigger value="oss">
-                  <CloudUpload className="size-3.5" />
-                  对象存储
-                </TabsTrigger>
-                <TabsTrigger value="assignment">
-                  <Layers className="size-3.5" />
-                  模型与分配
-                </TabsTrigger>
-                <TabsTrigger value="failover">
-                  <ShieldCheck className="size-3.5" />
-                  故障转移
-                </TabsTrigger>
-                <TabsTrigger value="mobile">
-                  <Smartphone className="size-3.5" />
-                  移动端
-                </TabsTrigger>
-                <TabsTrigger value="publish">
-                  <FolderUp className="size-3.5" />
-                  发布
-                </TabsTrigger>
-                <TabsTrigger value="site">
-                  <Globe className="size-3.5" />
-                  官网
-                </TabsTrigger>
-                <TabsTrigger value="notifications">
-                  <Bell className="size-3.5" />
-                  通知
-                </TabsTrigger>
-              </TabsList>
+          <div className="grid min-h-0 min-w-0 gap-3 md:grid-cols-[12rem_minmax(0,1fr)]">
+            {/* ─── 左侧分区导航 ─── */}
+            <nav
+              aria-label="设置分区"
+              className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0.5 md:overflow-y-auto md:pb-0"
+            >
+              {SETTINGS_SECTIONS.map((section) => {
+                const selected = section.value === tab
+                return (
+                  <button
+                    key={section.value}
+                    type="button"
+                    aria-current={selected ? 'true' : undefined}
+                    onClick={() => setTab(section.value)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition md:w-full',
+                      selected
+                        ? 'bg-[var(--agenthub-accent-soft)] font-medium text-[var(--agenthub-accent)]'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                    )}
+                  >
+                    <section.icon className="size-4 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{section.label}</span>
+                  </button>
+                )
+              })}
               {tab === 'keys' && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger
                       type="button"
-                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                      className="hidden shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground md:flex"
                       aria-label="供应商 Key 说明"
                     >
-                      <Info className="size-4" />
+                      <Info className="size-4 shrink-0" />
+                      <span className="truncate">Key 说明</span>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="max-w-72 whitespace-normal text-left leading-5">
+                    <TooltipContent side="right" align="start" className="max-w-72 whitespace-normal text-left leading-5">
                       填写常用供应商的 API Key。填写后将覆盖系统环境变量；留空则继续使用环境变量（如有）。
                       Agent 设置中单独配置的 Key 仍然优先级最高。
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
-            </div>
+            </nav>
 
+            {/* ─── 右侧内容：每页一个主任务，分组卡片 ─── */}
             <div className="min-h-0 min-w-0 overflow-y-auto pr-1">
-              <TabsContent value="keys" className="mt-0 py-1">
-                <div className="flex flex-col gap-4">
+              {tab === 'appearance' && (
+                <div className="py-1">
+                  <AppearanceSettings />
+                </div>
+              )}
+
+              {tab === 'keys' && (
+                <div className="flex flex-col gap-4 py-1">
                   <ProvidersPanel />
-                  <div className="border-t border-slate-200 pt-4 dark:border-white/10">
+                  <div className="border-t border-[var(--agenthub-border)] pt-4">
                     <div className="mb-3 text-sm font-medium text-slate-900 dark:text-slate-100">供应商优先级</div>
                     <ProviderPriorityPanel />
                   </div>
                 </div>
-              </TabsContent>
+              )}
 
-              <TabsContent value="oss" className="mt-0 py-1">
-                <OssPanel
-                  values={{
-                    bucket: form.ossBucket,
-                    endpoint: form.ossEndpoint,
-                    accessKeyId: form.ossAccessKeyId,
-                    accessKeySecret: form.ossAccessKeySecret,
-                    publicRead: form.ossPublicRead,
-                  }}
-                  view={ossView}
-                  secretsEdited={ossSecretsEdited}
-                  onChange={handleOssChange}
-                  onSecretEdited={handleOssSecretEdited}
-                />
-              </TabsContent>
+              {tab === 'oss' && (
+                <div className="py-1">
+                  <OssPanel
+                    values={{
+                      bucket: form.ossBucket,
+                      endpoint: form.ossEndpoint,
+                      accessKeyId: form.ossAccessKeyId,
+                      accessKeySecret: form.ossAccessKeySecret,
+                      publicRead: form.ossPublicRead,
+                    }}
+                    view={ossView}
+                    statusError={ossLoadError}
+                    onRetryStatus={() => setOssRetryKey((k) => k + 1)}
+                    secretsEdited={ossSecretsEdited}
+                    onChange={handleOssChange}
+                    onSecretEdited={handleOssSecretEdited}
+                  />
+                </div>
+              )}
 
-              <TabsContent value="assignment" className="mt-0 py-1">
-                <ModelAssignmentPanel />
-              </TabsContent>
+              {tab === 'assignment' && (
+                <div className="py-1">
+                  <ModelAssignmentPanel />
+                </div>
+              )}
 
-              <TabsContent value="failover" className="mt-0 py-1">
-                <FailoverPanel />
-              </TabsContent>
+              {tab === 'failover' && (
+                <div className="py-1">
+                  <FailoverPanel />
+                </div>
+              )}
 
-              <TabsContent value="mobile" className="mt-0 py-1">
-                <MobileConnectionHints
-                  hints={connectionHints}
-                  loading={hintsLoading}
-                  copiedUrl={copiedUrl}
-                  companionMode={form.companionMode}
-                  mobileDeviceToken={form.mobileDeviceToken}
-                  busy={busy}
-                  tokenBusy={tokenBusy}
-                  restartRequired={restartRequired}
-                  onCopy={(hint) => void handleCopyHint(hint)}
-                  onCopyText={(value) => void handleCopyText(value)}
-                  onEnable={() => void handleEnableCompanion()}
-                  onDisable={() => void handleDisableCompanion()}
-                  onRegenerateToken={() => void handleRegenerateToken()}
-                />
-              </TabsContent>
+              {tab === 'mobile' && (
+                <div className="py-1">
+                  <MobileConnectionHints
+                    hints={connectionHints}
+                    loading={hintsLoading}
+                    copiedUrl={copiedUrl}
+                    companionMode={form.companionMode}
+                    mobileDeviceToken={form.mobileDeviceToken}
+                    busy={busy}
+                    tokenBusy={tokenBusy}
+                    restartRequired={restartRequired}
+                    onCopy={(hint) => void handleCopyHint(hint)}
+                    onCopyText={(value) => void handleCopyText(value)}
+                    onEnable={() => void handleEnableCompanion()}
+                    onDisable={() => void handleDisableCompanion()}
+                    onRegenerateToken={() => void handleRegenerateToken()}
+                  />
+                </div>
+              )}
 
-              <TabsContent value="publish" className="mt-0 py-1">
-                <DeploymentPublishSettings
-                  enabled={form.deploymentPublishEnabled}
-                  publishDir={form.deploymentPublishDir}
-                  publicBaseUrl={form.deploymentPublicBaseUrl}
-                  onEnabledChange={(deploymentPublishEnabled) =>
-                    setForm((f) => ({ ...f, deploymentPublishEnabled }))
-                  }
-                  onPublishDirChange={(deploymentPublishDir) =>
-                    setForm((f) => ({ ...f, deploymentPublishDir }))
-                  }
-                  onPublicBaseUrlChange={(deploymentPublicBaseUrl) =>
-                    setForm((f) => ({ ...f, deploymentPublicBaseUrl }))
-                  }
-                />
-              </TabsContent>
+              {tab === 'publish' && (
+                <div className="py-1">
+                  <DeploymentPublishSettings
+                    enabled={form.deploymentPublishEnabled}
+                    publishDir={form.deploymentPublishDir}
+                    publicBaseUrl={form.deploymentPublicBaseUrl}
+                    onEnabledChange={(deploymentPublishEnabled) =>
+                      setForm((f) => ({ ...f, deploymentPublishEnabled }))
+                    }
+                    onPublishDirChange={(deploymentPublishDir) =>
+                      setForm((f) => ({ ...f, deploymentPublishDir }))
+                    }
+                    onPublicBaseUrlChange={(deploymentPublicBaseUrl) =>
+                      setForm((f) => ({ ...f, deploymentPublicBaseUrl }))
+                    }
+                  />
+                </div>
+              )}
 
-              <TabsContent value="site" className="mt-0 py-1">
-                <SitePanel
-                  values={{
-                    officialWebsiteUrl: form.officialWebsiteUrl,
-                    desktopDownloadUrl: form.desktopDownloadUrl,
-                  }}
-                  links={siteLinks}
-                  onChange={handleSiteChange}
-                />
-              </TabsContent>
+              {tab === 'site' && (
+                <div className="py-1">
+                  <SitePanel
+                    values={{
+                      officialWebsiteUrl: form.officialWebsiteUrl,
+                      desktopDownloadUrl: form.desktopDownloadUrl,
+                    }}
+                    links={siteLinks}
+                    onChange={handleSiteChange}
+                  />
+                </div>
+              )}
 
-              <TabsContent value="notifications" className="mt-0 py-1">
-                <div className="flex flex-col gap-4">
-                  <section className="rounded-xl border bg-muted/30 p-3">
+              {tab === 'notifications' && (
+                <div className="flex flex-col gap-4 py-1">
+                  <section className="agenthub-card p-3">
                     <div className="mb-3 flex items-center gap-2">
                       <BookOpen className="size-4 text-muted-foreground" />
                       <div>
@@ -553,26 +610,141 @@ export function SettingsDialog({
                       <CheckboxRow label="自动反思沉淀经验" checked={form.experienceExtractionEnabled} onChange={(experienceExtractionEnabled) => setForm((f) => ({ ...f, experienceExtractionEnabled }))} />
                     </div>
                   </section>
-                <NotificationPreferenceSettings
-                  form={form}
-                  onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
-                />
+                  <NotificationPreferenceSettings
+                    form={form}
+                    onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                  />
                 </div>
-              </TabsContent>
+              )}
             </div>
-          </Tabs>
+          </div>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             取消
           </Button>
-          <Button onClick={() => void handleSave()} disabled={busy || loading}>
+          <Button onClick={() => void handleSave()} disabled={busy || loading || !!loadError}>
             {busy ? '保存中…' : '保存'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** 五色色带（bg / surface / primary / accent / ink，浅色版），主题卡专用。 */
+function ThemeSwatches({ theme, className }: { theme: ThemeMeta; className?: string }) {
+  const colors = [
+    theme.swatch.bg,
+    theme.swatch.surface,
+    theme.swatch.primary,
+    theme.swatch.accent,
+    theme.swatch.ink,
+  ]
+  return (
+    <span aria-hidden="true" className={cn('flex overflow-hidden rounded-md ring-1 ring-black/10', className)}>
+      {colors.map((color) => (
+        <span key={color} className="h-full flex-1" style={{ backgroundColor: color }} />
+      ))}
+    </span>
+  )
+}
+
+/** 主题卡文案（proposal.md A 节）：气质一句 + 适合场景一句；注册表只存色值，文案归 UI。 */
+const THEME_COPY: Record<ThemeId, { description: string; suitable: string }> = {
+  ink: { description: '东方文人 · 宣纸底 · 朱砂印', suitable: '答辩投屏、工作台、官网成套出现' },
+  pine: { description: '沉稳 · 护眼 · 玉色点缀', suitable: '日常高频工作台、简历项目截图' },
+  terra: { description: '暖 · 手作感 · 内容气息', suitable: '官网首页、演示案例页、对外分享截图' },
+  graphite: { description: '深色优先 · 工程师气质 · 高对比', suitable: '深色模式主场、答辩投屏、技术向受众' },
+  wine: { description: '高级感 · 象牙白 · 古铜', suitable: '官网和作品集展示页' },
+  obsidian: { description: '黑金 · 发布会气质 · 冲击力', suitable: '答辩开场页、官网首屏、演示高潮段' },
+}
+
+const MODE_SEGMENTS = [
+  { value: 'light', label: '浅色', icon: Sun },
+  { value: 'dark', label: '深色', icon: Moon },
+  { value: 'system', label: '跟随系统', icon: Monitor },
+] as const
+
+/** 外观：六套主题卡 + 明暗三段切换。主题选择即时生效并写 localStorage，不走保存。 */
+function AppearanceSettings() {
+  const { theme, setTheme } = useThemeChoice()
+  const { theme: mode, setTheme: setMode } = useTheme()
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section>
+        <h3 className="text-sm font-medium">主题风格</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">六套主题随点随换，刷新后保持；默认石墨琥珀。</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {THEMES.map((item) => {
+            const selected = item.id === theme
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTheme(item.id)}
+                aria-pressed={selected}
+                className={cn(
+                  'agenthub-card p-3 text-left transition',
+                  selected
+                    ? 'ring-2 ring-[var(--agenthub-accent)]'
+                    : 'hover:ring-1 hover:ring-[var(--agenthub-accent)]/50',
+                )}
+              >
+                <ThemeSwatches theme={item} className="h-9 w-full" />
+                <span className="mt-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium">{item.nameZh}</span>
+                  <span className="truncate text-3xs uppercase tracking-wide text-muted-foreground">
+                    {item.nameEn}
+                  </span>
+                </span>
+                <span className="mt-1 block text-xs leading-4 text-muted-foreground">{THEME_COPY[item.id].description}</span>
+                <span className="mt-1 block text-xs leading-4 text-muted-foreground">适合：{THEME_COPY[item.id].suitable}</span>
+                {selected && (
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--agenthub-accent)]">
+                    <Check className="size-3.5" aria-hidden="true" />
+                    当前主题
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="agenthub-card p-3">
+        <h3 className="text-sm font-medium">明暗</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">浅色 / 深色 / 跟随系统，与主题分开记。</p>
+        <div
+          className="mt-3 inline-flex rounded-lg border border-[var(--agenthub-border)] p-0.5"
+          role="group"
+          aria-label="明暗模式"
+        >
+          {MODE_SEGMENTS.map((option) => {
+            const selected = mode === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setMode(option.value)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition',
+                  selected
+                    ? 'bg-[var(--agenthub-accent-soft)] font-medium text-[var(--agenthub-accent)]'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <option.icon className="size-3.5" aria-hidden="true" />
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -608,7 +780,7 @@ function MobileConnectionHints({
   const enabled = companionMode !== 'off'
 
   return (
-    <section className="rounded-xl border bg-muted/30 p-3">
+    <section className="agenthub-card p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Smartphone className="size-4 text-muted-foreground" />
@@ -627,8 +799,9 @@ function MobileConnectionHints({
       </div>
 
       {loading ? (
-        <div className="flex h-16 items-center justify-center">
+        <div className="flex h-16 flex-col items-center justify-center gap-2">
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">正在加载移动端连接信息…</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -741,7 +914,7 @@ function DeploymentPublishSettings({
   onPublicBaseUrlChange: (value: string) => void
 }) {
   return (
-    <section className="rounded-xl border bg-muted/30 p-3">
+    <section className="agenthub-card p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <FolderUp className="size-4 text-muted-foreground" />
@@ -794,7 +967,7 @@ function NotificationPreferenceSettings({
   onChange: (patch: Partial<SettingsForm>) => void
 }) {
   return (
-    <section className="rounded-xl border bg-muted/30 p-3">
+    <section className="agenthub-card p-3">
       <div className="mb-3 flex items-center gap-2">
         <Bell className="size-4 text-muted-foreground" />
         <div>

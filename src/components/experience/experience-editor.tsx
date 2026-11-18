@@ -114,9 +114,9 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
       {/* 左右分栏 */}
       <div className="flex min-h-0 flex-1">
         {/* 左侧表单 */}
-        <div className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto border-r bg-muted/20 px-5 py-5">
+        <div className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto border-r border-[var(--agenthub-border)] bg-muted/20 px-5 py-5">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               标题 <span className="text-red-500">*</span>
             </label>
             <Input
@@ -126,16 +126,16 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               maxLength={80}
               className="text-sm"
             />
-            <div className="mt-1 text-right text-3xs text-muted-foreground">{title.length}/80</div>
+            <div className="mt-1 text-right text-xs text-muted-foreground">{title.length}/80</div>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium">分类</label>
+            <label className="mb-1.5 block text-sm font-medium">分类</label>
             <div className="relative">
               <select
                 value={kind}
                 onChange={(e) => setKind(e.target.value as ExperienceKind)}
-                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--agenthub-accent-border)]"
               >
                 {KIND_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -145,7 +145,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               触发条件 <span className="text-red-500">*</span>
             </label>
             <Input
@@ -155,18 +155,18 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               maxLength={200}
               className="text-sm"
             />
-            <div className="mt-1 text-right text-3xs text-muted-foreground">{trigger.length}/200</div>
+            <div className="mt-1 text-right text-xs text-muted-foreground">{trigger.length}/200</div>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
               关联 Agent <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
                 value={agentId ?? ''}
                 onChange={(e) => setAgentId(e.target.value || null)}
-                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full appearance-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--agenthub-accent-border)]"
               >
                 <option value="">全局（所有 Agent 可用）</option>
                 {agents.map((a) => (
@@ -177,7 +177,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium">标签</label>
+            <label className="mb-1.5 block text-sm font-medium">标签</label>
             <div className="flex flex-wrap gap-1.5">
               {tags.map((t) => (
                 <Badge key={t} variant="secondary" className="gap-1 text-xs">
@@ -194,28 +194,28 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTags(tagInput) } }}
                 placeholder="输入标签，回车或逗号添加"
-                className="text-xs"
+                className="text-sm"
               />
               <Button size="sm" variant="outline" onClick={() => addTags(tagInput)} className="shrink-0 text-xs">添加</Button>
             </div>
-            <p className="mt-1 text-3xs text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
+            <p className="mt-1 text-xs text-muted-foreground">最多 10 个标签，多个标签用逗号分隔</p>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
             <div>
-              <div className="text-xs font-medium">启用状态</div>
-              <div className="text-3xs text-muted-foreground">启用后将注入 Agent 上下文</div>
+              <div className="text-sm font-medium">启用状态</div>
+              <div className="text-xs text-muted-foreground">启用后将注入 Agent 上下文</div>
             </div>
             <button
               type="button"
               onClick={() => setActive(!active)}
               className={cn(
                 'relative h-5 w-9 rounded-full transition-colors',
-                active ? 'bg-blue-500' : 'bg-muted',
+                active ? 'bg-[var(--agenthub-accent)]' : 'bg-muted',
               )}
             >
               <span className={cn(
-                'absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform',
+                'absolute top-0.5 size-4 rounded-full bg-[var(--agenthub-surface)] shadow transition-transform',
                 active ? 'translate-x-4' : 'translate-x-0.5',
               )} />
             </button>
@@ -224,7 +224,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
 
         {/* 右侧富文本 */}
         <div className="flex min-h-0 flex-1 flex-col px-6 py-5">
-          <label className="mb-1.5 block text-xs font-medium text-foreground">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">
             经验内容 <span className="text-red-500">*</span>
           </label>
           <RichTextEditor
@@ -248,7 +248,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
                     >
                       {f.fileName}
                     </a>
-                    <span className="shrink-0 text-3xs text-muted-foreground">{formatSize(f.size)}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{formatSize(f.size)}</span>
                     <button
                       onClick={() => void handleRemoveFile(f.id)}
                       className="shrink-0 text-muted-foreground hover:text-foreground"
@@ -265,7 +265,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
               <span className="text-xs text-muted-foreground">
                 {uploading ? '上传中…' : '添加参考文件（可选）'}
               </span>
-              <span className="text-3xs text-muted-foreground/70">支持 PDF、DOC、TXT、MD 等格式，单文件 ≤ 20MB</span>
+              <span className="text-xs text-muted-foreground/70">支持 PDF、DOC、TXT、MD 等格式，单文件 ≤ 20MB</span>
               <input
                 type="file"
                 multiple
@@ -279,7 +279,7 @@ export function ExperienceEditor({ item, agents, onCancel, onSave }: ExperienceE
       </div>
 
       {/* 底部操作行 */}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t bg-muted/40 px-6 py-3">
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--agenthub-border)] bg-muted/40 px-6 py-3">
         <Button variant="ghost" size="sm" onClick={onCancel} disabled={saving}>取消</Button>
         <Button size="sm" onClick={handleSave} disabled={saving || !title.trim() || !trigger.trim() || !content.trim()}>
           {saving ? '保存中…' : '保存'}

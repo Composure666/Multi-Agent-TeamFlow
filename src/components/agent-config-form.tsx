@@ -1,6 +1,6 @@
 'use client'
 
-import { Cpu, User, Wrench } from 'lucide-react'
+import { Check, Cpu, Info, User, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -334,6 +334,7 @@ export function AgentConfigForm({
         onValueChange={(v) => onActiveTabChange(v as AgentTab)}
         className="flex min-h-0 flex-1 flex-col gap-3"
       >
+        <FormSteps activeTab={activeTab} onSelect={onActiveTabChange} />
         <TabsList className="self-start">
           <TabsTrigger value="basic">
             <User className="size-3.5" />
@@ -739,8 +740,9 @@ export function AgentConfigForm({
               <Label>Skills</Label>
               <div className="grid gap-1.5">
                 {skills.length === 0 ? (
-                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    暂无 Skills；可在设置里刷新 Skills 索引。
+                  <div className="flex items-start gap-2 rounded-md border border-[var(--agenthub-border)] bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    <span>暂无 Skills；可在设置里刷新 Skills 索引。</span>
                   </div>
                 ) : (
                   skills.map((skill) => {
@@ -749,7 +751,7 @@ export function AgentConfigForm({
                       <label
                         key={skill.id}
                         className={cn(
-                          'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+                          'flex cursor-pointer items-start gap-2 rounded-md border border-[var(--agenthub-border)] px-3 py-2 transition hover:border-foreground/30',
                           checked && 'border-primary bg-primary/5',
                           !skill.enabled && 'cursor-not-allowed opacity-50',
                         )}
@@ -782,10 +784,13 @@ export function AgentConfigForm({
               <Label>MCP</Label>
               <div className="grid gap-1.5">
                 {(adapterKind === 'custom' || mcpServers.length === 0) && (
-                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    {adapterKind === 'custom'
-                      ? 'Custom adapter 当前暂不支持外部 MCP。'
-                      : '暂无 MCP server；可在设置里添加。'}
+                  <div className="flex items-start gap-2 rounded-md border border-[var(--agenthub-border)] bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    <Info className="mt-0.5 size-3.5 shrink-0" />
+                    <span>
+                      {adapterKind === 'custom'
+                        ? 'Custom adapter 当前暂不支持外部 MCP。'
+                        : '暂无 MCP server；可在设置里添加。'}
+                    </span>
                   </div>
                 )}
                 {adapterKind !== 'custom' &&
@@ -796,7 +801,7 @@ export function AgentConfigForm({
                       <label
                         key={server.id}
                         className={cn(
-                          'flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 transition hover:border-foreground/30',
+                          'flex cursor-pointer items-start gap-2 rounded-md border border-[var(--agenthub-border)] px-3 py-2 transition hover:border-foreground/30',
                           checked && 'border-primary bg-primary/5',
                           !compatible && 'cursor-not-allowed opacity-50',
                         )}
@@ -859,5 +864,54 @@ function Label({ children, required }: { children: React.ReactNode; required?: b
       {children}
       {required && <span className="ml-0.5 text-red-500">*</span>}
     </div>
+  )
+}
+
+/** 详细配置三步指示：基本信息 → 模型与适配器 → 工具与提示词（与上方 Tabs 同步）。 */
+function FormSteps({
+  activeTab,
+  onSelect,
+}: {
+  activeTab: AgentTab
+  onSelect: (tab: AgentTab) => void
+}) {
+  const current = AGENT_FORM_TABS.findIndex((t) => t.value === activeTab)
+  return (
+    <ol className="flex shrink-0 items-center gap-1.5" aria-label="配置步骤">
+      {AGENT_FORM_TABS.map((tab, index) => {
+        const done = index < current
+        const active = index === current
+        return (
+          <li key={tab.value} className="flex min-w-0 flex-1 items-center gap-1.5 last:flex-none">
+            <button
+              type="button"
+              onClick={() => onSelect(tab.value)}
+              className="flex min-w-0 items-center gap-1.5"
+              aria-current={active ? 'step' : undefined}
+            >
+              <span
+                className={cn(
+                  'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
+                  done && 'bg-[var(--agenthub-accent)] text-white',
+                  active && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent-border)]',
+                  !done && !active && 'bg-muted text-muted-foreground',
+                )}
+              >
+                {done ? <Check className="size-3" /> : index + 1}
+              </span>
+              <span
+                className={cn(
+                  'truncate text-xs',
+                  active ? 'font-medium text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {tab.label}
+              </span>
+            </button>
+            {index < AGENT_FORM_TABS.length - 1 && <span className="h-px flex-1 bg-border" aria-hidden="true" />}
+          </li>
+        )
+      })}
+    </ol>
   )
 }

@@ -35,7 +35,7 @@ export function HomeScreenshotFigure() {
     // eslint-disable-next-line @next/next/no-img-element -- 走仓库内静态资源，无需 next/image 优化
     <img
       src="/images/app-screenshot.png"
-      alt="Multi-Agent TeamFlow 工作台界面：左侧为工作区导航与对话历史，右侧为新建任务入口与多 Agent 协作会话区"
+      alt="Multi-Agent TeamFlow 工作台新任务页：左侧为工作区导航，右侧为品牌标题、任务输入卡片与建议入口"
       className="w-full rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]"
       onError={() => setFailed(true)}
       loading="lazy"

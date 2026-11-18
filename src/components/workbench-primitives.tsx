@@ -9,6 +9,13 @@ import { cn } from '@/lib/utils'
  * Tokens come from globals.css (--agenthub-*), so dark mode works automatically.
  */
 
+/**
+ * 页面外壳与 gutter 规则（module-audit-top5 A2/A3 定死）：
+ * - 外层统一 `p-4 lg:p-6`，调用处不要改写 padding；
+ * - 内容默认 `max-w-5xl`；数据型页面（数据概览、能力中心、信息中心、自动化）
+ *   与卡片墙页（Agent 库）显式传 `contentClassName="w-full max-w-none"`；
+ * - 其余页面走默认 `max-w-5xl`。
+ */
 export function PageShell({
   children,
   className,
@@ -35,7 +42,7 @@ export function PageCard({
   return (
     <section
       className={cn(
-        'rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-neutral-900 sm:p-5',
+        'agenthub-card-container p-4 sm:p-5',
         className,
       )}
     >
@@ -49,23 +56,37 @@ export function PageHeader({
   title,
   description,
   actions,
+  breadcrumb,
+  meta,
 }: {
-  icon: LucideIcon
+  icon?: LucideIcon
   title: string
   description?: ReactNode
   actions?: ReactNode
+  /** 标题行上方：面包屑等导航行（运行调试板页头用） */
+  breadcrumb?: ReactNode
+  /** 标题行下方：元信息行（运行调试板页头用） */
+  meta?: ReactNode
 }) {
   return (
     <PageCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-            <Icon className="size-5 shrink-0 text-[var(--agenthub-accent)]" />
-            {title}
-          </div>
-          {description != null && (
-            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          {Icon != null && (
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]">
+              <Icon className="size-5 text-[var(--agenthub-accent)]" />
+            </div>
           )}
+          <div className="min-w-0">
+            {breadcrumb != null && <div className="mb-1">{breadcrumb}</div>}
+            <div className="font-heading text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              {title}
+            </div>
+            {description != null && (
+              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
+            )}
+            {meta != null && <div className="mt-1">{meta}</div>}
+          </div>
         </div>
         {actions != null && <div className="flex w-fit shrink-0 flex-wrap items-center gap-2">{actions}</div>}
       </div>
@@ -131,6 +152,7 @@ export function WorkspaceStateView({
   emptyDescription,
   errorDescription,
   action,
+  onRetry,
   children,
 }: {
   state: WorkspaceState
@@ -139,14 +161,21 @@ export function WorkspaceStateView({
   emptyDescription?: string
   errorDescription?: string
   action?: { label: string; onClick: () => void }
+  /** 数据加载视图的重试入口：传入时加载态显示「重新加载」按钮 */
+  onRetry?: () => void
   children?: ReactNode
 }) {
   if (state === 'ready') return <>{children}</>
   if (state === 'loading' || state === 'refreshing') {
     return (
-      <PageCard className="flex min-h-32 items-center justify-center gap-2 text-sm text-muted-foreground motion-safe:animate-ah-fade-in">
+      <PageCard className="flex min-h-32 flex-col items-center justify-center gap-2 py-10 text-center text-sm text-muted-foreground motion-safe:animate-ah-fade-in">
         <Loader2 className="size-4 motion-safe:animate-spin" />
         {state === 'refreshing' ? '正在刷新…' : '正在加载…'}
+        {onRetry && (
+          <Button type="button" variant="outline" size="sm" className="mt-1" onClick={onRetry}>
+            重新加载
+          </Button>
+        )}
       </PageCard>
     )
   }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Loader2, RefreshCw, Save, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/workbench-primitives'
 import type { LlmFailoverConfigRow, LlmFailoverEventRow } from '@/db/schema'
 
 interface FailoverPanelProps {
@@ -22,11 +23,16 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
   const [config, setConfig] = useState<LlmFailoverConfigRow | null>(null)
   const [events, setEvents] = useState<LlmFailoverEventRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [saving, setSaving] = useState(false)
+
+  const retry = () => setRetryKey((k) => k + 1)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     Promise.all([
       fetch('/api/failover-config').then((r) => r.json()),
       fetch('/api/failover-events?limit=20').then((r) => r.json()),
@@ -36,14 +42,17 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
         setConfig(cData.config)
         setEvents(eData.events ?? [])
       })
-      .catch((err) => console.error('[FailoverPanel] load failed', err))
+      .catch((err) => {
+        console.error('[FailoverPanel] load failed', err)
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, retryKey])
 
   const toggleTrigger = (key: keyof LlmFailoverConfigRow) => {
     if (!config) return
@@ -76,10 +85,18 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
     }
   }
 
+  if (loadError) {
+    return <InlineError message={`故障转移配置加载失败：${loadError}`} onRetry={retry} />
+  }
+
   if (loading || !config) {
     return (
-      <div className="flex items-center justify-center py-6">
+      <div className="flex flex-col items-center justify-center gap-2 py-6">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">正在加载故障转移配置…</p>
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={retry}>
+          重新加载
+        </Button>
       </div>
     )
   }
@@ -87,7 +104,7 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* 总开关 */}
-      <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <div className="flex items-center justify-between agenthub-card p-3">
         <div className="flex items-center gap-2">
           <ShieldCheck className={`size-4 ${config.enabled ? 'text-green-500' : 'text-slate-400'}`} />
           <div>
@@ -108,7 +125,7 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
       </div>
 
       {/* 触发条件 */}
-      <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <div className="agenthub-card p-3">
         <div className="mb-2 text-sm font-medium text-slate-900 dark:text-slate-100">触发条件</div>
         <div className="flex flex-col gap-2">
           {TRIGGER_OPTIONS.map((opt) => (
@@ -117,7 +134,7 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
                 type="checkbox"
                 checked={Boolean(config[opt.key as keyof LlmFailoverConfigRow])}
                 onChange={() => toggleTrigger(opt.key as keyof LlmFailoverConfigRow)}
-                className="size-4 rounded border-slate-300 accent-[var(--agenthub-accent)]"
+                className="size-4 rounded border-[var(--agenthub-border)] accent-[var(--agenthub-accent)]"
                 disabled={!config.enabled}
               />
               <span className="text-sm text-slate-900 dark:text-slate-100">{opt.label}</span>
@@ -132,7 +149,7 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
 
       {/* 重试与冷却 */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <div className="agenthub-card p-3">
           <div className="mb-1 text-xs text-muted-foreground">最大重试次数</div>
           <input
             type="number"
@@ -140,11 +157,11 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
             max={10}
             value={config.maxRetries}
             onChange={(e) => setConfig((prev) => (prev ? { ...prev, maxRetries: Math.max(0, Math.min(10, Number(e.target.value))) } : prev))}
-            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-sm dark:border-white/10 dark:bg-neutral-800"
+            className="h-8 w-full rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 text-sm"
             disabled={!config.enabled}
           />
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+        <div className="agenthub-card p-3">
           <div className="mb-1 text-xs text-muted-foreground">切换冷却（秒）</div>
           <input
             type="number"
@@ -152,14 +169,14 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
             max={3600}
             value={config.cooldownSeconds}
             onChange={(e) => setConfig((prev) => (prev ? { ...prev, cooldownSeconds: Math.max(0, Math.min(3600, Number(e.target.value))) } : prev))}
-            className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-sm dark:border-white/10 dark:bg-neutral-800"
+            className="h-8 w-full rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 text-sm"
             disabled={!config.enabled}
           />
         </div>
       </div>
 
       {/* 恢复策略 */}
-      <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <div className="flex items-center justify-between agenthub-card p-3">
         <div className="flex items-center gap-2">
           <RefreshCw className="size-4 text-[var(--agenthub-accent)]" />
           <div>
@@ -189,17 +206,20 @@ export function FailoverPanel({ refreshKey }: FailoverPanelProps) {
       </div>
 
       {/* 切换记录 */}
-      <div className="rounded-md border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+      <div className="agenthub-card p-3">
         <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
           <AlertTriangle className="size-4 text-amber-500" />
           最近切换记录
         </div>
         {events.length === 0 ? (
-          <div className="py-4 text-center text-xs text-muted-foreground">暂无切换记录</div>
+          <div className="flex flex-col items-center gap-1.5 py-4 text-center">
+            <AlertTriangle className="size-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">暂无切换记录</p>
+          </div>
         ) : (
           <div className="flex flex-col gap-1.5">
             {events.slice(0, 10).map((event) => (
-              <div key={event.id} className="flex items-center gap-2 rounded bg-slate-50 px-2 py-1.5 text-xs dark:bg-white/5">
+              <div key={event.id} className="flex items-center gap-2 rounded bg-[var(--agenthub-surface-muted)] px-2 py-1.5 text-xs">
                 <span className="text-muted-foreground">{new Date(event.createdAt).toLocaleTimeString()}</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">{event.fromProviderId ?? '—'}</span>
                 <span className="text-muted-foreground">→</span>

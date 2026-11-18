@@ -40,7 +40,7 @@ export function PendingMcpToolApprovalsPanel({ conversationId }: { conversationI
   if (pending.length === 0) return null
 
   return (
-    <div className="shrink-0 space-y-2 border-t bg-violet-50/45 px-4 py-2.5 dark:bg-violet-950/10">
+    <div className="shrink-0 space-y-2 border-t bg-[var(--agenthub-surface)] px-4 py-2.5">
       {pending.map((approval) => (
         <PendingMcpToolApprovalCard
           key={approval.id}
@@ -89,7 +89,7 @@ function PendingMcpToolApprovalCard({
   return (
     <div
       className={cn(
-        'flex items-start gap-3 rounded-lg border border-violet-200 bg-card px-3 py-2 text-xs shadow-sm',
+        'agenthub-card flex items-start gap-3 border-violet-200 px-3 py-2 text-xs',
         'dark:border-violet-900/50',
       )}
     >
@@ -134,7 +134,7 @@ function PendingMcpToolApprovalCard({
           size="sm"
           onClick={handleApprove}
           disabled={!!busy}
-          className="h-7 bg-[#3370FF] px-2.5 text-white hover:bg-[#2860e5]"
+          className="h-7 bg-[var(--agenthub-accent)] px-2.5 text-white hover:bg-[var(--agenthub-accent-hover)]"
           title="批准"
         >
           {busy === 'approve' ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}

@@ -9,6 +9,7 @@ import {
   Database,
   Eye,
   ExternalLink,
+  Inbox,
   Loader2,
   MoreHorizontal,
   Package,
@@ -48,7 +49,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { InlineError, PageShell } from '@/components/workbench-primitives'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { InlineError, PageHeader, PageShell } from '@/components/workbench-primitives'
 import {
   createMcpServer,
   deleteMcpServer,
@@ -612,25 +614,15 @@ export function CapabilityCenterWorkspace() {
 
   return (
     <PageShell
-      className="agenthub-hide-scrollbar p-3 lg:p-4"
+      className="agenthub-hide-scrollbar"
       contentClassName="w-full max-w-none gap-6"
     >
       {/* 顶部标题栏 */}
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-            <Boxes className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-              能力中心
-            </h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              管理可复用的 Skills、MCP Servers 与 Agent 绑定关系。
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader
+        icon={Boxes}
+        title="能力中心"
+        description="管理可复用的 Skills、MCP Servers 与 Agent 绑定关系。"
+      />
 
       {error && <InlineError message={error} onRetry={() => void load()} />}
 
@@ -645,7 +637,7 @@ export function CapabilityCenterWorkspace() {
       <section className="grid gap-6 xl:grid-cols-[minmax(0,2.1fr)_minmax(280px,1fr)]">
         {/* 左侧：能力管理表格 */}
         <CapabilityCard className="overflow-hidden p-0">
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-[var(--agenthub-border)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-medium text-slate-900 dark:text-slate-50">本地能力管理</h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -657,7 +649,7 @@ export function CapabilityCenterWorkspace() {
                 type="button"
                 onClick={() => void refreshIndex()}
                 disabled={refreshing || loading}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)] disabled:opacity-50 dark:text-slate-300"
                 title="重新扫描本地 skills 目录"
               >
                 {refreshing ? (
@@ -689,7 +681,7 @@ export function CapabilityCenterWorkspace() {
           </div>
 
           {/* Tabs + 筛选 + 排序 */}
-          <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-[var(--agenthub-border)] px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-1">
               {TAB_ITEMS.map((tab) => (
                 <button
@@ -700,16 +692,16 @@ export function CapabilityCenterWorkspace() {
                     'inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition',
                     activeTab === tab.id
                       ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100',
+                      : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
                   )}
                 >
                   {tab.label}
                   <span
                     className={cn(
-                      'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-3xs font-semibold',
+                      'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-xs font-semibold',
                       activeTab === tab.id
-                        ? 'bg-white text-[var(--agenthub-accent)] dark:bg-slate-900'
-                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                        ? 'bg-[var(--agenthub-surface)] text-[var(--agenthub-accent)]'
+                        : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
                     )}
                   >
                     {counts[tab.id]}
@@ -736,7 +728,7 @@ export function CapabilityCenterWorkspace() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300"
                   >
                     排序：{SORT_LABEL[sortMode]}
                   </button>
@@ -760,7 +752,7 @@ export function CapabilityCenterWorkspace() {
           </div>
 
           {/* 表头 */}
-          <div className="hidden grid-cols-[minmax(0,1.6fr)_88px_88px_minmax(0,1fr)_96px_56px] items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-6 py-2 text-xs font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400 lg:grid">
+          <div className="hidden grid-cols-[minmax(0,1.6fr)_88px_88px_minmax(0,1fr)_96px_56px] items-center gap-3 border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-6 py-2 text-xs font-medium text-slate-500/40 dark:text-slate-400 lg:grid">
             <span>能力名称</span>
             <span>类型</span>
             <span>状态</span>
@@ -770,11 +762,25 @@ export function CapabilityCenterWorkspace() {
           </div>
 
           {/* 表格行 */}
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="divide-y divide-[var(--agenthub-border)]">
             {loading && filteredRows.length === 0 ? (
-              <EmptyRow message="正在加载能力索引…" />
+              <div className="flex h-24 flex-col items-center justify-center gap-2 px-6 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Loader2 className="size-5 animate-spin" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载能力索引…</div>
+                <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">正在扫描本地 Skills 与 MCP Servers。</p>
+              </div>
             ) : filteredRows.length === 0 ? (
-              <EmptyRow message={query ? `未找到与"${query}"匹配的能力` : '暂无匹配的能力'} />
+              <EmptyRow
+                message={query ? `未找到与"${query}"匹配的能力` : '暂无匹配的能力'}
+                description={query ? '换个关键词，或清除搜索条件后再查看。' : '导入 Skill 或新增 MCP Server 后会出现在这里。'}
+                action={
+                  query
+                    ? { label: '清除搜索', onClick: () => setQuery('') }
+                    : { label: '新增 MCP', onClick: () => setCreateServerOpen(true) }
+                }
+              />
             ) : (
               pagedRows.map((row) => (
                 <CapabilityRowItem
@@ -792,14 +798,14 @@ export function CapabilityCenterWorkspace() {
           </div>
 
           {/* 底部分页 */}
-          <div className="flex items-center justify-between border-t border-slate-100 px-6 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          <div className="flex items-center justify-between border-t border-[var(--agenthub-border)] px-6 py-3 text-xs text-slate-500 dark:text-slate-400">
             <span>共 {filteredRows.length} 个能力</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled={safePageIndex === 0}
                 onClick={() => setPageIndex((idx) => Math.max(0, idx - 1))}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--agenthub-border)] text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400"
                 aria-label="上一页"
               >
                 ‹
@@ -811,7 +817,7 @@ export function CapabilityCenterWorkspace() {
                 type="button"
                 disabled={safePageIndex >= pageCount - 1}
                 onClick={() => setPageIndex((idx) => Math.min(pageCount - 1, idx + 1))}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--agenthub-border)] text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400"
                 aria-label="下一页"
               >
                 ›
@@ -820,7 +826,7 @@ export function CapabilityCenterWorkspace() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="ml-2 inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                    className="ml-2 inline-flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 text-xs text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-400"
                   >
                     {pageSize} 条/页
                   </button>
@@ -902,7 +908,7 @@ export function CapabilityCenterWorkspace() {
           description="按更新时间倒序展示所有能力变更"
           onClose={() => setShowAllSection(null)}
         >
-          <ul className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+          <ul className="flex flex-col divide-y divide-[var(--agenthub-border)]">
             {rows.slice(0, 50).map((row) => {
               const KindIcon = KIND_META[row.kind].icon
               return (
@@ -910,9 +916,9 @@ export function CapabilityCenterWorkspace() {
                   <span
                     className={cn(
                       'flex size-7 shrink-0 items-center justify-center rounded-lg',
-                      row.kind === 'skill' && 'bg-violet-50 text-violet-600',
-                      row.kind === 'mcp_server' && 'bg-blue-50 text-blue-600',
-                      row.kind === 'resource' && 'bg-amber-50 text-amber-600',
+                      row.kind === 'skill' && 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+                      row.kind === 'mcp_server' && 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                      row.kind === 'resource' && 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
                     )}
                   >
                     <KindIcon className="size-3.5" />
@@ -942,7 +948,7 @@ export function CapabilityCenterWorkspace() {
           description="按绑定 Agent 数量排序的 TOP 列表"
           onClose={() => setShowAllSection(null)}
         >
-          <ul className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+          <ul className="flex flex-col divide-y divide-[var(--agenthub-border)]">
             {[...rows]
               .sort((a, b) => b.bindingCount - a.bindingCount || b.updatedAt - a.updatedAt)
               .map((row) => {
@@ -952,9 +958,9 @@ export function CapabilityCenterWorkspace() {
                     <span
                       className={cn(
                         'flex size-7 shrink-0 items-center justify-center rounded-lg',
-                        row.kind === 'skill' && 'bg-violet-50 text-violet-600',
-                        row.kind === 'mcp_server' && 'bg-blue-50 text-blue-600',
-                        row.kind === 'resource' && 'bg-amber-50 text-amber-600',
+                        row.kind === 'skill' && 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+                        row.kind === 'mcp_server' && 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                        row.kind === 'resource' && 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
                       )}
                     >
                       <KindIcon className="size-3.5" />
@@ -1047,7 +1053,7 @@ function CapabilityCard({
   return (
     <section
       className={cn(
-        'rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950',
+        'agenthub-card',
         className,
       )}
     >
@@ -1058,17 +1064,17 @@ function CapabilityCard({
 
 function KpiCard({ label, value, trend, trendLabel, caption, icon: Icon, tone, sparkline }: KpiDescriptor) {
   const toneStyles: Record<KpiDescriptor['tone'], { bg: string; fg: string; spark: string; badgeBg: string; badgeFg: string }> = {
-    violet: { bg: 'bg-violet-50', fg: 'text-violet-600', spark: '#7C3AED', badgeBg: 'bg-emerald-50', badgeFg: 'text-emerald-600' },
-    blue: { bg: 'bg-blue-50', fg: 'text-blue-600', spark: '#2F5FD0', badgeBg: 'bg-emerald-50', badgeFg: 'text-emerald-600' },
-    emerald: { bg: 'bg-emerald-50', fg: 'text-emerald-600', spark: '#10B981', badgeBg: 'bg-emerald-50', badgeFg: 'text-emerald-600' },
-    amber: { bg: 'bg-amber-50', fg: 'text-amber-600', spark: '#F59E0B', badgeBg: 'bg-emerald-50', badgeFg: 'text-emerald-600' },
+    violet: { bg: 'bg-violet-50 dark:bg-violet-500/10', fg: 'text-violet-600 dark:text-violet-400', spark: '#7C3AED', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
+    blue: { bg: 'bg-blue-50 dark:bg-blue-500/10', fg: 'text-blue-600 dark:text-blue-400', spark: 'var(--primary)', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
+    emerald: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', fg: 'text-emerald-600 dark:text-emerald-400', spark: '#10B981', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
+    amber: { bg: 'bg-amber-50 dark:bg-amber-500/10', fg: 'text-amber-600 dark:text-amber-400', spark: '#F59E0B', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
   }
   const t = toneStyles[tone]
   const trendUp = trend > 0
   const trendFlat = trend === 0
 
   return (
-    <article className="flex h-[140px] items-stretch rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950">
+    <article className="flex h-[140px] items-stretch agenthub-card p-5">
       <div className="flex flex-1 flex-col justify-between">
         <div className="flex items-center gap-2">
           <span
@@ -1095,7 +1101,7 @@ function KpiCard({ label, value, trend, trendLabel, caption, icon: Icon, tone, s
               <span
                 className={cn(
                   'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-semibold',
-                  trendUp ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500',
+                  trendUp ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400',
                 )}
               >
                 {trendUp ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
@@ -1123,17 +1129,17 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * (h - 6) - 3}`)
   const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p}`).join(' ')
   const areaD = `${pathD} L${w},${h} L0,${h} Z`
-  const gid = `sp-${color.replace('#', '')}`
+  const gid = `sp-${color.replace(/[^a-zA-Z0-9]/g, '')}`
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+          <stop offset="0%" style={{ stopColor: color }} stopOpacity="0.22" />
+          <stop offset="100%" style={{ stopColor: color }} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={areaD} fill={`url(#${gid})`} />
-      <path d={pathD} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={pathD} fill="none" style={{ stroke: color }} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -1159,15 +1165,15 @@ function CapabilityRowItem({
   const KindIcon = meta.icon
   const boundAgents = Math.max(0, row.bindingCount)
   return (
-    <div className="grid grid-cols-1 items-center gap-3 px-6 py-2.5 text-sm transition hover:bg-slate-50/60 dark:hover:bg-slate-900/40 lg:grid-cols-[minmax(0,1.6fr)_88px_88px_minmax(0,1fr)_96px_56px]">
+    <div className="grid grid-cols-1 items-center gap-3 px-6 py-2.5 text-sm transition hover:bg-[var(--agenthub-surface-muted)] lg:grid-cols-[minmax(0,1.6fr)_88px_88px_minmax(0,1fr)_96px_56px]">
       {/* 名称 */}
       <div className="flex min-w-0 items-center gap-2.5">
         <span
           className={cn(
             'flex size-7 shrink-0 items-center justify-center rounded-lg',
-            row.kind === 'skill' && 'bg-violet-50 text-violet-600',
-            row.kind === 'mcp_server' && 'bg-blue-50 text-blue-600',
-            row.kind === 'resource' && 'bg-amber-50 text-amber-600',
+            row.kind === 'skill' && 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+            row.kind === 'mcp_server' && 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+            row.kind === 'resource' && 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
           )}
         >
           <KindIcon className="size-3.5" />
@@ -1176,7 +1182,7 @@ function CapabilityRowItem({
           <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900 dark:text-slate-50">
             <span className="truncate">{row.name}</span>
             {row.tags && row.tags.length > 0 && (
-              <span className="hidden text-3xs font-normal text-slate-400 xl:inline">
+              <span className="hidden text-xs font-normal text-slate-400 xl:inline">
                 #{row.tags.slice(0, 2).join(' #')}
               </span>
             )}
@@ -1254,7 +1260,7 @@ function RowMenu({
           type="button"
           aria-label="更多操作"
           disabled={busy}
-          className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 disabled:opacity-40 dark:hover:text-slate-200"
         >
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <MoreHorizontal className="size-4" />}
         </button>
@@ -1303,9 +1309,9 @@ function RowMenu({
 function KindBadge({ kind }: { kind: CapabilityRowKind }) {
   const meta = KIND_META[kind]
   const styles: Record<CapabilityRowKind, string> = {
-    skill: 'bg-violet-50 text-violet-600',
-    mcp_server: 'bg-blue-50 text-blue-600',
-    resource: 'bg-amber-50 text-amber-600',
+    skill: 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+    mcp_server: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    resource: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
   }
   return (
     <span
@@ -1324,7 +1330,7 @@ function StatusPill({ enabled }: { enabled: boolean }) {
     <span
       className={cn(
         'inline-flex h-5 items-center rounded px-2 text-xs font-medium',
-        enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+        enabled ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
       )}
     >
       {enabled ? '已启用' : '已停用'}
@@ -1335,12 +1341,12 @@ function StatusPill({ enabled }: { enabled: boolean }) {
 function AgentAvatar({ name, tone }: { name: string; tone: 'blue' | 'violet' }) {
   const styles =
     tone === 'blue'
-      ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white'
-      : 'bg-gradient-to-br from-violet-500 to-pink-500 text-white'
+      ? 'bg-[var(--agenthub-accent)] text-white'
+      : 'bg-violet-500 text-white'
   return (
     <span
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
+        'flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
         styles,
       )}
     >
@@ -1349,10 +1355,27 @@ function AgentAvatar({ name, tone }: { name: string; tone: 'blue' | 'violet' }) 
   )
 }
 
-function EmptyRow({ message }: { message: string }) {
+function EmptyRow({
+  message,
+  description,
+  action,
+}: {
+  message: string
+  description?: string
+  action?: { label: string; onClick: () => void }
+}) {
   return (
-    <div className="flex h-24 items-center justify-center px-6 text-xs text-slate-500 dark:text-slate-400">
-      {message}
+    <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+      <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+        <Inbox className="size-5" />
+      </div>
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{message}</div>
+      {description && <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
+      {action && (
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
     </div>
   )
 }
@@ -1394,7 +1417,7 @@ function BindingRelationsCard({
             return (
               <li
                 key={item.id}
-                className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-white px-3 py-2 transition hover:border-slate-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700"
+                className="flex items-center justify-between gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2 transition hover:border-[var(--agenthub-border)] hover:shadow-sm dark:hover:border-slate-700"
               >
                 <button
                   type="button"
@@ -1463,9 +1486,9 @@ function RecentUpdatesCard({
                 <span
                   className={cn(
                     'flex size-7 shrink-0 items-center justify-center rounded-lg',
-                    item.kind === 'skill' && 'bg-violet-50 text-violet-600',
-                    item.kind === 'mcp_server' && 'bg-blue-50 text-blue-600',
-                    item.kind === 'resource' && 'bg-amber-50 text-amber-600',
+                    item.kind === 'skill' && 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+                    item.kind === 'mcp_server' && 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                    item.kind === 'resource' && 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
                   )}
                 >
                   <KindIcon className="size-3.5" />
@@ -1530,15 +1553,15 @@ function HotCapabilitiesCard({
           const width = `${Math.max(8, (item.calls / max) * 100)}%`
           return (
             <li key={item.id} className="flex items-center gap-2.5">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-surface-muted)] text-xs font-semibold text-slate-600 dark:text-slate-300">
                 {item.rank}
               </span>
               <span
                 className={cn(
                   'flex size-6 shrink-0 items-center justify-center rounded-md',
-                  item.kind === 'skill' && 'bg-violet-50 text-violet-600',
-                  item.kind === 'mcp_server' && 'bg-blue-50 text-blue-600',
-                  item.kind === 'resource' && 'bg-amber-50 text-amber-600',
+                  item.kind === 'skill' && 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400',
+                  item.kind === 'mcp_server' && 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                  item.kind === 'resource' && 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
                 )}
               >
                 <KindIcon className="size-3" />
@@ -1550,9 +1573,9 @@ function HotCapabilitiesCard({
                     {item.calls >= 1 ? item.calls.toFixed(1) : item.calls.toFixed(2)}k 引用
                   </span>
                 </div>
-                <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-[var(--agenthub-surface-muted)]">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--agenthub-accent)] to-blue-400"
+                    className="h-full rounded-full bg-[var(--agenthub-accent)]"
                     style={{ width }}
                   />
                 </div>
@@ -1567,8 +1590,11 @@ function HotCapabilitiesCard({
 
 function EmptyHint({ message }: { message: string }) {
   return (
-    <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-      {message}
+    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+      <div className="flex size-9 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+        <Inbox className="size-4" />
+      </div>
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{message}</div>
     </div>
   )
 }
@@ -1684,7 +1710,7 @@ function McpServerFormDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onCancel() }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={DIALOG_SIZE_CLASS.md}>
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? '新增 MCP Server' : '编辑 MCP Server'}</DialogTitle>
           <DialogDescription>
@@ -1752,7 +1778,7 @@ function McpServerFormDialog({
             </div>
           </div>
           {form.trust === 'always' && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-4 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            <p className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs leading-4 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               trust=always 会在不弹确认的情况下直接执行该 MCP 工具，请只用于完全信任的来源。
             </p>
           )}
@@ -1790,14 +1816,14 @@ function ConfirmDeleteServerDialog({
 }) {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onCancel() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_SIZE_CLASS.sm}>
         <DialogHeader>
           <DialogTitle>删除 MCP Server</DialogTitle>
           <DialogDescription>
             确定要删除 <strong>{server.name}</strong> 吗？此操作会立刻从能力中心移除，所有 Agent 与该 MCP 的绑定也会断开。
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-4 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+        <div className="rounded-md border border-rose-200 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 text-xs leading-4 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           此操作不可撤销。
         </div>
         <DialogFooter>
@@ -1824,7 +1850,7 @@ function McpTestResultDialog({
   const isOk = result.status === 'ok'
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={DIALOG_SIZE_CLASS.sm}>
         <DialogHeader>
           <DialogTitle>{isOk ? 'MCP 连接成功' : 'MCP 连接失败'}</DialogTitle>
           <DialogDescription>{result.message}</DialogDescription>
@@ -1833,19 +1859,19 @@ function McpTestResultDialog({
           className={cn(
             'rounded-lg border px-3 py-2 text-xs',
             isOk
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
-              : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200',
+              ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
+              : 'border-rose-200 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200',
           )}
         >
           检测时间：{new Date(result.checkedAt).toLocaleString('zh-CN')}
         </div>
         {result.tools.length > 0 && (
-          <div className="rounded-lg border bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2 text-xs">
             <div className="mb-1 font-medium text-slate-700 dark:text-slate-200">暴露的工具 ({result.tools.length})</div>
             <ul className="grid gap-1">
               {result.tools.map((tool) => (
                 <li key={tool.name} className="break-all">
-                  <code className="rounded bg-white px-1.5 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <code className="rounded bg-[var(--agenthub-surface)] px-1.5 py-0.5 text-xs text-slate-700 dark:text-slate-200">
                     {tool.name}
                   </code>
                   {tool.description && (
@@ -1881,7 +1907,7 @@ function ShowAllDialog({
 }) {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={DIALOG_SIZE_CLASS.md}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

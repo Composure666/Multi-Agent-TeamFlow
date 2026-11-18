@@ -57,7 +57,7 @@ export function SkillsSettings() {
   const state = error ? 'error' : loading && skills.length === 0 ? 'loading' : skills.length === 0 ? 'empty' : 'ready'
 
   return (
-    <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border bg-card p-3">
+    <section className="agenthub-card min-w-0 space-y-3 overflow-hidden p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-medium">Skills</h3>
@@ -76,12 +76,13 @@ export function SkillsSettings() {
         emptyDescription="刷新索引可扫描本地 skills/ 目录，也可以从能力中心联网搜索并导入 GitHub Skill。"
         errorDescription={error ?? undefined}
         action={error ? { label: '重试', onClick: () => void load() } : undefined}
+        onRetry={() => void load()}
       >
         <div className="grid min-w-0 gap-2">
           {skills.map((skill, index) => {
             const hasContent = Boolean(skill.content?.trim())
             return (
-            <div key={skill.id} className="agenthub-motion-item min-w-0 rounded-xl border bg-background p-3" style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}>
+            <div key={skill.id} className="agenthub-motion-item agenthub-card min-w-0 p-3" style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-medium">

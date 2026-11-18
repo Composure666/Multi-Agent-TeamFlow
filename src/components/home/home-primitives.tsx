@@ -7,10 +7,8 @@ import { cn } from '@/lib/utils'
  * 项目主页的版式原子。
  *
  * 单独成文件（而不是留在 `home-sections.tsx` 里）的原因：
- * `home-guide.tsx` 是**客户端组件**（左导航要切内容），而 `home-sections.tsx` 是服务端组件且
- * 聚合了全部分区。如果客户端组件直接从 `home-sections.tsx` 里 import 这几个小组件，
- * 打包器会把整个分区模块（含全部静态文案与图标）一并拖进客户端 bundle。
- * 抽到这里的代价是多一个小文件，收益是客户端只拿到这三个原子。
+ * `home-download.tsx` 与 `home-sections.tsx` 都要用同一套版式原子，
+ * 抽到这里避免两处各写一套、以后漂移。
  *
  * 视觉口径与工作台一致：颜色 / 圆角走 globals.css 的 `--agenthub-*` 令牌，
  * 文本色沿用工作台的 slate 阶梯（`.dark` 下已统一重映射）。
@@ -43,7 +41,7 @@ export function SectionHead({
   return (
     <div className={cn('flex flex-col gap-3', centered ? 'items-center text-center' : 'items-start')}>
       <Eyebrow>{eyebrow}</Eyebrow>
-      <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">
+      <h2 className="font-heading text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">
         {title}
       </h2>
       {description != null && (
@@ -60,9 +58,14 @@ export function SectionHead({
   )
 }
 
-/** 卡片规格对齐工作台的 `PageCard`：rounded-2xl + 品牌描边 + surface 底 + 轻阴影。 */
-export const cardClass =
-  'home-card rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-sm'
+/** 内容卡片（默认档）：内容展示用，无 hover 反馈。Phase 1 的 `.agenthub-card`。 */
+export const cardClass = 'agenthub-card'
+
+/** 容器卡片：页面级大容器，弱阴影，无 hover 反馈。 */
+export const containerCardClass = 'agenthub-card-container'
+
+/** 交互卡片：可点击/可 hover 的卡片，hover 轻微抬升 + 品牌色描边。 */
+export const interactiveCardClass = 'agenthub-card-interactive'
 
 /**
  * 指向工作台（`/` 及其 `?setup=` 深链）的站内链接 —— 主页上**若将来重新需要**这类入口，一律用它。

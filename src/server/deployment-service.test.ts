@@ -12,6 +12,7 @@ import {
   buildDeploymentSourceZip,
   createLocalStaticDeployment,
   createWorkspaceStaticDeployment,
+  listDeployments,
   publishDeploymentToStaticDirectory,
   readDeploymentAsset,
 } from './deployment-service'
@@ -275,6 +276,35 @@ describe('deployment-service', () => {
         { dataDir },
       ),
     ).toThrow('must use http or https')
+  })
+
+  it('lists published deployments newest first and skips broken entries', () => {
+    const dataDir = tempDataDir()
+
+    createLocalStaticDeployment({
+      id: 'dep_aaa111',
+      artifactId: 'art_aaa',
+      title: '旧部署',
+      version: 1,
+      content: webAppContent,
+      createdAt: 100,
+      dataDir,
+    })
+    createLocalStaticDeployment({
+      id: 'dep_bbb222',
+      artifactId: 'art_bbb',
+      title: '新部署',
+      version: 1,
+      content: webAppContent,
+      createdAt: 200,
+      dataDir,
+    })
+
+    const listed = listDeployments({ dataDir })
+    expect(listed.map((d) => d.id)).toEqual(['dep_bbb222', 'dep_aaa111'])
+    expect(listed[0]).toMatchObject({ title: '新部署', version: 1 })
+
+    expect(listDeployments({ dataDir: tempDataDir() })).toEqual([])
   })
 })
 

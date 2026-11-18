@@ -1,6 +1,9 @@
 'use client'
 
+import { Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { InlineError } from '@/components/workbench-primitives'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/markdown'
+import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -48,7 +52,7 @@ export function PromptEnhanceModal({
 }) {
   return (
     <Dialog open={visible} onOpenChange={onOpenChange}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-4xl">
+      <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -57,11 +61,11 @@ export function PromptEnhanceModal({
         <div className="grid min-h-0 gap-4 overflow-y-auto md:grid-cols-2">
           <div className="min-h-0 space-y-2">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{originalLabel}</div>
-            <Textarea value={originalText} readOnly className="min-h-[260px] resize-none bg-slate-50 text-sm dark:bg-neutral-900" />
+            <Textarea value={originalText} readOnly className="min-h-[260px] resize-none bg-[var(--agenthub-surface-muted)] text-sm" />
           </div>
           <div className="min-h-0 space-y-2">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{enhancedLabel}</div>
-            <div className="min-h-[260px] overflow-y-auto rounded-md border border-input bg-slate-50 px-3 py-2 text-sm dark:bg-neutral-900">
+            <div className="min-h-[260px] overflow-y-auto rounded-md border border-input bg-[var(--agenthub-surface-muted)] px-3 py-2 text-sm">
               {loading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Spinner size="sm" className="size-4" />
@@ -70,11 +74,14 @@ export function PromptEnhanceModal({
               ) : enhancedText.trim() ? (
                 <Markdown className="text-sm leading-6">{enhancedText}</Markdown>
               ) : (
-                <div className="text-sm text-muted-foreground">等待优化结果</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Sparkles className="size-4 shrink-0" />
+                  等待优化结果
+                </div>
               )}
             </div>
           </div>
-          {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 md:col-span-2">{error}</div>}
+          {error && <div className="md:col-span-2"><InlineError message={error} /></div>}
         </div>
 
         <DialogFooter>

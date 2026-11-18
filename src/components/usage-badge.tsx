@@ -263,7 +263,7 @@ function ContextRow({ used, ceiling }: { used: number; ceiling: number }) {
           className="h-full transition-all"
           style={{
             width: `${pct}%`,
-            backgroundImage: 'linear-gradient(90deg, #3370FF 0%, #F59E0B 68%, #EF4444 100%)',
+            backgroundImage: 'linear-gradient(90deg, var(--agenthub-accent) 0%, #F59E0B 68%, #EF4444 100%)',
             backgroundSize: gradientSize,
           }}
         />

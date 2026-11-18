@@ -166,7 +166,7 @@ function NotificationToast({
                   event.stopPropagation()
                   onOpen()
                 }}
-                className="h-7 rounded-lg bg-white/60 px-2 text-xs dark:bg-white/10"
+                className="h-7 rounded-lg bg-[var(--agenthub-surface-muted)] px-2 text-xs"
               >
                 {openLabel}
               </Button>
@@ -193,7 +193,7 @@ function NotificationToast({
             event.stopPropagation()
             onClose()
           }}
-          className="-mr-1 -mt-1 size-7 rounded-lg opacity-60 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+          className="-mr-1 -mt-1 size-7 rounded-lg opacity-60 hover:bg-[var(--agenthub-surface-muted)] hover:opacity-100"
           aria-label="关闭通知"
         >
           <X className="size-3.5" />

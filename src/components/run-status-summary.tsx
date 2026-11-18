@@ -112,7 +112,7 @@ export function RunStatusSummary({ conversationId }: { conversationId: string })
   if (isRunning) {
     return (
       <div
-        className="agenthub-motion-enter relative shrink-0 overflow-hidden border-b border-blue-100 bg-blue-50/70 text-xs text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200"
+        className="agenthub-motion-enter relative shrink-0 overflow-hidden border-b border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-xs text-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)]"
         role="status"
         aria-live="polite"
       >
@@ -121,7 +121,7 @@ export function RunStatusSummary({ conversationId }: { conversationId: string })
           <span className="shrink-0 font-semibold">正在运行</span>
           <span className="min-w-0 truncate opacity-80">{activity ?? summary.detail}</span>
           {taskProgress && (
-            <span className="hidden min-w-0 shrink truncate rounded-full bg-blue-500/10 px-1.5 py-px text-3xs tabular-nums opacity-90 md:inline dark:bg-blue-400/15">
+            <span className="hidden min-w-0 shrink truncate rounded-full bg-[var(--agenthub-accent-soft)] px-1.5 py-px text-3xs tabular-nums opacity-90 md:inline dark:bg-[var(--agenthub-accent-soft)]">
               {taskProgress}
             </span>
           )}
@@ -134,15 +134,15 @@ export function RunStatusSummary({ conversationId }: { conversationId: string })
             </span>
           )}
         </div>
-        <div className="relative h-0.5 w-full overflow-hidden bg-blue-100/80 dark:bg-blue-400/15">
-          <div className="agenthub-indeterminate-bar absolute inset-y-0 rounded-full bg-blue-500/80 dark:bg-blue-300/70" />
+        <div className="relative h-0.5 w-full overflow-hidden bg-[var(--agenthub-accent-soft)] dark:bg-[var(--agenthub-accent-soft)]">
+          <div className="agenthub-indeterminate-bar absolute inset-y-0 rounded-full bg-[var(--agenthub-accent)]/80 dark:bg-[var(--agenthub-accent)]/70" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className={cn('agenthub-motion-enter flex shrink-0 items-center gap-2 border-b px-4 py-1.5 text-xs', summary.tone === 'warning' ? 'border-amber-200 bg-amber-50/70 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200' : 'border-blue-100 bg-blue-50/60 text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200')} role="status">
+    <div className={cn('agenthub-motion-enter flex shrink-0 items-center gap-2 border-b px-4 py-1.5 text-xs', summary.tone === 'warning' ? 'border-amber-200 bg-amber-50/70 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200' : 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)]')} role="status">
       <Icon className="size-3.5 shrink-0" />
       <span className="font-semibold">{summary.label}</span>
       <span className="truncate opacity-75">{summary.detail}</span>

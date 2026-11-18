@@ -70,7 +70,7 @@ function DispatchPlanReviewCard({
   }
 
   return (
-    <Card className="agenthub-motion-enter overflow-hidden border-amber-300/70 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/15">
+    <Card className="agenthub-card agenthub-motion-enter overflow-hidden border-amber-300/70 dark:border-amber-900/50">
       <div className="space-y-3 p-3">
         <div className="flex items-center gap-2">
           <Network className="size-4 text-amber-600" />
@@ -94,7 +94,7 @@ function DispatchPlanReviewCard({
               size="sm"
               onClick={() => void handleApprove()}
               disabled={!!busy}
-              className="h-7 bg-[#3370FF] px-2 text-white hover:bg-[#2860e5]"
+              className="h-7 bg-[var(--agenthub-accent)] px-2 text-white hover:bg-[var(--agenthub-accent-hover)]"
             >
               {busy === 'approve' ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -143,7 +143,7 @@ function PlanTaskList({ dispatch }: { dispatch: DispatchState }) {
             key={task.id}
             style={{ animationDelay: `${idx * 60}ms` }}
             className={cn(
-              'flex items-start gap-2 rounded-md border bg-card px-2 py-1.5 text-xs',
+              'agenthub-card flex items-start gap-2 px-2 py-1.5 text-xs',
               'agenthub-motion-item',
               'transition-[border-color,box-shadow,background-color] duration-[var(--agenthub-motion-normal)]',
               status === 'running' &&

@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, CheckCircle2, ChevronDown, ChevronRight, FileCode2, FileText, History, MessageCircle, Pencil, Plus, Search, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
+import { Bot, Check, CheckCircle2, ChevronDown, ChevronRight, FileCode2, FileText, History, MessageCircle, Pencil, Plus, Search, SearchX, SlidersHorizontal, Trash2, Wrench, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { TeamDetailDialog } from '@/components/team-detail-dialog'
@@ -27,10 +27,13 @@ import { HorizontalScrollControls } from '@/components/horizontal-scroll-control
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { DetailSection, HistoryRow, SavedState } from '@/components/workbench-detail-primitives'
+import { EmptyState, PageHeader, PageShell } from '@/components/workbench-primitives'
 import type { AgentRow } from '@/db/schema'
 import { createConversation, deleteAgent } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useIsBelowXl } from '@/lib/use-media-query'
 import { useAgentList, useAppStore } from '@/stores/app-store'
 
 const FEATURED_MY_AGENT_IDS_KEY = 'agenthub.featuredMyAgentIds'
@@ -42,12 +45,12 @@ function TeamAvatarStack({ members }: { members: SummonableMember[] }) {
   return (
     <div className="flex -space-x-2">
       {members.slice(0, 3).map((member) => (
-        <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-slate-200 bg-white text-sm shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[var(--agenthub-surface-raised,#252932)]">
+        <span key={member.id} className="flex size-7 items-center justify-center rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-sm shadow-sm">
           {member.avatar}
         </span>
       ))}
       {hiddenCount > 0 && (
-        <span className="flex size-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-3xs font-medium text-slate-600 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-[var(--agenthub-surface-raised,#252932)] dark:text-[#B8C0CC]">
+        <span className="flex size-7 items-center justify-center rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] text-3xs font-medium text-slate-600 shadow-sm dark:text-[#B8C0CC]">
           +{hiddenCount}
         </span>
       )}
@@ -97,7 +100,7 @@ function FeaturedTeamCard({ team, onOpen }: { team: SummonableTeam; onOpen: () =
       className={cn(
         // 亮色：白底 + 浅边框 + 轻阴影
         // 暗色：深底 #1C1F26（与 --agenthub-surface 对齐）+ 半透明白色边框 + 微 ambient
-        'group relative flex h-[180px] w-[300px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)] focus-visible:ring-offset-2 sm:w-[340px] lg:w-[360px]',
+        'agenthub-card-interactive group relative flex h-[180px] w-[300px] shrink-0 snap-start flex-col overflow-hidden p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)] focus-visible:ring-offset-2 sm:w-[340px] lg:w-[360px]',
         'dark:border-white/10 dark:bg-[var(--agenthub-surface,#1C1F26)] dark:shadow-none dark:hover:border-white/15 dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]',
       )}
     >
@@ -114,8 +117,8 @@ function FeaturedTeamCard({ team, onOpen }: { team: SummonableTeam; onOpen: () =
           </span>
           {/* 右上：数据 badge（heat） */}
           <span className={cn(
-            'shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500',
-            'dark:border-white/10 dark:bg-white/[0.04] dark:text-[#B8C0CC]',
+            'shrink-0 rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 py-1 text-xs font-medium text-slate-500',
+            'dark:text-[#B8C0CC]',
           )}>{team.heat}</span>
         </div>
         <div className="mt-auto pt-3">
@@ -158,6 +161,8 @@ export function AgentWorkspace({
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
   const [agentDetailOpen, setAgentDetailOpen] = useState(false)
+  // D1：低于 xl（<1280px）时详情不走内联侧栏，改走下方的 Dialog；≥xl 行为不变。
+  const isBelowXl = useIsBelowXl()
   const [formOpen, setFormOpen] = useState(false)
   const [teamFormOpen, setTeamFormOpen] = useState(false)
   const [unifiedCreateOpen, setUnifiedCreateOpen] = useState(false)
@@ -455,18 +460,16 @@ export function AgentWorkspace({
 
   const deleteTargetAgent = deleteTargetAgentId ? agents.find((agent) => agent.id === deleteTargetAgentId) : null
 
+  // 外层滚动容器保留 agentWorkspaceScrollRef（精选无限滚动监听）；PageShell 只提供 gutter，自身不滚动。
   return (
     <div ref={agentWorkspaceScrollRef} className="h-full min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="flex min-w-0 items-start gap-3 p-4 xl:p-5">
-        <section className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
-        <div className="border-b border-slate-200 p-4 dark:border-white/10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-[22px] font-semibold tracking-tight">Agent 库</h1>
-              <p className="mt-1 text-sm text-slate-500">发现、配置和复用你的协作 Agent</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setUnifiedCreateOpen(true)} className="rounded-md bg-[var(--agenthub-accent,#2F5FD0)] hover:bg-[var(--agenthub-accent-hover,#244FB3)]">
+      <PageShell className="h-auto overflow-y-visible" contentClassName="w-full max-w-none">
+        <PageHeader
+          title="Agent 库"
+          description="发现、配置和复用你的协作 Agent"
+          actions={
+            <>
+              <Button onClick={() => setUnifiedCreateOpen(true)} className="rounded-md bg-[var(--agenthub-accent)] hover:bg-[var(--agenthub-accent-hover)]">
                 <Plus className="mr-2 size-4" />
                 创建
               </Button>
@@ -475,7 +478,7 @@ export function AgentWorkspace({
                   variant="outline"
                   disabled={selectedDeleteAgentIds.size === 0 && selectedDeleteTeamIds.size === 0 || batchDeleting}
                   onClick={() => setBatchDeleteOpen(true)}
-                  className="rounded-md border-slate-200"
+                  className="rounded-md border-[var(--agenthub-border)]"
                 >
                   <Trash2 className="mr-2 size-4" />
                   {(selectedDeleteAgentIds.size + selectedDeleteTeamIds.size) > 0 ? `批量删除 (${selectedDeleteAgentIds.size + selectedDeleteTeamIds.size})` : '批量删除'}
@@ -492,8 +495,8 @@ export function AgentWorkspace({
                   setSelectedDeleteTeamIds(new Set())
                 }}
                 className={cn(
-                  'rounded-md border-slate-200',
-                  agentView === 'featured' && 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-100',
+                  'rounded-md border-[var(--agenthub-border)]',
+                  agentView === 'featured' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
                 )}
               >
                 精选 Agent
@@ -508,35 +511,38 @@ export function AgentWorkspace({
                   setSelectedDeleteAgentIds(new Set())
                 }}
                 className={cn(
-                  'rounded-md border-slate-200',
-                  agentView === 'mine' && 'border-slate-300 bg-slate-100 text-slate-900 hover:bg-slate-100',
+                  'rounded-md border-[var(--agenthub-border)]',
+                  agentView === 'mine' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
                 )}
               >
                 我的 Agent
               </Button>
-
-            </div>
-          </div>
-          <div className="relative mt-4">
+            </>
+          }
+        />
+        <div className="flex min-w-0 items-start gap-3">
+        <section className="agenthub-card-container min-w-0 flex-1">
+        <div className="border-b border-[var(--agenthub-border)] p-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={agentView === 'mine' ? '搜索我的 Agent、团队、模型或能力' : '搜索精选 Agent、预设或能力'}
-              className="h-9 rounded-lg border-slate-200 bg-slate-50 pl-10"
+              className="h-9 rounded-lg border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] pl-10"
             />
           </div>
           {agentView === 'featured' && (
             <HorizontalScrollControls className="mt-3" contentClassName="gap-2 pb-1" scrollAmount={220}>
               {featuredCategories.map((item) => (
-                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)]' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-400 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-100')}>
+                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)]' : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100')}>
                   {item}
                 </button>
               ))}
             </HorizontalScrollControls>
           )}
           {agentView === 'featured' && (
-            <div className="mt-3 border-t border-slate-100 pt-3 dark:border-white/10">
+            <div className="mt-3 border-t border-[var(--agenthub-border)] pt-3">
               <div className="mb-2">
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">精选场景</h2>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">从场景卡片进入统一团队详情，召唤后直接创建会话</p>
@@ -586,10 +592,12 @@ export function AgentWorkspace({
                   )}
                 </div>
                 {filteredPresets.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center dark:border-white/10 dark:bg-neutral-950/40">
-                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">没有匹配的精选 Agent</div>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">试试切换分类或调整搜索关键词。</p>
-                  </div>
+                  <EmptyState
+                    icon={SearchX}
+                    title="没有匹配的精选 Agent"
+                    description="试试切换分类或调整搜索关键词。"
+                    action={{ label: '清空搜索', onClick: () => setQuery('') }}
+                  />
                 )}
               </section>
             ) : (
@@ -599,7 +607,7 @@ export function AgentWorkspace({
                     <h2 className="text-sm font-semibold">我的 Agent 与团队</h2>
                     <p className="mt-1 text-xs text-slate-500">自定义 Agent 和协作团队，可直接开始对话或继续配置</p>
                   </div>
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                  <div className="flex items-center gap-1 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-0.5">
                     {(['all', 'agent', 'team'] as const).map((f) => (
                       <button
                         key={f}
@@ -607,7 +615,7 @@ export function AgentWorkspace({
                         className={cn(
                           'rounded-md px-2.5 py-1 text-xs font-medium transition',
                           mineFilter === f
-                            ? 'bg-white text-slate-900 shadow-sm'
+                            ? 'bg-[var(--agenthub-surface)] text-slate-900 shadow-sm dark:text-slate-100'
                             : 'text-slate-500 hover:text-slate-700'
                         )}
                       >
@@ -631,7 +639,7 @@ export function AgentWorkspace({
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
                       <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">我的团队</h3>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{teams.length}</span>
+                      <span className="rounded-full bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-3xs text-slate-500 dark:text-slate-400">{teams.length}</span>
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                       {teams.map((team) => (
@@ -656,7 +664,7 @@ export function AgentWorkspace({
                   <div className={cn('flex flex-col gap-2', mineFilter === 'all' && teams.length > 0 && 'mt-5')}>
                     <div className="flex items-center gap-2">
                       <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400">我的 Agent</h3>
-                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{filteredAgents.length}</span>
+                      <span className="rounded-full bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-3xs text-slate-500 dark:text-slate-400">{filteredAgents.length}</span>
                     </div>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
                       {filteredAgents.map((agent) => (
@@ -678,17 +686,19 @@ export function AgentWorkspace({
                   </div>
                 )}
                 {filteredAgents.length === 0 && teams.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
-                    <div className="text-sm font-medium text-slate-900">还没有 Agent 或团队</div>
-                    <p className="mt-2 text-xs text-slate-500">点击右上角「创建」添加自定义 Agent 或团队，或从精选 Agent 直接开始对话。</p>
-                  </div>
+                  <EmptyState
+                    icon={Bot}
+                    title="还没有 Agent 或团队"
+                    description="点击右上角「创建」添加自定义 Agent 或团队，或从精选 Agent 直接开始对话。"
+                    action={{ label: '创建', onClick: () => setUnifiedCreateOpen(true) }}
+                  />
                 )}
               </section>
             )}
         </div>
         </section>
 
-        {agentDetailOpen && selectedPreset && agentView === 'featured' && (
+        {agentDetailOpen && selectedPreset && agentView === 'featured' && !isBelowXl && (
         <FeaturedPresetDetailPanel
           preset={selectedPreset}
           addedToMine={selectedPresetAdded}
@@ -700,7 +710,7 @@ export function AgentWorkspace({
           }}
         />
       )}
-        {agentDetailOpen && selectedAgent && agentView === 'mine' && (
+        {agentDetailOpen && selectedAgent && agentView === 'mine' && !isBelowXl && (
         <AgentDetailPanel
           agent={selectedAgent}
           deleting={deletingAgentId === selectedAgent.id}
@@ -716,6 +726,64 @@ export function AgentWorkspace({
           }}
         />
       )}
+      </div>
+      {/* D1：<xl 时选中的详情改在 Dialog 里打开（尺寸走 DIALOG_SIZE_CLASS.md）；≥xl 仍用上面的内联侧栏。 */}
+      <Dialog
+        open={isBelowXl && agentDetailOpen && agentView === 'featured' && Boolean(selectedPreset)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedPresetId(null)
+            setAgentDetailOpen(false)
+          }
+        }}
+      >
+        <DialogContent showCloseButton={false} className={cn(DIALOG_SIZE_CLASS.md, 'flex h-[min(92vh,900px)] flex-col gap-0 overflow-hidden p-0')}>
+          <DialogTitle className="sr-only">{selectedPreset ? `${getPresetDisplayName(selectedPreset)} - 详情` : '精选 Agent 详情'}</DialogTitle>
+          {selectedPreset && (
+            <FeaturedPresetDetailPanel
+              preset={selectedPreset}
+              addedToMine={selectedPresetAdded}
+              adding={addingPresetId === selectedPreset.id}
+              onAddToMine={(preset) => void addPresetToMine(preset)}
+              onClose={() => {
+                setSelectedPresetId(null)
+                setAgentDetailOpen(false)
+              }}
+              className={AGENT_DETAIL_DIALOG_CLASS}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={isBelowXl && agentDetailOpen && agentView === 'mine' && Boolean(selectedAgent)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedAgentId(null)
+            setAgentDetailOpen(false)
+          }
+        }}
+      >
+        <DialogContent showCloseButton={false} className={cn(DIALOG_SIZE_CLASS.md, 'flex h-[min(92vh,900px)] flex-col gap-0 overflow-hidden p-0')}>
+          <DialogTitle className="sr-only">{selectedAgent ? `${getAgentDisplayName(selectedAgent)} - 详情` : 'Agent 详情'}</DialogTitle>
+          {selectedAgent && (
+            <AgentDetailPanel
+              agent={selectedAgent}
+              deleting={deletingAgentId === selectedAgent.id}
+              onStart={(agent) => void startConversation(agent)}
+              onEdit={(agent) => {
+                setEditingAgent(agent)
+                setFormOpen(true)
+              }}
+              onDelete={(agent) => setDeleteTargetAgentId(agent.id)}
+              onClose={() => {
+                setSelectedAgentId(null)
+                setAgentDetailOpen(false)
+              }}
+              className={AGENT_DETAIL_DIALOG_CLASS}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
       <UnifiedCreateDialog
         open={unifiedCreateOpen}
         onOpenChange={setUnifiedCreateOpen}
@@ -758,7 +826,7 @@ export function AgentWorkspace({
       <Dialog open={Boolean(deleteTargetAgentId)} onOpenChange={(open) => {
         if (!open && !deletingAgentId) setDeleteTargetAgentId(null)
       }}>
-        <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
           <DialogHeader>
             <DialogTitle>确认删除 Agent</DialogTitle>
             <DialogDescription>
@@ -776,7 +844,7 @@ export function AgentWorkspace({
       <Dialog open={batchDeleteOpen} onOpenChange={(open) => {
         if (!open && !batchDeleting) setBatchDeleteOpen(false)
       }}>
-        <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
           <DialogHeader>
             <DialogTitle>批量删除</DialogTitle>
             <DialogDescription>
@@ -791,7 +859,7 @@ export function AgentWorkspace({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      </div>
+      </PageShell>
     </div>
   )
 }
@@ -830,12 +898,12 @@ function ResourcePresetCard({
   return (
     <article
       className={cn(
-        'group relative flex min-h-[200px] flex-col rounded-xl border bg-white p-4 shadow-[var(--agenthub-shadow-card)] transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:shadow-black/20',
-        selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10',
+        'agenthub-card-interactive group relative flex min-h-[200px] flex-col p-4',
+        selected ? 'border-[var(--agenthub-accent)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-[var(--agenthub-border)]',
       )}
     >
       <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-lg transition duration-200 dark:bg-neutral-800">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--agenthub-surface-muted)] text-lg transition duration-200">
           <span aria-hidden="true">{preset.avatar}</span>
         </div>
         <div className="min-w-0 flex-1">
@@ -847,7 +915,7 @@ function ResourcePresetCard({
             <h3 className={cn('line-clamp-2 flex-1 font-semibold leading-5 text-slate-950 dark:text-slate-50', getPresetDisplayName(preset).length > 22 ? 'text-sm' : 'text-base')}>
               {getPresetDisplayName(preset)}
             </h3>
-            <span className="shrink-0 rounded-md border border-slate-100 bg-slate-50 px-2 py-0.5 text-3xs font-medium text-slate-500 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{preset.category}</span>
+            <span className="shrink-0 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-0.5 text-3xs font-medium text-slate-500 dark:text-slate-300">{preset.category}</span>
           </div>
           <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500 dark:text-slate-400">{preset.description}</p>
         </div>
@@ -855,12 +923,12 @@ function ResourcePresetCard({
 
       <div className="mt-4 flex flex-wrap gap-1.5">
         {preset.capabilities.slice(0, 2).map((capability) => (
-          <span key={capability} className="rounded-md bg-slate-50 px-2 py-0.5 text-xs text-slate-500 dark:bg-neutral-800 dark:text-slate-300">
+          <span key={capability} className="rounded-md bg-[var(--agenthub-surface-muted)] px-2 py-0.5 text-xs text-slate-500 dark:text-slate-300">
             {capability}
           </span>
         ))}
         {preset.capabilities.length > 2 && (
-          <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-400 dark:bg-neutral-900 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
+          <span className="rounded-md bg-[var(--agenthub-surface)] px-2 py-0.5 text-xs text-slate-400 dark:text-slate-500">+{preset.capabilities.length - 2}</span>
         )}
       </div>
 
@@ -869,7 +937,7 @@ function ResourcePresetCard({
           size="sm"
           onClick={onSelect}
           variant="outline"
-          className="h-8 rounded-md border-slate-200 bg-white text-xs text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800"
+          className="h-8 rounded-md border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs text-slate-700 transition hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300"
         >
           详情
         </Button>
@@ -880,7 +948,7 @@ function ResourcePresetCard({
             e.stopPropagation()
             onStart()
           }}
-          className="h-8 rounded-md bg-[var(--agenthub-accent,#2F5FD0)] text-xs text-white hover:bg-[var(--agenthub-accent-hover,#244FB3)] disabled:opacity-60"
+          className="h-8 rounded-md bg-[var(--agenthub-accent)] text-xs text-white hover:bg-[var(--agenthub-accent-hover)] disabled:opacity-60"
         >
           {starting ? '创建中' : '开始对话'}
         </Button>
@@ -889,48 +957,60 @@ function ResourcePresetCard({
   )
 }
 
+/**
+ * 详情侧栏的默认形态（D1）：只在 xl（≥1280px）以内联侧栏呈现，低于 xl 时由调用方改走 Dialog。
+ * Dialog 内渲染时调用方经 className 透传覆盖（`block w-full …`），tailwind-merge 会让
+ * 后传入的 display / width 覆盖这里的 `hidden` / `w-[340px]`。
+ */
+const AGENT_DETAIL_SIDEBAR_CLASS = 'agenthub-card-container hidden w-[340px] shrink-0 self-start xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block'
+
+/** Dialog 内渲染详情面板时用的 className：占满弹窗高度，内层滚动区改按弹窗高度封顶。 */
+const AGENT_DETAIL_DIALOG_CLASS = 'block h-full w-full min-h-0 [&>div]:max-h-full'
+
 function FeaturedPresetDetailPanel({
   preset,
   addedToMine,
   adding,
   onAddToMine,
   onClose,
+  className,
 }: {
   preset?: ResourceAgentPreset
   addedToMine: boolean
   adding: boolean
   onAddToMine: (preset: ResourceAgentPreset) => void
   onClose: () => void
+  className?: string
 }) {
   const [promptOpen, setPromptOpen] = useState(false)
 
   if (!preset) {
     return (
-      <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
+      <aside className={cn(AGENT_DETAIL_SIDEBAR_CLASS, className)}>
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个精选 Agent 查看详情</div>
       </aside>
     )
   }
 
   return (
-    <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
+    <aside className={cn(AGENT_DETAIL_SIDEBAR_CLASS, className)}>
       <div className="flex max-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-2rem)] flex-col">
-        <div className="shrink-0 border-b border-slate-200 p-4">
+        <div className="shrink-0 border-b border-[var(--agenthub-border)] p-4">
           <div className="flex items-start gap-3">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xl">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] text-xl">
               {preset.avatar}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-base font-semibold tracking-tight text-slate-950">{getPresetDisplayName(preset)}</h2>
-                <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-3xs font-medium text-slate-600">精选</span>
+                <h2 className="truncate text-base font-semibold tracking-tight text-slate-950 dark:text-slate-50">{getPresetDisplayName(preset)}</h2>
+                <span className="rounded border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-0.5 text-3xs font-medium text-slate-600">精选</span>
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">{preset.description}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{preset.description}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 dark:hover:text-slate-100"
               title="关闭详情"
               aria-label="关闭详情"
             >
@@ -939,17 +1019,17 @@ function FeaturedPresetDetailPanel({
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {preset.capabilities.slice(0, 2).map((capability) => (
-              <span key={capability} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600">{capability}</span>
+              <span key={capability} className="rounded border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-0.5 font-mono text-xs text-slate-600">{capability}</span>
             ))}
             {preset.capabilities.length > 2 && (
-              <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-xs text-slate-400">+{preset.capabilities.length - 2}</span>
+              <span className="rounded border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 py-0.5 font-mono text-xs text-slate-400">+{preset.capabilities.length - 2}</span>
             )}
           </div>
           <Button
             variant="outline"
             onClick={() => onAddToMine(preset)}
             disabled={addedToMine || adding}
-            className="mt-3 w-full rounded-xl border-slate-200 text-xs"
+            className="mt-3 w-full rounded-xl border-[var(--agenthub-border)] text-xs"
           >
             <Plus className="mr-2 size-4" />
             {addedToMine ? '已在我的 Agent' : adding ? '添加中…' : '添加到我的 Agent'}
@@ -958,10 +1038,10 @@ function FeaturedPresetDetailPanel({
 
         <div className="agenthub-hide-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500">
                       <Check className="size-4" />
                     </div>
                     <div className="min-w-0">
@@ -975,7 +1055,7 @@ function FeaturedPresetDetailPanel({
             </DetailSection>
 
             <DetailSection icon={<FileText className="size-4" />} title="系统提示词" aside="摘要">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3">
                 <div className={cn('text-xs leading-5 text-slate-600 transition-all duration-200', !promptOpen && 'line-clamp-4')}>
                   {preset.systemPrompt}
                 </div>
@@ -1025,7 +1105,7 @@ function AgentCard({
   onStart: () => void
 }) {
   return (
-    <article className={cn('relative rounded-lg border bg-white p-3.5 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70', selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10')}>
+    <article className={cn('agenthub-card-interactive relative p-3.5', selected ? 'border-[var(--agenthub-accent)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-[var(--agenthub-border)]')}>
       {selectable && (
         <button
           type="button"
@@ -1038,8 +1118,8 @@ function AgentCard({
           className={cn(
             'absolute right-3 top-3 z-10 flex size-6 items-center justify-center rounded-md border text-xs transition',
             checked
-              ? 'border-[var(--agenthub-accent,#2F5FD0)] bg-[var(--agenthub-accent,#2F5FD0)] text-white'
-              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-200',
+              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-white'
+              : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200',
           )}
         >
           {checked && <Check className="size-4" />}
@@ -1050,22 +1130,22 @@ function AgentCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{getAgentDisplayName(agent)}</h3>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{agent.isBuiltin ? '内置' : '自定义'}</span>
+            <span className="rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-3xs text-slate-500 dark:text-slate-400">{agent.isBuiltin ? '内置' : '自定义'}</span>
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{agent.description || '可配置的协作 Agent'}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
         {[agent.adapterName, agent.isOrchestrator ? '编排' : '执行'].map((tag) => (
-          <span key={tag} className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-3xs text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">{tag}</span>
+          <span key={tag} className="rounded border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-0.5 font-mono text-3xs text-slate-600 dark:text-slate-300">{tag}</span>
         ))}
-        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono text-3xs text-slate-400 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500">+1</span>
+        <span className="rounded border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 py-0.5 font-mono text-3xs text-slate-400 dark:text-slate-500">+1</span>
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
+      <div className="mt-4 flex items-center justify-between border-t border-[var(--agenthub-border)] pt-3">
         <div className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{agent.modelId || 'default model'}</div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onSelect}>详情</Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onStart}>开始对话</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300" onClick={onSelect}>详情</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300" onClick={onStart}>开始对话</Button>
         </div>
       </div>
     </article>
@@ -1090,7 +1170,7 @@ function TeamCard({
   onStartChat: () => void
 }) {
   return (
-    <article className={cn('relative rounded-lg border bg-white p-3.5 transition hover:border-slate-300 hover:bg-slate-50 dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:bg-neutral-800/70', selected ? 'border-[var(--agenthub-accent,#2F5FD0)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent,#2F5FD0)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200 dark:border-white/10')}>
+    <article className={cn('agenthub-card-interactive relative p-3.5', selected ? 'border-[var(--agenthub-accent)] before:absolute before:left-0 before:top-3 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)]' : 'border-[var(--agenthub-border)]')}>
       {selectable && (
         <button
           type="button"
@@ -1103,8 +1183,8 @@ function TeamCard({
           className={cn(
             'absolute right-3 top-3 z-10 flex size-6 items-center justify-center rounded-md border text-xs transition',
             checked
-              ? 'border-[var(--agenthub-accent,#2F5FD0)] bg-[var(--agenthub-accent,#2F5FD0)] text-white'
-              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-500 dark:hover:border-white/15 dark:hover:bg-neutral-800 dark:hover:text-slate-200',
+              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-white'
+              : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200',
           )}
         >
           {checked && <Check className="size-4" />}
@@ -1115,22 +1195,22 @@ function TeamCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{team.name}</h3>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-3xs text-slate-500 dark:bg-neutral-800 dark:text-slate-400">{team.memberCount} 人</span>
+            <span className="rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-3xs text-slate-500 dark:text-slate-400">{team.memberCount} 人</span>
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{team.description || '多 Agent 协作团队'}</p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-1.5">
-        <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-3xs text-slate-600 dark:border-white/10 dark:bg-neutral-800 dark:text-slate-300">团队</span>
+        <span className="rounded border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-2 py-0.5 font-mono text-3xs text-slate-600 dark:text-slate-300">团队</span>
         {team.members.find((m) => m.isLead) && (
           <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 font-mono text-3xs text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/30 dark:text-amber-400">含负责人</span>
         )}
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-white/10">
+      <div className="mt-4 flex items-center justify-between border-t border-[var(--agenthub-border)] pt-3">
         <div className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">{team.goal || '协作完成任务'}</div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onSelect}>详情</Button>
-          <Button size="sm" variant="outline" className="h-8 rounded-md border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800" onClick={onStartChat}>开始对话</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300" onClick={onSelect}>详情</Button>
+          <Button size="sm" variant="outline" className="h-8 rounded-md border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300" onClick={onStartChat}>开始对话</Button>
         </div>
       </div>
     </article>
@@ -1144,6 +1224,7 @@ function AgentDetailPanel({
   onEdit,
   onDelete,
   onClose,
+  className,
 }: {
   agent?: AgentRow
   deleting: boolean
@@ -1151,36 +1232,37 @@ function AgentDetailPanel({
   onEdit: (agent: AgentRow) => void
   onDelete: (agent: AgentRow) => void
   onClose: () => void
+  className?: string
 }) {
   const [promptOpen, setPromptOpen] = useState(false)
 
   if (!agent) {
     return (
-      <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
+      <aside className={cn(AGENT_DETAIL_SIDEBAR_CLASS, className)}>
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">选择一个 Agent 查看详情</div>
       </aside>
     )
   }
 
   return (
-    <aside className="hidden w-[340px] shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block">
+    <aside className={cn(AGENT_DETAIL_SIDEBAR_CLASS, className)}>
       <div className="flex max-h-[calc(100vh-var(--agenthub-titlebar-height,0px)-2rem)] flex-col">
-        <div className="shrink-0 border-b border-slate-200 p-4">
+        <div className="shrink-0 border-b border-[var(--agenthub-border)] p-4">
           <div className="flex items-start gap-3">
             <div className="transition duration-200 hover:scale-105">
               <AgentAvatar agent={agent} size="lg" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950">{getAgentDisplayName(agent)}</h2>
+                <h2 className="truncate text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">{getAgentDisplayName(agent)}</h2>
                 <span className="rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">{agent.isBuiltin ? '内置' : '自定义'}</span>
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-500">{agent.description || '可配置的协作 Agent'}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{agent.description || '可配置的协作 Agent'}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-700 dark:hover:text-slate-100"
               title="关闭详情"
               aria-label="关闭详情"
             >
@@ -1189,7 +1271,7 @@ function AgentDetailPanel({
           </div>
           <div className="mt-4 flex flex-wrap gap-1.5">
             {agent.capabilities.map((capability) => (
-              <span key={capability} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">{capability}</span>
+              <span key={capability} className="rounded-full bg-[var(--agenthub-surface-muted)] px-2.5 py-1 text-xs text-slate-600 transition hover:text-slate-900">{capability}</span>
             ))}
           </div>
           <Button onClick={() => onStart(agent)} className="mt-4 w-full rounded-xl bg-[var(--agenthub-accent)] shadow-sm shadow-none transition hover:-translate-y-0.5 hover:bg-[var(--agenthub-accent-hover)] hover:shadow-md">
@@ -1198,7 +1280,7 @@ function AgentDetailPanel({
           <Button
             variant="outline"
             onClick={() => onEdit(agent)}
-            className="mt-2 w-full rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+            className="mt-2 w-full rounded-xl border-[var(--agenthub-border)] text-slate-700 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300"
           >
             <Pencil className="mr-2 size-4" />
             编辑配置 / 绑定 MCP
@@ -1218,10 +1300,10 @@ function AgentDetailPanel({
 
         <div className="agenthub-hide-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             <DetailSection icon={<SlidersHorizontal className="size-4" />} title="模型配置" aside={<SavedState />}>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500">
                       <Check className="size-4" />
                     </div>
                     <div className="min-w-0">
@@ -1235,7 +1317,7 @@ function AgentDetailPanel({
             </DetailSection>
 
             <DetailSection icon={<FileText className="size-4" />} title="系统提示词" aside="摘要">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-2xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3">
                 <div className={cn('text-xs leading-5 text-slate-600 transition-all duration-200', !promptOpen && 'line-clamp-4')}>
                   {agent.systemPrompt || '未配置系统提示'}
                 </div>
@@ -1273,8 +1355,8 @@ function AgentDetailPanel({
 
 function PermissionRow({ name, code }: { name: string; code: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-neutral-950/40 dark:hover:border-white/15 dark:hover:bg-neutral-800/70">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 dark:bg-neutral-800 dark:text-slate-400">
+    <div className="flex items-center gap-3 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2.5 transition">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--agenthub-surface)] text-slate-500 dark:text-slate-400">
         <Wrench className="size-4" />
       </div>
       <div className="min-w-0 flex-1">
@@ -1289,18 +1371,18 @@ function PermissionRow({ name, code }: { name: string; code: string }) {
 function CapabilityRows({ label, ids, empty }: { label: string; ids: string[]; empty: string }) {
   if (ids.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-xs text-slate-400 dark:border-white/10 dark:bg-neutral-900">
+      <div className="rounded-lg border border-dashed border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2 text-xs text-slate-400">
         {label}：{empty}
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-neutral-950/40">
+    <div className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-3 py-2.5">
       <div className="mb-2 text-xs font-medium text-slate-600 dark:text-slate-300">{label}</div>
       <div className="flex flex-wrap gap-1.5">
         {ids.map((id) => (
-          <code key={id} className="max-w-full truncate rounded bg-white px-1.5 py-0.5 font-mono text-3xs text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-slate-400 dark:ring-white/10">
+          <code key={id} className="max-w-full truncate rounded bg-[var(--agenthub-surface)] px-1.5 py-0.5 font-mono text-3xs text-slate-500 ring-1 ring-[var(--agenthub-border)] dark:text-slate-400">
             {id}
           </code>
         ))}

@@ -100,18 +100,18 @@ export function AgentRunDebugButton({ conversationId }: { conversationId: string
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button size="icon-sm" variant="ghost" title="Run 调试" className="rounded-lg text-slate-500 transition hover:bg-slate-100" />}>
+      <PopoverTrigger render={<Button size="icon-sm" variant="ghost" title="Run 调试" className="rounded-lg text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)]" />}>
         <Bug className="size-4" />
       </PopoverTrigger>
       <PopoverContent align="end" className="flex max-h-[680px] w-[760px] flex-col gap-0 p-0">
-        <PopoverHeader className="border-b px-4 py-3">
+        <PopoverHeader className="border-b border-[var(--agenthub-border)] px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <PopoverTitle className="flex items-center gap-2 text-sm">
                 <Bug className="size-4 text-muted-foreground" />
                 Agent Run 调试
               </PopoverTitle>
-              <PopoverDescription className="text-xs leading-5">
+              <PopoverDescription className="text-sm leading-6">
                 查看当前会话 run 的上下文快照、用量、工具与关联消息；不展示完整 prompt 或密钥。
               </PopoverDescription>
             </div>
@@ -123,21 +123,34 @@ export function AgentRunDebugButton({ conversationId }: { conversationId: string
         </PopoverHeader>
 
         {error && (
-          <div className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-            {error}
+          <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            <span className="min-w-0 flex-1 break-words">{error}</span>
+            <Button type="button" variant="outline" size="sm" className="h-7 shrink-0" onClick={() => void loadRuns()}>
+              重试
+            </Button>
           </div>
         )}
 
         <div className="grid min-h-0 flex-1 grid-cols-[260px_1fr] gap-0 overflow-hidden">
-          <div className="max-h-[560px] overflow-y-auto border-r bg-slate-50/60 p-3">
+          <div className="max-h-[560px] overflow-y-auto border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-3">
             {loadingList && runs.length === 0 ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-xs text-slate-500">
-                <Loader2 className="size-3.5 animate-spin" />
-                加载 run 列表
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Loader2 className="size-5 animate-spin" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载 run 列表…</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在读取当前会话的运行记录。</p>
               </div>
             ) : runs.length === 0 ? (
-              <div className="rounded-lg border border-dashed bg-white py-8 text-center text-xs text-slate-500">
-                当前会话还没有 run
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Bug className="size-5" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">当前会话还没有 run</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">发起一次对话后，这里会出现可调试的运行记录。</p>
+                <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => void loadRuns()}>
+                  刷新
+                </Button>
               </div>
             ) : (
               <div className="space-y-2">
@@ -155,16 +168,31 @@ export function AgentRunDebugButton({ conversationId }: { conversationId: string
 
           <div className="max-h-[560px] overflow-y-auto p-4">
             {loadingDetail && !shownDetail ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-xs text-slate-500">
-                <Loader2 className="size-3.5 animate-spin" />
-                加载调试详情
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Loader2 className="size-5 animate-spin" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载调试详情…</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在读取上下文快照、用量与工具轨迹。</p>
               </div>
             ) : shownDetail ? (
               <RunDetail detail={shownDetail} />
             ) : selectedRun ? (
-              <div className="text-xs text-slate-500">选择 run 后加载详情。</div>
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Bug className="size-5" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">选择 run 后加载详情</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">左侧选择一条运行记录，即可查看它的调试详情。</p>
+              </div>
             ) : (
-              <div className="text-xs text-slate-500">暂无可调试 run。</div>
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
+                  <Bug className="size-5" />
+                </div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">暂无可调试 run</div>
+                <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">当前会话还没有运行记录。</p>
+              </div>
             )}
           </div>
         </div>
@@ -182,8 +210,8 @@ function RunListItem({ run, selected, onClick }: { run: AgentRunDebugListItem; s
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full rounded-xl border bg-white p-3 text-left text-xs transition hover:border-blue-200 hover:bg-blue-50/40',
-        selected ? 'border-blue-300 bg-blue-50' : 'border-slate-100',
+        'w-full rounded-xl border bg-[var(--agenthub-surface)] p-3 text-left text-sm transition hover:border-[var(--agenthub-accent-border)] hover:bg-[var(--agenthub-accent-soft)]',
+        selected ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]' : 'border-[var(--agenthub-border)]',
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -195,7 +223,7 @@ function RunListItem({ run, selected, onClick }: { run: AgentRunDebugListItem; s
         <span>{formatDuration(run.startedAt, run.finishedAt)}</span>
         <span>{total > 0 ? `${formatNumber(total)} tok` : '无用量'}</span>
       </div>
-      {!run.hasDebugSnapshot && <div className="mt-2 text-xs text-amber-600">无快照</div>}
+      {!run.hasDebugSnapshot && <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">无快照</div>}
     </button>
   )
 }
@@ -215,7 +243,7 @@ function RunDetail({ detail }: { detail: AgentRunDebugDetail }) {
   const [tab, setTab] = useState<'overview' | 'trace' | 'plan' | 'runs' | 'artifacts'>('overview')
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)} className="space-y-3">
-      <TabsList className="grid h-auto w-full grid-cols-5 rounded-xl bg-slate-100 p-1">
+      <TabsList className="grid h-auto w-full grid-cols-5 rounded-xl bg-[var(--agenthub-surface-muted)] p-1">
         <TabsTrigger value="overview">概览</TabsTrigger>
         <TabsTrigger value="trace">轨迹</TabsTrigger>
         <TabsTrigger value="plan">计划</TabsTrigger>
@@ -225,7 +253,7 @@ function RunDetail({ detail }: { detail: AgentRunDebugDetail }) {
 
       <TabsContent value="overview" className="space-y-3 outline-none">
         {!snapshot && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             该 run 没有调试快照，仅展示可从 DB 还原的信息。
           </div>
         )}
@@ -264,7 +292,7 @@ function RunDetail({ detail }: { detail: AgentRunDebugDetail }) {
                   <div className="text-slate-500">无 Skills</div>
                 ) : (
                   snapshot.tools.skills.map((skill, index) => (
-                    <div key={`${skill.id}-${skill.sourcePath}-${index}`} className="rounded-lg border bg-slate-50 px-3 py-2">
+                    <div key={`${skill.id}-${skill.sourcePath}-${index}`} className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
                       <div className="font-medium text-slate-800">{skill.name}</div>
                       <div className="mt-1 text-slate-500">tags: {skill.tags.join(', ') || '-'}</div>
                     </div>
@@ -276,7 +304,7 @@ function RunDetail({ detail }: { detail: AgentRunDebugDetail }) {
                   <div className="text-slate-500">无外部 MCP</div>
                 ) : (
                   snapshot.tools.externalMcpServers.map((server) => (
-                    <div key={server.id} className="rounded-lg border bg-slate-50 px-3 py-2">
+                    <div key={server.id} className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
                       <div className="font-medium text-slate-800">{server.name} · {server.trust}</div>
                       <div className="mt-1 text-slate-500">env keys: {server.envKeys.join(', ') || '-'}</div>
                     </div>
@@ -338,11 +366,11 @@ function RelationsSection({ relations }: { relations: AgentRunRelationsSummary }
 
 function RelationCard({ label, run }: { label: string; run: AgentRunRelationsSummary['current'] }) {
   return (
-    <div className="rounded-lg border bg-slate-50 px-3 py-2">
+    <div className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-slate-800">{label} · {run.agentName ?? run.agentId}</div>
-          <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">{run.id}</div>
+          <div className="mt-0.5 break-all font-mono text-xs text-slate-500">{run.id}</div>
         </div>
         <StatusBadge status={run.status} />
       </div>
@@ -374,15 +402,15 @@ function MessagesSection({ trigger, outputs }: { trigger: AgentRunMessageSummary
 
 function MessageSummaryCard({ label, message }: { label: string; message: AgentRunMessageSummary }) {
   return (
-    <div className="rounded-lg border bg-slate-50 px-3 py-2">
+    <div className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-slate-800">{label} · {message.role}</div>
-          <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">
+          <div className="mt-0.5 break-all font-mono text-xs text-slate-500">
             {shortId(message.messageId)} · run {message.runId ? shortId(message.runId) : '-'}
           </div>
         </div>
-        <Badge variant={message.status === 'complete' ? 'secondary' : 'outline'} className="h-5 px-1.5 text-3xs">{message.status}</Badge>
+        <Badge variant={message.status === 'complete' ? 'secondary' : 'outline'} className="h-5 px-1.5 text-xs">{message.status}</Badge>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
         <div>parts: {message.partCount}</div>
@@ -406,14 +434,14 @@ function TimelineSection({ items }: { items: AgentRunTimelineItem[] }) {
       ) : (
         <div className="space-y-1.5">
           {items.map((item) => (
-            <div key={item.id} className={cn('grid grid-cols-[72px_1fr_auto] gap-2 rounded-lg bg-slate-50 px-2 py-1.5', item.status === 'error' && 'bg-red-50 text-red-700')}>
-              <div className="text-3xs uppercase tracking-wide text-slate-400">{item.kind}</div>
+            <div key={item.id} className={cn('grid grid-cols-[72px_1fr_auto] gap-2 rounded-lg bg-[var(--agenthub-surface-muted)] px-2 py-1.5', item.status === 'error' && 'bg-red-50 text-red-700')}>
+              <div className="text-xs uppercase tracking-wide text-slate-400">{item.kind}</div>
               <div className="min-w-0">
                 <div className="truncate font-medium text-slate-800">{item.label}</div>
-                <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">{shortId(item.messageId)}:{item.partIndex}</div>
+                <div className="mt-0.5 break-all font-mono text-xs text-slate-500">{shortId(item.messageId)}:{item.partIndex}</div>
                 <div className="mt-1 break-all text-xs text-slate-600">{item.detail}</div>
               </div>
-              <Badge variant={item.status === 'error' ? 'destructive' : item.status === 'pending' ? 'outline' : 'secondary'} className="h-5 px-1.5 text-3xs">{item.status}</Badge>
+              <Badge variant={item.status === 'error' ? 'destructive' : item.status === 'pending' ? 'outline' : 'secondary'} className="h-5 px-1.5 text-xs">{item.status}</Badge>
             </div>
           ))}
         </div>
@@ -430,15 +458,15 @@ function ArtifactsSection({ items }: { items: AgentRunArtifactDebugItem[] }) {
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className={cn('rounded-lg border bg-slate-50 px-3 py-2', item.isError && 'border-red-200 bg-red-50 text-red-700')}>
+            <div key={item.id} className={cn('rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2', item.isError && 'border-red-200 bg-red-50 text-red-700')}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate font-medium text-slate-800">{item.title ?? item.artifactId}</div>
-                  <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">
+                  <div className="mt-0.5 break-all font-mono text-xs text-slate-500">
                     {item.kind} · {shortId(item.messageId)}:{item.partIndex}
                   </div>
                 </div>
-                <Badge variant={item.isError ? 'destructive' : 'outline'} className="h-5 px-1.5 text-3xs">
+                <Badge variant={item.isError ? 'destructive' : 'outline'} className="h-5 px-1.5 text-xs">
                   {item.status ?? item.kind}
                 </Badge>
               </div>
@@ -479,17 +507,17 @@ function ToolTraceCard({ item }: { item: AgentRunToolTraceItem }) {
   const variant = item.isError ? 'destructive' : item.completed ? 'secondary' : 'outline'
   const status = item.isError ? 'error' : item.completed ? 'done' : 'pending'
   return (
-    <div className="rounded-lg border bg-slate-50 px-3 py-2">
+    <div className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-medium text-slate-800">{item.toolName}</div>
-          <div className="mt-0.5 break-all font-mono text-3xs text-slate-500">
+          <div className="mt-0.5 break-all font-mono text-xs text-slate-500">
             {shortId(item.callId)} · message {shortId(item.messageId)}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Badge variant="outline" className="h-5 px-1.5 text-3xs">{kind}</Badge>
-          <Badge variant={variant} className="h-5 px-1.5 text-3xs">{status}</Badge>
+          <Badge variant="outline" className="h-5 px-1.5 text-xs">{kind}</Badge>
+          <Badge variant={variant} className="h-5 px-1.5 text-xs">{status}</Badge>
         </div>
       </div>
       <TracePayload label="Args" value={summarizeAgentRunToolTraceArgs(item)} />
@@ -500,8 +528,8 @@ function ToolTraceCard({ item }: { item: AgentRunToolTraceItem }) {
 
 function TracePayload({ label, value }: { label: string; value: string }) {
   return (
-    <div className="mt-2 rounded bg-white px-2 py-1.5">
-      <div className="text-3xs uppercase tracking-wide text-slate-400">{label}</div>
+    <div className="mt-2 rounded bg-[var(--agenthub-surface)] px-2 py-1.5">
+      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
       <div className="mt-1 break-all font-mono text-xs leading-4 text-slate-700">{value}</div>
     </div>
   )
@@ -515,16 +543,16 @@ function AskUserSection({ interactions }: { interactions: AgentRunAskUserInterac
       ) : (
         <div className="space-y-2">
           {interactions.map((interaction) => (
-            <div key={`${interaction.messageId}-${interaction.callId}`} className="rounded-lg border bg-slate-50 px-3 py-2">
+            <div key={`${interaction.messageId}-${interaction.callId}`} className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="font-mono text-3xs text-slate-500">{shortId(interaction.callId)} · {interaction.questionCount} question(s)</div>
-                <Badge variant={interaction.isError ? 'destructive' : interaction.answered ? 'secondary' : 'outline'} className="h-5 px-1.5 text-3xs">
+                <div className="font-mono text-xs text-slate-500">{shortId(interaction.callId)} · {interaction.questionCount} question(s)</div>
+                <Badge variant={interaction.isError ? 'destructive' : interaction.answered ? 'secondary' : 'outline'} className="h-5 px-1.5 text-xs">
                   {interaction.isError ? 'error' : interaction.answered ? 'answered' : 'pending'}
                 </Badge>
               </div>
               <div className="mt-2 space-y-2">
                 {interaction.questions.map((question, index) => (
-                  <div key={`${question.question}-${index}`} className="rounded bg-white px-2 py-1.5">
+                  <div key={`${question.question}-${index}`} className="rounded bg-[var(--agenthub-surface)] px-2 py-1.5">
                     <div className="font-medium text-slate-800">{question.header ? `${question.header}: ` : ''}{question.question}</div>
                     <div className="mt-1 text-xs text-slate-500">
                       {question.multiSelect ? 'multi' : 'single'} · options: {question.options.join(', ') || '-'}
@@ -549,13 +577,13 @@ function TaskResultsSection({ results }: { results: AgentRunTaskResultTrace[] })
       ) : (
         <div className="space-y-2">
           {results.map((result) => (
-            <div key={`${result.messageId}-${result.callId}`} className="rounded-lg border bg-slate-50 px-3 py-2">
+            <div key={`${result.messageId}-${result.callId}`} className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium text-slate-800">{result.summary}</div>
-                  <div className="mt-0.5 font-mono text-3xs text-slate-500">{shortId(result.callId)} · message {shortId(result.messageId)}</div>
+                  <div className="mt-0.5 font-mono text-xs text-slate-500">{shortId(result.callId)} · message {shortId(result.messageId)}</div>
                 </div>
-                <Badge variant={result.status === 'complete' ? 'secondary' : 'destructive'} className="h-5 px-1.5 text-3xs">{result.status}</Badge>
+                <Badge variant={result.status === 'complete' ? 'secondary' : 'destructive'} className="h-5 px-1.5 text-xs">{result.status}</Badge>
               </div>
               <div className="mt-2 grid gap-1 text-xs text-slate-500">
                 {result.filesChanged?.length ? <div><span className="text-slate-400">files:</span> {result.filesChanged.map((file) => `${file.action ?? 'changed'}:${file.path}`).join(', ')}</div> : null}
@@ -582,12 +610,12 @@ function PlanDagSection({ dag }: { dag: AgentRunPlanDagProjection }) {
       ) : (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-            <Badge variant="outline" className="h-5 px-1.5 text-3xs">root: {dag.nodes.filter((node) => node.isRoot).length}</Badge>
-            <Badge variant="outline" className="h-5 px-1.5 text-3xs">leaf: {dag.nodes.filter((node) => node.isLeaf).length}</Badge>
-            {dag.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-3xs">cycle</Badge>}
-            {dag.missingDependencyCount > 0 && <Badge variant="destructive" className="h-5 px-1.5 text-3xs">missing deps</Badge>}
+            <Badge variant="outline" className="h-5 px-1.5 text-xs">root: {dag.nodes.filter((node) => node.isRoot).length}</Badge>
+            <Badge variant="outline" className="h-5 px-1.5 text-xs">leaf: {dag.nodes.filter((node) => node.isLeaf).length}</Badge>
+            {dag.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-xs">cycle</Badge>}
+            {dag.missingDependencyCount > 0 && <Badge variant="destructive" className="h-5 px-1.5 text-xs">missing deps</Badge>}
           </div>
-          <div className="overflow-x-auto rounded-xl border bg-slate-50 p-3">
+          <div className="overflow-x-auto rounded-xl border bg-[var(--agenthub-surface-muted)] p-3">
             <div className="flex min-w-max items-start gap-3">
               {dag.layers.map((layer, layerIndex) => (
                 <div key={`layer-${layerIndex}`} className="w-56 shrink-0">
@@ -608,7 +636,7 @@ function PlanDagSection({ dag }: { dag: AgentRunPlanDagProjection }) {
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Dependencies</div>
               <div className="flex flex-wrap gap-1.5">
                 {dag.edges.map((edge) => (
-                  <Badge key={`${edge.from}-${edge.to}`} variant="outline" className="h-5 px-1.5 font-mono text-3xs">
+                  <Badge key={`${edge.from}-${edge.to}`} variant="outline" className="h-5 px-1.5 font-mono text-xs">
                     {edge.from} → {edge.to}
                   </Badge>
                 ))}
@@ -623,19 +651,19 @@ function PlanDagSection({ dag }: { dag: AgentRunPlanDagProjection }) {
 
 function PlanDagNodeCard({ node }: { node: AgentRunPlanDagProjection['nodes'][number] }) {
   return (
-    <div className={cn('rounded-lg border bg-white px-3 py-2 shadow-sm', node.hasCycle && 'border-red-200 bg-red-50')}>
+    <div className={cn('rounded-lg border bg-[var(--agenthub-surface)] px-3 py-2 shadow-sm', node.hasCycle && 'border-red-200 bg-red-50')}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-mono text-xs font-semibold text-slate-800">{node.id}</div>
           <div className="mt-0.5 truncate text-xs text-slate-500">agent: {node.agentId}</div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {node.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-3xs">{node.taskKind}</Badge>}
-          {node.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-3xs">cycle</Badge>}
+          {node.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-xs">{node.taskKind}</Badge>}
+          {node.hasCycle && <Badge variant="destructive" className="h-5 px-1.5 text-xs">cycle</Badge>}
         </div>
       </div>
       <div className="mt-2 line-clamp-3 text-xs leading-4 text-slate-700">{node.task}</div>
-      <div className="mt-2 space-y-1 text-3xs text-slate-500">
+      <div className="mt-2 space-y-1 text-xs text-slate-500">
         <div>depends: {node.dependsOn.length ? node.dependsOn.join(', ') : node.isRoot ? 'root' : '-'}</div>
         {node.missingDependsOn.length > 0 && <div className="text-red-600">missing: {node.missingDependsOn.join(', ')}</div>}
         <div>next: {node.dependents.length ? node.dependents.join(', ') : node.isLeaf ? 'leaf' : '-'}</div>
@@ -652,17 +680,17 @@ function AgentChainsSection({ chains }: { chains: AgentRunAgentTaskChain[] }) {
       ) : (
         <div className="space-y-2">
           {chains.map((chain) => (
-            <div key={chain.agentId} className="rounded-lg border bg-slate-50 px-3 py-2">
+            <div key={chain.agentId} className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="font-medium text-slate-800">{chain.agentId}</div>
-                <Badge variant="outline" className="h-5 px-1.5 text-3xs">
+                <Badge variant="outline" className="h-5 px-1.5 text-xs">
                   {chain.tasks.length} tasks · {chain.commands.length} commands
                 </Badge>
               </div>
               <div className="mt-2 space-y-2">
                 {chain.tasks.length > 0 && (
-                  <div className="rounded bg-white px-2 py-1.5">
-                    <div className="text-3xs uppercase tracking-wide text-slate-400">Task chain</div>
+                  <div className="rounded bg-[var(--agenthub-surface)] px-2 py-1.5">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Task chain</div>
                     <div className="mt-1 space-y-1 text-xs text-slate-700">
                       {chain.tasks.map((task) => (
                         <div key={task.id} className="grid grid-cols-[72px_1fr] gap-2">
@@ -674,11 +702,11 @@ function AgentChainsSection({ chains }: { chains: AgentRunAgentTaskChain[] }) {
                   </div>
                 )}
                 {chain.commands.length > 0 && (
-                  <div className="rounded bg-white px-2 py-1.5">
-                    <div className="text-3xs uppercase tracking-wide text-slate-400">Terminal output</div>
+                  <div className="rounded bg-[var(--agenthub-surface)] px-2 py-1.5">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Terminal output</div>
                     <div className="mt-1 space-y-1">
                       {chain.commands.map((command, index) => (
-                        <div key={`${command.callId}-${index}`} className={cn('rounded bg-slate-950 px-2 py-1.5 font-mono text-3xs leading-4 text-slate-100', command.isError && 'bg-red-950')}>
+                        <div key={`${command.callId}-${index}`} className={cn('rounded bg-slate-950 px-2 py-1.5 font-mono text-xs leading-4 text-slate-100', command.isError && 'bg-red-950')}>
                           <div>{command.command}</div>
                           <div className="mt-0.5 text-slate-400">{command.exitCode === null ? command.status ?? 'running' : `exit ${command.exitCode}`}</div>
                         </div>
@@ -687,8 +715,8 @@ function AgentChainsSection({ chains }: { chains: AgentRunAgentTaskChain[] }) {
                   </div>
                 )}
                 {chain.taskResults.length > 0 && (
-                  <div className="rounded bg-white px-2 py-1.5">
-                    <div className="text-3xs uppercase tracking-wide text-slate-400">Reports</div>
+                  <div className="rounded bg-[var(--agenthub-surface)] px-2 py-1.5">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Reports</div>
                     <div className="mt-1 space-y-1 text-xs text-slate-700">
                       {chain.taskResults.map((result) => (
                         <div key={result.callId}>{result.status}: {result.summary}</div>
@@ -713,13 +741,13 @@ function PlanTasksSection({ tasks }: { tasks: DispatchPlanItem[] }) {
       ) : (
         <div className="space-y-2">
           {tasks.map((task) => (
-            <div key={task.id} className="rounded-lg border bg-slate-50 px-3 py-2">
+            <div key={task.id} className="rounded-lg border bg-[var(--agenthub-surface-muted)] px-3 py-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium text-slate-800">{task.id} · {task.agentId}</div>
                   <div className="mt-1 whitespace-pre-wrap text-slate-700">{task.task}</div>
                 </div>
-                {task.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-3xs">{task.taskKind}</Badge>}
+                {task.taskKind && <Badge variant="outline" className="h-5 px-1.5 text-xs">{task.taskKind}</Badge>}
               </div>
               <div className="mt-2 grid gap-1 text-xs text-slate-500">
                 <OptionalList label="depends" values={task.dependsOn} />
@@ -799,7 +827,7 @@ function OperationGroup({ title, empty, children }: { title: string; empty: stri
 
 function OperationRow({ title, value, error }: { title: string; value: string; error: boolean }) {
   return (
-    <div className={cn('grid grid-cols-[84px_1fr] gap-2 rounded bg-slate-50 px-2 py-1.5', error && 'bg-red-50 text-red-700')}>
+    <div className={cn('grid grid-cols-[84px_1fr] gap-2 rounded bg-[var(--agenthub-surface-muted)] px-2 py-1.5', error && 'bg-red-50 text-red-700')}>
       <div className="text-slate-500">{title}</div>
       <div className="break-all font-mono text-xs">{value}</div>
     </div>
@@ -811,7 +839,7 @@ function PromptSections({ snapshot }: { snapshot: AgentRunDebugSnapshot }) {
     <Section title="Prompt sections">
       <div className="space-y-1">
         {snapshot.prompt.systemPromptSections.map((section, index) => (
-          <div key={`${section.kind}-${index}`} className="grid grid-cols-[1fr_auto_auto] gap-2 rounded-lg bg-slate-50 px-3 py-2">
+          <div key={`${section.kind}-${index}`} className="grid grid-cols-[1fr_auto_auto] gap-2 rounded-lg bg-[var(--agenthub-surface-muted)] px-3 py-2">
             <span className={section.present ? 'text-slate-800' : 'text-slate-400'}>{section.kind}</span>
             <span className="text-slate-500">{formatNumber(section.chars)} chars</span>
             <span className="text-slate-500">~{formatNumber(section.tokenEstimate)} tok</span>
@@ -843,8 +871,8 @@ function UsageGrid({ run }: { run: AgentRunDebugListItem }) {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-3">
-      <div className="mb-2 text-xs font-semibold text-slate-800">{title}</div>
+    <div className="rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-3">
+      <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</div>
       {children}
     </div>
   )
@@ -861,7 +889,7 @@ function KeyValue({ label, value, mono }: { label: string; value: string; mono?:
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-slate-50 px-2 py-2 text-center">
+    <div className="rounded-lg bg-[var(--agenthub-surface-muted)] px-2 py-2 text-center">
       <div className="font-semibold text-slate-800">{formatNumber(value)}</div>
       <div className="mt-0.5 text-xs text-slate-500">{label}</div>
     </div>
@@ -870,7 +898,7 @@ function Metric({ label, value }: { label: string; value: number }) {
 
 function StatusBadge({ status }: { status: AgentRunDebugListItem['status'] }) {
   const variant = status === 'failed' || status === 'aborted' ? 'destructive' : status === 'complete' ? 'secondary' : 'outline'
-  return <Badge variant={variant} className="h-5 px-1.5 text-3xs">{status}</Badge>
+  return <Badge variant={variant} className="h-5 px-1.5 text-xs">{status}</Badge>
 }
 
 function shortId(id: string): string {

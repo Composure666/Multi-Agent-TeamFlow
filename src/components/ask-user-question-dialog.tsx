@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { AgentAvatar } from '@/components/agent-avatar'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import {
   Dialog,
   DialogContent,
@@ -57,7 +58,7 @@ export function AskUserQuestionDialog({ conversationId }: { conversationId: stri
     <Dialog open={current !== null} onOpenChange={() => { /* 必须答完才能关 */ }}>
       <DialogContent
         showCloseButton={false}
-        className="max-w-[min(720px,calc(100vw-2rem))] sm:max-w-[min(720px,calc(100vw-2rem))] gap-0 p-0"
+        className={cn('gap-0 p-0', DIALOG_SIZE_CLASS.md)}
       >
         {current && (
           <AskUserBody
@@ -187,7 +188,7 @@ function AskUserBody({
           {agent ? (
             <AgentAvatar agent={agent} size="sm" />
           ) : (
-            <HelpCircle className="size-4 text-[#3370FF]" />
+            <HelpCircle className="size-4 text-[var(--agenthub-accent)]" />
           )}
           <span>{agentName} 想确认几件事</span>
           {queueSize > 1 && (
@@ -227,7 +228,7 @@ function AskUserBody({
         </span>
         <Button
           size="sm"
-          className="bg-[#3370FF] text-white hover:bg-[#2860e5]"
+          className="bg-[var(--agenthub-accent)] text-white hover:bg-[var(--agenthub-accent-hover)]"
           disabled={!allAnswered || busy}
           onClick={() => void handleSubmit()}
         >
@@ -262,9 +263,9 @@ function QuestionBlock({
   const otherSelected = selected.has(FREE_OTHER)
 
   return (
-    <section className="space-y-2 rounded-lg border bg-card p-3">
+    <section className="agenthub-card space-y-2 p-3">
       <div className="flex items-start gap-2">
-        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md bg-[#3370FF]/10 px-1.5 py-0.5 text-3xs font-medium text-[#3370FF]">
+        <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--agenthub-accent-soft)] px-1.5 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">
           <Sparkles className="size-2.5" />
           {question.header}
         </span>
@@ -287,14 +288,14 @@ function QuestionBlock({
               className={cn(
                 'flex items-start gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition',
                 isSel
-                  ? 'border-[#3370FF] bg-[#3370FF]/5'
+                  ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)]'
                   : 'border-transparent bg-muted/30 hover:border-foreground/20',
               )}
             >
               <span
                 className={cn(
                   'mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-full border-2',
-                  isSel ? 'border-[#3370FF] bg-[#3370FF]' : 'border-muted-foreground/40',
+                  isSel ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)]' : 'border-muted-foreground/40',
                 )}
               >
                 {isSel && <span className="size-1 rounded-full bg-white" />}

@@ -858,7 +858,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   return (
     // 输入区不再是「四周 16px」的松散盒子：上 12px / 下 8px，让底边贴住会话面板底部
     // （用户两次反馈输入框下方留白过多）。
-    <div className="relative shrink-0 border-t border-slate-100 bg-white px-4 pb-2 pt-3">
+    <div className="relative shrink-0 border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-4 pb-2 pt-3">
       {/* 引用预览 */}
       {replyMessage && (
         <div className="mb-2">
@@ -872,10 +872,10 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
       {/* 选区改写引用块 */}
       {pendingQuote && (
-        <div className="mb-2 flex items-start gap-2 rounded-md border border-[#3370FF]/30 bg-[#3370FF]/5 px-2 py-1.5 text-xs">
-          <Sparkles className="mt-0.5 size-3 shrink-0 text-[#3370FF]" />
+        <div className="mb-2 flex items-start gap-2 rounded-md border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-2 py-1.5 text-xs">
+          <Sparkles className="mt-0.5 size-3 shrink-0 text-[var(--agenthub-accent)]" />
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-[#3370FF]">
+            <div className="font-medium text-[var(--agenthub-accent)]">
               {pendingQuote.kind === 'ask' ? '提问' : '改写'} · {pendingQuote.sourceLabel}
             </div>
             <pre className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words font-mono text-3xs text-muted-foreground">
@@ -1015,7 +1015,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
       {/* @ Mention popup */}
       {trigger && filtered.length > 0 && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+        <div className="absolute bottom-full left-4 right-4 mb-2 max-h-60 overflow-y-auto rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-1 shadow-lg">
           <div className="px-3 py-2 text-3xs text-slate-500">
             选择 Agent · ↑↓ 切换 · Enter 确认 · Esc 取消
           </div>
@@ -1031,7 +1031,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
               onMouseEnter={() => setHighlight(i)}
               className={cn(
                 'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition',
-                i === highlight && 'bg-slate-50',
+                i === highlight && 'bg-[var(--agenthub-accent-soft)]',
               )}
             >
               <AgentAvatar agent={a} size="xs" />
@@ -1044,7 +1044,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         </div>
       )}
 
-      {enhanceError && !enhanceOpen && <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{enhanceError}</div>}
+      {enhanceError && !enhanceOpen && <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">{enhanceError}</div>}
 
       <div className="flex items-center gap-2">
         <Textarea

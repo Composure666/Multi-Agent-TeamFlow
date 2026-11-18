@@ -30,21 +30,16 @@ import {
 /** 仓库地址 —— 与 package.json#repository 保持一致。 */
 export const REPO_URL = 'https://github.com/Composure666/Multi-Agent-TeamFlow'
 
-/** 作者微信 —— 唯一真源，联系卡片与页脚都引用这里。 */
-export const AUTHOR_WECHAT = 'a2327664758'
-
 /** 版本号 —— 与仓库根 `VERSION`、`package.json#version` 保持三处一致，改版本时同步。 */
 export const APP_VERSION = 'v0.2.0-rc.1'
 
 export const HOME_NAV: { href: string; label: string }[] = [
+  { href: '#preview', label: '界面预览' },
   { href: '#workflow', label: '工作流' },
+  { href: '#architecture', label: '架构' },
   { href: '#features', label: '功能模块' },
-  { href: '#agents', label: '内置 Agent' },
-  { href: '#stack', label: '技术栈' },
-  { href: '#quickstart', label: '快速开始' },
+  { href: '#proof', label: '数字证明' },
   { href: '#download', label: '桌面端' },
-  { href: '#guide', label: '使用指南' },
-  { href: '#contact', label: '联系作者' },
 ]
 
 /** 首屏「一句话承诺」——四条最容易被追问的事实。 */
@@ -221,37 +216,12 @@ export const BUILTIN_AGENTS: { name: string; role: string; icon: LucideIcon; dut
   },
 ]
 
-export const STACK_GROUPS: { group: string; items: string[] }[] = [
-  { group: '应用框架', items: ['Next.js 16 · App Router', 'React 19', 'TypeScript（strict）'] },
-  {
-    group: '界面与样式',
-    items: ['Tailwind CSS v4', 'shadcn/ui', 'lucide-react', '@xyflow/react'],
-  },
-  { group: '状态与实时', items: ['Zustand + Immer', 'Server-Sent Events', 'Node.js 20+'] },
-  { group: '数据与存储', items: ['SQLite（本地）', 'Drizzle ORM', 'better-sqlite3'] },
-  { group: '可插拔适配器', items: ['claude-code', 'codex', 'custom-agent', 'image-gen', 'mock'] },
-  { group: '多端外壳', items: ['Electron 33', 'Capacitor（iOS / Android）', 'pnpm workspaces'] },
-]
-
-export const QUICKSTART_STEPS: { title: string; detail: string }[] = [
-  {
-    title: '克隆仓库',
-    detail: '仓库根即 pnpm workspace，克隆后直接进入目录即可。',
-  },
-  {
-    title: '安装依赖',
-    detail:
-      'packageManager 字段已固定为 pnpm@11.9.0，Corepack 会自动取到正确的 pnpm 版本。',
-  },
-  {
-    title: '配置 provider',
-    detail: '把 .env.example 复制为 .env.local，至少填入一个 provider 的 API key（该文件绝不提交）。',
-  },
-  {
-    title: '启动',
-    detail:
-      '首次启动会自动创建 SQLite 数据库并 seed 5 个内置 Agent，无需手动执行迁移。',
-  },
+/** 数字证明：全部是真实值，不写没验证过的数字。 */
+export const PROOF_STATS: { value: string; label: string }[] = [
+  { value: '868', label: '测试通过' },
+  { value: '5', label: '个内置 Agent' },
+  { value: '8', label: '种产物类型' },
+  { value: '3', label: '端：Web · 桌面 · 移动' },
 ]
 
 export const QUICKSTART_COMMANDS = [
@@ -273,10 +243,8 @@ export const FOOTER_LINKS: { title: string; links: { label: string; href: string
       { label: '界面预览', href: '#preview' },
       { label: '架构与流程', href: '#architecture' },
       { label: '功能模块', href: '#features' },
-      { label: '内置 Agent', href: '#agents' },
-      { label: '快速开始', href: '#quickstart' },
+      { label: '数字证明', href: '#proof' },
       { label: '桌面端下载', href: '#download' },
-      { label: '使用指南', href: '#guide' },
     ],
   },
   {

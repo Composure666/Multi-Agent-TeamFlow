@@ -30,7 +30,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-noto-serif-sc);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -69,53 +69,91 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(0.985 0.004 255);
-  --foreground: oklch(0.16 0.012 255);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.012 255);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.012 255);
-  --primary: oklch(0.49 0.16 263.57); /* 工程蓝 #2F5FD0 */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.965 0.006 255);
-  --secondary-foreground: oklch(0.24 0.018 255);
-  --muted: oklch(0.965 0.006 255);
-  --muted-foreground: oklch(0.46 0.018 255);
-  --accent: oklch(0.955 0.006 255);
-  --accent-foreground: oklch(0.24 0.018 255);
-  --destructive: oklch(0.58 0.2 29);
-  --border: oklch(0.91 0.01 255);
-  --input: oklch(0.91 0.01 255);
-  --ring: oklch(0.49 0.16 263.57);
-  --chart-1: oklch(0.49 0.16 263.57);
-  --chart-2: oklch(0.58 0.15 150);
-  --chart-3: oklch(0.62 0.12 85);
-  --chart-4: oklch(0.58 0.2 29);
-  --chart-5: oklch(0.46 0.018 255);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.99 0.002 255);
-  --sidebar-foreground: oklch(0.16 0.012 255);
-  --sidebar-primary: oklch(0.49 0.16 263.57);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.955 0.006 255);
-  --sidebar-accent-foreground: oklch(0.24 0.018 255);
-  --sidebar-border: oklch(0.91 0.01 255);
-  --sidebar-ring: oklch(0.49 0.16 263.57);
-  --agenthub-accent: #2F5FD0;
-  --agenthub-accent-hover: #244FB3;
-  --agenthub-accent-soft: #F3F6FC;
-  --agenthub-accent-border: #D8DEE9;
-  --agenthub-surface: #FFFFFF;
-  --agenthub-surface-muted: #F7F8FA;
-  --agenthub-border: #E5E7EB;
-  --agenthub-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+/*
+ * 主题体系（theme-switcher，2026-11-18）：主题轴 6 套 × 明暗轴 2 档 = 12 套 token。
+ * 明暗走 next-themes 的 `.dark` class；主题走 `data-theme` 属性（ink | pine | terra |
+ * graphite | wine | obsidian）。`:root`（无属性时）= ink 浅色、`.dark`（无属性时）= ink 深色，
+ * 即默认水墨宣纸，不依赖 JS 也能首屏正确。
+ * 色值来源：openspec/changes/theme-switcher/proposal.md A 节（效果图 THEMES 数组逐字抄录），
+ * 字段映射与派生规则见该提案 A/D 节；派生 token 一律 color-mix，不新发明 hex。
+ * 对比度调整（只动 Ink/muted 一侧，见同目录 PROGRESS.md）：浅色 muted 五套加深一档；
+ * 浅色 accentInk 四套改暖深棕（金底白字不达标）；ink 深 accentInk 改 #1d0d06；
+ * wine 深 primaryInk 改 #050203（酒红主色偏亮，白字仅 4.11:1）。
+ * wine 深 primary #c0526a→#b03b52（batch3-leftovers W1）：加深后 #050203 仅 3.54:1，
+ * 故 primaryInk 改回暖白 #fdf3ec（与浅色同色），实测 5.35:1；色相 348° 仍是酒红，
+ * 与深底 #180f13 对比 3.22:1、与卡片 #231419 对比 3.03:1。浅色 #7c2233 上 #fdf3ec 实测 9.00:1，不动。
+ */
+
+
+/* 水墨宣纸（默认）· 浅色 */
+:root, :root[data-theme="ink"] {
+  --background: #f4eee0;
+  --foreground: #26221b;
+  --card: #fbf8ef;
+  --card-foreground: #26221b;
+  --popover: #fbf8ef;
+  --popover-foreground: #26221b;
+  --primary: #2c2822;
+  --primary-foreground: #f5efdf;
+  --secondary: #fbf8ef;
+  --secondary-foreground: #26221b;
+  --muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --muted-foreground: #6f6757;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #26221b;
+  --destructive: #DC2626;
+  --border: #ddd2ba;
+  --input: #ddd2ba;
+  --ring: #2c2822;
+  --chart-1: #2c2822;
+  --chart-2: #34D399;
+  --chart-3: #b03a26;
+  --chart-4: #DC2626;
+  --chart-5: #6f6757;
+  --radius: 0.5556rem; /* 圆角基准：0.5556rem × 1.8 = 1rem ≈ 17px（根字号 106.25%），
+     使 --radius-2xl 与工具类 rounded-2xl（1rem）对齐；三档相对级差不变（见 @theme inline 乘数）。 */
+  --sidebar: #fbf8ef;
+  --sidebar-foreground: #26221b;
+  --sidebar-primary: #2c2822;
+  --sidebar-primary-foreground: #f5efdf;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #26221b;
+  --sidebar-border: #ddd2ba;
+  --sidebar-ring: #2c2822;
+  --agenthub-accent: #2c2822;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 88%, black);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #b03a26;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #fff6ec; /* accent 做底色时的文字色 */
+  --agenthub-surface: #fbf8ef;
+  --agenthub-surface-muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-surface-raised: var(--card);
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-text: #26221b;
+  --agenthub-error: #DC2626;
+  --agenthub-warning: #EA580C;
+  --agenthub-success: #059669;
+  --agenthub-border: #ddd2ba;
+  --agenthub-pattern: radial-gradient(circle at 1px 1px, rgba(60,50,30,.16) 1px, transparent 0);
+  --agenthub-soft: linear-gradient(135deg,#e9dfc6,#f4eee0);
+  --agenthub-bgfx: .5; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  /* 阴影三档：sm 小浮层/徽章/下拉；card 内容卡片默认；lg 大容器/弹窗/交互卡片 hover 抬升。
+     sm 与 card 须肉眼可分：sm 只 1px 浅影（alpha 0.03），card 加深加糊（y 2px / blur 6px，alpha 0.07）。
+     沿用现行中性定义，不随主题改。 */
+  --agenthub-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.03);
+  --agenthub-shadow-card: 0 2px 6px rgba(15, 23, 42, 0.07);
+  --agenthub-shadow-lg: 0 16px 40px -12px rgba(15, 23, 42, 0.16);
   --agenthub-titlebar-height: 36px;
-  --agenthub-titlebar-bg: #FFFFFF;
-  --agenthub-titlebar-fg: #1F2937;
-  --agenthub-titlebar-border: #E5E7EB;
-  --agenthub-titlebar-button-hover: rgba(15, 23, 42, 0.08);
-  --agenthub-titlebar-button-active: rgba(15, 23, 42, 0.12);
+  --agenthub-titlebar-bg: #fbf8ef;
+  --agenthub-titlebar-fg: #26221b;
+  --agenthub-titlebar-border: #ddd2ba;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
   --agenthub-titlebar-close-hover: #E81123;
   --agenthub-titlebar-close-fg-hover: #FFFFFF;
   --agenthub-motion-fast: 140ms;
@@ -126,53 +164,70 @@
   --agenthub-ease-linear: linear;
 }
 
-.dark {
-  --background: #0F1115;
-  --foreground: #E5E7EB;
-  --card: #252932;
-  --card-foreground: #E5E7EB;
-  --popover: #1C1F26;
-  --popover-foreground: #E5E7EB;
-  --primary: #60A5FA;
-  --primary-foreground: #08111F;
-  --secondary: #252932;
-  --secondary-foreground: #E5E7EB;
-  --muted: #1C1F26;
-  --muted-foreground: #9CA3AF;
-  --accent: rgba(96, 165, 250, 0.12);
-  --accent-foreground: #BFDBFE;
+/* 水墨宣纸（默认）· 深色 */
+.dark, :root[data-theme="ink"].dark {
+  --background: #16140f;
+  --foreground: #ece4d0;
+  --card: #201d17;
+  --card-foreground: #ece4d0;
+  --popover: #201d17;
+  --popover-foreground: #ece4d0;
+  --primary: #e6dcc2;
+  --primary-foreground: #26221b;
+  --secondary: #201d17;
+  --secondary-foreground: #ece4d0;
+  --muted: var(--background);
+  --muted-foreground: #a2987f;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #ece4d0;
   --destructive: #F87171;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #60A5FA;
-  --chart-1: #60A5FA;
+  --border: #3a352a;
+  --input: #3a352a;
+  --ring: #e6dcc2;
+  --chart-1: #e6dcc2;
   --chart-2: #34D399;
-  --chart-3: #FBBF24;
+  --chart-3: #cf5a3c;
   --chart-4: #F87171;
-  --chart-5: #9CA3AF;
-  --sidebar: #1C1F26;
-  --sidebar-foreground: #E5E7EB;
-  --sidebar-primary: #60A5FA;
-  --sidebar-primary-foreground: #08111F;
-  --sidebar-accent: rgba(96, 165, 250, 0.12);
-  --sidebar-accent-foreground: #BFDBFE;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #60A5FA;
-  --agenthub-accent: #60A5FA;
-  --agenthub-accent-hover: #93C5FD;
-  --agenthub-accent-soft: rgba(96, 165, 250, 0.12);
-  --agenthub-accent-border: rgba(96, 165, 250, 0.24);
-  --agenthub-surface: #1C1F26;
-  --agenthub-surface-muted: #0F1115;
-  --agenthub-surface-raised: #252932;
-  --agenthub-surface-sunken: #121418;
-  --agenthub-border: rgba(255, 255, 255, 0.08);
+  --chart-5: #a2987f;
+  --sidebar: #201d17;
+  --sidebar-foreground: #ece4d0;
+  --sidebar-primary: #e6dcc2;
+  --sidebar-primary-foreground: #26221b;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #ece4d0;
+  --sidebar-border: #3a352a;
+  --sidebar-ring: #e6dcc2;
+  --agenthub-accent: #e6dcc2;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 82%, white);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #cf5a3c;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #1d0d06; /* accent 做底色时的文字色 */
+  --agenthub-surface: #201d17;
+  --agenthub-surface-muted: var(--background);
+  --agenthub-surface-raised: color-mix(in srgb, var(--card) 92%, var(--foreground));
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 94%, var(--foreground));
+  --agenthub-text: #ece4d0;
+  --agenthub-error: #F87171;
+  --agenthub-warning: #FB923C;
+  --agenthub-success: #34D399;
+  --agenthub-border: #3a352a;
+  --agenthub-pattern: linear-gradient(rgba(236,228,208,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(236,228,208,.05) 1px, transparent 1px);
+  --agenthub-soft: linear-gradient(135deg,#2a251c,#1c1a14);
+  --agenthub-bgfx: .8; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-shadow-sm: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 4px 12px rgba(0, 0, 0, 0.18);
   --agenthub-shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 16px 40px rgba(0, 0, 0, 0.22);
-  --agenthub-titlebar-bg: #121418;
-  --agenthub-titlebar-fg: #E5E7EB;
-  --agenthub-titlebar-border: rgba(255, 255, 255, 0.08);
-  --agenthub-titlebar-button-hover: rgba(255, 255, 255, 0.08);
-  --agenthub-titlebar-button-active: rgba(255, 255, 255, 0.12);
+  --agenthub-shadow-lg: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 48px rgba(0, 0, 0, 0.4);
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #201d17;
+  --agenthub-titlebar-fg: #ece4d0;
+  --agenthub-titlebar-border: #3a352a;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
   --agenthub-titlebar-close-hover: #DC2626;
   --agenthub-titlebar-close-fg-hover: #FFFFFF;
   --agenthub-motion-fast: 140ms;
@@ -181,6 +236,661 @@
   --agenthub-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --agenthub-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
   --agenthub-ease-linear: linear;
+  color-scheme: dark;
+}
+
+/* 松柏深绿 · 浅色 */
+:root[data-theme="pine"] {
+  --background: #eef2e8;
+  --foreground: #1e2a21;
+  --card: #fafcf5;
+  --card-foreground: #1e2a21;
+  --popover: #fafcf5;
+  --popover-foreground: #1e2a21;
+  --primary: #1e5c3a;
+  --primary-foreground: #f2f8ee;
+  --secondary: #fafcf5;
+  --secondary-foreground: #1e2a21;
+  --muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --muted-foreground: #5f7263;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #1e2a21;
+  --destructive: #DC2626;
+  --border: #d3ddc9;
+  --input: #d3ddc9;
+  --ring: #1e5c3a;
+  --chart-1: #1e5c3a;
+  --chart-2: #34D399;
+  --chart-3: #2DD4BF;
+  --chart-4: #DC2626;
+  --chart-5: #5f7263;
+  --sidebar: #fafcf5;
+  --sidebar-foreground: #1e2a21;
+  --sidebar-primary: #1e5c3a;
+  --sidebar-primary-foreground: #f2f8ee;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #1e2a21;
+  --sidebar-border: #d3ddc9;
+  --sidebar-ring: #1e5c3a;
+  --agenthub-accent: #1e5c3a;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 88%, black);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #b98a2e;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #221806; /* accent 做底色时的文字色 */
+  --agenthub-surface: #fafcf5;
+  --agenthub-surface-muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-surface-raised: var(--card);
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-text: #1e2a21;
+  --agenthub-error: #DC2626;
+  --agenthub-warning: #EA580C;
+  --agenthub-success: #059669;
+  --agenthub-border: #d3ddc9;
+  --agenthub-pattern: radial-gradient(circle at 1px 1px, rgba(30,80,50,.13) 1px, transparent 0);
+  --agenthub-soft: linear-gradient(135deg,#d8e5cd,#eef2e8);
+  --agenthub-bgfx: .5; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #fafcf5;
+  --agenthub-titlebar-fg: #1e2a21;
+  --agenthub-titlebar-border: #d3ddc9;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #E81123;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+}
+
+/* 松柏深绿 · 深色 */
+:root[data-theme="pine"].dark {
+  --background: #10160f;
+  --foreground: #e2ecdc;
+  --card: #182117;
+  --card-foreground: #e2ecdc;
+  --popover: #182117;
+  --popover-foreground: #e2ecdc;
+  --primary: #3f9e66;
+  --primary-foreground: #0e1a10;
+  --secondary: #182117;
+  --secondary-foreground: #e2ecdc;
+  --muted: var(--background);
+  --muted-foreground: #93a88f;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #e2ecdc;
+  --destructive: #F87171;
+  --border: #2b3a2a;
+  --input: #2b3a2a;
+  --ring: #3f9e66;
+  --chart-1: #3f9e66;
+  --chart-2: #34D399;
+  --chart-3: #2DD4BF;
+  --chart-4: #F87171;
+  --chart-5: #93a88f;
+  --sidebar: #182117;
+  --sidebar-foreground: #e2ecdc;
+  --sidebar-primary: #3f9e66;
+  --sidebar-primary-foreground: #0e1a10;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #e2ecdc;
+  --sidebar-border: #2b3a2a;
+  --sidebar-ring: #3f9e66;
+  --agenthub-accent: #3f9e66;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 82%, white);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #cfa14e;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #221806; /* accent 做底色时的文字色 */
+  --agenthub-surface: #182117;
+  --agenthub-surface-muted: var(--background);
+  --agenthub-surface-raised: color-mix(in srgb, var(--card) 92%, var(--foreground));
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 94%, var(--foreground));
+  --agenthub-text: #e2ecdc;
+  --agenthub-error: #F87171;
+  --agenthub-warning: #FB923C;
+  --agenthub-success: #34D399;
+  --agenthub-border: #2b3a2a;
+  --agenthub-pattern: linear-gradient(rgba(226,236,220,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(226,236,220,.045) 1px, transparent 1px);
+  --agenthub-soft: linear-gradient(135deg,#22301f,#141c12);
+  --agenthub-bgfx: .8; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #182117;
+  --agenthub-titlebar-fg: #e2ecdc;
+  --agenthub-titlebar-border: #2b3a2a;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #DC2626;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+  color-scheme: dark;
+}
+
+/* 陶土暖阳 · 浅色 */
+:root[data-theme="terra"] {
+  --background: #f6ede2;
+  --foreground: #33241a;
+  --card: #fdf8f1;
+  --card-foreground: #33241a;
+  --popover: #fdf8f1;
+  --popover-foreground: #33241a;
+  --primary: #b5502a;
+  --primary-foreground: #fff5ea;
+  --secondary: #fdf8f1;
+  --secondary-foreground: #33241a;
+  --muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --muted-foreground: #776556;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #33241a;
+  --destructive: #DC2626;
+  --border: #e7d6c2;
+  --input: #e7d6c2;
+  --ring: #b5502a;
+  --chart-1: #b5502a;
+  --chart-2: #34D399;
+  --chart-3: #8a6d1f;
+  --chart-4: #DC2626;
+  --chart-5: #776556;
+  --sidebar: #fdf8f1;
+  --sidebar-foreground: #33241a;
+  --sidebar-primary: #b5502a;
+  --sidebar-primary-foreground: #fff5ea;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #33241a;
+  --sidebar-border: #e7d6c2;
+  --sidebar-ring: #b5502a;
+  --agenthub-accent: #b5502a;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 88%, black);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #8a6d1f;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #fffbef; /* accent 做底色时的文字色 */
+  --agenthub-surface: #fdf8f1;
+  --agenthub-surface-muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-surface-raised: var(--card);
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-text: #33241a;
+  --agenthub-error: #DC2626;
+  --agenthub-warning: #EA580C;
+  --agenthub-success: #059669;
+  --agenthub-border: #e7d6c2;
+  --agenthub-pattern: radial-gradient(circle at 1px 1px, rgba(150,80,40,.13) 1px, transparent 0);
+  --agenthub-soft: linear-gradient(135deg,#f0dcc4,#f6ede2);
+  --agenthub-bgfx: .5; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #fdf8f1;
+  --agenthub-titlebar-fg: #33241a;
+  --agenthub-titlebar-border: #e7d6c2;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #E81123;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+}
+
+/* 陶土暖阳 · 深色 */
+:root[data-theme="terra"].dark {
+  --background: #1a120c;
+  --foreground: #f2e4d2;
+  --card: #251a11;
+  --card-foreground: #f2e4d2;
+  --popover: #251a11;
+  --popover-foreground: #f2e4d2;
+  --primary: #d0713f;
+  --primary-foreground: #241105;
+  --secondary: #251a11;
+  --secondary-foreground: #f2e4d2;
+  --muted: var(--background);
+  --muted-foreground: #b0947d;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #f2e4d2;
+  --destructive: #F87171;
+  --border: #40301f;
+  --input: #40301f;
+  --ring: #d0713f;
+  --chart-1: #d0713f;
+  --chart-2: #34D399;
+  --chart-3: #d9b45c;
+  --chart-4: #F87171;
+  --chart-5: #b0947d;
+  --sidebar: #251a11;
+  --sidebar-foreground: #f2e4d2;
+  --sidebar-primary: #d0713f;
+  --sidebar-primary-foreground: #241105;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #f2e4d2;
+  --sidebar-border: #40301f;
+  --sidebar-ring: #d0713f;
+  --agenthub-accent: #d0713f;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 82%, white);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #d9b45c;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #241a02; /* accent 做底色时的文字色 */
+  --agenthub-surface: #251a11;
+  --agenthub-surface-muted: var(--background);
+  --agenthub-surface-raised: color-mix(in srgb, var(--card) 92%, var(--foreground));
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 94%, var(--foreground));
+  --agenthub-text: #f2e4d2;
+  --agenthub-error: #F87171;
+  --agenthub-warning: #FB923C;
+  --agenthub-success: #34D399;
+  --agenthub-border: #40301f;
+  --agenthub-pattern: linear-gradient(rgba(242,228,210,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(242,228,210,.05) 1px, transparent 1px);
+  --agenthub-soft: linear-gradient(135deg,#33220f,#20150b);
+  --agenthub-bgfx: .8; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #251a11;
+  --agenthub-titlebar-fg: #f2e4d2;
+  --agenthub-titlebar-border: #40301f;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #DC2626;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+  color-scheme: dark;
+}
+
+/* 石墨琥珀 · 浅色 */
+:root[data-theme="graphite"] {
+  --background: #eceae6;
+  --foreground: #232220;
+  --card: #f7f6f3;
+  --card-foreground: #232220;
+  --popover: #f7f6f3;
+  --popover-foreground: #232220;
+  --primary: #33312d;
+  --primary-foreground: #f5f2ea;
+  --secondary: #f7f6f3;
+  --secondary-foreground: #232220;
+  --muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --muted-foreground: #68655e;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #232220;
+  --destructive: #DC2626;
+  --border: #d8d4cc;
+  --input: #d8d4cc;
+  --ring: #33312d;
+  --chart-1: #33312d;
+  --chart-2: #34D399;
+  --chart-3: #2DD4BF;
+  --chart-4: #DC2626;
+  --chart-5: #68655e;
+  --sidebar: #f7f6f3;
+  --sidebar-foreground: #232220;
+  --sidebar-primary: #33312d;
+  --sidebar-primary-foreground: #f5f2ea;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #232220;
+  --sidebar-border: #d8d4cc;
+  --sidebar-ring: #33312d;
+  --agenthub-accent: #33312d;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 88%, black);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #b97a14;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #241703; /* accent 做底色时的文字色 */
+  --agenthub-surface: #f7f6f3;
+  --agenthub-surface-muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-surface-raised: var(--card);
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-text: #232220;
+  --agenthub-error: #DC2626;
+  --agenthub-warning: #EA580C;
+  --agenthub-success: #059669;
+  --agenthub-border: #d8d4cc;
+  --agenthub-pattern: radial-gradient(circle at 1px 1px, rgba(40,38,34,.14) 1px, transparent 0);
+  --agenthub-soft: linear-gradient(135deg,#ddd9d0,#eceae6);
+  --agenthub-bgfx: .5; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #f7f6f3;
+  --agenthub-titlebar-fg: #232220;
+  --agenthub-titlebar-border: #d8d4cc;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #E81123;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+}
+
+/* 石墨琥珀 · 深色 */
+:root[data-theme="graphite"].dark {
+  --background: #121211;
+  --foreground: #eceade;
+  --card: #1c1c1a;
+  --card-foreground: #eceade;
+  --popover: #1c1c1a;
+  --popover-foreground: #eceade;
+  --primary: #e8e4d8;
+  --primary-foreground: #1c1c1a;
+  --secondary: #1c1c1a;
+  --secondary-foreground: #eceade;
+  --muted: var(--background);
+  --muted-foreground: #9d9a8e;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #eceade;
+  --destructive: #F87171;
+  --border: #33322e;
+  --input: #33322e;
+  --ring: #e8e4d8;
+  --chart-1: #e8e4d8;
+  --chart-2: #34D399;
+  --chart-3: #2DD4BF;
+  --chart-4: #F87171;
+  --chart-5: #9d9a8e;
+  --sidebar: #1c1c1a;
+  --sidebar-foreground: #eceade;
+  --sidebar-primary: #e8e4d8;
+  --sidebar-primary-foreground: #1c1c1a;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #eceade;
+  --sidebar-border: #33322e;
+  --sidebar-ring: #e8e4d8;
+  --agenthub-accent: #e8e4d8;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 82%, white);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #e39a1e;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #241703; /* accent 做底色时的文字色 */
+  --agenthub-surface: #1c1c1a;
+  --agenthub-surface-muted: var(--background);
+  --agenthub-surface-raised: color-mix(in srgb, var(--card) 92%, var(--foreground));
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 94%, var(--foreground));
+  --agenthub-text: #eceade;
+  --agenthub-error: #F87171;
+  --agenthub-warning: #FB923C;
+  --agenthub-success: #34D399;
+  --agenthub-border: #33322e;
+  --agenthub-pattern: linear-gradient(rgba(236,234,222,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(236,234,222,.05) 1px, transparent 1px);
+  --agenthub-soft: linear-gradient(135deg,#26261f,#171714);
+  --agenthub-bgfx: .85; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #1c1c1a;
+  --agenthub-titlebar-fg: #eceade;
+  --agenthub-titlebar-border: #33322e;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #DC2626;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+  color-scheme: dark;
+}
+
+/* 勃艮第酒红 · 浅色 */
+:root[data-theme="wine"] {
+  --background: #f5eee7;
+  --foreground: #33202a;
+  --card: #fcf8f3;
+  --card-foreground: #33202a;
+  --popover: #fcf8f3;
+  --popover-foreground: #33202a;
+  --primary: #7c2233;
+  --primary-foreground: #fdf3ec;
+  --secondary: #fcf8f3;
+  --secondary-foreground: #33202a;
+  --muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --muted-foreground: #77636b;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #33202a;
+  --destructive: #E5484D;
+  --border: #e5d5cc;
+  --input: #e5d5cc;
+  --ring: #7c2233;
+  --chart-1: #7c2233;
+  --chart-2: #34D399;
+  --chart-3: #a4762a;
+  --chart-4: #E5484D;
+  --chart-5: #77636b;
+  --sidebar: #fcf8f3;
+  --sidebar-foreground: #33202a;
+  --sidebar-primary: #7c2233;
+  --sidebar-primary-foreground: #fdf3ec;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #33202a;
+  --sidebar-border: #e5d5cc;
+  --sidebar-ring: #7c2233;
+  --agenthub-accent: #7c2233;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 88%, black);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #a4762a;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #171006; /* accent 做底色时的文字色 */
+  --agenthub-surface: #fcf8f3;
+  --agenthub-surface-muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-surface-raised: var(--card);
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-text: #33202a;
+  --agenthub-error: #E5484D;
+  --agenthub-warning: #EA580C;
+  --agenthub-success: #059669;
+  --agenthub-border: #e5d5cc;
+  --agenthub-pattern: radial-gradient(circle at 1px 1px, rgba(124,34,51,.11) 1px, transparent 0);
+  --agenthub-soft: linear-gradient(135deg,#eed9d2,#f5eee7);
+  --agenthub-bgfx: .5; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #fcf8f3;
+  --agenthub-titlebar-fg: #33202a;
+  --agenthub-titlebar-border: #e5d5cc;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #E81123;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+}
+
+/* 勃艮第酒红 · 深色 */
+:root[data-theme="wine"].dark {
+  --background: #180f13;
+  --foreground: #f0e2da;
+  --card: #231419;
+  --card-foreground: #f0e2da;
+  --popover: #231419;
+  --popover-foreground: #f0e2da;
+  --primary: #b03b52;
+  --primary-foreground: #fdf3ec;
+  --secondary: #231419;
+  --secondary-foreground: #f0e2da;
+  --muted: var(--background);
+  --muted-foreground: #b0949c;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #f0e2da;
+  --destructive: #FF6B6B;
+  --border: #3d2730;
+  --input: #3d2730;
+  --ring: #b03b52;
+  --chart-1: #b03b52;
+  --chart-2: #34D399;
+  --chart-3: #c99b4a;
+  --chart-4: #FF6B6B;
+  --chart-5: #b0949c;
+  --sidebar: #231419;
+  --sidebar-foreground: #f0e2da;
+  --sidebar-primary: #b03b52;
+  --sidebar-primary-foreground: #fdf3ec;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #f0e2da;
+  --sidebar-border: #3d2730;
+  --sidebar-ring: #b03b52;
+  --agenthub-accent: #b03b52;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 82%, white);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #c99b4a;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #241703; /* accent 做底色时的文字色 */
+  --agenthub-surface: #231419;
+  --agenthub-surface-muted: var(--background);
+  --agenthub-surface-raised: color-mix(in srgb, var(--card) 92%, var(--foreground));
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 94%, var(--foreground));
+  --agenthub-text: #f0e2da;
+  --agenthub-error: #FF6B6B;
+  --agenthub-warning: #FB923C;
+  --agenthub-success: #34D399;
+  --agenthub-border: #3d2730;
+  --agenthub-pattern: linear-gradient(rgba(240,226,218,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(240,226,218,.045) 1px, transparent 1px);
+  --agenthub-soft: linear-gradient(135deg,#30181f,#1d1015);
+  --agenthub-bgfx: .8; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #231419;
+  --agenthub-titlebar-fg: #f0e2da;
+  --agenthub-titlebar-border: #3d2730;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #DC2626;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+  color-scheme: dark;
+}
+
+/* 曜石黑金 · 浅色 */
+:root[data-theme="obsidian"] {
+  --background: #f3efe6;
+  --foreground: #221d13;
+  --card: #fbf9f3;
+  --card-foreground: #221d13;
+  --popover: #fbf9f3;
+  --popover-foreground: #221d13;
+  --primary: #262019;
+  --primary-foreground: #f3e9cf;
+  --secondary: #fbf9f3;
+  --secondary-foreground: #221d13;
+  --muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --muted-foreground: #716956;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #221d13;
+  --destructive: #DC2626;
+  --border: #e0d7bf;
+  --input: #e0d7bf;
+  --ring: #262019;
+  --chart-1: #262019;
+  --chart-2: #34D399;
+  --chart-3: #2DD4BF;
+  --chart-4: #DC2626;
+  --chart-5: #716956;
+  --sidebar: #fbf9f3;
+  --sidebar-foreground: #221d13;
+  --sidebar-primary: #262019;
+  --sidebar-primary-foreground: #f3e9cf;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #221d13;
+  --sidebar-border: #e0d7bf;
+  --sidebar-ring: #262019;
+  --agenthub-accent: #262019;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 88%, black);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #a37f22;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #1d1603; /* accent 做底色时的文字色 */
+  --agenthub-surface: #fbf9f3;
+  --agenthub-surface-muted: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-surface-raised: var(--card);
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 96%, var(--foreground));
+  --agenthub-text: #221d13;
+  --agenthub-error: #DC2626;
+  --agenthub-warning: #EA580C;
+  --agenthub-success: #059669;
+  --agenthub-border: #e0d7bf;
+  --agenthub-pattern: radial-gradient(circle at 1px 1px, rgba(120,95,30,.14) 1px, transparent 0);
+  --agenthub-soft: linear-gradient(135deg,#e9dfc2,#f3efe6);
+  --agenthub-bgfx: .5; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #fbf9f3;
+  --agenthub-titlebar-fg: #221d13;
+  --agenthub-titlebar-border: #e0d7bf;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #E81123;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
+}
+
+/* 曜石黑金 · 深色 */
+:root[data-theme="obsidian"].dark {
+  --background: #0e0d0b;
+  --foreground: #ede5cf;
+  --card: #171512;
+  --card-foreground: #ede5cf;
+  --popover: #171512;
+  --popover-foreground: #ede5cf;
+  --primary: #c9a96a;
+  --primary-foreground: #1d1708;
+  --secondary: #171512;
+  --secondary-foreground: #ede5cf;
+  --muted: var(--background);
+  --muted-foreground: #a39677;
+  --accent: color-mix(in srgb, var(--primary) 10%, transparent);
+  --accent-foreground: #ede5cf;
+  --destructive: #F87171;
+  --border: #35301f;
+  --input: #35301f;
+  --ring: #c9a96a;
+  --chart-1: #c9a96a;
+  --chart-2: #34D399;
+  --chart-3: #2DD4BF;
+  --chart-4: #F87171;
+  --chart-5: #a39677;
+  --sidebar: #171512;
+  --sidebar-foreground: #ede5cf;
+  --sidebar-primary: #c9a96a;
+  --sidebar-primary-foreground: #1d1708;
+  --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+  --sidebar-accent-foreground: #ede5cf;
+  --sidebar-border: #35301f;
+  --sidebar-ring: #c9a96a;
+  --agenthub-accent: #c9a96a;
+  --agenthub-accent-hover: color-mix(in srgb, var(--primary) 82%, white);
+  --agenthub-accent-soft: color-mix(in srgb, var(--primary) 12%, transparent);
+  --agenthub-accent-border: color-mix(in srgb, var(--primary) 24%, transparent);
+  /* 金色只做点缀（约定四处，见 openspec/changes/frontend-polish/proposal.md B 节），其余组件禁止用金。
+     主题切换器后：变量名沿用，值按每套主题的 accent 走。 */
+  --agenthub-gold: #e3c98c;
+  --agenthub-gold-soft: color-mix(in srgb, var(--agenthub-gold) 12%, transparent);
+  --agenthub-gold-border: color-mix(in srgb, var(--agenthub-gold) 40%, transparent);
+  --agenthub-gold-ink: #241b04; /* accent 做底色时的文字色 */
+  --agenthub-surface: #171512;
+  --agenthub-surface-muted: var(--background);
+  --agenthub-surface-raised: color-mix(in srgb, var(--card) 92%, var(--foreground));
+  --agenthub-surface-sunken: color-mix(in srgb, var(--background) 94%, var(--foreground));
+  --agenthub-text: #ede5cf;
+  --agenthub-error: #F87171;
+  --agenthub-warning: #FB923C;
+  --agenthub-success: #34D399;
+  --agenthub-border: #35301f;
+  --agenthub-pattern: linear-gradient(rgba(237,229,207,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(237,229,207,.05) 1px, transparent 1px);
+  --agenthub-soft: linear-gradient(135deg,#2b2413,#161310);
+  --agenthub-bgfx: .85; /* 效果图层不透明度系数：浅 .5 / 深 .8 / 石墨·曜石深 .85 */
+  --agenthub-titlebar-height: 36px;
+  --agenthub-titlebar-bg: #171512;
+  --agenthub-titlebar-fg: #ede5cf;
+  --agenthub-titlebar-border: #35301f;
+  --agenthub-titlebar-button-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agenthub-titlebar-button-active: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --agenthub-titlebar-close-hover: #DC2626;
+  --agenthub-titlebar-close-fg-hover: #FFFFFF;
   color-scheme: dark;
 }
 
@@ -209,15 +919,33 @@
     font-size: 106.25%;
   }
 
-  html,
-  body {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+  /* 可见滚动条：细条 + 圆角 thumb，与深色那套（下方 .dark *）协调。
+     浅色 thumb 用主题 primary（与 slate 灰的旧值区分，hover 加深）。
+     此前这里是 scrollbar-width: none / ::-webkit-scrollbar { display: none }，
+     全站滚动条不可见（proposal A 节要求恢复）。组件有意隐藏的仍走
+     .agenthub-hide-scrollbar，那条不动。 */
+  * {
+    scrollbar-color: color-mix(in srgb, var(--primary) 45%, transparent) transparent;
   }
 
-  html::-webkit-scrollbar,
-  body::-webkit-scrollbar {
-    display: none;
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--primary) 35%, transparent);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--primary) 55%, transparent);
   }
 
   html,
@@ -240,7 +968,7 @@
   }
 
   .dark ::selection {
-    background-color: rgba(96, 165, 250, 0.28);
+    background-color: color-mix(in srgb, var(--primary) 28%, transparent);
     color: #F8FAFC;
   }
 
@@ -275,7 +1003,7 @@
 
   .dark pre,
   .dark code {
-    background-color: #121418;
+    background-color: var(--agenthub-surface-sunken);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -307,6 +1035,58 @@
     font-style: var(--shiki-dark-font-style) !important;
     font-weight: var(--shiki-dark-font-weight) !important;
     text-decoration: var(--shiki-dark-text-decoration) !important;
+  }
+}
+
+@layer components {
+  /* 卡片三档（frontend-polish Phase 1：只定义档位，不迁移现有组件——
+     迁移是 Phase 2/3/5 改对应文件时做的事）。
+     圆角对应：容器卡片 ~ rounded-2xl / rounded-[18px]；内容、交互卡片 ~ rounded-xl
+     （--radius-2xl = 1rem ≈ 17px、--radius-xl ≈ 13.2px，与工具类圆角对齐，见 :root --radius 注释）。 */
+  /* 容器卡片：页面级大容器，弱阴影，无 hover 反馈。 */
+  .agenthub-card-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--agenthub-shadow-sm);
+  }
+
+  /* 内容卡片：默认卡片，内容展示用，无 hover 反馈。 */
+  .agenthub-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--agenthub-shadow-card);
+  }
+
+  /* 交互卡片：可点击/可 hover 的卡片，hover 轻微抬升 + 品牌色描边 + 大阴影。 */
+  .agenthub-card-interactive {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--agenthub-shadow-card);
+    transition:
+      transform var(--agenthub-motion-normal) var(--agenthub-ease-standard),
+      box-shadow var(--agenthub-motion-normal) var(--agenthub-ease-standard),
+      border-color var(--agenthub-motion-normal) var(--agenthub-ease-standard);
+  }
+
+  .agenthub-card-interactive:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--agenthub-accent) 40%, var(--agenthub-border));
+    box-shadow: var(--agenthub-shadow-lg);
+  }
+
+  /* 标题字体：Noto Serif SC（layout.tsx 接入，--font-heading 已指向它）。
+     Tailwind 也会从 --font-heading 生成同名 font-heading 工具类，两者值相同。 */
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agenthub-card-interactive:hover {
+    transform: none;
   }
 }
 
@@ -364,7 +1144,7 @@
   flex-shrink: 0;
   overflow: hidden;
   border-radius: 6px;
-  background-color: #EAF2FF;
+  background-color: var(--agenthub-accent-soft);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -416,14 +1196,14 @@
 }
 
 @layer utilities {
-  .dark :where(.bg-white) { background-color: #1C1F26; }
-  .dark :where(.bg-slate-50) { background-color: #252932; }
-  .dark :where(.bg-slate-50\/70) { background-color: rgba(37, 41, 50, 0.72); }
-  .dark :where(.bg-slate-50\/80) { background-color: rgba(37, 41, 50, 0.8); }
+  .dark :where(.bg-white) { background-color: var(--card); }
+  .dark :where(.bg-slate-50) { background-color: var(--agenthub-surface-raised); }
+  .dark :where(.bg-slate-50\/70) { background-color: color-mix(in srgb, var(--agenthub-surface-raised) 72%, transparent); }
+  .dark :where(.bg-slate-50\/80) { background-color: color-mix(in srgb, var(--agenthub-surface-raised) 80%, transparent); }
   .dark :where(.bg-slate-100) { background-color: rgba(255, 255, 255, 0.08); }
   .dark :where(.bg-slate-200) { background-color: rgba(255, 255, 255, 0.12); }
-  .dark :where(.bg-blue-50) { background-color: rgba(96, 165, 250, 0.12); }
-  .dark :where(.bg-blue-100) { background-color: rgba(96, 165, 250, 0.18); }
+  .dark :where(.bg-blue-50) { background-color: color-mix(in srgb, var(--primary) 12%, transparent); }
+  .dark :where(.bg-blue-100) { background-color: color-mix(in srgb, var(--primary) 18%, transparent); }
   .dark :where(.bg-emerald-50) { background-color: rgba(52, 211, 153, 0.12); }
   .dark :where(.bg-green-50) { background-color: rgba(52, 211, 153, 0.12); }
   .dark :where(.bg-rose-50) { background-color: rgba(248, 113, 113, 0.12); }
@@ -433,8 +1213,10 @@
   /* ↓ 暗色下的 slate 阶梯（2026-10-14 重整）。
      规则：亮色模式里「越深 = 越重要」，暗色模式下必须翻成「越亮 = 越重要」，
      所以这里按 #E5E7EB > #CBD5E1 > #9CA3AF > #94A3B8 的亮度单调映射四级。
-     实测对比度（vs 背景 #0F1115）：16.0 / 12.7 / 7.7 / 7.4 —— 四级全部超过 AA(4.5)，
-     后两级还超过 AAA(7)。
+     实测对比度（vs 新暖黑背景 #0E0D0B，按 WCAG 相对亮度公式重算，2026-11-18 第三轮）：
+     15.7 / 13.1 / 7.7 / 7.6 —— 四级全部超过 AA(4.5)，后两级还超过 AAA(7)。
+     旧注释的 16.0 / 12.7 / 7.7 / 7.4 与任一旧背景（#0F1115：15.3/12.7/7.4/7.4；
+     #121418：14.9/12.4/7.3/7.2）都对不上，应为旧值笔误/他法估算，本轮以重算值为准。
 
      ❗ 改动前的两个问题（2026-10-14 主页审查实测）：
        ① 600/700/800 被压成同一个 #CBD5E1，暗色下三级层次全丢；
@@ -444,12 +1226,12 @@
   .dark :where(.text-slate-800, .text-slate-700) { color: #CBD5E1; }
   .dark :where(.text-slate-600, .text-slate-500) { color: #9CA3AF; }
   .dark :where(.text-slate-400, .text-slate-300) { color: #94A3B8; }
-  .dark :where(.text-blue-600, .text-\[\#3370ff\]) { color: #60A5FA; }
+  .dark :where(.text-blue-600) { color: var(--primary); }
   .dark :where(.text-emerald-600, .text-green-700) { color: #6EE7B7; }
   .dark :where(.text-rose-600, .text-rose-700) { color: #FDA4AF; }
 
   .dark :where(.border-slate-100, .border-slate-200, .border-slate-300) { border-color: rgba(255, 255, 255, 0.08); }
-  .dark :where(.border-blue-100, .border-blue-200, .border-blue-300) { border-color: rgba(96, 165, 250, 0.24); }
+  .dark :where(.border-blue-100, .border-blue-200, .border-blue-300) { border-color: color-mix(in srgb, var(--primary) 24%, transparent); }
   .dark :where(.border-emerald-100, .border-green-100) { border-color: rgba(52, 211, 153, 0.2); }
   .dark :where(.border-rose-100, .border-rose-200) { border-color: rgba(248, 113, 113, 0.22); }
 
@@ -460,20 +1242,20 @@
     --tw-shadow-color: rgba(0, 0, 0, 0.26);
   }
 
-  .dark :where(.hover\:bg-slate-50:hover) { background-color: #252932; }
+  .dark :where(.hover\:bg-slate-50:hover) { background-color: var(--agenthub-surface-raised); }
   .dark :where(.hover\:bg-slate-100:hover) { background-color: rgba(255, 255, 255, 0.08); }
-  .dark :where(.hover\:bg-blue-50:hover, .hover\:bg-blue-50\/40:hover, .hover\:bg-blue-50\/60:hover) { background-color: rgba(96, 165, 250, 0.14); }
+  .dark :where(.hover\:bg-blue-50:hover, .hover\:bg-blue-50\/40:hover, .hover\:bg-blue-50\/60:hover) { background-color: color-mix(in srgb, var(--primary) 14%, transparent); }
   .dark :where(.hover\:text-slate-900:hover, .hover\:text-slate-700:hover) { color: #F3F4F6; }
   .dark :where(.hover\:border-slate-300:hover, .hover\:border-slate-400:hover) { border-color: rgba(255, 255, 255, 0.16); }
-  .dark :where(.hover\:border-blue-100:hover, .hover\:border-blue-200:hover) { border-color: rgba(96, 165, 250, 0.28); }
+  .dark :where(.hover\:border-blue-100:hover, .hover\:border-blue-200:hover) { border-color: color-mix(in srgb, var(--primary) 28%, transparent); }
 
   .dark :where(.active\:bg-slate-100:active, .active\:bg-slate-200:active) { background-color: rgba(255, 255, 255, 0.12); }
   .dark :where(.disabled\:opacity-50:disabled, .disabled\:opacity-60:disabled) { opacity: 0.42; }
 
-  .dark :where(.ring-blue-50, .ring-blue-100) { --tw-ring-color: rgba(96, 165, 250, 0.22); }
-  .dark :where(.focus-visible\:ring-blue-100:focus-visible) { --tw-ring-color: rgba(96, 165, 250, 0.24); }
+  .dark :where(.ring-blue-50, .ring-blue-100) { --tw-ring-color: color-mix(in srgb, var(--primary) 22%, transparent); }
+  .dark :where(.focus-visible\:ring-blue-100:focus-visible) { --tw-ring-color: color-mix(in srgb, var(--primary) 24%, transparent); }
 
-  .dark :where(.from-blue-50) { --tw-gradient-from: rgba(96, 165, 250, 0.14); --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position)); }
+  .dark :where(.from-blue-50) { --tw-gradient-from: color-mix(in srgb, var(--primary) 14%, transparent); --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position)); }
   .dark :where(.to-indigo-50) { --tw-gradient-to: rgba(99, 102, 241, 0.12); }
 }
 
@@ -481,17 +1263,17 @@
    只发光，不加描边；和现有 bubble 的 border 共存。
    关键帧 alpha 按近似指数衰减铺，timing-function 用 linear 让 keyframe 自身定义曲线（避免被 ease 二次扭曲）。 */
 @keyframes message-glow-pulse {
-  0%   { box-shadow: 0 16px 36px -8px rgba(51, 112, 255, 0); }
-  6%   { box-shadow: 0 26px 60px -2px rgba(51, 112, 255, 0.62); }   /* 快速 ramp up */
-  12%  { box-shadow: 0 28px 64px -2px rgba(51, 112, 255, 0.65); }   /* peak */
-  20%  { box-shadow: 0 27px 60px -3px rgba(51, 112, 255, 0.55); }   /* 微衰减 */
-  32%  { box-shadow: 0 25px 56px -4px rgba(51, 112, 255, 0.44); }
-  45%  { box-shadow: 0 23px 52px -5px rgba(51, 112, 255, 0.33); }
-  58%  { box-shadow: 0 22px 48px -6px rgba(51, 112, 255, 0.23); }
-  72%  { box-shadow: 0 20px 44px -7px rgba(51, 112, 255, 0.14); }
-  85%  { box-shadow: 0 18px 40px -8px rgba(51, 112, 255, 0.07); }
-  94%  { box-shadow: 0 17px 38px -8px rgba(51, 112, 255, 0.02); }
-  100% { box-shadow: 0 16px 36px -8px rgba(51, 112, 255, 0); }
+  0%   { box-shadow: 0 16px 36px -8px color-mix(in srgb, var(--primary) 0%, transparent); }
+  6%   { box-shadow: 0 26px 60px -2px color-mix(in srgb, var(--primary) 62%, transparent); }   /* 快速 ramp up */
+  12%  { box-shadow: 0 28px 64px -2px color-mix(in srgb, var(--primary) 65%, transparent); }   /* peak */
+  20%  { box-shadow: 0 27px 60px -3px color-mix(in srgb, var(--primary) 55%, transparent); }   /* 微衰减 */
+  32%  { box-shadow: 0 25px 56px -4px color-mix(in srgb, var(--primary) 44%, transparent); }
+  45%  { box-shadow: 0 23px 52px -5px color-mix(in srgb, var(--primary) 33%, transparent); }
+  58%  { box-shadow: 0 22px 48px -6px color-mix(in srgb, var(--primary) 23%, transparent); }
+  72%  { box-shadow: 0 20px 44px -7px color-mix(in srgb, var(--primary) 14%, transparent); }
+  85%  { box-shadow: 0 18px 40px -8px color-mix(in srgb, var(--primary) 7%, transparent); }
+  94%  { box-shadow: 0 17px 38px -8px color-mix(in srgb, var(--primary) 2%, transparent); }
+  100% { box-shadow: 0 16px 36px -8px color-mix(in srgb, var(--primary) 0%, transparent); }
 }
 
 .message-glow {
@@ -712,9 +1494,9 @@
 
 .agenthub-status-neutral { background: var(--agenthub-surface-muted); color: var(--muted-foreground); }
 .agenthub-status-info { background: color-mix(in srgb, var(--agenthub-accent) 10%, transparent); color: var(--agenthub-accent); }
-.agenthub-status-success { background: color-mix(in srgb, #10b981 12%, transparent); color: #047857; }
-.agenthub-status-warning { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #b45309; }
-.agenthub-status-danger { background: color-mix(in srgb, #ef4444 12%, transparent); color: #b91c1c; }
+.agenthub-status-success { background: color-mix(in srgb, var(--agenthub-success) 12%, transparent); color: #047857; }
+.agenthub-status-warning { background: color-mix(in srgb, var(--agenthub-warning) 14%, transparent); color: #b45309; }
+.agenthub-status-danger { background: color-mix(in srgb, var(--agenthub-error) 12%, transparent); color: #b91c1c; }
 
 .dark .agenthub-status-success { color: #6ee7b7; }
 .dark .agenthub-status-warning { color: #fcd34d; }
@@ -734,36 +1516,6 @@
   -webkit-backdrop-filter: saturate(1.6) blur(14px);
 }
 
-/* 首屏装饰层：细网格 + 品牌色柔光，都向下淡出，避免出现生硬的水平切边。 */
-.home-hero-decor {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.home-hero-grid {
-  position: absolute;
-  inset: -1px;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px);
-  background-size: 54px 54px;
-  -webkit-mask-image: radial-gradient(ellipse 74% 58% at 50% 0%, #000 8%, transparent 72%);
-  mask-image: radial-gradient(ellipse 74% 58% at 50% 0%, #000 8%, transparent 72%);
-}
-
-.home-hero-glow {
-  position: absolute;
-  left: 50%;
-  top: -18rem;
-  height: 34rem;
-  width: 60rem;
-  max-width: 160vw;
-  transform: translateX(-50%);
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--agenthub-accent) 20%, transparent), transparent 100%);
-}
-
 /* 首屏入场：只动画 transform / opacity，走合成层，不触发重排。
    与工作台一致，用 --agenthub-ease-emphasized + both 填充，元素最终停在终态。 */
 @keyframes home-rise {
@@ -772,34 +1524,13 @@
 }
 
 .home-rise {
-  animation: home-rise 560ms var(--agenthub-ease-emphasized) both;
+  animation: home-rise 500ms var(--agenthub-ease-emphasized) both;
 }
 
-/* 模块卡片：hover 轻微抬升 + 品牌色投影。transform / box-shadow / border-color
-   都是合成友好属性，不会触发重排。 */
-.home-card {
-  transition:
-    transform var(--agenthub-motion-normal) var(--agenthub-ease-standard),
-    box-shadow var(--agenthub-motion-normal) var(--agenthub-ease-standard),
-    border-color var(--agenthub-motion-normal) var(--agenthub-ease-standard);
-}
-
-.home-card:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--agenthub-accent) 40%, var(--agenthub-border));
-  box-shadow: 0 14px 32px -16px color-mix(in srgb, var(--agenthub-accent) 55%, transparent);
-}
-
-/* 主标题里的重点词：品牌色渐变裁切。与工作台同一支主色，不额外引入新色相。 */
+/* 主标题里的重点词「一场群聊」：金色点缀四处之一（其余三处见 proposal B 节）。
+   只用在大字号加粗标题上，不用在正文小字上。 */
 .home-title-accent {
-  background-image: linear-gradient(
-    100deg,
-    var(--agenthub-accent) 0%,
-    color-mix(in srgb, var(--agenthub-accent) 50%, #7C3AED) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--agenthub-gold);
 }
 
 /* 架构图里的「派单」流动线条：只动 stroke-dashoffset（SVG 属性），
@@ -815,8 +1546,57 @@
 
 @media (prefers-reduced-motion: reduce) {
   .home-rise { animation: none; }
-  .home-card:hover { transform: none; }
   .home-flow-line { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   /home 深色背景层次（2026-11-18 第三轮，用户反馈“深色整页像一块黑板”）。
+   只在 .dark 下生效，浅色零改动；金色不新增（仍只四处）。
+
+   诊断（根因）：浅色靠白 / surface-muted 交替分段，深色 --agenthub-surface-muted
+   与 --background 相同，交替直接塌掉 —— Hero、界面预览、工作流、
+   架构、功能、下载 6 个分区在深色下是同一块纯黑；只有数字证明区
+   （accent-soft tint）与页脚有变化。暖黑阶梯本身很浅
+   （sunken vs 背景仅约 1.03:1），单靠填色分不出段，必须靠线 + 光来分。
+
+   做法（针对性，不全页铺纹理；主题切换器后全部走 token，不再写死蓝色）：
+   - Hero（#top）：--agenthub-pattern 网格（48px）+ 顶部 primary 柔和光晕
+     （760×400，顶部居中），克制，不盖内容；光晕 alpha 按 --agenthub-bgfx 缩放
+     （基准 11% @ bgfx .8，即 13.75% × bgfx；石墨/曜石深 .85 时约 11.7%）；
+   - 界面预览 / 架构 / 下载（#preview、#architecture、#download）：
+     --agenthub-surface-sunken 沉底 + 顶部 1px 淡色分隔线，恢复“深浅交替”的节奏；
+   - 工作流 / 功能（#workflow、#features）：顶部一道极淡 primary 光
+     （基准 5% @ bgfx .8，即 6.25% × bgfx），只提亮分区开头，不做大面积 glow；
+   - 数字证明（#proof）：上下 1px primary 框线收边（基准 14% @ bgfx .8，
+     即 17.5% × bgfx）。
+   页脚本来就有区分，不动。
+   全部用 /home 专属的 section id 锚定，不影响工作台等其他页面。
+   ───────────────────────────────────────────────────────────────────────────── */
+.dark #top {
+  background-image:
+    radial-gradient(760px 400px at 50% -60px, color-mix(in srgb, var(--primary) calc(13.75% * var(--agenthub-bgfx, .8)), transparent), transparent 70%),
+    var(--agenthub-pattern);
+  background-size:
+    auto,
+    48px 48px,
+    48px 48px;
+}
+
+.dark #preview,
+.dark #architecture,
+.dark #download {
+  background-color: var(--agenthub-surface-sunken); /* 与背景仅约 1.03:1，靠下行分隔线读出分段 */
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.dark #workflow,
+.dark #features {
+  background-image: radial-gradient(640px 260px at 50% 0%, color-mix(in srgb, var(--primary) calc(6.25% * var(--agenthub-bgfx, .8)), transparent), transparent 70%);
+}
+
+.dark #proof {
+  border-top: 1px solid color-mix(in srgb, var(--primary) calc(17.5% * var(--agenthub-bgfx, .8)), transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) calc(17.5% * var(--agenthub-bgfx, .8)), transparent);
 }
 
 /* 锚点跳转时给固定导航留出高度，避免标题被压在导航下面。 */

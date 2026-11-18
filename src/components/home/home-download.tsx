@@ -1,7 +1,9 @@
-import { ArrowRight, CheckCircle2, Download, Laptop, Package, ShieldAlert } from 'lucide-react'
+import { Fragment } from 'react'
+import { ArrowRight, CheckCircle2, Download, Laptop, Package, ShieldAlert, Terminal } from 'lucide-react'
 
-import { Container, SectionHead, cardClass } from '@/components/home/home-primitives'
-import { APP_VERSION } from '@/components/home/home-data'
+import { Container, SectionHead, containerCardClass } from '@/components/home/home-primitives'
+import { Reveal } from '@/components/home/home-motion'
+import { APP_VERSION, QUICKSTART_COMMANDS, REPO_URL } from '@/components/home/home-data'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { DESKTOP_INSTALLER_FILENAME, type ResolvedDesktopDownload } from '@/lib/site-links'
@@ -44,6 +46,20 @@ const REQUIREMENTS: { label: string; detail: string }[] = [
   { label: '数据', detail: '全部留在本机，不上传任何服务器' },
 ]
 
+/** 终端命令在斜杠后放软换行点：长行先在空格处折行，URL 只在斜杠边界断开，不断词中。 */
+function renderCommandLine(line: string) {
+  return line.split('/').map((segment, index, parts) => (
+    <Fragment key={`${index}-${segment}`}>
+      {segment}
+      {index < parts.length - 1 && (
+        <>
+          /<wbr />
+        </>
+      )}
+    </Fragment>
+  ))
+}
+
 export function HomeDownload({
   download,
   localInstallerPath,
@@ -55,8 +71,17 @@ export function HomeDownload({
   const external = /^https?:\/\//i.test(download.url)
 
   return (
-    <section id="download" className="home-anchor border-b border-[var(--agenthub-border)]">
+    <section id="download" className="home-anchor bg-[var(--agenthub-surface-muted)]">
       <Container className="py-16 sm:py-20">
+        {/* 下载区入场动画（frontend-polish 第三轮 Q20）：整区包一个 Reveal，
+            与 home-sections.tsx 里截图/工作流/架构/功能四区的包法一致；reduced-motion 时直接显示。 */}
+        <Reveal>
+        {/* 结尾 CTA 的金色小标记（frontend-polish 金色第四处）：细金线 + 小菱形，仅此一处。 */}
+        <div className="mb-8 flex items-center justify-center gap-3" aria-hidden="true">
+          <span className="h-px w-16 bg-[var(--agenthub-gold)]" />
+          <span className="size-2 rotate-45 bg-[var(--agenthub-gold)]" />
+          <span className="h-px w-16 bg-[var(--agenthub-gold)]" />
+        </div>
         <SectionHead
           align="left"
           eyebrow="桌面端"
@@ -66,7 +91,7 @@ export function HomeDownload({
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-8">
           {/* 下载卡片 */}
-          <div className={cn(cardClass, 'flex flex-col p-6')}>
+          <div className={cn(containerCardClass, 'flex flex-col p-6')}>
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden="true"
@@ -153,7 +178,7 @@ export function HomeDownload({
               href="#quickstart"
               className="mt-5 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--agenthub-accent)] outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent)]/30"
             >
-              或直接从源码运行
+              或直接从源码运行（见下方命令）
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </a>
 
@@ -167,7 +192,7 @@ export function HomeDownload({
           </div>
 
           {/* 安装说明卡片 */}
-          <div className={cn(cardClass, 'p-6')}>
+          <div className={cn(containerCardClass, 'p-6')}>
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">装好之后</h3>
             <ol className="mt-5 flex list-none flex-col gap-5">
               {INSTALL_STEPS.map((step, index) => (
@@ -201,14 +226,54 @@ export function HomeDownload({
             </ul>
 
             <a
-              href="#guide"
+              href={`${REPO_URL}/blob/master/INSTALL.md`}
+              target="_blank"
+              rel="noreferrer"
               className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--agenthub-accent)] outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent)]/30"
             >
-              配置与上手说明见「使用指南」
+              配置与上手说明见安装指南
               <ArrowRight className="size-3.5" aria-hidden="true" />
             </a>
           </div>
         </div>
+
+        {/* 原独立的「快速开始」分区并入此处：三条命令，不用账号，也不用先部署点什么。
+            首次启动时应用会自动建库并 seed 内置 Agent。 */}
+        <div id="quickstart" className="home-anchor mt-6 grid gap-8 lg:grid-cols-2 lg:gap-10">
+          <div className="lg:self-center">
+            <h3 className="font-heading text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              也可以从源码运行
+            </h3>
+            <p className="mt-2 text-sm leading-7 text-slate-600">
+              克隆仓库、装依赖、填一个 provider 的 API Key，启动即用。首次启动自动建库并准备好 5 个内置 Agent。
+            </p>
+          </div>
+
+          {/* 终端样式的代码块：这个产品本身就是「带真实终端的工作台」，
+              所以这里刻意用深色终端外观，与工作台的 agenthub-terminal-font 语境呼应。 */}
+          <div className="overflow-hidden rounded-2xl border border-[var(--agenthub-border)] bg-[#0F1115] dark:bg-[#121418]">
+            <div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
+              <span className="size-2.5 rounded-full bg-[#FF5F57]" aria-hidden="true" />
+              <span className="size-2.5 rounded-full bg-[#FEBC2E]" aria-hidden="true" />
+              <span className="size-2.5 rounded-full bg-[#28C840]" aria-hidden="true" />
+              <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-xs text-slate-400">
+                <Terminal className="size-3" aria-hidden="true" />
+                bash · multi-agent-teamflow
+              </span>
+            </div>
+            <pre className="whitespace-pre-wrap break-words px-4 py-4 font-mono text-sm leading-6 text-slate-200">
+              <code>
+                {QUICKSTART_COMMANDS.map((line, index) => (
+                  // 空行保留站位，让分组之间有空隙，读起来更像一段真实会话
+                  <span key={`${index}-${line}`} className="block">
+                    {line ? renderCommandLine(line) : '\u00A0'}
+                  </span>
+                ))}
+              </code>
+            </pre>
+          </div>
+        </div>
+        </Reveal>
       </Container>
     </section>
   )

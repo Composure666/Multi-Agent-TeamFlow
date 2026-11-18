@@ -13,8 +13,10 @@ import {
   Image as ImageIcon,
   Images,
   Layers,
+  Loader2,
   MoreHorizontal,
   Network,
+  PackageOpen,
   Presentation,
   Search,
   SlidersHorizontal,
@@ -25,6 +27,7 @@ import {
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { motion, MotionConfig } from 'motion/react'
 
 import type { ArtifactVersionGroup } from '@/lib/artifact-groups'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -39,6 +42,7 @@ import {
   type ArtifactTabId,
 } from '@/components/artifact-workspace-view'
 import { DetailSection, HistoryRow, Meta, SavedState } from '@/components/workbench-detail-primitives'
+import { EmptyState } from '@/components/workbench-primitives'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -80,7 +84,7 @@ const TYPE_THUMB: Record<string, {
 }> = {
   document: {
     Icon: FileText,
-    cover: 'bg-gradient-to-br from-sky-200/80 via-sky-50/80 to-white dark:from-sky-500/25 dark:via-sky-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-sky-200/80 via-sky-50/80 to-white dark:from-sky-500/25 dark:via-sky-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-sky-600 dark:text-sky-300',
     label: '文档',
     chip: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
@@ -89,7 +93,7 @@ const TYPE_THUMB: Record<string, {
   },
   web_app: {
     Icon: Globe,
-    cover: 'bg-gradient-to-br from-emerald-200/80 via-emerald-50/80 to-white dark:from-emerald-500/25 dark:via-emerald-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-emerald-200/80 via-emerald-50/80 to-white dark:from-emerald-500/25 dark:via-emerald-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-emerald-600 dark:text-emerald-300',
     label: 'Web',
     chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
@@ -98,7 +102,7 @@ const TYPE_THUMB: Record<string, {
   },
   ppt: {
     Icon: Presentation,
-    cover: 'bg-gradient-to-br from-orange-200/80 via-orange-50/80 to-white dark:from-orange-500/25 dark:via-orange-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-orange-200/80 via-orange-50/80 to-white dark:from-orange-500/25 dark:via-orange-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-orange-600 dark:text-orange-300',
     label: 'PPT',
     chip: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
@@ -107,7 +111,7 @@ const TYPE_THUMB: Record<string, {
   },
   image: {
     Icon: ImageIcon,
-    cover: 'bg-gradient-to-br from-rose-200/80 via-rose-50/80 to-white dark:from-rose-500/25 dark:via-rose-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-rose-200/80 via-rose-50/80 to-white dark:from-rose-500/25 dark:via-rose-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-rose-600 dark:text-rose-300',
     label: '图片',
     chip: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
@@ -116,7 +120,7 @@ const TYPE_THUMB: Record<string, {
   },
   project: {
     Icon: FolderGit,
-    cover: 'bg-gradient-to-br from-teal-200/80 via-teal-50/80 to-white dark:from-teal-500/25 dark:via-teal-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-teal-200/80 via-teal-50/80 to-white dark:from-teal-500/25 dark:via-teal-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-teal-600 dark:text-teal-300',
     label: '项目',
     chip: 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
@@ -125,7 +129,7 @@ const TYPE_THUMB: Record<string, {
   },
   code_file: {
     Icon: FileCode2,
-    cover: 'bg-gradient-to-br from-slate-300/80 via-slate-100/80 to-white dark:from-slate-500/30 dark:via-slate-500/10 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-slate-300/80 via-slate-100/80 to-white dark:from-slate-500/30 dark:via-slate-500/10 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-indigo-600 dark:text-indigo-300',
     label: '代码',
     chip: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
@@ -134,7 +138,7 @@ const TYPE_THUMB: Record<string, {
   },
   diff: {
     Icon: GitCompare,
-    cover: 'bg-gradient-to-br from-amber-200/80 via-amber-50/80 to-white dark:from-amber-500/25 dark:via-amber-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-amber-200/80 via-amber-50/80 to-white dark:from-amber-500/25 dark:via-amber-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-amber-600 dark:text-amber-300',
     label: 'Diff',
     chip: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
@@ -143,7 +147,7 @@ const TYPE_THUMB: Record<string, {
   },
   diagram: {
     Icon: Network,
-    cover: 'bg-gradient-to-br from-violet-200/80 via-violet-50/80 to-white dark:from-violet-500/25 dark:via-violet-500/8 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-violet-200/80 via-violet-50/80 to-white dark:from-violet-500/25 dark:via-violet-500/8 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-violet-600 dark:text-violet-300',
     label: '图表',
     chip: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
@@ -155,7 +159,7 @@ const TYPE_THUMB: Record<string, {
 function thumbFor(type: string) {
   return TYPE_THUMB[type] ?? {
     Icon: FileText,
-    cover: 'bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-500/20 dark:to-neutral-900/40',
+    cover: 'bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-500/20 dark:to-[var(--agenthub-surface)]/40',
     ink: 'text-slate-500',
     label: type,
     chip: 'bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300',
@@ -426,9 +430,9 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
       )}
     >
       {!previewOpen && (
-        <section className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900">
+        <section className="agenthub-card min-w-0 flex-1">
           {/* Header row: title + search + actions */}
-          <div className="shrink-0 border-b border-slate-100 p-4 dark:border-white/10 xl:p-5">
+          <div className="shrink-0 border-b border-[var(--agenthub-border)] p-4 dark:border-[var(--agenthub-border)] xl:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:truncate dark:text-slate-50">产物库</h1>
@@ -493,7 +497,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                         'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
                         active
                           ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                          : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
+                          : 'border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
                       )}
                     >
                       {item.label}
@@ -524,7 +528,10 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
             )}
 
             {loading ? (
-              <div className="text-sm text-slate-500 dark:text-slate-400">加载中…</div>
+              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <Loader2 className="size-4 animate-spin" />
+                加载中…
+              </div>
             ) : loadError ? (
               <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-6 py-12 text-center text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
                 <div>产物加载失败</div>
@@ -581,9 +588,21 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
               <div className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">已经到底了</div>
             )}
             {!loading && !loadError && filteredGroups.length === 0 && (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-neutral-950/40 dark:text-slate-400">
-                {items.length === 0 ? '暂无产物' : '暂无匹配产物'}
-              </div>
+              items.length === 0 ? (
+                <EmptyState
+                  icon={PackageOpen}
+                  title="暂无产物"
+                  description="完成一次对话任务后，产物会出现在这里。"
+                  action={{ label: '新建任务', onClick: onOpenConversations }}
+                />
+              ) : (
+                <EmptyState
+                  icon={Search}
+                  title="暂无匹配产物"
+                  description="换个关键词或类型试试，也可以清空筛选查看全部产物。"
+                  action={{ label: '清除搜索与筛选', onClick: () => { setQuery(''); setTab('all') } }}
+                />
+              )
             )}
           </div>
         </section>
@@ -608,7 +627,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
       )}
       <ArtifactPreviewPanel fullHeight={previewOpen} />
       <Dialog open={Boolean(deleteTargetIds)} onOpenChange={(open) => { if (!open && pendingAction !== 'delete') setDeleteTargetIds(null) }}>
-        <DialogContent className="max-w-md border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+        <DialogContent className="max-w-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]">
           <DialogHeader>
             <DialogTitle>确认删除产物</DialogTitle>
             <DialogDescription>确认删除 {deleteTargetIds?.length ?? 0} 个产物？此操作不可撤销。</DialogDescription>
@@ -645,7 +664,7 @@ function RecentStrip({
           return (
             <div
               key={g.rootId}
-              className="group/recent relative flex w-44 shrink-0 items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-2 py-1.5 transition-colors hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900 dark:hover:border-white/15"
+              className="group/recent relative flex w-44 shrink-0 items-center gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 py-1.5 transition-colors hover:border-slate-300 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:hover:border-white/15"
             >
               <div className={cn('flex size-7 shrink-0 items-center justify-center rounded-md', t.chip)}>
                 <t.Icon className={cn('size-3.5', t.ink)} />
@@ -724,8 +743,8 @@ function ArtifactCard({
     return (
       <article
         className={cn(
-          'group relative grid grid-cols-[96px_minmax(0,1fr)_auto] items-stretch gap-3 overflow-hidden rounded-lg border bg-white shadow-[0_4px_20px_rgb(15_23_42/0.06)] transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-slate-300/80 hover:shadow-[0_10px_40px_rgb(15_23_42/0.08)] dark:bg-neutral-900 dark:hover:border-white/15 dark:hover:shadow-[0_10px_40px_rgb(0_0_0/0.5)]',
-          selected ? 'border-[var(--agenthub-accent-border)] dark:border-[var(--agenthub-accent-border)]' : 'border-slate-200/80 dark:border-white/10',
+          'group relative grid grid-cols-[96px_minmax(0,1fr)_auto] items-stretch gap-3 overflow-hidden rounded-lg border bg-[var(--agenthub-surface)] shadow-[var(--agenthub-shadow-card)] transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-slate-300/80 hover:shadow-[var(--agenthub-shadow-lg)] dark:bg-[var(--agenthub-surface)] dark:hover:border-white/15',
+          selected ? 'border-[var(--agenthub-accent-border)] dark:border-[var(--agenthub-accent-border)]' : 'border-[var(--agenthub-border)] dark:border-[var(--agenthub-border)]',
           deleting && 'pointer-events-none opacity-60',
         )}
       >
@@ -768,7 +787,7 @@ function ArtifactCard({
               onClick={onToggleSelected}
               className={cn(
                 'flex size-7 items-center justify-center rounded-md border text-xs transition',
-                checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-slate-200 bg-white text-transparent hover:border-slate-300 dark:border-white/10 dark:bg-neutral-900',
+                checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-transparent hover:border-slate-300 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]',
               )}
             >
               <Check className="size-3.5" />
@@ -802,8 +821,8 @@ function ArtifactCard({
   return (
     <article
       className={cn(
-        'group relative flex flex-col overflow-hidden rounded-xl border bg-white shadow-[0_4px_20px_rgb(15_23_42/0.06)] transition-all duration-200 ease-out hover:-translate-y-[2px] hover:border-slate-300/80 hover:shadow-[0_10px_40px_rgb(15_23_42/0.08)] dark:bg-neutral-900 dark:hover:border-white/20 dark:hover:shadow-[0_10px_40px_rgb(0_0_0/0.5)]',
-        selected ? 'border-[var(--agenthub-accent-border)]' : 'border-slate-200/80 dark:border-white/10',
+        'agenthub-card-interactive group relative flex flex-col overflow-hidden',
+        selected ? 'border-[var(--agenthub-accent-border)]' : 'border-[var(--agenthub-border)]',
         deleting && 'pointer-events-none opacity-60',
       )}
     >
@@ -835,7 +854,7 @@ function ArtifactCard({
             onClick={(e) => { e.stopPropagation(); onToggleSelected() }}
             className={cn(
               'absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded-md border text-xs shadow-sm transition',
-              checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-white/80 bg-white/90 text-transparent hover:border-slate-300 dark:border-white/20 dark:bg-neutral-900/80',
+              checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-white/80 bg-[var(--agenthub-surface)]/90 text-transparent hover:border-slate-300 dark:border-white/20 dark:bg-[var(--agenthub-surface)]/80',
             )}
           >
             <Check className="size-3.5" />
@@ -846,7 +865,7 @@ function ArtifactCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onPreview() }}
-          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-3xs font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:bg-white dark:bg-neutral-900/85 dark:text-slate-200 dark:hover:bg-neutral-900"
+          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-[var(--agenthub-surface)]/95 px-2.5 py-1 text-3xs font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:bg-[var(--agenthub-surface)] dark:bg-[var(--agenthub-surface)]/85 dark:text-slate-200 dark:hover:bg-[var(--agenthub-surface)]"
         >
           <Eye className="size-3" />
           预览
@@ -879,7 +898,7 @@ function ArtifactCard({
         </div>
 
         {/* Footer bar — GitHub/Notion style: avatar · name · time · version · star · more */}
-        <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-white/5 dark:text-slate-400">
+        <div className="mt-auto flex items-center gap-1.5 border-t border-[var(--agenthub-border)] pt-3 text-xs text-slate-500 dark:border-white/5 dark:text-slate-400">
           <AgentAvatar agent={agentObj} size="xs" />
           <span className="truncate">{agentName}</span>
           <span aria-hidden>·</span>
@@ -915,7 +934,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
   const page = (children: ReactNode, className?: string) => (
     <div
       className={cn(
-        `absolute ${inset} overflow-hidden rounded-lg bg-white shadow-[0_1px_4px_rgb(15_23_42/0.10)] dark:bg-neutral-800`,
+        `absolute ${inset} overflow-hidden rounded-lg bg-[var(--agenthub-surface)] shadow-[var(--agenthub-shadow-sm)] dark:bg-[var(--agenthub-surface-raised)]`,
         className,
       )}
     >
@@ -926,7 +945,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
   if (shape === 'browser') {
     return page(
       <div className="flex h-full flex-col">
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-slate-100 px-2.5 py-1.5 dark:border-white/10">
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-[var(--agenthub-border)] px-2.5 py-1.5 dark:border-[var(--agenthub-border)]">
           <span className="size-1.5 rounded-full bg-rose-400" />
           <span className="size-1.5 rounded-full bg-amber-400" />
           <span className="size-1.5 rounded-full bg-emerald-400" />
@@ -947,7 +966,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
           </div>
         </div>
       </div>,
-      'ring-1 ring-slate-200/70 dark:ring-white/10',
+      'ring-1 ring-[var(--agenthub-border)] dark:ring-[var(--agenthub-border)]',
     )
   }
 
@@ -966,7 +985,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
           {slideTitle ? (
             <div className="line-clamp-2 text-xs font-bold leading-tight text-white drop-shadow-sm">{slideTitle}</div>
           ) : (
-            <div className="h-2.5 w-2/3 rounded bg-white/85" />
+            <div className="h-2.5 w-2/3 rounded bg-[var(--agenthub-surface)]/85" />
           )}
           {slideSubtitle ? (
             <div className="mt-1 line-clamp-1 text-3xs text-white/80">{slideSubtitle}</div>
@@ -1005,7 +1024,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
   if (shape === 'image') {
     if (imageUrl) {
       return (
-        <div className={`absolute ${inset} overflow-hidden rounded-lg bg-slate-100 dark:bg-neutral-800`}>
+        <div className={`absolute ${inset} overflow-hidden rounded-lg bg-slate-100 dark:bg-[var(--agenthub-surface-raised)]`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
@@ -1017,7 +1036,7 @@ function CoverShape({ shape, title = '', compact = false, imageUrl, pptCover }: 
       )
     }
     return (
-      <div className={`absolute ${inset} overflow-hidden rounded-lg bg-gradient-to-br from-sky-300 via-emerald-200 to-amber-200 shadow-[0_1px_4px_rgb(15_23_42/0.10)] dark:from-sky-500/40 dark:via-emerald-500/25 dark:to-amber-500/20`}>
+      <div className={`absolute ${inset} overflow-hidden rounded-lg bg-gradient-to-br from-sky-300 via-emerald-200 to-amber-200 shadow-[var(--agenthub-shadow-sm)] dark:from-sky-500/40 dark:via-emerald-500/25 dark:to-amber-500/20`}>
         <div className="absolute right-3 top-2.5 size-6 rounded-full bg-white/70 dark:bg-white/30" />
         <div className="absolute bottom-0 left-0 right-0 h-6 rounded-t-[50%] bg-emerald-400/60 dark:bg-emerald-600/40" />
         <div className="absolute bottom-0 left-1/4 h-4 w-1/2 rounded-t-[60%] bg-emerald-500/50 dark:bg-emerald-700/40" />
@@ -1164,7 +1183,6 @@ function ArtifactMoreMenu({
 // ─── Detail panel (right rail) ────────────────────────────────────────
 function ArtifactDetailPanel({
   item,
-  previewOpen,
   copied,
   exporting,
   deleting,
@@ -1188,13 +1206,20 @@ function ArtifactDetailPanel({
   onClose: () => void
 }) {
   const t = item ? thumbFor(item.type) : null
+  // 详情面板开合：打开时从右侧轻微滑入 + 淡入（与预览面板同向）。
   return (
-    <aside className={cn('hidden shrink-0 self-start rounded-xl border border-slate-200 bg-white shadow-[var(--agenthub-shadow-card)] dark:border-white/10 dark:bg-neutral-900 xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block', previewOpen ? 'w-[360px] 2xl:w-[380px]' : 'w-[360px]')}>
+    <MotionConfig reducedMotion="user">
+      <motion.aside
+        className={cn('agenthub-card hidden shrink-0 self-start w-[360px] xl:sticky xl:top-[calc(var(--agenthub-titlebar-height,0px)+1rem)] xl:block')}
+        initial={{ opacity: 0, x: 16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
       {item ? (
         <div className="flex h-full flex-col">
-          <div className="border-b border-slate-200 p-4 dark:border-white/10">
+          <div className="border-b border-[var(--agenthub-border)] p-4 dark:border-[var(--agenthub-border)]">
             <div className="flex items-start gap-3">
-              <div className={cn('flex size-11 shrink-0 items-center justify-center rounded-lg ring-1 ring-slate-200 dark:ring-white/10', t?.cover)}>
+              <div className={cn('flex size-11 shrink-0 items-center justify-center rounded-lg ring-1 ring-[var(--agenthub-border)] dark:ring-[var(--agenthub-border)]', t?.cover)}>
                 {t && <t.Icon className={cn('size-5', t.ink)} />}
               </div>
               <div className="min-w-0 flex-1">
@@ -1217,7 +1242,7 @@ function ArtifactDetailPanel({
             <div className="mt-3 flex flex-wrap gap-1.5">
               <span className={cn('rounded-md px-2 py-1 text-xs', t?.chip)}>{t?.label ?? item.type}</span>
               <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">v{item.version}</span>
-              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-neutral-800 dark:text-slate-300">可预览</span>
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-[var(--agenthub-surface-raised)] dark:text-slate-300">可预览</span>
             </div>
           </div>
           <div className="space-y-3 p-4 text-sm">
@@ -1248,14 +1273,15 @@ function ArtifactDetailPanel({
             </DetailSection>
 
             <DetailSection icon={<FileText className="size-4" />} title="产物标识">
-              <div className="truncate rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-500 dark:border-white/10 dark:bg-neutral-950/50 dark:text-slate-400">{item.id}</div>
+              <div className="truncate rounded-lg border border-[var(--agenthub-border)] bg-slate-50 p-3 font-mono text-xs text-slate-500 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-muted)] dark:text-slate-400">{item.id}</div>
             </DetailSection>
           </div>
         </div>
       ) : (
         <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500 dark:text-slate-400">选择一个产物查看详情</div>
       )}
-    </aside>
+      </motion.aside>
+    </MotionConfig>
   )
 }
 

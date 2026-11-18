@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, MessageSquare, Pencil, Plus, RefreshCw, Save, Sparkles, Users, Wand2 } from 'lucide-react'
+import { ArrowLeft, Check, MessageSquare, Pencil, Plus, RefreshCw, Save, Sparkles, Users, Wand2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import {
@@ -30,7 +30,10 @@ import { LoadingIndicator } from '@/components/ui/loading-indicator'
 import { Textarea } from '@/components/ui/textarea'
 import type { AgentRow } from '@/db/schema'
 import { createAgent, createAgentDraft } from '@/lib/api'
-import { normalizeModality } from '@/lib/llm-shared'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { InlineError } from '@/components/workbench-primitives'
+import { cn } from '@/lib/utils'
+import { MODALITY_OPTIONS, normalizeModality } from '@/lib/llm-shared'
 import type { AgentConfigDraft, AgentDraftSource } from '@/shared/agent-builder-config'
 import { useAppStore } from '@/stores/app-store'
 import type { TeamDraft, TeamMemberDraft } from '@/server/team-draft-service'
@@ -54,6 +57,17 @@ type Step = 'input' | 'preview' | 'creating'
 /** 团队成员 + 用户确认/编辑后的完整 Agent 配置。 */
 type TeamMemberPlan = TeamMemberDraft & { config?: AgentConfigDraft }
 type TeamPlan = Omit<TeamDraft, 'members'> & { members: TeamMemberPlan[] }
+
+/**
+ * 模态 → 中文标签，与 agent-config-form 的 MODALITY_OPTIONS 同一真相源
+ * （code→代码 / text→文本 / vision→视觉 / image→生图）。
+ * normalizeModality 会把历史值（audio→text、multimodal→vision）与任意未知值
+ * 都归并到四类之一，因此不存在需要原样回退的未知值。
+ */
+function modalityLabel(value: string | null | undefined): string {
+  const normalized = normalizeModality(value)
+  return MODALITY_OPTIONS.find((o) => o.value === normalized)?.label ?? '文本'
+}
 
 /**
  * 创建团队对话框。
@@ -303,42 +317,47 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] sm:max-w-4xl overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="size-4" />
-              创建 Agent 团队
-            </DialogTitle>
-            <DialogDescription>
-              自动生成团队结构，或手动选择现有 Agent 组建团队
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
+          {/* 头部合并为 grid 第一行，中间内容区滚动、底部按钮固定可见 */}
+          <div className="flex flex-col gap-4">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="size-4" />
+                创建 Agent 团队
+              </DialogTitle>
+              <DialogDescription>
+                自动生成团队结构，或手动选择现有 Agent 组建团队
+              </DialogDescription>
+            </DialogHeader>
 
-          {/* 模式切换 */}
-          <div className="flex shrink-0 gap-2">
-            <Button
-              size="sm"
-              variant={mode === 'auto' ? 'default' : 'outline'}
-              onClick={() => { setMode('auto'); setStep('input') }}
-            >
-              <Wand2 className="size-3.5" />
-              提示词自动生成
-            </Button>
-            <Button
-              size="sm"
-              variant={mode === 'manual' ? 'default' : 'outline'}
-              onClick={() => { setMode('manual'); setStep('input') }}
-            >
-              <Plus className="size-3.5" />
-              手动详细创建
-            </Button>
+            {/* 模式切换 */}
+            <div className="flex shrink-0 gap-2">
+              <Button
+                size="sm"
+                variant={mode === 'auto' ? 'default' : 'outline'}
+                onClick={() => { setMode('auto'); setStep('input') }}
+              >
+                <Wand2 className="size-3.5" />
+                提示词自动生成
+              </Button>
+              <Button
+                size="sm"
+                variant={mode === 'manual' ? 'default' : 'outline'}
+                onClick={() => { setMode('manual'); setStep('input') }}
+              >
+                <Plus className="size-3.5" />
+                手动详细创建
+              </Button>
+            </div>
+
+            {mode === 'auto' && !createdTeamId && (
+              <TeamSteps current={step === 'preview' ? 2 : step === 'creating' ? 3 : 1} />
+            )}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             {error && (
-              <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-                {error}
-              </div>
+              <InlineError message={error} />
             )}
 
             {/* 自动模式 - 输入 */}
@@ -382,7 +401,7 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
             {/* 自动模式 - 预览 */}
             {mode === 'auto' && step === 'preview' && plan && (
               <div className="flex flex-col gap-3.5">
-                <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="agenthub-card p-4">
                   <div className="text-sm font-medium">{plan.name}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{plan.description}</div>
                   <div className="mt-1.5 text-xs text-muted-foreground">目标：{plan.goal}</div>
@@ -397,7 +416,7 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                 </div>
                 <div className="flex flex-col gap-2">
                   {plan.members.map((m, i) => (
-                    <div key={i} className="flex items-center gap-3 rounded-md border bg-card px-3 py-2.5">
+                    <div key={i} className="agenthub-card flex items-center gap-3 px-3 py-2.5">
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-base">
                         {m.avatar || m.name[0]}
                       </div>
@@ -409,8 +428,8 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                               负责人
                             </span>
                           )}
-                          <span className="shrink-0 rounded bg-blue-100 px-1 py-0.5 text-3xs text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-                            {m.modality}
+                          <span className="shrink-0 rounded bg-[var(--agenthub-accent-soft)] px-1 py-0.5 text-3xs text-[var(--agenthub-accent)]">
+                            {modalityLabel(m.modality)}
                           </span>
                           {m.config && (
                             <span className="shrink-0 rounded bg-emerald-100 px-1 py-0.5 text-3xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
@@ -475,9 +494,16 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                       新建成员
                     </Button>
                   </div>
-                  <div className="max-h-48 overflow-y-auto rounded-md border">
+                  <div className="max-h-48 overflow-y-auto rounded-md border border-[var(--agenthub-border)]">
                     {allAgents.length === 0 ? (
-                      <div className="px-3 py-4 text-center text-xs text-muted-foreground">暂无 Agent，请先创建 Agent</div>
+                      <div className="flex flex-col items-center gap-1.5 px-3 py-4 text-center">
+                        <Users className="size-4 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">暂无 Agent，请先创建 Agent</p>
+                        <Button size="sm" variant="outline" className="mt-1 h-7 text-xs" onClick={() => setManualCreateOpen(true)}>
+                          <Plus className="size-3" />
+                          新建成员
+                        </Button>
+                      </div>
                     ) : (
                       allAgents.map((a) => (
                         <button
@@ -488,7 +514,7 @@ export function CreateTeamDialog({ open, onOpenChange, onCreated, onStartChat }:
                           <input type="checkbox" checked={selectedAgents.includes(a.id)} readOnly className="size-3.5" />
                           <AgentAvatar agent={a} size="sm" />
                           <span className="truncate text-xs">{a.name}</span>
-                          <span className="ml-auto text-xs text-muted-foreground">{a.modality}</span>
+                          <span className="ml-auto text-xs text-muted-foreground">{modalityLabel(a.modality)}</span>
                         </button>
                       ))
                     )}
@@ -667,7 +693,7 @@ function TeamMemberConfigDialog({
 
   return (
     <Dialog open onOpenChange={(next) => { if (!next) onClose() }}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
+      <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
         <DialogHeader>
           <DialogTitle>{step === 'preview' ? `配置「${member.name}」` : '编辑 Agent'}</DialogTitle>
           <DialogDescription>
@@ -679,7 +705,7 @@ function TeamMemberConfigDialog({
 
         {step === 'preview' ? (
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="mb-3 rounded-md border bg-muted/20 px-3 py-2">
+            <div className="mb-3 rounded-md border border-[var(--agenthub-border)] bg-muted/20 px-3 py-2">
               <div className="mb-1.5 text-xs font-medium text-muted-foreground">
                 成员头像 — 团队里每人一个，便于在群聊与列表中辨认
               </div>
@@ -699,9 +725,7 @@ function TeamMemberConfigDialog({
               </div>
             </div>
             {regenerateError && (
-              <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-                重新生成失败：{regenerateError}
-              </div>
+              <InlineError message={`重新生成失败：${regenerateError}`} onRetry={() => void handleRegenerate()} />
             )}
             {regenerateNotice && !regenerateError && (
               <div className="mb-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -723,9 +747,10 @@ function TeamMemberConfigDialog({
                     <div className="text-xs text-muted-foreground">正在生成成员配置…</div>
                   </>
                 ) : (
-                  <>
-                    <div className="text-xs text-muted-foreground">尚未生成配置，可以点「重新生成」再试一次。</div>
-                  </>
+                  <div className="flex flex-col items-center gap-1.5 text-center">
+                    <RefreshCw className="size-4 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">尚未生成配置，可以点「重新生成」再试一次。</p>
+                  </div>
                 )}
               </div>
             )}
@@ -896,7 +921,7 @@ function ManualMemberCreateDialog({
 
   return (
     <Dialog open onOpenChange={(next) => { if (!next) onClose() }}>
-      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-3xl">
+      <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
         <DialogHeader>
           <DialogTitle>新建团队成员</DialogTitle>
           <DialogDescription>
@@ -980,5 +1005,43 @@ function ManualMemberCreateDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** 自动生成三步指示：描述目标 → 确认成员 → 创建（与下方内容区同步）。 */
+function TeamSteps({ current }: { current: 1 | 2 | 3 }) {
+  const steps = ['描述目标', '确认成员', '创建']
+  return (
+    <ol className="mb-3 flex shrink-0 items-center gap-1.5" aria-label="创建团队步骤">
+      {steps.map((label, index) => {
+        const step = index + 1
+        const done = step < current
+        const active = step === current
+        return (
+          <li key={label} className="flex min-w-0 flex-1 items-center gap-1.5 last:flex-none">
+            <span
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
+                done && 'bg-[var(--agenthub-accent)] text-white',
+                active && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent-border)]',
+                !done && !active && 'bg-muted text-muted-foreground',
+              )}
+              aria-current={active ? 'step' : undefined}
+            >
+              {done ? <Check className="size-3" /> : step}
+            </span>
+            <span
+              className={cn(
+                'truncate text-xs',
+                active ? 'font-medium text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {label}
+            </span>
+            {index < steps.length - 1 && <span className="h-px flex-1 bg-border" aria-hidden="true" />}
+          </li>
+        )
+      })}
+    </ol>
   )
 }

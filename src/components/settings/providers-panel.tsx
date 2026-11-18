@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Loader2, Plus, Settings2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/workbench-primitives'
+import { cn } from '@/lib/utils'
 import { ProviderConfigDialog } from '@/components/settings/provider-config-dialog'
 import type { LlmProviderRow } from '@/db/schema'
 import type { LlmModelAssignmentRow } from '@/db/schema'
@@ -22,26 +24,34 @@ export function ProvidersPanel({ refreshKey }: ProvidersPanelProps) {
   const [providers, setProviders] = useState<LlmProviderRow[]>([])
   const [assignments, setAssignments] = useState<LlmModelAssignmentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const [configOpen, setConfigOpen] = useState(false)
   const [configProviderId, setConfigProviderId] = useState<string | null>(null)
+
+  const retry = () => setRetryKey((k) => k + 1)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     Promise.all([fetch('/api/providers').then((r) => r.json()), fetch('/api/model-assignments').then((r) => r.json())])
       .then(([pData, aData]) => {
         if (cancelled) return
         setProviders(pData.providers ?? [])
         setAssignments(aData.assignments ?? [])
       })
-      .catch((err) => console.error('[ProvidersPanel] load failed', err))
+      .catch((err) => {
+        console.error('[ProvidersPanel] load failed', err)
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [refreshKey, configOpen]) // configOpen 变化时刷新（关闭对话框后重新拉取）
+  }, [refreshKey, configOpen, retryKey]) // configOpen 变化时刷新（关闭对话框后重新拉取）
 
   const usageMap = buildUsageMap(assignments)
 
@@ -52,10 +62,18 @@ export function ProvidersPanel({ refreshKey }: ProvidersPanelProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">正在加载供应商…</p>
+        <Button type="button" variant="outline" size="sm" className="mt-1" onClick={retry}>
+          重新加载
+        </Button>
       </div>
     )
+  }
+
+  if (loadError) {
+    return <InlineError message={`供应商加载失败：${loadError}`} onRetry={retry} />
   }
 
   const configured = providers.filter((p) => p.apiKey)
@@ -104,11 +122,12 @@ function ProviderCard({
 
   return (
     <div
-      className={`rounded-lg border p-3 transition ${
+      className={cn(
+        'p-3 transition',
         isConfigured
-          ? 'border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900'
-          : 'border-dashed border-slate-200 bg-slate-50/50 dark:border-white/10 dark:bg-white/[0.02]'
-      }`}
+          ? 'agenthub-card'
+          : 'rounded-lg border border-dashed border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]/50',
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -120,7 +139,7 @@ function ProviderCard({
                   ? 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400'
                   : isConfigured
                     ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400'
-                    : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400'
+                    : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400'
               }`}
             >
               <span className={`size-1.5 rounded-full ${isConnected ? 'bg-green-500' : isConfigured ? 'bg-amber-500' : 'bg-slate-400'}`} />

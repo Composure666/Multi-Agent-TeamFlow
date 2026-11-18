@@ -133,7 +133,7 @@ export function McpServersSettings() {
   const state = error ? 'error' : loading && servers.length === 0 ? 'loading' : servers.length === 0 ? 'empty' : 'ready'
 
   return (
-    <section className="min-w-0 space-y-3 overflow-hidden rounded-xl border bg-card p-3">
+    <section className="agenthub-card min-w-0 space-y-3 overflow-hidden p-3">
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         <ShieldAlert className="mt-0.5 size-4 flex-none" />
         <p className="min-w-0 break-words text-xs leading-4">
@@ -141,7 +141,7 @@ export function McpServersSettings() {
         </p>
       </div>
 
-      <div className="grid min-w-0 gap-2 rounded-xl border bg-background p-3">
+      <div className="agenthub-card grid min-w-0 gap-2 p-3">
         <div className="grid gap-2 sm:grid-cols-2">
           <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="name: filesystem" />
           <Input value={form.command} onChange={(e) => setForm((f) => ({ ...f, command: e.target.value }))} placeholder="command: npx" />
@@ -193,12 +193,13 @@ export function McpServersSettings() {
         emptyDescription="在上方添加一个 stdio MCP server，也可以从能力中心联网搜索并导入 GitHub MCP。"
         errorDescription={error ?? undefined}
         action={error ? { label: '重试', onClick: () => void load() } : undefined}
+        onRetry={() => void load()}
       >
       <div className="grid min-w-0 gap-2">
         {servers.map((server, index) => {
           const result = testResults[server.id]
           return (
-            <div key={server.id} className="agenthub-motion-item min-w-0 rounded-xl border bg-background p-3" style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}>
+            <div key={server.id} className="agenthub-motion-item agenthub-card min-w-0 p-3" style={{ animationDelay: `${Math.min(index, 6) * 35}ms` }}>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-medium">

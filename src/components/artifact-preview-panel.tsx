@@ -1,6 +1,7 @@
 'use client'
 
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Clock, Copy, Download, ExternalLink, Eye, FileCode, FileText, FolderGit2, FolderTree, GitCompare, History, Image as ImageIcon, Layers, Loader2, Maximize, Minimize, Pencil, Presentation, RefreshCw, RotateCcw, Save, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { motion, MotionConfig } from 'motion/react'
 import dynamic from 'next/dynamic'
 import { useTheme } from 'next-themes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -12,7 +13,7 @@ import { Markdown } from '@/components/markdown'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { ArtifactRow } from '@/db/schema'
-import { createArtifactVersion, fetchArtifactVersions, workspaceReadFile, workspaceWriteFile } from '@/lib/api'
+import { createArtifactVersion, fetchArtifact, fetchArtifactVersions, workspaceReadFile, workspaceWriteFile } from '@/lib/api'
 import { artifactPreviewPath, buildWebAppHtml } from '@/lib/artifact-preview'
 import { normalizeLang } from '@/lib/highlighter'
 import { cn } from '@/lib/utils'
@@ -63,6 +64,8 @@ export function ArtifactPreviewPanel({ fullHeight = false, readOnly = false }: A
 
   const [versions, setVersions] = useState<ArtifactRow[] | null>(null)
   const [versionsLoading, setVersionsLoading] = useState(false)
+  const [artifactMissing, setArtifactMissing] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const [showVersions, setShowVersions] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
   const [compareBaseId, setCompareBaseId] = useState<string | null>(null)
@@ -87,6 +90,27 @@ export function ArtifactPreviewPanel({ fullHeight = false, readOnly = false }: A
       setIsFullscreen(false)
     }
   }, [id, artifact])
+
+  // id 已有但 artifact 还没进 store 时按需拉取（只读演示没有这条路由，直接判为缺失）
+  useEffect(() => {
+    setArtifactMissing(false)
+    if (!id || artifact || readOnly) {
+      if (!id || artifact) return
+      setArtifactMissing(true)
+      return
+    }
+    let cancelled = false
+    fetchArtifact(id)
+      .then((row) => {
+        if (!cancelled) upsertArtifact(row)
+      })
+      .catch(() => {
+        if (!cancelled) setArtifactMissing(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, artifact, readOnly, upsertArtifact, retryKey])
 
   // 切到新 artifact 时拉它的版本链（只读模式跳过：演示产物没有版本链，也不发请求）
   useEffect(() => {
@@ -146,19 +170,63 @@ export function ArtifactPreviewPanel({ fullHeight = false, readOnly = false }: A
     [id, upsertArtifact, openPreview],
   )
 
-  if (!id || !artifact) return null
+  if (!id) return null
+
+  // 预览 / 加载 / 空态三态：id 已有但 artifact 未就绪时先给加载态，
+  // 拉取失败（已删除 / 不存在 / 网络异常）给空态 + 关闭入口，非只读时可重试拉取，不留空白面板。
+  // 面板开合：打开时从右侧轻微滑入 + 淡入；关闭由父级 conversation-workspace 的
+  // AnimatePresence 做退出动画后再卸载。
+  if (!artifact) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <motion.aside
+          className="agenthub-card-container flex min-w-0 flex-1 shrink flex-col items-center justify-center gap-3 overflow-hidden p-6 text-center max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:min-w-0 max-md:rounded-none"
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+        >
+          {artifactMissing ? (
+            <>
+              <AlertCircle className="size-6 text-muted-foreground" />
+              <div>
+                <div className="text-sm font-medium">产物不存在或已删除</div>
+                <div className="mt-1 font-mono text-3xs text-muted-foreground">{id}</div>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={close}>
+                关闭预览
+              </Button>
+              {!readOnly && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setRetryKey((k) => k + 1)}>
+                  重试
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              <div className="text-sm text-muted-foreground">产物加载中…</div>
+            </>
+          )}
+        </motion.aside>
+      </MotionConfig>
+    )
+  }
 
   const versionCount = versions?.length ?? 0
   const hasMultiple = versionCount > 1
 
   return (
-    <aside
-      className={cn(
-        'flex min-w-0 flex-1 shrink flex-col overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm shadow-slate-200/70 max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:min-w-0 max-md:rounded-none xl:min-w-[520px]',
-        fullHeight && 'h-full self-stretch',
-        isFullscreen && 'fixed inset-0 z-50 !max-w-none !w-full !rounded-none !m-0',
-      )}
-    >
+    <MotionConfig reducedMotion="user">
+      <motion.aside
+        className={cn(
+          'agenthub-card-container flex min-w-0 flex-1 shrink flex-col overflow-hidden max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full max-md:min-w-0 max-md:rounded-none',
+          fullHeight && 'h-full self-stretch',
+          isFullscreen && 'fixed inset-0 z-50 !max-w-none !w-full !rounded-none !m-0',
+        )}
+        initial={{ opacity: 0, x: 16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
       <header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <TypeIcon type={artifact.type} />
@@ -302,7 +370,8 @@ export function ArtifactPreviewPanel({ fullHeight = false, readOnly = false }: A
       ) : (
         <ArtifactView artifact={artifact} onSaveVersion={handleSaveVersion} readOnly={readOnly} />
       )}
-    </aside>
+      </motion.aside>
+    </MotionConfig>
   )
 }
 
@@ -461,7 +530,7 @@ function WebAppView({
               ? { srcDoc: buildWebAppHtml(content) }
               : { src: artifactPreviewPath(artifactId) })}
             sandbox="allow-scripts"
-            className="size-full border-0 bg-white"
+            className="size-full border-0 bg-[var(--agenthub-surface)]"
             title="Artifact preview"
           />
         )}
@@ -701,7 +770,7 @@ function MermaidPreview({ content }: { content: Extract<ArtifactContent, { type:
   const diagramWidth = Math.round(920 * zoom)
 
   return (
-    <div className="relative size-full bg-zinc-50 dark:bg-zinc-950">
+    <div className="relative size-full bg-[var(--agenthub-surface-muted)] dark:bg-[var(--agenthub-surface-muted)]">
       <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-md border bg-background/95 p-1 shadow-sm backdrop-blur">
         <Button
           type="button"
@@ -740,7 +809,7 @@ function MermaidPreview({ content }: { content: Extract<ArtifactContent, { type:
           style={{ minWidth: `${diagramWidth + 96}px` }}
         >
           <div
-            className="overflow-auto rounded-md bg-white p-4 shadow-sm dark:bg-zinc-900 [&_svg]:h-auto [&_svg]:w-full [&_svg]:max-w-none"
+            className="overflow-auto rounded-md bg-[var(--agenthub-surface)] p-4 shadow-sm dark:bg-[var(--agenthub-surface)] [&_svg]:h-auto [&_svg]:w-full [&_svg]:max-w-none"
             style={{
               width: `${diagramWidth}px`,
               minWidth: `${diagramWidth}px`,
@@ -849,7 +918,7 @@ function SlideDeckView({
       </div>
       <div className="min-h-0 flex-1">
         {view === 'render' ? (
-          <div ref={containerRef} className="size-full bg-zinc-100 dark:bg-zinc-900">
+          <div ref={containerRef} className="size-full bg-[var(--agenthub-surface-muted)] dark:bg-[var(--agenthub-surface)]">
             {current ? (
               <SlideView slide={current} theme={deck.theme} />
             ) : (
@@ -1245,14 +1314,14 @@ function ImageView({ content }: { content: Extract<ArtifactContent, { type: 'ima
 
   if (!active) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-zinc-100 p-4 text-sm text-zinc-500 dark:bg-zinc-900">
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--agenthub-surface-muted)] p-4 text-sm text-zinc-500 dark:bg-[var(--agenthub-surface)]">
         图片内容为空
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-zinc-100 dark:bg-zinc-900">
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--agenthub-surface-muted)] dark:bg-[var(--agenthub-surface)]">
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -1262,7 +1331,7 @@ function ImageView({ content }: { content: Extract<ArtifactContent, { type: 'ima
         />
       </div>
       {images.length > 1 && (
-        <div className="shrink-0 border-t border-zinc-200 bg-white/80 px-3 py-2 dark:border-white/10 dark:bg-neutral-950/60">
+        <div className="shrink-0 border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/80 px-3 py-2 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]/60">
           <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
             <span>共 {images.length} 张</span>
             <span className="tabular-nums">{index + 1} / {images.length}</span>
@@ -1275,10 +1344,10 @@ function ImageView({ content }: { content: Extract<ArtifactContent, { type: 'ima
                 onClick={() => setSelected(i)}
                 title={image.title ?? image.alt ?? `第 ${i + 1} 张`}
                 className={cn(
-                  'size-14 shrink-0 overflow-hidden rounded border bg-zinc-100 transition dark:bg-zinc-800',
+                  'size-14 shrink-0 overflow-hidden rounded border bg-[var(--agenthub-surface-muted)] transition dark:bg-[var(--agenthub-surface-raised)]',
                   i === index
                     ? 'border-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent)]'
-                    : 'border-zinc-200 hover:border-zinc-400 dark:border-white/10',
+                    : 'border-[var(--agenthub-border)] hover:border-zinc-400 dark:border-[var(--agenthub-border)]',
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -374,6 +374,25 @@ export function readDeploymentManifest(
   }
 }
 
+/**
+ * 列出本地已发布的部署（按创建时间倒序）。
+ *
+ * 数据源是磁盘：`<dataDir>/deployments/<dep_id>/.agenthub/manifest.json`，
+ * 没有 DB 表。缺失目录、非部署目录或损坏的 manifest 直接跳过，不抛错。
+ */
+export function listDeployments(options: DeploymentOptions = {}): DeploymentManifest[] {
+  const root = getDeploymentsRoot(options)
+  if (!existsSync(root)) return []
+  const out: DeploymentManifest[] = []
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !isDeploymentId(entry.name)) continue
+    const manifest = readDeploymentManifest(entry.name, options)
+    if (manifest) out.push(manifest)
+  }
+  out.sort((a, b) => b.createdAt - a.createdAt)
+  return out
+}
+
 export function normalizeDeploymentFilePath(filePath: string): string | null {
   if (filePath.includes('\0')) return null
   const raw = filePath.trim().replace(/\\/g, '/')

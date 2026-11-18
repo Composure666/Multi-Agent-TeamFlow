@@ -44,15 +44,17 @@ export default function ArtifactCodeEditor({
   const extensions = useMemo(() => pickLanguage(filename, type), [filename, type])
 
   return (
-    <CodeMirror
-      value={value}
-      onChange={onChange}
-      extensions={extensions}
-      theme={resolvedTheme === 'dark' ? githubDark : githubLight}
-      readOnly={readOnly}
-      height="100%"
-      style={{ height: '100%', fontSize: 14 }}
-      className="size-full"
-    />
+    <div className="size-full overflow-hidden border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]">
+      <CodeMirror
+        value={value}
+        onChange={onChange}
+        extensions={extensions}
+        theme={resolvedTheme === 'dark' ? githubDark : githubLight}
+        readOnly={readOnly}
+        height="100%"
+        style={{ height: '100%', fontSize: 14 }}
+        className="size-full"
+      />
+    </div>
   )
 }

@@ -1,18 +1,14 @@
 import type { Metadata } from 'next'
 
-import { HomeContact } from '@/components/home/home-contact'
 import { HomeDownload } from '@/components/home/home-download'
-import { HomeGuide } from '@/components/home/home-guide'
 import { HomeHeader } from '@/components/home/home-header'
 import {
-  HomeAgents,
   HomeArchitecture,
   HomeFeatures,
   HomeFooter,
   HomeHero,
-  HomeQuickstart,
+  HomeProof,
   HomeScreenshot,
-  HomeStack,
   HomeWorkflow,
 } from '@/components/home/home-sections'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
@@ -73,12 +69,8 @@ export default async function HomePage() {
         <HomeWorkflow />
         <HomeArchitecture />
         <HomeFeatures />
-        <HomeAgents />
-        <HomeStack />
-        <HomeQuickstart />
+        <HomeProof />
         <HomeDownload download={desktopDownload} localInstallerPath={localInstallerPath} />
-        <HomeGuide />
-        <HomeContact />
       </main>
 
       <HomeFooter />

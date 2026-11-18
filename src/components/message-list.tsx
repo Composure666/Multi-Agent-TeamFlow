@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { motion, MotionConfig } from 'motion/react'
 
 import { MessageItem } from '@/components/message-item'
 import { Button } from '@/components/ui/button'
@@ -226,27 +227,37 @@ export function MessageList({
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
-      <div className="agenthub-motion-enter space-y-4 p-4">
-        {hasMore && (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loadingOlder}
-              onClick={() => void loadOlderMessages()}
+    <MotionConfig reducedMotion="user">
+      <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
+        <div className="agenthub-motion-enter space-y-4 p-4">
+          {hasMore && (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loadingOlder}
+                onClick={() => void loadOlderMessages()}
+              >
+                {loadingOlder && <Loader2 className="size-3.5 animate-spin" />}
+                加载更早消息
+              </Button>
+            </div>
+          )}
+          {/* 消息入场：新消息挂载时轻微上移 + 淡入；流式更新只改内容不重挂载，不会反复播。 */}
+          {messages.map((m) => (
+            <motion.div
+              key={m.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
             >
-              {loadingOlder && <Loader2 className="size-3.5 animate-spin" />}
-              加载更早消息
-            </Button>
-          </div>
-        )}
-        {messages.map((m) => (
-          <MessageItem key={m.id} message={m} readOnly={readOnly} />
-        ))}
-      </div>
-    </ScrollArea>
+              <MessageItem message={m} readOnly={readOnly} />
+            </motion.div>
+          ))}
+        </div>
+      </ScrollArea>
+    </MotionConfig>
   )
 }
 

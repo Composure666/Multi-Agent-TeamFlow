@@ -3,6 +3,7 @@
 import { CornerDownLeft, Loader2, Search, SearchX, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useSearchStore } from '@/stores/search-store'
 
@@ -73,7 +74,7 @@ export function GlobalSearch() {
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) closeSearch() }}>
       <DialogContent
         showCloseButton={false}
-        className="top-[12%] max-w-2xl translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-2xl"
+        className="top-[12%] max-w-2xl translate-y-0 gap-0 overflow-hidden rounded-xl border-[var(--agenthub-border)] p-0 shadow-2xl"
       >
         <DialogTitle className="sr-only">搜索消息</DialogTitle>
 
@@ -112,6 +113,25 @@ export function GlobalSearch() {
               <SearchX className="size-7 text-muted-foreground/70" />
               <p className="text-sm font-medium text-foreground">搜索失败</p>
               <p className="text-xs text-muted-foreground">{error}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={() => {
+                  setQuery('')
+                  inputRef.current?.focus()
+                }}
+              >
+                清空搜索
+              </Button>
+            </div>
+          )}
+
+          {loading && !error && !tooShort && hits.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+              <Loader2 className="size-7 animate-spin text-muted-foreground/70" />
+              <p className="text-sm font-medium text-foreground">正在搜索…</p>
             </div>
           )}
 

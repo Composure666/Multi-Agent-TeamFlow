@@ -19,8 +19,8 @@ export function StatCard({
   label,
   value,
   trend,
-  iconBg = 'bg-blue-500/10',
-  iconColor = 'text-blue-500',
+  iconBg = 'bg-[var(--agenthub-accent-soft)]',
+  iconColor = 'text-[var(--agenthub-accent)]',
   sparkline,
   className,
 }: StatCardProps) {
@@ -34,12 +34,12 @@ export function StatCard({
   const trendArrow = trend === undefined ? '—' : trend > 0 ? `↑ ${Math.abs(trend)}%` : trend < 0 ? `↓ ${Math.abs(trend)}%` : '—'
 
   return (
-    <div className={cn('flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm', className)}>
+    <div className={cn('agenthub-card flex items-center gap-3 px-4 py-3', className)}>
       <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', iconBg)}>
         <Icon className={cn('size-5', iconColor)} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-sm text-muted-foreground">{label}</div>
         <div className="flex items-baseline gap-2">
           <span className="text-xl font-semibold tabular-nums">{value}</span>
           {sparkline ? (
@@ -74,7 +74,7 @@ function Sparkline({ data }: { data: number[] }) {
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="text-blue-400"
+        className="text-[var(--agenthub-accent)]"
       />
     </svg>
   )

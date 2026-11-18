@@ -194,10 +194,10 @@ function QuotedSelectionCard({ source, artifactId, filePath, text }: QuotedSegme
   const lines = text.split('\n')
   const collapsed = lines.length > 4
   return (
-    <div className="overflow-hidden rounded-md border border-[#3370FF]/30 bg-[#3370FF]/5 text-xs">
-      <div className="flex items-center gap-1.5 border-b border-[#3370FF]/20 bg-[#3370FF]/10 px-2.5 py-1 text-xs">
-        <Sparkles className="size-3 text-[#3370FF]" />
-        <span className="font-medium text-[#3370FF]">引用</span>
+    <div className="overflow-hidden rounded-md border border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-xs">
+      <div className="flex items-center gap-1.5 border-b border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] px-2.5 py-1 text-xs">
+        <Sparkles className="size-3 text-[var(--agenthub-accent)]" />
+        <span className="font-medium text-[var(--agenthub-accent)]">引用</span>
         {source && (
           <>
             <span className="text-muted-foreground">·</span>
@@ -239,13 +239,17 @@ function ThinkingPart({ content }: { content: string }) {
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
-      className="group flex w-full items-start gap-2 rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 text-left text-xs text-muted-foreground transition hover:border-muted-foreground/50"
+      className="group relative flex w-full items-start gap-2 overflow-hidden rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 text-left text-xs text-muted-foreground transition hover:border-muted-foreground/50"
     >
+      <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--agenthub-accent)]" />
       <ChevronRight
         className={cn('mt-0.5 size-3.5 shrink-0 transition-transform', open && 'rotate-90')}
       />
       <div className="flex-1">
-        <div className="font-medium uppercase tracking-wide text-muted-foreground/70">思考</div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--agenthub-accent-soft)] px-2 py-0.5 text-3xs font-medium text-[var(--agenthub-accent)]">
+          <Sparkles className="size-3" />
+          思考
+        </span>
         <div
           className={cn(
             'mt-1 whitespace-pre-wrap italic leading-relaxed',
@@ -312,6 +316,13 @@ function ToolUsePart({
     error: '失败',
   }[state]
 
+  // 左侧标记线：状态只靠底色深浅不够明显，用一条状态色竖线 + 图标 + 文字标签三重区分。
+  const marker = {
+    running: 'bg-amber-500',
+    success: 'bg-emerald-500',
+    error: 'bg-red-500',
+  }[state]
+
   const toggleDetails = () => setShowDetails((v) => !v)
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return
@@ -330,10 +341,11 @@ function ToolUsePart({
       onClick={toggleDetails}
       onKeyDown={handleKeyDown}
       className={cn(
-        'w-full cursor-pointer overflow-hidden py-0 transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+        'relative w-full cursor-pointer overflow-hidden py-0 transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
         styles,
       )}
     >
+      <span aria-hidden className={cn('absolute inset-y-2 left-0 z-10 w-[3px] rounded-r-full', marker)} />
       <CardContent className="min-w-0 space-y-1.5 px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2 text-xs">
           {state === 'running' && <Loader2 className={cn('size-3.5 animate-spin', iconColor)} />}
@@ -467,7 +479,7 @@ function TerminalPreviewBlock({
         'min-w-0 overflow-hidden rounded-md border bg-zinc-950 text-zinc-100 shadow-sm',
         tone === 'error'
           ? 'border-red-700/70'
-          : 'border-zinc-200 dark:border-zinc-800',
+          : 'border-[var(--agenthub-border)] dark:border-zinc-800',
       )}
     >
       <div className="flex min-w-0 items-center gap-2 border-b border-zinc-800 px-2.5 py-1.5 text-3xs text-zinc-400">
@@ -600,8 +612,16 @@ function ToolCluster({
     error: 'border-red-200 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/10',
   }[overallState]
 
+  // 左侧标记线：与单个 ToolUsePart 同一套状态色竖线。
+  const marker = {
+    running: 'bg-amber-500',
+    success: 'bg-emerald-500',
+    error: 'bg-red-500',
+  }[overallState]
+
   return (
-    <Card className={cn('w-full py-0', styles)}>
+    <Card className={cn('relative w-full py-0', styles)}>
+      <span aria-hidden className={cn('absolute inset-y-2 left-0 z-10 w-[3px] rounded-r-full', marker)} />
       <CardContent className="space-y-1 px-3 py-1.5">
         <button
           type="button"
@@ -711,8 +731,8 @@ function ArtifactRefPart({ artifactId }: { artifactId: string }) {
 
   if (status === 'deleted' && !artifact) {
     return (
-      <Card className="border-dashed bg-muted/40">
-        <CardContent className="flex items-center gap-2 px-3 py-2">
+      <div className="agenthub-card border-dashed bg-muted/40 px-3 py-2">
+        <div className="flex items-center gap-2">
           <XCircle className="size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-muted-foreground line-through">
@@ -720,35 +740,35 @@ function ArtifactRefPart({ artifactId }: { artifactId: string }) {
             </div>
             <div className="font-mono text-3xs text-muted-foreground">{artifactId}</div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   if (!artifact) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+      <div className="agenthub-card border-dashed px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           <span>产物加载中…</span>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   const isWebApp = artifact.type === 'web_app'
 
   return (
-    <Card
+    <div
       role="button"
       tabIndex={0}
       onClick={() => openPreview(artifact.id)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') openPreview(artifact.id)
       }}
-      className="cursor-pointer transition hover:border-primary/40 hover:shadow-sm"
+      className="agenthub-card-interactive cursor-pointer"
     >
-      <CardContent className="flex items-start gap-3 px-3 py-2">
+      <div className="flex items-start gap-3 px-3 py-2">
         <ArtifactIcon type={artifact.type} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{artifact.title}</div>
@@ -778,8 +798,8 @@ function ArtifactRefPart({ artifactId }: { artifactId: string }) {
             </IconAction>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -820,10 +840,10 @@ function DeployCandidatesPart({
   }
 
   return (
-    <Card className="border-sky-200 bg-sky-50/50 dark:border-sky-900/50 dark:bg-sky-950/20">
+    <Card className="border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]">
       <CardContent className="space-y-2 px-3 py-2">
         <div className="flex items-center gap-2">
-          <Rocket className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />
+          <Rocket className="size-4 shrink-0 text-[var(--agenthub-accent)]" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">选择要部署的产物</div>
             <div className="text-xs text-muted-foreground">
@@ -903,13 +923,13 @@ function DeployStatusPart({
     <Card
       className={cn(
         ready
-          ? 'border-sky-200 bg-sky-50/50 dark:border-sky-900/50 dark:bg-sky-950/20'
+          ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)]'
           : 'border-red-200 bg-red-50/50 dark:border-red-900/50 dark:bg-red-950/20',
       )}
     >
       <CardContent className="flex items-start gap-3 px-3 py-2">
         {ready ? (
-          <Rocket className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-400" />
+          <Rocket className="mt-0.5 size-4 shrink-0 text-[var(--agenthub-accent)]" />
         ) : (
           <XCircle className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
         )}
@@ -931,7 +951,7 @@ function DeployStatusPart({
           </div>
           {ready ? (
             <div className="mt-1 space-y-0.5">
-              <div className="truncate font-mono text-xs text-sky-700 dark:text-sky-300">
+              <div className="truncate font-mono text-xs text-[var(--agenthub-accent)]">
                 {previewUrl}
               </div>
               {fallbackPreviewUrl && fallbackPreviewUrl !== previewUrl && (
