@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { useSearchStore } from '@/stores/search-store'
 
 import { SearchResultItem } from './search-result-item'
@@ -26,6 +27,7 @@ export function GlobalSearch() {
   const hits = useSearchStore((s) => s.hits)
   const loading = useSearchStore((s) => s.loading)
   const error = useSearchStore((s) => s.error)
+  const runSearch = useSearchStore((s) => s.runSearch)
   const jumpToHit = useSearchStore((s) => s.jumpToHit)
 
   const [active, setActive] = useState(0)
@@ -74,7 +76,7 @@ export function GlobalSearch() {
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) closeSearch() }}>
       <DialogContent
         showCloseButton={false}
-        className="top-[12%] max-w-2xl translate-y-0 gap-0 overflow-hidden rounded-xl border-[var(--agenthub-border)] p-0 shadow-2xl"
+        className={`top-[12%] ${DIALOG_SIZE_CLASS.md} translate-y-0 gap-0 overflow-hidden rounded-xl border-[var(--agenthub-border)] p-0 shadow-2xl`}
       >
         <DialogTitle className="sr-only">搜索消息</DialogTitle>
 
@@ -119,11 +121,11 @@ export function GlobalSearch() {
                 size="sm"
                 className="mt-1"
                 onClick={() => {
-                  setQuery('')
+                  void runSearch()
                   inputRef.current?.focus()
                 }}
               >
-                清空搜索
+                重新搜索
               </Button>
             </div>
           )}

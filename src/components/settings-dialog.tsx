@@ -16,7 +16,6 @@ import { AlertTriangle,
   Palette,
   Power,
   RotateCw,
-  Settings as SettingsIcon,
   Smartphone,
   Sun,
   Layers, ShieldCheck, BookOpen } from 'lucide-react'
@@ -49,7 +48,6 @@ import {
   type OssSettingsView,
   type SiteLinksView,
 } from '@/lib/api'
-import { subscribeUiCommand } from '@/lib/ui-command-events'
 import { THEMES, type ThemeId, type ThemeMeta } from '@/lib/themes'
 import { useThemeChoice } from '@/components/theme-provider'
 import { ProvidersPanel } from '@/components/settings/providers-panel'
@@ -474,24 +472,30 @@ export function SettingsDialog({
                   </button>
                 )
               })}
-              {tab === 'keys' && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger
-                      type="button"
-                      className="hidden shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-muted-foreground transition hover:bg-accent hover:text-foreground md:flex"
-                      aria-label="供应商 Key 说明"
-                    >
-                      <Info className="size-4 shrink-0" />
-                      <span className="truncate">Key 说明</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" align="start" className="max-w-72 whitespace-normal text-left leading-5">
-                      填写常用供应商的 API Key。填写后将覆盖系统环境变量；留空则继续使用环境变量（如有）。
-                      Agent 设置中单独配置的 Key 仍然优先级最高。
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              {/* Key 说明：固定导航项（不随 Tab 出现/消失），点它跳到「供应商」分区；说明内容见 Tooltip。 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    type="button"
+                    onClick={() => setTab('keys')}
+                    aria-current={tab === 'keys' ? 'true' : undefined}
+                    className={cn(
+                      'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition md:w-full',
+                      tab === 'keys'
+                        ? 'bg-[var(--agenthub-accent-soft)] font-medium text-[var(--agenthub-accent)]'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                    )}
+                    aria-label="供应商 Key 说明"
+                  >
+                    <Info className="size-4 shrink-0" />
+                    <span className="truncate">Key 说明</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" align="start" className="max-w-72 whitespace-normal text-left leading-5">
+                    填写常用供应商的 API Key。填写后将覆盖系统环境变量；留空则继续使用环境变量（如有）。
+                    Agent 设置中单独配置的 Key 仍然优先级最高。
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </nav>
 
             {/* ─── 右侧内容：每页一个主任务，分组卡片 ─── */}
@@ -654,11 +658,11 @@ function ThemeSwatches({ theme, className }: { theme: ThemeMeta; className?: str
 /** 主题卡文案（proposal.md A 节）：气质一句 + 适合场景一句；注册表只存色值，文案归 UI。 */
 const THEME_COPY: Record<ThemeId, { description: string; suitable: string }> = {
   ink: { description: '东方文人 · 宣纸底 · 朱砂印', suitable: '答辩投屏、工作台、官网成套出现' },
-  pine: { description: '沉稳 · 护眼 · 玉色点缀', suitable: '日常高频工作台、简历项目截图' },
   terra: { description: '暖 · 手作感 · 内容气息', suitable: '官网首页、演示案例页、对外分享截图' },
-  graphite: { description: '深色优先 · 工程师气质 · 高对比', suitable: '深色模式主场、答辩投屏、技术向受众' },
   wine: { description: '高级感 · 象牙白 · 古铜', suitable: '官网和作品集展示页' },
-  obsidian: { description: '黑金 · 发布会气质 · 冲击力', suitable: '答辩开场页、官网首屏、演示高潮段' },
+  'white-graphite': { description: '纯白底 · 石墨黑 · 琥珀点缀', suitable: '日常工作台、答辩投屏、简历截图' },
+  'white-blue': { description: '纯白底 · 工程蓝 · 品牌金', suitable: '对外演示、给不熟悉产品的评委看' },
+  'white-ink': { description: '纯白底 · 墨色 · 朱砂印', suitable: '答辩现场、和 PPT 同框出现' },
 }
 
 const MODE_SEGMENTS = [
@@ -676,7 +680,7 @@ function AppearanceSettings() {
     <div className="flex flex-col gap-4">
       <section>
         <h3 className="text-sm font-medium">主题风格</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">六套主题随点随换，刷新后保持；默认石墨琥珀。</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">六套主题随点随换，刷新后保持；默认白·石墨。</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {THEMES.map((item) => {
             const selected = item.id === theme
@@ -1030,33 +1034,6 @@ function hintIcon(kind: ConnectionHint['kind']) {
     case 'local':
       return <Monitor className="size-4 flex-none text-muted-foreground" />
   }
-}
-
-/** 设置 button 入口，挂在 Sidebar header。 */
-export function SettingsButton() {
-  const [open, setOpen] = useState(false)
-
-  useEffect(() => {
-    return subscribeUiCommand((command) => {
-      if (command === 'open-settings') setOpen(true)
-    })
-  }, [])
-
-  return (
-    <>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="group"
-        onClick={() => setOpen(true)}
-        title="API 设置"
-        aria-label="API 设置"
-      >
-        <SettingsIcon className="size-4 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out motion-safe:group-hover:rotate-45 motion-safe:group-active:scale-90" />
-      </Button>
-      <SettingsDialog open={open} onOpenChange={setOpen} />
-    </>
-  )
 }
 
 function rowToForm(row: AppSettingsRow): SettingsForm {

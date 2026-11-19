@@ -404,11 +404,15 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   const workerColWidth = 360
   const workerRowHeight = 380
   const workerGridTopY = 600
-  const toolGridTopGap = 260
+  // 纵向三处留白（batch4 W4：340/260/300 → 240/200/220）都是「上一行底边到下一行
+  // 顶边」的纯空白：行底边已按 estimateNodeHeight 的保守高度算过，收窄只减空白，
+  // 不会让卡片压盖。workerRowHeight 380（行内留白 60）与 toolRowHeight 260
+  //（行内留白 40）已够紧，runRowOffsetY 260（消息卡片底边到 Run 顶边 60）也不动。
+  const toolGridTopGap = 200
   const toolColWidth = 350
   const toolRowHeight = 260
   const toolMaxCols = 4
-  const summaryGap = 300
+  const summaryGap = 220
   const hasOutputEvidence = detail.outputMessages.length > 0
     || projectAgentRunArtifacts(detail).length > 0
     || projectAgentRunTaskResults(toolTrace).length > 0
@@ -723,7 +727,9 @@ export function buildAgentRunSessionDebuggerGraph({
   const expandedRunEdges = expandedRunGraph?.edges ?? []
   const nodes: AgentRunDebuggerNode[] = []
   const edges: Edge[] = []
-  const rowGap = 340
+  // 会话图行距（batch4 W4：340 → 240）。rowBottomY 已是本行实际最低点
+  //（展开子图的 extent 也算在内），rowGap 只是行与行之间的纯空白，收窄不压盖。
+  const rowGap = 240
   // 同一行内多张 Run 卡片并排的列距（卡片宽 310 → 留 90 余量，避免卡片贴在一起）。
   const runColGap = 400
   // 190 会压住消息卡片（卡片本身约 200 高）—— 抬到 260，让连线也留出呼吸空间。

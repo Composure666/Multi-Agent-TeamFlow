@@ -306,10 +306,10 @@ AgentRunner 在普通 run 完成或 dispatch 子任务完成后读取 `dispatch-
 
 源：`GET /api/artifacts` → `listArtifacts()`
 
-`ArtifactLibrary` 组件（在 sidebar 第三个 tab）：
-- 列出全部产物按 `createdAt` 降序
+`ArtifactLibrary` 组件（挂在会话视图「本会话产物库」抽屉内，`chat-panel.tsx:249`；原 sidebar 第三个 tab 已随 `sidebar.tsx` 于 2026-11-18 删除）：
+- 列出产物按 `createdAt` 降序（抽屉传入当前 `conversationId` 时只列本会话的；不传则列全部）
 - 一次性 JOIN 出 `conversationTitle`（避免 N+1）
-- 点击进入对应会话并打开预览面板
+- 点击拉取完整内容并打开右侧预览面板（不切会话）
 - 删除按钮 → DELETE API
 
 ---

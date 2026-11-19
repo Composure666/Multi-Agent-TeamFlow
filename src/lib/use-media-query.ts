@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react'
 /** Tailwind `xl` 断点（≥1280px）的反面：详情侧栏只在 xl 以上以内联侧栏呈现，低于它改走 Dialog。 */
 export const BELOW_XL_MEDIA_QUERY = '(max-width: 1279px)'
 
+/** Tailwind `lg` 断点（≥1024px）的反面：经验侧栏只在 lg 以上以内联侧栏呈现，低于它改走 Dialog。 */
+export const BELOW_LG_MEDIA_QUERY = '(max-width: 1023px)'
+
 /**
  * 纯函数：当前是否命中 media query。
  * - SSR / 无 window / 无 matchMedia 时返回 false（不抛错），与 hook 的服务端初值一致。
@@ -44,4 +47,9 @@ export function useMediaQuery(query: string): boolean {
 /** 是否低于 xl 断点（<1280px）：详情侧栏改走 Dialog 的判断条件。 */
 export function useIsBelowXl(): boolean {
   return useMediaQuery(BELOW_XL_MEDIA_QUERY)
+}
+
+/** 是否低于 lg 断点（<1024px）：经验侧栏改走 Dialog 的判断条件。 */
+export function useIsBelowLg(): boolean {
+  return useMediaQuery(BELOW_LG_MEDIA_QUERY)
 }

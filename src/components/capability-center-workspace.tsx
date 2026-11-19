@@ -627,7 +627,7 @@ export function CapabilityCenterWorkspace() {
       {error && <InlineError message={error} onRetry={() => void load()} />}
 
       {/* KPI 卡片区 */}
-      <section className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {kpis.map((kpi) => (
           <KpiCard key={kpi.id} {...kpi} />
         ))}
@@ -680,7 +680,7 @@ export function CapabilityCenterWorkspace() {
             </div>
           </div>
 
-          {/* Tabs + 筛选 + 排序 */}
+          {/* 分类筛选：accent 胶囊（与信息中心 / 自动化同款） */}
           <div className="flex flex-col gap-3 border-b border-[var(--agenthub-border)] px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-1">
               {TAB_ITEMS.map((tab) => (
@@ -688,19 +688,20 @@ export function CapabilityCenterWorkspace() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
+                  aria-pressed={activeTab === tab.id}
                   className={cn(
-                    'inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition',
+                    'inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition',
                     activeTab === tab.id
-                      ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                      : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+                      ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
+                      : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5',
                   )}
                 >
                   {tab.label}
                   <span
                     className={cn(
-                      'inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-xs font-semibold',
+                      'rounded-full px-1.5 py-0.5 text-xs tabular-nums',
                       activeTab === tab.id
-                        ? 'bg-[var(--agenthub-surface)] text-[var(--agenthub-accent)]'
+                        ? 'bg-white/15 dark:bg-black/15'
                         : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
                     )}
                   >
@@ -810,7 +811,7 @@ export function CapabilityCenterWorkspace() {
               >
                 ‹
               </button>
-              <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-semibold text-white">
+              <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-semibold text-[var(--primary-foreground)]">
                 {safePageIndex + 1} / {pageCount}
               </span>
               <button
@@ -1341,7 +1342,7 @@ function StatusPill({ enabled }: { enabled: boolean }) {
 function AgentAvatar({ name, tone }: { name: string; tone: 'blue' | 'violet' }) {
   const styles =
     tone === 'blue'
-      ? 'bg-[var(--agenthub-accent)] text-white'
+      ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
       : 'bg-violet-500 text-white'
   return (
     <span

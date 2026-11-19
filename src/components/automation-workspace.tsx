@@ -727,7 +727,7 @@ function AutomationCard({
               onRun(task.id)
             }}
             disabled={task.statusTone === 'running'}
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-medium text-[var(--primary-foreground)] shadow-sm transition hover:opacity-90 disabled:opacity-60"
             title="立即运行"
           >
             <Play className="size-3" />
@@ -820,7 +820,7 @@ function AutomationRow({
             onRun(task.id)
           }}
           disabled={task.statusTone === 'running'}
-          className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60"
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--agenthub-accent)] px-2 text-xs font-medium text-[var(--primary-foreground)] shadow-sm transition hover:opacity-90 disabled:opacity-60"
           title="立即运行"
         >
           <Play className="size-3" />
@@ -1690,28 +1690,31 @@ function TaskFormDialog({
                 </label>
               </div>
 
-              {/* weekly 额外选星期 */}
+              {/* weekly 额外选星期：分段控件（与 Agent 库侧栏同款） */}
               {form.scheduleType === 'weekly' && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-medium text-slate-700 dark:text-slate-300">星期</span>
-                  {WEEKDAY_FORM_OPTIONS.map((option) => {
-                    const active = (form.dayOfWeek || '1') === option.value
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => onFormChange({ dayOfWeek: option.value })}
-                        className={cn(
-                          'flex size-7 items-center justify-center rounded-md border text-xs font-medium transition',
-                          active
-                            ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white shadow-sm'
-                            : 'border-[var(--agenthub-border)] text-slate-600 hover:border-[var(--agenthub-accent-border)] hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    )
-                  })}
+                  <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="星期选择">
+                    {WEEKDAY_FORM_OPTIONS.map((option) => {
+                      const active = (form.dayOfWeek || '1') === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => onFormChange({ dayOfWeek: option.value })}
+                          aria-pressed={active}
+                          className={cn(
+                            'flex size-7 items-center justify-center rounded text-xs font-medium transition',
+                            active
+                              ? 'bg-background text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -1809,6 +1812,7 @@ export function AutomationWorkspace({
   const [promptEnhanceError, setPromptEnhanceError] = useState<string | null>(null)
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<AutomationTaskView | null>(null)
   const [runHistory, setRunHistory] = useState<AutomationRunDetailItem[]>([])
   const [runHistoryLoading, setRunHistoryLoading] = useState(false)
   const [runsError, setRunsError] = useState<string | null>(null)
@@ -2104,22 +2108,19 @@ export function AutomationWorkspace({
     async (action: 'enable' | 'disable' | 'run' | 'delete', taskId?: string) => {
       const task = taskId ? tasks.find((t) => t.id === taskId) : selectedTask
       if (!task) return
+      // 删除先开确认 Dialog，实际删除由 confirmDeleteTask 在用户点「删除」后执行
+      if (action === 'delete') {
+        setDeleteTarget(task)
+        return
+      }
       setActionLoading(action)
       setError(null)
       try {
         if (action === 'enable') await enableAutomation(task.id)
         if (action === 'disable') await disableAutomation(task.id)
         if (action === 'run') await runAutomationNow(task.id)
-        if (action === 'delete') {
-          if (!window.confirm(`确认删除自动化任务「${task.title}」？`)) {
-            setActionLoading(null)
-            return
-          }
-          await deleteAutomation(task.id)
-          if (selectedTaskId === task.id) setSelectedTaskId(null)
-        }
         notifyAutomation({
-          title: action === 'run' ? '已提交自动化运行' : action === 'delete' ? '自动化任务已删除' : '自动化任务状态已更新',
+          title: action === 'run' ? '已提交自动化运行' : '自动化任务状态已更新',
           body:
             action === 'run'
               ? `任务「${task.title}」已开始执行。`
@@ -2137,8 +2138,33 @@ export function AutomationWorkspace({
         setActionLoading(null)
       }
     },
-    [tasks, selectedTask, selectedTaskId, notifyAutomation, loadDashboard, refreshConversations],
+    [tasks, selectedTask, notifyAutomation, loadDashboard, refreshConversations],
   )
+
+  const confirmDeleteTask = useCallback(async () => {
+    const task = deleteTarget
+    if (!task) return
+    setActionLoading('delete')
+    setError(null)
+    try {
+      await deleteAutomation(task.id)
+      if (selectedTaskId === task.id) setSelectedTaskId(null)
+      notifyAutomation({
+        title: '自动化任务已删除',
+        body: `任务「${task.title}」操作已完成。`,
+        level: 'success',
+        automationId: task.id,
+      })
+      await loadDashboard()
+      setDeleteTarget(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '自动化操作失败'
+      setError(message)
+      notifyAutomation({ title: '自动化操作失败', body: message, level: 'error', automationId: task.id, urgent: true })
+    } finally {
+      setActionLoading(null)
+    }
+  }, [deleteTarget, selectedTaskId, notifyAutomation, loadDashboard])
 
   const toggleFavorite = useCallback((id: string) => {
     setFavorites((current) => {
@@ -2161,7 +2187,7 @@ export function AutomationWorkspace({
 
   return (
     <PageShell className="flex flex-col" contentClassName="w-full max-w-none flex-1 min-h-0">
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden agenthub-card-container overflow-hidden">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden agenthub-card-container">
         {/* Header — 仍在卡片内，迁为 PageHeader 变体 */}
         <PageHeader
           title="自动化"
@@ -2189,7 +2215,7 @@ export function AutomationWorkspace({
             {error && <InlineError message={`自动化数据加载失败：${error}`} onRetry={() => void loadDashboard()} />}
 
             {/* Stat tiles — real KPI visuals: ratio bar / sparkline / ring */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
               <DashboardTile
                 stat={STAT_TILES[0]}
                 value={initialLoading ? '—' : `${statValues.enabled} / ${tasks.length}`}
@@ -2261,17 +2287,18 @@ export function AutomationWorkspace({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className="flex h-9 shrink-0 items-center rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-0.5 shadow-sm" role="group" aria-label="视图切换">
+                {/* 视图切换：分段控件（与 Agent 库侧栏同款） */}
+                <div className="flex h-9 shrink-0 items-center rounded-md bg-muted p-0.5" role="group" aria-label="视图切换">
                   <button
                     type="button"
                     onClick={() => setViewMode('grid')}
                     aria-label="网格视图"
                     title="网格视图"
                     className={cn(
-                      'flex size-7 items-center justify-center rounded-lg transition',
+                      'flex size-7 items-center justify-center rounded transition',
                       viewMode === 'grid'
-                        ? 'bg-[var(--agenthub-accent)] text-white'
-                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
                     <LayoutGrid className="size-3.5" />
@@ -2282,10 +2309,10 @@ export function AutomationWorkspace({
                     aria-label="列表视图"
                     title="列表视图"
                     className={cn(
-                      'flex size-7 items-center justify-center rounded-lg transition',
+                      'flex size-7 items-center justify-center rounded transition',
                       viewMode === 'list'
-                        ? 'bg-[var(--agenthub-accent)] text-white'
-                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
                     <List className="size-3.5" />
@@ -2304,7 +2331,7 @@ export function AutomationWorkspace({
                       className={cn(
                         'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition',
                         active
-                          ? 'bg-slate-900 text-white shadow-sm dark:bg-[var(--agenthub-surface)] dark:text-slate-900'
+                          ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
                           : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5',
                       )}
                     >
@@ -2312,7 +2339,7 @@ export function AutomationWorkspace({
                       <span
                         className={cn(
                           'inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums',
-                          active ? 'bg-white/20 text-white/20 dark:text-slate-900' : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
+                          active ? 'bg-white/15 dark:bg-black/15' : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400',
                         )}
                       >
                         {count}
@@ -2540,6 +2567,29 @@ export function AutomationWorkspace({
           nowMs={nowMs}
         />
       )}
+
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
+          <DialogHeader>
+            <DialogTitle>删除自动化任务</DialogTitle>
+            <DialogDescription>
+              确认删除自动化任务「{deleteTarget?.title}」？该操作不可恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              取消
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => void confirmDeleteTask()}
+              disabled={actionLoading === 'delete'}
+            >
+              {actionLoading === 'delete' ? '删除中...' : '删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <TaskFormDialog
         open={dialogMode !== null}

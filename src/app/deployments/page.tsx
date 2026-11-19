@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
+import { ArrowLeft } from 'lucide-react'
 import { DeploymentCopyButton } from '@/components/deployment-copy-button'
 import { buttonVariants } from '@/components/ui/button'
+import { EmptyState } from '@/components/workbench-primitives'
 import { cn } from '@/lib/utils'
 import { deploymentPreviewPath, listDeployments } from '@/server/deployment-service'
 
@@ -24,6 +27,13 @@ export default function DeploymentsPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-6">
+      <Link
+        href="/"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+      >
+        <ArrowLeft className="size-4" />
+        返回工作台
+      </Link>
       <h1 className="font-heading text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
         部署列表
       </h1>
@@ -32,11 +42,11 @@ export default function DeploymentsPage() {
       </p>
 
       {deployments.length === 0 ? (
-        <div className="mt-8 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] px-6 py-12 text-center">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">暂无已发布的部署</p>
-          <p className="text-xs leading-6 text-slate-500 dark:text-slate-400">
-            在工作台里把一个网页产物发布为部署后，会出现在这里。
-          </p>
+        <div className="mt-8">
+          <EmptyState
+            title="暂无已发布的部署"
+            description="在工作台里把一个网页产物发布为部署后，会出现在这里。"
+          />
         </div>
       ) : (
         <ul className="mt-8 flex flex-col gap-3">

@@ -332,8 +332,10 @@ function ImageGridItem({
             onToggleAttach()
           }}
           className={cn(
-            'rounded-full p-1 text-white transition',
-            attached ? 'bg-primary' : 'bg-black/60 hover:bg-primary',
+            'rounded-full p-1 transition',
+            attached
+              ? 'bg-primary text-[var(--primary-foreground)]'
+              : 'bg-black/60 text-white hover:bg-primary hover:text-[var(--primary-foreground)]',
           )}
           title={attached ? '已附加（再次点击移除）' : '附加到当前消息'}
         >

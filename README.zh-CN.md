@@ -61,7 +61,7 @@
 ### 界面截图
 
 <p align="center">
-  <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow 工作台界面截图：左侧为工作区导航与对话历史，右侧为新建任务入口与多 Agent 协作会话区" width="100%" />
+  <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow 工作台界面截图：左侧边栏为工作区导航与新建任务按钮；右侧为新建任务页——标题「一句话，组一支队开工」、大输入框与团队/产出/参考图/增强提示词 chips 及创建任务按钮，下方有建议入口与最近团队一行" width="100%" />
 </p>
 
 > 图片加载失败？该截图是仓库内的静态资源，可直接打开 [`docs/images/teamflow-preview.png`](./docs/images/teamflow-preview.png) 查看；也可以下载桌面端体验真实界面。

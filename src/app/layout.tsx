@@ -68,8 +68,8 @@ export default function RootLayout({
       <body className="min-h-screen overflow-x-hidden">
         {/*
           防闪烁内联脚本（theme-switcher）：在首次绘制前执行，从 localStorage 读
-          `agenthub-theme`，把 `data-theme` 写到 <html>。无值/非法值 → `graphite`（石墨琥珀）。
-          无 JS 时 `:root` 本身仍是 ink 浅色（无 JS 兜底不变）；有 JS 时脚本在首次绘制前已写 graphite，首屏仍正确；明暗仍走 next-themes 的 .dark。
+          `agenthub-theme`，把 `data-theme` 写到 <html>。无值/非法值 → `white-graphite`（白·石墨）。
+          无 JS 时 `:root` 本身已是白·石墨浅色（与默认主题一致的兜底）；有 JS 时脚本在首次绘制前已写 white-graphite，首屏仍正确；明暗仍走 next-themes 的 .dark。
           必须是 <body> 首位的原生 <script>（不是 next/script，也不用字面 <head> 元素）：
           实测 App Router 会丢弃字面 <head>；next/script beforeInteractive 则被 React 19
           序列化成 __next_s 载荷、由客户端运行时再插入——执行时机晚于解析期。
@@ -80,7 +80,7 @@ export default function RootLayout({
         <script
           id="agenthub-theme-init"
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("agenthub-theme");var v=["ink","pine","terra","graphite","wine","obsidian"].indexOf(t)>=0?t:"graphite";document.documentElement.setAttribute("data-theme",v)}catch(e){document.documentElement.setAttribute("data-theme","graphite")}`,
+            __html: `try{var t=localStorage.getItem("agenthub-theme");var v=["ink","terra","wine","white-graphite","white-blue","white-ink"].indexOf(t)>=0?t:"white-graphite";document.documentElement.setAttribute("data-theme",v)}catch(e){document.documentElement.setAttribute("data-theme","white-graphite")}`,
           }}
         />
         <ThemeProvider>

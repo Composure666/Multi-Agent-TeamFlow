@@ -61,7 +61,7 @@ The installer never phones home and uploads nothing. Desktop and web are the sam
 ### App screenshot
 
 <p align="center">
-  <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow workbench screenshot: the left side shows workspace navigation and conversation history, the right side shows the new-task entry and the multi-agent collaboration area" width="100%" />
+  <img src="docs/images/teamflow-preview.png" alt="Multi-Agent TeamFlow workbench screenshot: the left sidebar shows workspace navigation with a New Task button, and the main area shows the new-task page — headline '一句话，组一支队开工', a large prompt composer with team, output, reference-image and enhance-prompt chips and a Create Task button, suggestion chips, and recent teams below" width="100%" />
 </p>
 
 > Image not loading? This screenshot is a static asset inside the repository — open [`docs/images/teamflow-preview.png`](./docs/images/teamflow-preview.png) directly, or download the desktop app to see the real UI.

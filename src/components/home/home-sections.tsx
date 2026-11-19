@@ -153,7 +153,7 @@ export function HomeHero() {
                   className={cn(
                     'flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
                     bubble.fromUser
-                      ? 'bg-[var(--agenthub-accent)] text-white'
+                      ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
                       : 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
                   )}
                   aria-hidden="true"

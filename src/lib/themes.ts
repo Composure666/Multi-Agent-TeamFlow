@@ -11,11 +11,11 @@
  * accentInk 不在卡片里。
  */
 
-export const THEME_IDS = ['ink', 'pine', 'terra', 'graphite', 'wine', 'obsidian'] as const
+export const THEME_IDS = ['ink', 'terra', 'wine', 'white-graphite', 'white-blue', 'white-ink'] as const
 
 export type ThemeId = (typeof THEME_IDS)[number]
 
-export const DEFAULT_THEME: ThemeId = 'graphite'
+export const DEFAULT_THEME: ThemeId = 'white-graphite'
 
 export const THEME_STORAGE_KEY = 'agenthub-theme'
 
@@ -47,22 +47,10 @@ export const THEMES: readonly ThemeMeta[] = [
     swatch: { bg: '#f4eee0', surface: '#fbf8ef', primary: '#2c2822', accent: '#b03a26', ink: '#26221b' },
   },
   {
-    id: 'pine',
-    nameZh: '松柏深绿',
-    nameEn: 'PINE & JADE',
-    swatch: { bg: '#eef2e8', surface: '#fafcf5', primary: '#1e5c3a', accent: '#b98a2e', ink: '#1e2a21' },
-  },
-  {
     id: 'terra',
     nameZh: '陶土暖阳',
     nameEn: 'TERRACOTTA',
     swatch: { bg: '#f6ede2', surface: '#fdf8f1', primary: '#b5502a', accent: '#8a6d1f', ink: '#33241a' },
-  },
-  {
-    id: 'graphite',
-    nameZh: '石墨琥珀',
-    nameEn: 'GRAPHITE & AMBER',
-    swatch: { bg: '#eceae6', surface: '#f7f6f3', primary: '#33312d', accent: '#b97a14', ink: '#232220' },
   },
   {
     id: 'wine',
@@ -71,10 +59,22 @@ export const THEMES: readonly ThemeMeta[] = [
     swatch: { bg: '#f5eee7', surface: '#fcf8f3', primary: '#7c2233', accent: '#a4762a', ink: '#33202a' },
   },
   {
-    id: 'obsidian',
-    nameZh: '曜石黑金',
-    nameEn: 'OBSIDIAN & GOLD',
-    swatch: { bg: '#f3efe6', surface: '#fbf9f3', primary: '#262019', accent: '#a37f22', ink: '#221d13' },
+    id: 'white-graphite',
+    nameZh: '白·石墨',
+    nameEn: 'WHITE GRAPHITE',
+    swatch: { bg: '#ffffff', surface: '#fafafa', primary: '#33312d', accent: '#b97a14', ink: '#232220' },
+  },
+  {
+    id: 'white-blue',
+    nameZh: '白·工程蓝',
+    nameEn: 'WHITE BLUE',
+    swatch: { bg: '#ffffff', surface: '#f7f9fd', primary: '#2f5fd0', accent: '#a37f22', ink: '#17181c' },
+  },
+  {
+    id: 'white-ink',
+    nameZh: '白·水墨',
+    nameEn: 'WHITE INK',
+    swatch: { bg: '#ffffff', surface: '#fbfaf7', primary: '#2c2822', accent: '#b03a26', ink: '#26221b' },
   },
 ] as const
 
@@ -82,7 +82,7 @@ export function isValidThemeId(value: unknown): value is ThemeId {
   return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value)
 }
 
-/** 非法 / 缺失的存值一律回退到默认主题（石墨琥珀）。 */
+/** 非法 / 缺失的存值一律回退到默认主题（白·石墨）。 */
 export function resolveThemeId(value: unknown): ThemeId {
   return isValidThemeId(value) ? value : DEFAULT_THEME
 }

@@ -4,6 +4,7 @@
 - 范围：审计报告 `~/workspace/frontend-polish-evidence/module-audit-2026-11-18.md` 的 Top 5（D1、H1、A1+A2+A3、F1+F2+F3、E1+E2）。Top 5 之外（B/C/D2–D7/E3–E4/F4/G/H2/I/J）不在本轮。
 - 方案：`openspec/changes/module-audit-top5/proposal.md`；任务：同目录 `tasks.md`。
 - 状态：**全部 5 项完成并通过集中验证**（W6，2026-11-18 晚）。未 commit、未 push、未部署（HEAD 仍为 9618684，全部改动在工作树）。
+> 注（2026-11-19，batch5-cleanup W2）：本文提及的 `sidebar.tsx`、`agent-library.tsx`、`team-library.tsx`、`new-conversation-dialog.tsx`、`global-search-trigger.tsx`、`dir-picker-dialog.tsx` 已于 2026-11-18 batch4 §2 删除；现入口：侧栏→`app-workbench.tsx` 内联 `wb-sidebar`、Agent 库→`agent-workspace.tsx`、会话创建→新建任务视图。历史叙述保留原样。
 - 证据：`~/workspace/frontend-polish-evidence/module-audit-top5/`（W1–W5 截图 `w1-*`～`w5-*`；W6 截图 `w6-*` 44 张 PNG + 测量 `w6b-results.json`、`w6c-results.json`；拍摄脚本 `shot-w4.mjs`、`shot-w5.mjs`、`shot-w6.mjs`、`shot-w6b.mjs`、`probe-w6*.mjs`）。
 
 ## 分工

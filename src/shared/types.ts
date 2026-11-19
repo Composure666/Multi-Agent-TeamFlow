@@ -788,6 +788,6 @@ export interface SearchHit {
   agentName: string | null
   agentAvatar: string | null
   createdAt: number
-  /** FTS5 path: contains <mark>...</mark> tags. LIKE path: plain text. */
+  /** Both paths contain <mark>...</mark> around the match; plain text otherwise. */
   snippetHtml: string
 }

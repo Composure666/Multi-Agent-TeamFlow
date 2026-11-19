@@ -49,7 +49,7 @@ import { useAppStore, type AppWorkbenchView, type SettingsSection } from '@/stor
  * 这里直接复用运行时判定的同一份实现（`/api/setup-status`）。
  *
  * 常驻入口：工作台导航（桌面侧栏 + 移动端抽屉）的「使用指南」按钮发 `ui-command` 唤起，
- * 见 `app-workbench.tsx`。注意 `sidebar.tsx` 是**无人引用的死代码**，改它不会有任何效果。
+ * 见 `app-workbench.tsx`。
  *
  * 内容不在这里维护：条目数据住在 `user-guide-data.ts`，与项目主页的指南分区共用一份真源。
  */

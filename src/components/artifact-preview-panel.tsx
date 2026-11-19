@@ -491,8 +491,8 @@ function WebAppView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b px-2">
-        <div className="flex">
+      <div className="flex shrink-0 items-center justify-between border-b px-2 py-1">
+        <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="视图切换">
           <ViewTab active={view === 'render'} onClick={() => setView('render')}>
             <Eye className="size-3.5" />
             预览
@@ -598,17 +598,19 @@ function DocumentView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 border-b px-2">
-        <ViewTab active={view === 'render'} onClick={() => setView('render')}>
-          <Eye className="size-3.5" />
-          预览
-        </ViewTab>
-        {!readOnly && (
-          <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
-            <Pencil className="size-3.5" />
-            编辑
+      <div className="flex shrink-0 border-b px-2 py-1">
+        <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="视图切换">
+          <ViewTab active={view === 'render'} onClick={() => setView('render')}>
+            <Eye className="size-3.5" />
+            预览
           </ViewTab>
-        )}
+          {!readOnly && (
+            <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
+              <Pencil className="size-3.5" />
+              编辑
+            </ViewTab>
+          )}
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         {view === 'render' ? (
@@ -672,15 +674,17 @@ function DiagramView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 border-b px-2">
-        <ViewTab active={view === 'render'} onClick={() => setView('render')}>
-          <Eye className="size-3.5" />
-          预览
-        </ViewTab>
-        <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
-          <Pencil className="size-3.5" />
-          编辑源码
-        </ViewTab>
+      <div className="flex shrink-0 border-b px-2 py-1">
+        <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="视图切换">
+          <ViewTab active={view === 'render'} onClick={() => setView('render')}>
+            <Eye className="size-3.5" />
+            预览
+          </ViewTab>
+          <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
+            <Pencil className="size-3.5" />
+            编辑源码
+          </ViewTab>
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         {view === 'render' ? (
@@ -870,15 +874,17 @@ function SlideDeckView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center border-b px-2">
-        <ViewTab active={view === 'render'} onClick={() => setView('render')}>
-          <Eye className="size-3.5" />
-          预览
-        </ViewTab>
-        <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
-          <Pencil className="size-3.5" />
-          编辑 JSON
-        </ViewTab>
+      <div className="flex shrink-0 items-center border-b px-2 py-1">
+        <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="视图切换">
+          <ViewTab active={view === 'render'} onClick={() => setView('render')}>
+            <Eye className="size-3.5" />
+            预览
+          </ViewTab>
+          <ViewTab active={view === 'edit'} onClick={() => setView('edit')}>
+            <Pencil className="size-3.5" />
+            编辑 JSON
+          </ViewTab>
+        </div>
         {view === 'render' && total > 0 && (
           <div className="ml-auto flex items-center gap-1 pr-1">
             <Button
@@ -1962,10 +1968,10 @@ function ViewTab({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs transition',
+        'flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition',
         active
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground',
+          ? 'bg-background text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground',
       )}
     >
       {children}

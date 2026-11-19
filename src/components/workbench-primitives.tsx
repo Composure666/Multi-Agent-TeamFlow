@@ -10,6 +10,13 @@ import { cn } from '@/lib/utils'
  */
 
 /**
+ * 侧栏列表行规范（batch2-consistency B2 定死，二选一已定：走交互卡片档）：
+ * - Agent 库 / 团队库 / 产物库三处侧栏行统一为 `agenthub-card-interactive` + `px-3 py-2.5`；
+ * - 行高只由该 padding 与内容决定，不再各写各的 `px-2 py-2` / `px-3 py-3`；
+ * - 圆角、描边、阴影与 hover 抬升全部由 `agenthub-card-interactive`（globals.css）提供，行上不再手写。
+ */
+
+/**
  * 页面外壳与 gutter 规则（module-audit-top5 A2/A3 定死）：
  * - 外层统一 `p-4 lg:p-6`，调用处不要改写 padding；
  * - 内容默认 `max-w-5xl`；数据型页面（数据概览、能力中心、信息中心、自动化）

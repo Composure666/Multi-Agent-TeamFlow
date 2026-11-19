@@ -496,7 +496,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                       className={cn(
                         'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
                         active
-                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                          ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
                           : 'border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
                       )}
                     >
@@ -787,7 +787,7 @@ function ArtifactCard({
               onClick={onToggleSelected}
               className={cn(
                 'flex size-7 items-center justify-center rounded-md border text-xs transition',
-                checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-transparent hover:border-slate-300 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]',
+                checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-transparent hover:border-slate-300 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]',
               )}
             >
               <Check className="size-3.5" />
@@ -854,7 +854,7 @@ function ArtifactCard({
             onClick={(e) => { e.stopPropagation(); onToggleSelected() }}
             className={cn(
               'absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded-md border text-xs shadow-sm transition',
-              checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-white' : 'border-white/80 bg-[var(--agenthub-surface)]/90 text-transparent hover:border-slate-300 dark:border-white/20 dark:bg-[var(--agenthub-surface)]/80',
+              checked ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'border-white/80 bg-[var(--agenthub-surface)]/90 text-transparent hover:border-slate-300 dark:border-white/20 dark:bg-[var(--agenthub-surface)]/80',
             )}
           >
             <Check className="size-3.5" />
@@ -865,7 +865,7 @@ function ArtifactCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onPreview() }}
-          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-[var(--agenthub-surface)]/95 px-2.5 py-1 text-3xs font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:bg-[var(--agenthub-surface)] dark:bg-[var(--agenthub-surface)]/85 dark:text-slate-200 dark:hover:bg-[var(--agenthub-surface)]"
+          className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded-full bg-[var(--agenthub-surface)]/95 px-2.5 py-1 text-3xs font-medium text-slate-700 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-[var(--agenthub-surface)] dark:bg-[var(--agenthub-surface)]/85 dark:text-slate-200 dark:hover:bg-[var(--agenthub-surface)]"
         >
           <Eye className="size-3" />
           预览
@@ -910,7 +910,7 @@ function ArtifactCard({
               onClick={(e) => { e.stopPropagation(); onToggleFavorite() }}
               className={cn(
                 'flex size-6 items-center justify-center rounded transition',
-                isFavorite ? 'text-amber-500' : 'text-slate-400 opacity-0 group-hover:opacity-100 hover:text-amber-500',
+                isFavorite ? 'text-amber-500' : 'text-slate-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:text-amber-500',
               )}
               title={isFavorite ? '取消收藏' : '收藏'}
             >
@@ -1151,7 +1151,7 @@ function ArtifactMoreMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition group-hover:opacity-100 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
           aria-label="更多操作"
         >
           <MoreHorizontal className="size-4" />

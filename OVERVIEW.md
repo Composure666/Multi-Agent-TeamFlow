@@ -88,7 +88,7 @@ L1 Persistence                          src/db/**（Drizzle+SQLite） + workspac
 ### L5 UI 组件（`src/components/`）
 | 区域 | 文件 |
 |---|---|
-| 侧栏（会话/产物库/Agents/分析 Tab） | `sidebar.tsx` |
+| 侧栏（会话/产物库/Agents/分析 Tab，内联于工作台壳） | `app-workbench.tsx` |
 | 聊天主面板 | `chat-panel.tsx` · `message-list.tsx` · `message-item.tsx` · `message-parts.tsx` |
 | 输入框（附件/审批模式/选区引用/斜杠命令） | `message-input.tsx` · `edit-message-input.tsx` |
 | Orchestrator 调度卡 | `dispatch-plan-card.tsx` |
@@ -99,8 +99,8 @@ L1 Persistence                          src/db/**（Drizzle+SQLite） + workspac
 | 文件浏览器 | `file-explorer-panel.tsx` · `file-tab.tsx` · `file-library-dialog.tsx` |
 | 选区改写 / 引用 | `selection-popover.tsx` · `quoted-message.tsx` |
 | 导航辅助 | `pinned-messages-bar.tsx` · `conversation-outline.tsx` |
-| Agent 库 / 创建 | `agent-library.tsx` · `create-agent-dialog.tsx` · `add-agent-dialog.tsx` · `agent-avatar.tsx` · `agent-info-popover.tsx` |
-| 会话创建 / 目录选择 | `new-conversation-dialog.tsx` · `dir-picker-dialog.tsx` |
+| Agent 库 / 创建 | `agent-workspace.tsx` · `create-agent-dialog.tsx` · `add-agent-dialog.tsx` · `agent-avatar.tsx` · `agent-info-popover.tsx` |
+| 会话创建 | `app-workbench.tsx`（新建任务视图） · `agent-workspace.tsx` |
 | 设置面板 | `settings-dialog.tsx` |
 | 渲染基建 | `markdown.tsx` · `code-block.tsx` · `attachment-chip.tsx` · `ui/*`（shadcn） |
 

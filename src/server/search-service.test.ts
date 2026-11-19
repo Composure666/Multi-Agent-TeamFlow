@@ -120,8 +120,57 @@ describe('searchMessages (FTS5 path)', () => {
     ])
     const r = await searchMessages({ query: '模型', fallback: 'like', db: db as Database.Database })
     expect(r.total).toBe(1)
-    // LIKE path snippet has no <mark>
-    expect(r.hits[0].snippetHtml).not.toContain('<mark>')
+    // LIKE path snippet marks the match, like the FTS path
+    expect(r.hits[0].snippetHtml).toContain('<mark>')
+  })
+
+  it('LIKE fallback snippet renders parts as plain text, not raw JSON', async () => {
+    insertMessage(db, 'm1', 'c1', 'user', [
+      { type: 'text', content: '渲染管线优化方案需要重构' },
+    ])
+    const r = await searchMessages({ query: '渲染', fallback: 'like', db: db as Database.Database })
+    expect(r.total).toBe(1)
+    expect(r.hits[0].snippetHtml).toContain('<mark>渲染</mark>管线优化方案')
+    expect(r.hits[0].snippetHtml).not.toContain('[{"type"')
+    expect(r.hits[0].snippetHtml).not.toContain('"type":"text"')
+  })
+
+  it('LIKE fallback snippet shows tool_use / artifact_ref as structured labels', async () => {
+    insertMessage(db, 'm1', 'c1', 'agent', [
+      { type: 'thinking', content: '先想想渲染方案' },
+      { type: 'tool_use', callId: 'call_1', toolName: 'bash', args: { command: 'pnpm test' } },
+      { type: 'text', content: '渲染管线已重构完成' },
+      { type: 'artifact_ref', artifactId: 'art_w4' },
+    ], 'complete', 'a1')
+    const r = await searchMessages({ query: '渲染', fallback: 'like', db: db as Database.Database })
+    expect(r.total).toBe(1)
+    const snippet = r.hits[0].snippetHtml
+    expect(snippet).toContain('渲染管线已重构完成')
+    expect(snippet).toContain('[调用 执行命令]')
+    expect(snippet).toContain('pnpm test')
+    expect(snippet).toContain('[产物: art_w4]')
+    expect(snippet).not.toContain('[{"type"')
+    expect(snippet).not.toContain('"toolName"')
+  })
+
+  it('LIKE fallback snippet for a tool_use-only message is a label, not JSON', async () => {
+    insertMessage(db, 'm1', 'c1', 'agent', [
+      { type: 'tool_use', callId: 'call_1', toolName: 'bash', args: { command: 'pnpm build' } },
+    ], 'complete', 'a1')
+    const r = await searchMessages({ query: 'bash', fallback: 'like', db: db as Database.Database })
+    expect(r.total).toBe(1)
+    expect(r.hits[0].snippetHtml).toContain('[调用 执行命令]')
+    expect(r.hits[0].snippetHtml).not.toContain('[{"type"')
+    expect(r.hits[0].snippetHtml).not.toContain('"toolName"')
+  })
+
+  it('LIKE fallback snippet escapes HTML in message text', async () => {
+    insertMessage(db, 'm1', 'c1', 'user', [
+      { type: 'text', content: '渲染<b>加粗</b>方案' },
+    ])
+    const r = await searchMessages({ query: '渲染', fallback: 'like', db: db as Database.Database })
+    expect(r.hits[0].snippetHtml).toContain('&lt;b&gt;')
+    expect(r.hits[0].snippetHtml).not.toContain('<b>加粗</b>')
   })
 
   it('LIKE fallback filters by conversationId', async () => {

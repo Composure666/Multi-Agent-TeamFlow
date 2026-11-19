@@ -233,16 +233,11 @@ Drives 列表通过 `statSync('A:\\')` … `statSync('Z:\\')` 探测可用盘符
 
 ---
 
-## UI placeholder 平台感知
+## UI placeholder 平台感知（已随对话框删除）
 
-`new-conversation-dialog.tsx` 的 boundPath 输入框 placeholder 按服务器平台显示：
+原 `new-conversation-dialog.tsx` 的 boundPath 输入框 placeholder 按服务器平台显示（POSIX: `/Users/me/projects/foo`；Windows: `D:\projects\foo`），服务器平台通过 `GET /api/platform` 一次性获取（返回 `{ platform: 'posix' | 'windows' }`），前端 useEffect 缓存。该对话框已于 2026-11-18 随 `sidebar.tsx` 死代码清理删除；现新建会话入口（新建任务视图、`agent-workspace.tsx`）没有 boundPath 输入框，所有 `createConversation` 调用点只传 `title`/`mode`/`agentIds`，平台感知 placeholder 行为随之消失。`GET /api/platform` 路由仍保留，但 `src/lib/api.ts` 的 `getServerPlatform` 已于 2026-11-19 删除，前端暂无调用方；如需在新入口恢复该行为，应重新接该路由。
 
-- POSIX: `/Users/me/projects/foo`
-- Windows: `D:\projects\foo`
-
-服务器平台通过 `GET /api/platform` 一次性获取（返回 `{ platform: 'posix' | 'windows' }`），前端 useEffect 缓存。
-
-**Why 不用 `navigator.userAgent`**：用户可能从 Mac 浏览器访问 Windows 上跑的 Multi-Agent TeamFlow，浏览器侧推断会与实际 host 不一致；服务器才是 bash 工具实际跑的地方。
+**Why 不用 `navigator.userAgent`**（恢复时仍适用）：用户可能从 Mac 浏览器访问 Windows 上跑的 Multi-Agent TeamFlow，浏览器侧推断会与实际 host 不一致；服务器才是 bash 工具实际跑的地方。
 
 ---
 

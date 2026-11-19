@@ -22,7 +22,7 @@
 4. `src/server/search-service.ts` —— FTS 查询写法：`messages_fts` + `bm25` + `snippet` + `maybeQuote`（`:42` 起的引用规则）。
 5. `src/server/agent-runner.ts` —— 注入点（`buildAdapterInput`，约 `:2530`）与收尾钩子（`finalizeOk`，约 `:2262`；`finalize` 在 `:1980`）。
 6. `src/app/api/conversations/[id]/workspace-memory/route.ts` —— **API 路由模板**。
-7. `src/components/sidebar.tsx`（`Mode` 联合 `:37`、TabButton `:612`）与 `src/stores/app-store.ts`（`workspaceMemoriesByConv` 模式，Spec 16 §6）。
+7. `src/stores/app-store.ts`（`AppWorkbenchView` 联合 `:31`、`workspaceMemoriesByConv` 模式，Spec 16 §6）、`src/components/workbench-navigation.ts`（`WORKBENCH_NAVIGATION`）与 `src/components/app-workbench.tsx`（视图映射约 `:184-189`）。
 
 ---
 
@@ -159,9 +159,9 @@ if (!args.overridePrompt && !args.overrideSystemPrompt) {
 
 ### 8. 前端：侧栏「资产」Tab
 
-- `src/components/sidebar.tsx`：`type Mode`（`:37`）加 `'experiences'`；`:194-222` 的 Tab 区加一个 `<TabButton self="experiences" ...>`（抄现有三个 TabButton）。
-- 新建 `src/components/experience-library.tsx`：列表 + 筛选（agent/kind）+ 行内编辑（shadcn dialog + CodeMirror，复用 artifact 面板编辑组件）+ 停用/启用/删除 + 统计区。数据进 `app-store.ts`（`experiencesByAgent` / `upsertExperience` / `removeExperience`，镜像 Spec 16 §6 的 `workspaceMemoriesByConv` 模式）。
-- API 层：`src/app/api` 对应 fetch helper（照抄现有 workspace-memory 的 fetch 写法）。
+- 视图三处（侧栏 Tab 已不存在，不要改 `sidebar.tsx`——该文件已于 2026-11-18 删除）：`src/stores/app-store.ts:31` 的 `AppWorkbenchView` 联合加 `'experiences'`；`src/components/workbench-navigation.ts` 的 `WORKBENCH_NAVIGATION` 加一项 `{ id: 'experiences', label: '经验资产', icon: BookOpen, group: 'workspace', ... }`（抄现有项；桌面侧栏与移动端抽屉导航都读这张表，不用另写 Tab）；`src/components/app-workbench.tsx` 的视图映射（约 `:189`）加 `experiences: () => <ExperienceLibrary agents={...} />`。
+- 新建 `src/components/experience-library.tsx`：列表 + 筛选（agent/kind）+ 行内编辑（shadcn dialog + CodeMirror，复用 artifact 面板编辑组件）+ 停用/启用/删除 + 统计区。数据不进 `app-store.ts`（现无 `experiencesByAgent` 等字段）：组件自持 `useState`，直接调 `lib/api.ts` 的 `fetchExperiences` / `createExperience` / `updateExperience` / `deleteExperience` / `fetchExperienceStats`。
+- API 层：`lib/api.ts` 已有 `fetchExperiences` 等 helper（约 `:1463` 起），照抄现有 workspace-memory 的 fetch 写法。
 
 ### 9. 单测
 
@@ -205,6 +205,8 @@ if (!args.overridePrompt && !args.overrideSystemPrompt) {
 ---
 
 ## 实施记录（P0，2026-09-13）
+
+> 注（2026-11-19，batch5-cleanup W2）：以下为 2026-09-13 当时的实施记录，其中 `sidebar.tsx`（含「资产」Tab）已于 2026-11-18 batch4 §2 删除；现侧栏为 `app-workbench.tsx` 内联 `wb-sidebar`，经验资产入口为工作台 `experiences` 视图（`experience-library.tsx`，导航见 `workbench-navigation.ts`）。历史叙述保留原样。
 
 状态：**P0 已实现并验证**。代码落地于 `src/server/experience-service.ts`、`src/app/api/experiences/*`、`src/app/api/runs/[id]/reflect`、`src/components/experience-library.tsx`、sidebar「资产」Tab；bootstrap/schema/agent-runner/settings-service/shared-types/lib-api 相应改动；单测 `src/server/experience-service.test.ts`（14 例全过）。
 

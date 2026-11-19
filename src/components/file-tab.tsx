@@ -4,7 +4,16 @@ import { AlertCircle, Eye, FileText, Loader2, PenLine, RefreshCw, Save } from 'l
 import { useCallback, useEffect, useState } from 'react'
 
 import { CodeBlock } from '@/components/code-block'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { workspaceReadFile, workspaceWriteFile } from '@/lib/api'
 import { normalizeLang } from '@/lib/highlighter'
 import { cn } from '@/lib/utils'
@@ -42,6 +51,7 @@ export function FileTab({
     size: 0,
   })
   const [editing, setEditing] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const reload = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }))
@@ -138,8 +148,11 @@ export function FileTab({
           variant={editing ? 'default' : 'outline'}
           onClick={() => {
             if (editing) {
-              // 退出编辑：如果有 dirty 提示丢弃
-              if (dirty && !window.confirm('放弃未保存的修改？')) return
+              // 退出编辑：如果有 dirty 弹确认框，确认后才丢弃草稿
+              if (dirty) {
+                setDiscardOpen(true)
+                return
+              }
               setState((s) => ({ ...s, draft: s.content }))
               setEditing(false)
             } else {
@@ -188,6 +201,33 @@ export function FileTab({
           </div>
         )}
       </div>
+
+      {/* 放弃未保存修改的确认弹窗：取消只关弹窗，编辑态与草稿原样保留 */}
+      <Dialog open={discardOpen} onOpenChange={(o) => { if (!o) setDiscardOpen(false) }}>
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
+          <DialogHeader>
+            <DialogTitle>放弃未保存的修改？</DialogTitle>
+            <DialogDescription>
+              未保存的修改将被丢弃，文件恢复为上次保存的内容。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDiscardOpen(false)}>
+              取消
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                setState((s) => ({ ...s, draft: s.content }))
+                setEditing(false)
+                setDiscardOpen(false)
+              }}
+            >
+              放弃修改
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

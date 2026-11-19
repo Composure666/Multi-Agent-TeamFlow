@@ -484,39 +484,44 @@ export function AgentWorkspace({
                   {(selectedDeleteAgentIds.size + selectedDeleteTeamIds.size) > 0 ? `批量删除 (${selectedDeleteAgentIds.size + selectedDeleteTeamIds.size})` : '批量删除'}
                 </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setAgentView('featured')
-                  setAgentDetailOpen(false)
-                  setSelectedAgentId(null)
-                  setSelectedPresetId(null)
-                  setSelectedDeleteAgentIds(new Set())
-                  setSelectedDeleteTeamIds(new Set())
-                }}
-                className={cn(
-                  'rounded-md border-[var(--agenthub-border)]',
-                  agentView === 'featured' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
-                )}
-              >
-                精选 Agent
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setAgentView('mine')
-                  setAgentDetailOpen(false)
-                  setSelectedAgentId(null)
-                  setSelectedPresetId(null)
-                  setSelectedDeleteAgentIds(new Set())
-                }}
-                className={cn(
-                  'rounded-md border-[var(--agenthub-border)]',
-                  agentView === 'mine' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
-                )}
-              >
-                我的 Agent
-              </Button>
+              {/* 视图切换：分段控件（与 Agent 库侧栏同款） */}
+              <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="Agent 视图切换">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgentView('featured')
+                    setAgentDetailOpen(false)
+                    setSelectedAgentId(null)
+                    setSelectedPresetId(null)
+                    setSelectedDeleteAgentIds(new Set())
+                    setSelectedDeleteTeamIds(new Set())
+                  }}
+                  aria-pressed={agentView === 'featured'}
+                  className={cn(
+                    'rounded px-3 py-1.5 text-xs font-medium transition',
+                    agentView === 'featured' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  精选 Agent
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAgentView('mine')
+                    setAgentDetailOpen(false)
+                    setSelectedAgentId(null)
+                    setSelectedPresetId(null)
+                    setSelectedDeleteAgentIds(new Set())
+                  }}
+                  aria-pressed={agentView === 'mine'}
+                  className={cn(
+                    'rounded px-3 py-1.5 text-xs font-medium transition',
+                    agentView === 'mine' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  我的 Agent
+                </button>
+              </div>
             </>
           }
         />
@@ -535,7 +540,7 @@ export function AgentWorkspace({
           {agentView === 'featured' && (
             <HorizontalScrollControls className="mt-3" contentClassName="gap-2 pb-1" scrollAmount={220}>
               {featuredCategories.map((item) => (
-                <button key={item} type="button" onClick={() => setTab(item)} className={cn('shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition', tab === item ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] dark:border-[var(--agenthub-accent-border)] dark:bg-[var(--agenthub-accent-soft)] dark:text-[var(--agenthub-accent)]' : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100')}>
+                <button key={item} type="button" onClick={() => setTab(item)} aria-pressed={tab === item} className={cn('shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition', tab === item ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5')}>
                   {item}
                 </button>
               ))}
@@ -607,16 +612,18 @@ export function AgentWorkspace({
                     <h2 className="text-sm font-semibold">我的 Agent 与团队</h2>
                     <p className="mt-1 text-xs text-slate-500">自定义 Agent 和协作团队，可直接开始对话或继续配置</p>
                   </div>
-                  <div className="flex items-center gap-1 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] p-0.5">
+                  {/* 我的 Agent 筛选：分段控件（与 Agent 库侧栏同款） */}
+                  <div className="flex items-center gap-1 rounded-md bg-muted p-0.5" role="group" aria-label="我的 Agent 筛选">
                     {(['all', 'agent', 'team'] as const).map((f) => (
                       <button
                         key={f}
                         onClick={() => setMineFilter(f)}
+                        aria-pressed={mineFilter === f}
                         className={cn(
-                          'rounded-md px-2.5 py-1 text-xs font-medium transition',
+                          'rounded px-2.5 py-1 text-xs font-medium transition',
                           mineFilter === f
-                            ? 'bg-[var(--agenthub-surface)] text-slate-900 shadow-sm dark:text-slate-100'
-                            : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
                         )}
                       >
                         {f === 'all' ? '全部' : f === 'agent' ? 'Agent' : '团队'}
@@ -948,7 +955,7 @@ function ResourcePresetCard({
             e.stopPropagation()
             onStart()
           }}
-          className="h-8 rounded-md bg-[var(--agenthub-accent)] text-xs text-white hover:bg-[var(--agenthub-accent-hover)] disabled:opacity-60"
+          className="h-8 rounded-md bg-[var(--agenthub-accent)] text-xs text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)] disabled:opacity-60"
         >
           {starting ? '创建中' : '开始对话'}
         </Button>
@@ -1118,7 +1125,7 @@ function AgentCard({
           className={cn(
             'absolute right-3 top-3 z-10 flex size-6 items-center justify-center rounded-md border text-xs transition',
             checked
-              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-white'
+              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
               : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200',
           )}
         >
@@ -1183,7 +1190,7 @@ function TeamCard({
           className={cn(
             'absolute right-3 top-3 z-10 flex size-6 items-center justify-center rounded-md border text-xs transition',
             checked
-              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-white'
+              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
               : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200',
           )}
         >

@@ -10,7 +10,7 @@ import { isPathSafe } from '@/server/workspace-utils'
 /**
  * GET /api/fs/listdir?path=<absPath>
  *
- * 列出指定目录下的**子目录**（用于 DirPickerDialog）。
+ * 列出指定目录下的**子目录**。
  * - path 不传：默认 homedir()
  * - path === '__drives__'：返回当前可用盘符（Windows 专属虚拟根；POSIX 上返回 /）
  * - 其他：必须是绝对路径 + 是目录 + 通过 isPathSafe

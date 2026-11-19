@@ -9,7 +9,10 @@ import {
   FileText,
   Snowflake,
   TrendingUp,
+  ChevronDown,
+  ChevronUp,
   Filter,
+  PanelRight,
   Plus,
   Users,
   Loader2,
@@ -26,9 +29,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StatCard } from '@/components/experience/stat-card'
 import { ExperienceCard } from '@/components/experience/experience-card'
 import { ExperienceSidebar } from '@/components/experience/experience-sidebar'
@@ -37,6 +39,7 @@ import { ExperienceEditor } from '@/components/experience/experience-editor'
 import { ExperienceCreateDialog } from '@/components/experience/experience-create-dialog'
 import { EmptyState, PageHeader, PageShell } from '@/components/workbench-primitives'
 import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
+import { useIsBelowLg } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 
 const KIND_LABEL: Record<ExperienceKind, string> = {
@@ -77,6 +80,13 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  // D2：低于 lg（<1024px）时右侧栏不走内联侧栏，改走下方的 Dialog；≥lg 行为不变。
+  const isBelowLg = useIsBelowLg()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  // B3：统计条默认收起为一行摘要（列表提前约 120px @1366 / 约 290px @390），点开展开 5 张卡。
+  const [statsOpen, setStatsOpen] = useState(false)
 
   const agentName = (id: string | null): string => {
     if (!id) return '全局'
@@ -157,13 +167,21 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('确定要删除这条经验吗？删除后无法恢复。')) return
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return
+    setDeleting(true)
     try {
-      await deleteExperience(id)
-      setItems((prev) => prev.filter((it) => it.id !== id))
+      await deleteExperience(deleteTargetId)
+      setItems((prev) => prev.filter((it) => it.id !== deleteTargetId))
+      setDeleteTargetId(null)
     } catch (err) {
       console.error('[ExperienceLibrary] delete failed', err)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -189,6 +207,8 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
   // ─── 列表视图 ───
   return (
     <PageShell className="flex flex-col" contentClassName="w-full max-w-none flex-1 min-h-0">
+      {/* W1（batch4 §1）：页头不吸顶——列表走下方内层 ScrollArea，外层 PageShell 不滚动，
+          页头/搜索栏/Scope Tab 在 flex 列里本就固定不动；sticky 在此无滚动祖先可依，加了也是死代码。 */}
       <PageHeader
         icon={BookOpen}
         title="经验资产"
@@ -203,14 +223,39 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
 
-          {/* 统计卡片 */}
-          <div className="grid shrink-0 grid-cols-2 gap-3 border-b border-[var(--agenthub-border)] px-4 py-4 lg:px-6 sm:grid-cols-3 xl:grid-cols-5">
-            <StatCard icon={Layers} label="全部" value={stats.total} trend={calcTrend(stats.weeklyNew)} iconBg="bg-[var(--agenthub-accent-soft)]" iconColor="text-[var(--agenthub-accent)]" />
-            <StatCard icon={CheckCircle2} label="已启用" value={stats.active} trend={calcTrend(stats.weeklyNew)} iconBg="bg-emerald-500/10" iconColor="text-emerald-500" />
-            <StatCard icon={FileText} label="草稿" value={stats.drafts} iconBg="bg-slate-500/10" iconColor="text-slate-500" />
-            <StatCard icon={Snowflake} label="冷资产" value={stats.cold} iconBg="bg-amber-500/10" iconColor="text-amber-500" />
-            <StatCard icon={TrendingUp} label="累计使用" value={`${stats.totalUsage} 次`} trend={calcTrend(stats.weeklyUsage)} sparkline={stats.weeklyUsage} iconBg="bg-purple-500/10" iconColor="text-purple-500" />
-          </div>
+          {/* 统计卡片：B3 默认收起为一行摘要，点开展开 5 张卡；B1 gap 与其余 KPI 区统一为 gap-3 lg:gap-4 */}
+          {statsOpen ? (
+            <>
+              <div className="grid shrink-0 grid-cols-2 gap-3 border-b border-[var(--agenthub-border)] px-4 py-4 lg:gap-4 lg:px-6 sm:grid-cols-3 xl:grid-cols-5">
+                <StatCard icon={Layers} label="全部" value={stats.total} trend={calcTrend(stats.weeklyNew)} iconBg="bg-[var(--agenthub-accent-soft)]" iconColor="text-[var(--agenthub-accent)]" />
+                <StatCard icon={CheckCircle2} label="已启用" value={stats.active} trend={calcTrend(stats.weeklyNew)} iconBg="bg-emerald-500/10" iconColor="text-emerald-500" />
+                <StatCard icon={FileText} label="草稿" value={stats.drafts} iconBg="bg-slate-500/10" iconColor="text-slate-500" />
+                <StatCard icon={Snowflake} label="冷资产" value={stats.cold} iconBg="bg-amber-500/10" iconColor="text-amber-500" />
+                <StatCard icon={TrendingUp} label="累计使用" value={`${stats.totalUsage} 次`} trend={calcTrend(stats.weeklyUsage)} sparkline={stats.weeklyUsage} iconBg="bg-purple-500/10" iconColor="text-purple-500" />
+              </div>
+              <div className="flex shrink-0 justify-end border-b border-[var(--agenthub-border)] px-4 py-1.5 lg:px-6">
+                <button type="button" onClick={() => setStatsOpen(false)} aria-expanded className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">
+                  收起统计
+                  <ChevronUp className="size-3.5" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setStatsOpen(true)}
+              aria-expanded={false}
+              className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--agenthub-border)] px-4 py-2.5 text-xs text-muted-foreground transition hover:text-foreground lg:px-6"
+            >
+              <span className="truncate">
+                全部 {stats.total} · 已启用 {stats.active} · 草稿 {stats.drafts} · 冷资产 {stats.cold} · 累计使用 {stats.totalUsage} 次
+              </span>
+              <span className="flex shrink-0 items-center gap-1">
+                展开统计
+                <ChevronDown className="size-3.5" />
+              </span>
+            </button>
+          )}
 
           {/* 搜索 + 筛选 + 操作 */}
           <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--agenthub-border)] px-4 py-3 lg:px-6">
@@ -223,17 +268,23 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-1">
+            {/* 类型筛选：accent 胶囊（与信息中心 / 自动化同款） */}
+            <div className="flex items-center gap-1" role="group" aria-label="类型筛选">
               {(['all', 'experience', 'reflection', 'profile_fact'] as const).map((kind) => (
-                <Button
+                <button
                   key={kind}
-                  size="sm"
-                  variant={kindFilter === kind ? 'secondary' : 'ghost'}
-                  className="h-8 text-xs"
+                  type="button"
                   onClick={() => setKindFilter(kind)}
+                  aria-pressed={kindFilter === kind}
+                  className={cn(
+                    'inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-medium transition',
+                    kindFilter === kind
+                      ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
+                      : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5',
+                  )}
                 >
                   {kind === 'all' ? '全部' : KIND_LABEL[kind]}
-                </Button>
+                </button>
               ))}
             </div>
             <Button size="sm" variant={groupByAgent ? 'secondary' : 'ghost'} className="h-8 gap-1 text-xs" onClick={() => setGroupByAgent((v) => !v)}>
@@ -297,27 +348,37 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
                 </Button>
               </PopoverContent>
             </Popover>
+            {isBelowLg && (
+              <Button size="sm" variant="ghost" className="h-8 gap-1 text-xs" onClick={() => setSidebarOpen(true)}>
+                <PanelRight className="size-3.5" />
+                侧栏
+              </Button>
+            )}
             <Button size="sm" className="h-8 gap-1 text-xs" onClick={() => setCreateOpen(true)}>
               <Plus className="size-3.5" />
               新建经验
             </Button>
           </div>
 
-          {/* Scope Tab */}
-          <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 lg:px-6">
-            <Tabs value={scopeTab} onValueChange={(v) => setScopeTab(v as typeof scopeTab)}>
-              <TabsList className="h-9 gap-1 bg-transparent">
-                <TabsTrigger value="all" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[var(--agenthub-accent)] rounded-none px-3 text-xs">
-                  全部 ({items.length})
-                </TabsTrigger>
-                <TabsTrigger value="agent" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[var(--agenthub-accent)] rounded-none px-3 text-xs">
-                  按 Agent ({items.filter((i) => i.scope === 'agent').length})
-                </TabsTrigger>
-                <TabsTrigger value="global" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-[var(--agenthub-accent)] rounded-none px-3 text-xs">
-                  全局 ({items.filter((i) => i.scope === 'global').length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+          {/* Scope 切换：分段控件（与 Agent 库侧栏同款；B3 结构收敛以此定稿为准） */}
+          <div className="shrink-0 border-b border-[var(--agenthub-border)] px-4 py-2 lg:px-6">
+            <div className="inline-flex rounded-md bg-muted p-0.5" role="group" aria-label="范围筛选">
+              {([
+                ['all', '全部', items.length],
+                ['agent', '按 Agent', items.filter((i) => i.scope === 'agent').length],
+                ['global', '全局', items.filter((i) => i.scope === 'global').length],
+              ] as const).map(([val, label, count]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setScopeTab(val)}
+                  aria-pressed={scopeTab === val}
+                  className={`rounded px-3 py-1 text-xs font-medium transition ${scopeTab === val ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* 列表 */}
@@ -397,8 +458,8 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
           </ScrollArea>
         </div>
 
-        {/* 右侧边栏 */}
-        <ExperienceSidebar items={items} onOpen={handleOpen} />
+        {/* 右侧边栏：D2，<lg 时不占位，改走下方的 Dialog；≥lg 仍用内联侧栏。 */}
+        {!isBelowLg && <ExperienceSidebar items={items} onOpen={handleOpen} />}
       </div>
 
       {/* 新建弹窗 */}
@@ -424,6 +485,42 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* D2：<lg 时右侧栏改在 Dialog 里打开（尺寸走 DIALOG_SIZE_CLASS.md）；≥lg 仍用上面的内联侧栏。 */}
+      <Dialog open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <DialogContent className={cn('flex h-[min(86vh,760px)] flex-col gap-0 overflow-hidden p-0', DIALOG_SIZE_CLASS.md)}>
+          <DialogTitle className="sr-only">经验侧栏</DialogTitle>
+          <ExperienceSidebar
+            items={items}
+            onOpen={(id) => { setSidebarOpen(false); handleOpen(id) }}
+            className="h-full w-full min-h-0 border-l-0"
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={!!deleteTargetId} onOpenChange={(o) => { if (!o) setDeleteTargetId(null) }}>
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
+          <DialogHeader>
+            <DialogTitle>删除经验</DialogTitle>
+            <DialogDescription>
+              确定要删除这条经验吗？删除后无法恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTargetId(null)}>
+              取消
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => void confirmDelete()}
+              disabled={deleting}
+            >
+              {deleting ? '删除中...' : '删除'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

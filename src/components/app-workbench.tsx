@@ -117,6 +117,7 @@ export function AppWorkbench() {
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
   const mobileSidebarOpen = useAppStore((s) => s.mobileSidebarOpen)
   const setMobileSidebarOpen = useAppStore((s) => s.setMobileSidebarOpen)
+  const hasActiveConversation = useAppStore((s) => s.activeConversationId != null)
 
   useEffect(() => {
     fetchConversations().then(setConversations).catch(console.error)
@@ -173,7 +174,10 @@ export function AppWorkbench() {
     <div className="flex h-full min-h-0 bg-[var(--agenthub-surface-muted)] text-slate-950 dark:text-slate-50">
       <WorkbenchNav view={view} onViewChange={setView} onOpenSettings={() => openSettingsTarget(null)} />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        {view !== 'conversations' && !analyticsFocusMode && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
+        {/* 对话页平时不渲染顶栏（聊天区自带 header + 汉堡）；但无活跃会话时聊天区
+            只有空态、无 header、无汉堡，顶栏是唯一能打开抽屉（含会话列表）的入口
+            （batch4-leftovers §8b），故该情形下顶栏仍要出现。 */}
+        {(view !== 'conversations' || !hasActiveConversation) && !analyticsFocusMode && <MobileWorkbenchTopBar currentLabel={currentViewLabel} onOpen={openMobileSidebar} onOpenInformationCenter={() => setView('information-center')} />}
         <WorkbenchViewRouter
           view={view}
           renderers={{
@@ -399,7 +403,7 @@ function TeamSummonDialog({
             </div>
             <span className="truncate text-xs text-slate-500 dark:text-slate-400">{team.type === 'team' ? `${team.members.length} 位成员协作` : '单 Agent 对话'}</span>
           </div>
-          <Button onClick={() => void onSummon(team)} disabled={summoning} className="shrink-0 rounded-md bg-[var(--agenthub-accent)] px-4 text-white hover:bg-[var(--agenthub-accent-hover)]">
+          <Button onClick={() => void onSummon(team)} disabled={summoning} className="shrink-0 rounded-md bg-[var(--agenthub-accent)] px-4 text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)]">
             {summoning ? '召唤中' : `召唤 ${team.name}`}
           </Button>
         </DialogFooter>
@@ -430,7 +434,7 @@ function TeamSummonDialog({
             <Button variant="outline" onClick={() => setWorkflowOpen(false)}>
               取消
             </Button>
-            <Button onClick={saveWorkflow} className="rounded-md bg-[var(--agenthub-accent)] text-white hover:bg-[var(--agenthub-accent-hover)]">
+            <Button onClick={saveWorkflow} className="rounded-md bg-[var(--agenthub-accent)] text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)]">
               保存
             </Button>
           </DialogFooter>
@@ -476,7 +480,7 @@ function MobileWorkbenchTopBar({
       >
         <Bell className="size-4 stroke-[2.2]" />
         {unreadNotificationCount > 0 && (
-          <span className="absolute -right-1 -top-1 rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-white">
+          <span className="absolute -right-1 -top-1 rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-[var(--primary-foreground)]">
             {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
           </span>
         )}
@@ -564,6 +568,17 @@ function MobileWorkbenchDrawer({
             <span className="min-w-0 flex-1 truncate">新建任务</span>
           </button>
 
+          {/* 390 下会话列表入口（batch4-leftovers §8b）：会话列表只在桌面侧栏里
+              （`hidden md:flex` 的 WorkbenchNav），移动端进对话页后无处切换会话；
+              抽屉在对话页时直接把同一份 ConversationListPanel 嵌在这里、放在导航上方，
+              打开抽屉即见，选中即收起抽屉。聊天区汉堡（title="打开会话列表"）开的正是
+              本抽屉，至此名实相符。 */}
+          {view === 'conversations' && (
+            <div className="mb-4 border-b border-[var(--agenthub-border)] pb-3 dark:border-[var(--agenthub-border)]">
+              <ConversationListPanel variant="embedded" onSelectConversation={onClose} />
+            </div>
+          )}
+
           <nav className="space-y-4" aria-label="工作台导航">
             {(['primary', 'workspace'] as const).map((group) => (
               <div key={group} className="space-y-1.5">
@@ -588,7 +603,7 @@ function MobileWorkbenchDrawer({
                       <Icon className="size-5 stroke-[2.1]" />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.id === 'information-center' && unreadNotificationCount > 0 && (
-                        <span className="rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-white">
+                        <span className="rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-[var(--primary-foreground)]">
                           {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                         </span>
                       )}
@@ -973,7 +988,7 @@ function WorkbenchNav({
                   <span className={cn('ml-auto size-2 rounded-full bg-[var(--agenthub-accent)]', compact && 'absolute right-2 top-2')} title="有自动化任务结果生成" />
                 )}
                 {showUnreadNotifications && (
-                  <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold text-white', compact && 'absolute right-1 top-1 px-1')} title="未读通知">
+                  <span className={cn('ml-auto rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold text-[var(--primary-foreground)]', compact && 'absolute right-1 top-1 px-1')} title="未读通知">
                     {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
                   </span>
                 )}
@@ -1339,7 +1354,7 @@ function NewTaskView({
         style={{ top: NEWTASK_GLOW_TOP, height: NEWTASK_GLOW_HEIGHT, background: NEWTASK_GLOW_BACKGROUND, filter: 'blur(28px)' }}
       />
       {/* A 方案「聚焦型」：原版通栏宽度（1280px / 2xl 1440px）居中单列，文字居中；工作台外壳（侧栏）不动 */}
-      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-8 pb-12 pt-10 text-center md:pt-14 2xl:max-w-[1440px] 2xl:px-12">
+      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-8 pb-8 pt-10 text-center md:pt-10 2xl:max-w-[1440px] 2xl:px-12">
         <p className="text-[11px] font-bold tracking-[0.1em] text-[#9A958A] dark:text-slate-500">WORKBENCH — NEW TASK</p>
         <h1 className="font-heading mt-4 text-[27px] font-black leading-[1.15] text-[#17181C] dark:text-[#EDE9E1] md:text-[34px]">
           一句话，<span className="text-[var(--agenthub-accent)]">组一支队</span>开工
@@ -1351,9 +1366,10 @@ function NewTaskView({
         </p>
 
         {/* 大输入框 composer：白底卡片；金色只在左上一角（两条 38% 渐变描边），非整圈金框。
-            增高上限 32vh（batch 3 项 6，选了降上限而非压间距：空态与 500 字态不动，
-            1920 下 320px 先封顶、无回归；1366×768 顶格时 textarea 245.8px、最近团队行底约 756px、
-            无需滚动即可见）。 */}
+            增高上限 32vh（batch 3 项 6，选了降上限而非压间距）；batch4 W5 再压容器
+            上下边距（md:pt-14→pt-10、pb-12→pb-8）并把最近团队行标签改为单行：
+            1366×768 顶格时 textarea 245.8px、最近团队行底 724.8px（余量 43.2px），
+            500 字态页内不再溢出（batch 3 的 +10px 已清零）。 */}
         <section className="relative mt-7 w-full rounded-[18px] border-[1.5px] border-[#D9DDE6] bg-white p-4 text-left shadow-[0_12px_32px_color-mix(in_srgb,var(--agenthub-accent)_10%,transparent)] dark:border-[#2E2A24] dark:bg-[#1C1A17] dark:shadow-none">
           <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[1.5px] w-[38%] rounded-tl-[18px] bg-[linear-gradient(90deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
           <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[38%] w-[1.5px] rounded-tl-[18px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
@@ -1680,14 +1696,17 @@ function NewTaskView({
                   title={team.description}
                   aria-pressed={active}
                   className={cn(
-                    'flex size-[38px] items-center justify-center rounded-full text-[15px] font-bold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70',
+                    'flex size-[38px] items-center justify-center rounded-full text-[15px] font-bold transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70',
+                    RECENT_TEAM_COLORS[index % RECENT_TEAM_COLORS.length] === 'var(--agenthub-accent)'
+                      ? 'text-[var(--primary-foreground)]'
+                      : 'text-white',
                     active && 'ring-2 ring-[var(--agenthub-accent)] ring-offset-2 ring-offset-[var(--agenthub-surface-muted)]',
                   )}
                   style={{ backgroundColor: RECENT_TEAM_COLORS[index % RECENT_TEAM_COLORS.length] }}
                 >
                   {selectingTeamId === team.id ? '…' : team.name.charAt(0)}
                 </button>
-                <span className="text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">{team.name}</span>
+                <span className="whitespace-nowrap text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">{team.name}</span>
               </div>
             )
           })}
@@ -1701,7 +1720,7 @@ function NewTaskView({
             >
               <Plus className="size-4" />
             </button>
-            <span className="text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">新建团队</span>
+            <span className="whitespace-nowrap text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">新建团队</span>
           </div>
         </div>
 
@@ -1712,7 +1731,7 @@ function NewTaskView({
 }
 
 
-function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalone' | 'embedded' }) {
+function ConversationListPanel({ variant = 'standalone', onSelectConversation }: { variant?: 'standalone' | 'embedded'; onSelectConversation?: () => void }) {
   const allConversations = useConversationList()
   // 归档会话默认不显示，但必须留一个入口 —— 否则「归档」就是一次性删除
   // （线上 2026-09-16 报障：自动化产出写进了已归档会话，对话页里找不到）。
@@ -1720,6 +1739,11 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
   const archivedConversations = allConversations.filter((c) => c.archived)
   const activeId = useAppStore((s) => s.activeConversationId)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
+  // 选中即打开：抽屉里复用本列表时，选中后由调用方收起抽屉（桌面侧栏不传该回调，行为不变）。
+  const selectConversation = (conversationId: string) => {
+    setActiveConversation(conversationId)
+    onSelectConversation?.()
+  }
   const agents = useAppStore((s) => s.agents)
   const removeConversation = useAppStore((s) => s.removeConversation)
   const upsertConversation = useAppStore((s) => s.upsertConversation)
@@ -1818,7 +1842,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
               <button
                 key={conversation.id}
                 type="button"
-                onClick={() => setActiveConversation(conversation.id)}
+                onClick={() => selectConversation(conversation.id)}
                 onContextMenu={(event) => {
                   // 右键不该同时触发浏览器原生菜单（会把自绘菜单顶掉）
                   event.preventDefault()
@@ -1880,7 +1904,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
                   <button
                     key={conversation.id}
                     type="button"
-                    onClick={() => setActiveConversation(conversation.id)}
+                    onClick={() => selectConversation(conversation.id)}
                     onContextMenu={(event) => {
                       event.preventDefault()
                       setContextMenu({ convId: conversation.id, x: event.clientX, y: event.clientY })
@@ -1919,7 +1943,7 @@ function ConversationListPanel({ variant = 'standalone' }: { variant?: 'standalo
               key: 'open',
               label: '打开对话',
               icon: <MessageSquare className="size-3.5 shrink-0 opacity-70" />,
-              onSelect: () => setActiveConversation(contextConversation.id),
+              onSelect: () => selectConversation(contextConversation.id),
             },
             {
               key: 'pin',

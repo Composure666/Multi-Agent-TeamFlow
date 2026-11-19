@@ -1,3 +1,5 @@
+> 注（2026-11-19，batch5-cleanup W2）：本文提及的 `sidebar.tsx`、`agent-library.tsx`、`team-library.tsx`、`new-conversation-dialog.tsx`、`global-search-trigger.tsx`、`dir-picker-dialog.tsx` 已于 2026-11-18 batch4 §2 删除；现入口：侧栏→`app-workbench.tsx` 内联 `wb-sidebar`、Agent 库→`agent-workspace.tsx`、会话创建→新建任务视图。历史叙述保留原样。
+
 ## Context
 
 The current agent creation flow opens the full `CreateAgentDialog` immediately. That works for power users, but it requires every user to understand provider/model choices, tool permissions, and system prompt writing before they can create a useful agent.

@@ -1,5 +1,7 @@
 # 前端去“AI 味”优化（frontend-polish）
 
+> 注（2026-11-19，batch5-cleanup W2）：本文提及的 `sidebar.tsx`、`agent-library.tsx`、`team-library.tsx`、`new-conversation-dialog.tsx`、`global-search-trigger.tsx`、`dir-picker-dialog.tsx` 已于 2026-11-18 batch4 §2 删除；现入口：侧栏→`app-workbench.tsx` 内联 `wb-sidebar`、Agent 库→`agent-workspace.tsx`、会话创建→新建任务视图。历史叙述保留原样。
+
 ## Why
 
 2026-11-18 对着代码实测后的诊断：现在的“AI 味 / 模板味 / 廉价味”不是某一个地方的问题，是五层叠加：

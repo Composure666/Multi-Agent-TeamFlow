@@ -2,7 +2,7 @@ import { createElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { BELOW_XL_MEDIA_QUERY, getMediaQueryMatches, useIsBelowXl, useMediaQuery } from './use-media-query'
+import { BELOW_LG_MEDIA_QUERY, BELOW_XL_MEDIA_QUERY, getMediaQueryMatches, useIsBelowLg, useIsBelowXl, useMediaQuery } from './use-media-query'
 
 function stubMatchMedia(matches: boolean) {
   const mediaQueryList = {
@@ -25,6 +25,11 @@ function Probe() {
   return createElement('span', null, belowXl ? 'below-xl' : 'xl-or-above', '|', narrow ? 'narrow' : 'wide')
 }
 
+function ProbeLg() {
+  const belowLg = useIsBelowLg()
+  return createElement('span', null, belowLg ? 'below-lg' : 'lg-or-above')
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -33,6 +38,10 @@ afterEach(() => {
 describe('use-media-query', () => {
   it('xl 断点查询是 max-width: 1279px（Tailwind xl = ≥1280px 的反面）', () => {
     expect(BELOW_XL_MEDIA_QUERY).toBe('(max-width: 1279px)')
+  })
+
+  it('lg 断点查询是 max-width: 1023px（Tailwind lg = ≥1024px 的反面）', () => {
+    expect(BELOW_LG_MEDIA_QUERY).toBe('(max-width: 1023px)')
   })
 
   it('无 window 时 getMediaQueryMatches 返回 false，不抛错', () => {
@@ -63,6 +72,13 @@ describe('use-media-query', () => {
     expect(html).toContain('wide')
     expect(html).not.toContain('below-xl')
     expect(html).not.toContain('narrow')
+  })
+
+  it('useIsBelowLg 服务端初值恒为 false（与 useIsBelowXl 同一约定）', () => {
+    stubMatchMedia(true)
+    const html = renderToString(createElement(ProbeLg))
+    expect(html).toContain('lg-or-above')
+    expect(html).not.toContain('below-lg')
   })
 
   it('hook 服务端渲染不依赖 matchMedia 也能跑', () => {

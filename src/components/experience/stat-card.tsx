@@ -33,21 +33,25 @@ export function StatCard({
         : 'text-muted-foreground'
   const trendArrow = trend === undefined ? '—' : trend > 0 ? `↑ ${Math.abs(trend)}%` : trend < 0 ? `↓ ${Math.abs(trend)}%` : '—'
 
+  // W1（batch4-leftovers §5）：卡片改两行式——首行图标+标签、次行值+趋势/迷你图。
+  // 根因是旧横排里文字列在 1366 下仅 42px（图标 40 + 间距 + 内边距吃掉卡宽），
+  // 「累计使用」标签与「25 次」值必然折行，60px 迷你图更顶出卡片 34px、主列溢出 9px。
+  // 两行式让值行独占卡内宽（1366 下 109px），值 nowrap + 行可折行兜底大数值，迷你图缩到 44px。
   return (
-    <div className={cn('agenthub-card flex items-center gap-3 px-4 py-3', className)}>
-      <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', iconBg)}>
-        <Icon className={cn('size-5', iconColor)} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-xl font-semibold tabular-nums">{value}</span>
-          {sparkline ? (
-            <Sparkline data={sparkline} />
-          ) : (
-            <span className={cn('text-xs tabular-nums', trendColor)}>{trendArrow}</span>
-          )}
+    <div className={cn('agenthub-card flex flex-col gap-2 px-3 py-3', className)}>
+      <div className="flex min-w-0 items-center gap-2">
+        <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', iconBg)}>
+          <Icon className={cn('size-4', iconColor)} />
         </div>
+        <div className="min-w-0 whitespace-nowrap text-sm text-muted-foreground">{label}</div>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+        <span className="whitespace-nowrap text-xl font-semibold tabular-nums">{value}</span>
+        {sparkline ? (
+          <Sparkline data={sparkline} />
+        ) : (
+          <span className={cn('whitespace-nowrap text-xs tabular-nums', trendColor)}>{trendArrow}</span>
+        )}
       </div>
     </div>
   )
@@ -55,8 +59,8 @@ export function StatCard({
 
 function Sparkline({ data }: { data: number[] }) {
   if (data.length < 2) return null
-  const w = 60
-  const h = 24
+  const w = 44
+  const h = 20
   const max = Math.max(...data)
   const min = Math.min(...data)
   const range = max - min || 1

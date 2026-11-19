@@ -335,7 +335,7 @@ export function InformationCenterWorkspace() {
                   className={cn(
                     "group inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition",
                     active
-                      ? "bg-[var(--agenthub-accent)] text-white"
+                      ? "bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]"
                       : "text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5",
                   )}
                 >

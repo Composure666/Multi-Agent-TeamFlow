@@ -1,5 +1,7 @@
 # 模块页布局审计 Top 5（module-audit-top5）
 
+> 注（2026-11-19，batch5-cleanup W2）：本文提及的 `sidebar.tsx`、`agent-library.tsx`、`team-library.tsx`、`new-conversation-dialog.tsx`、`global-search-trigger.tsx`、`dir-picker-dialog.tsx` 已于 2026-11-18 batch4 §2 删除；现入口：侧栏→`app-workbench.tsx` 内联 `wb-sidebar`、Agent 库→`agent-workspace.tsx`、会话创建→新建任务视图。历史叙述保留原样。
+
 ## Why
 
 2026-11-18 下午用户要求“再看看各个功能模块页布局和结构有什么可以优化的”。只读审计（报告 `~/workspace/frontend-polish-evidence/module-audit-2026-11-18.md`，334 行，每条有 `file:line` 证据）发现 A–J 共 10 组问题；用户随即拍板：**先做 Top 5**。

@@ -18,6 +18,12 @@ import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 interface ExperienceSidebarProps {
   items: ExperienceRow[]
   onOpen: (id: string) => void
+  /**
+   * D2：Dialog 内渲染时调用方经 className 透传覆盖（`w-full border-l-0 …`），
+   * tailwind-merge 会让后传入的 width / border 覆盖这里的 `w-64` / `border-l`。
+   * 内联侧栏调用方不传，保持默认形态不变。
+   */
+  className?: string
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -42,7 +48,7 @@ function formatRelative(ts: number): string {
   return `${days} 天前`
 }
 
-export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
+export function ExperienceSidebar({ items, onOpen, className }: ExperienceSidebarProps) {
   const [showAllHot, setShowAllHot] = useState(false)
   const [showAllRecent, setShowAllRecent] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
@@ -55,7 +61,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
   const recent = recentSorted.slice(0, showAllRecent ? recentSorted.length : 4)
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-l border-[var(--agenthub-border)] bg-muted/20 px-4 py-4">
+    <aside className={cn('flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-l border-[var(--agenthub-border)] bg-muted/20 px-4 py-4', className)}>
       {/* 快速使用指南 */}
       <div className="agenthub-card p-4">
         <div className="flex items-center gap-2">
@@ -157,7 +163,7 @@ export function ExperienceSidebar({ items, onOpen }: ExperienceSidebarProps) {
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">经验资产，让 AI 不断成长</p>
         <div className="mt-3 flex justify-end">
-          <div className="flex size-8 items-center justify-center rounded-full bg-[var(--agenthub-accent)] text-white">
+          <div className="flex size-8 items-center justify-center rounded-full bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]">
             <ArrowRight className="size-4" />
           </div>
         </div>

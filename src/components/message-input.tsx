@@ -51,7 +51,6 @@ import {
   deleteAttachment as deleteAttachmentAPI,
 } from '@/lib/api'
 import { getToolDisplayName } from '@/lib/tool-display'
-import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAppStore, usePendingAttachments, usePendingPlanReviewForConversation, useTopLevelRunningRuns } from '@/stores/app-store'
 import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
@@ -267,6 +266,9 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   const upsertMessage = useAppStore((s) => s.upsertMessage)
   const replaceLocalMessageId = useAppStore((s) => s.replaceLocalMessageId)
   const clearConversationHistory = useAppStore((s) => s.clearConversationHistory)
+  const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
+  const setWorkbenchView = useAppStore((s) => s.setWorkbenchView)
+  const setMobileSidebarOpen = useAppStore((s) => s.setMobileSidebarOpen)
   const conversation = useAppStore((s) => s.conversations[conversationId])
   const upsertConversation = useAppStore((s) => s.upsertConversation)
   const agents = useAppStore((s) => s.agents)
@@ -645,11 +647,12 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         break
       case 'settings':
         clearSlashCommandInput()
-        emitUiCommand('open-settings')
+        openSettingsTarget()
         break
       case 'agents':
         clearSlashCommandInput()
-        emitUiCommand('open-agents')
+        setWorkbenchView('agents')
+        setMobileSidebarOpen(false)
         break
       default:
         break

@@ -1349,25 +1349,6 @@ export async function toggleMessagePin(
   )
 }
 
-// ─── Filesystem (DirPicker) ────────────────────
-export interface ListDirResult {
-  path: string
-  parent: string | null
-  entries: Array<{ name: string; isDirectory: boolean; path?: string }>
-}
-
-export type ServerPlatform = 'posix' | 'windows'
-
-export async function getServerPlatform(): Promise<ServerPlatform> {
-  const res = await json<{ platform: ServerPlatform }>(fetch('/api/platform'))
-  return res.platform
-}
-
-export async function listDirectory(targetPath?: string): Promise<ListDirResult> {
-  const qs = targetPath ? `?path=${encodeURIComponent(targetPath)}` : ''
-  return json<ListDirResult>(fetch(`/api/fs/listdir${qs}`))
-}
-
 // ─── Filesystem (conversation-scoped, 文件浏览器面板用) ────────
 export interface WorkspaceListResult {
   relPath: string

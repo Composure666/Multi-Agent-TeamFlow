@@ -218,12 +218,12 @@ useEffect(() => {
 ```
 app/page.tsx
 └── <Home>
-    ├── <Sidebar />               ── 对话/产物库/Agents/分析 四 tab 切换
+    ├── <Sidebar />               ── （已删，2026-11-18 batch4 §2）原：对话/产物库/Agents/分析 四 tab 切换；现为 `app-workbench.tsx` 内联 `wb-sidebar` + `WorkbenchViewRouter` 按 `workbenchView` 切视图
     │   ├── <ThemeToggle />
-    │   ├── <NewConversationDialog />
+    │   ├── <NewConversationDialog />   ── 已删；会话创建现为新建任务视图（`agent-workspace.tsx`）
     │   ├── <ConversationItem />  ── 单条会话 + hover 置顶/归档/重命名/删除
-    │   ├── <ArtifactLibrary />
-    │   ├── <AgentLibrary />
+    │   ├── <ArtifactLibrary />   ── 现挂在会话视图「本会话产物库」抽屉内（`chat-panel.tsx`）
+    │   ├── <AgentLibrary />      ── 已删；Agent 库现为 `agent-workspace.tsx` 自写列表
     │   │   ├── <CreateAgentDialog />    ── 顶部 radio 选 adapterName（'custom' / 'claude-code' / 'codex'）；SDK adapter 模式下隐藏 provider/内置工具集，支持选择兼容的 MCP servers 与 Skills
     │   │   └── <AgentToolSearchDialog /> ── 搜索 Skills / MCP 并配置给指定 Agent
     │   └── <RenameInput />       ── 内联重命名

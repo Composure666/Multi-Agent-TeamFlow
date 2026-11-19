@@ -315,7 +315,7 @@ export function AnalyticsWorkspace() {
                       <span className="text-slate-300">~</span>
                       <input type="date" value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} className="h-7 w-full rounded border border-[var(--agenthub-border)] px-1.5 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-[var(--agenthub-accent-border)]" />
                     </div>
-                    <button type="button" onClick={() => { setDatePreset('自定义' as DatePreset); setDateRangeOpen(false) }} className="mt-1.5 w-full rounded bg-[var(--agenthub-accent)] py-1 text-xs font-medium text-white transition hover:bg-[var(--agenthub-accent-hover)]">应用</button>
+                    <button type="button" onClick={() => { setDatePreset('自定义' as DatePreset); setDateRangeOpen(false) }} className="mt-1.5 w-full rounded bg-[var(--agenthub-accent)] py-1 text-xs font-medium text-[var(--primary-foreground)] transition hover:bg-[var(--agenthub-accent-hover)]">应用</button>
                   </div>
                 </div>
               )}
@@ -351,7 +351,7 @@ export function AnalyticsWorkspace() {
       {!isInitialLoading && (
         <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
             <KpiCard
               icon={Bot}
               label="Agent 运行数"
@@ -549,13 +549,15 @@ export function AnalyticsWorkspace() {
                   </DropdownMenu>
                 </div>
               </div>
-              <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] px-5">
+              {/* 任务状态筛选：accent 胶囊（与信息中心 / 自动化同款） */}
+              <div className="flex items-center gap-1 overflow-x-auto px-5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(['全部', '运行中', '成功', '失败', '已中止'] as TaskListTab[]).map((tab) => {
                   const count = tab === '全部' ? runs.length : runs.filter((r) => r.status === tab).length
+                  const active = taskTab === tab
                   return (
-                    <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} className={cn('relative shrink-0 px-3 py-2.5 text-sm font-medium transition', taskTab === tab ? 'text-[var(--agenthub-accent)]' : 'text-slate-500 hover:text-slate-700')}>
-                      {tab}<span className={cn('ml-1.5 text-xs', taskTab === tab ? 'text-[var(--agenthub-accent)]' : 'text-slate-400')}>{count}</span>
-                      {taskTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[var(--agenthub-accent)]" />}
+                    <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} aria-pressed={active} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition', active ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5')}>
+                      {tab}
+                      <span className={cn('rounded-full px-1.5 py-0.5 text-xs tabular-nums', active ? 'bg-white/15 dark:bg-black/15' : 'bg-[var(--agenthub-surface-muted)] text-slate-500 dark:text-slate-400')}>{count}</span>
                     </button>
                   )
                 })}
@@ -891,7 +893,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
                   onClick={() => setPage(p as number)}
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition',
-                    p === currentPage ? 'bg-[var(--agenthub-accent)] text-white' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)]',
+                    p === currentPage ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)]',
                   )}
                 >
                   {p}

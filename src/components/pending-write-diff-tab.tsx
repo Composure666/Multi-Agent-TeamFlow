@@ -131,7 +131,7 @@ export function PendingWriteDiffTab({
             size="sm"
             onClick={handleApprove}
             disabled={!!busy}
-            className="h-7 bg-[var(--agenthub-accent)] text-white hover:bg-[var(--agenthub-accent-hover)]"
+            className="h-7 bg-[var(--agenthub-accent)] text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)]"
           >
             {busy === 'approve' ? (
               <Loader2 className="mr-1 size-3.5 animate-spin" />

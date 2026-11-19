@@ -34,7 +34,7 @@ package "L5 — UI 组件层\n(src/components/)" as L5 #E8F5E9 {
   }
 
   package "Agent 管理" as ui_agent #F5F5F5 {
-    [AgentLibrary] as ui_agentlib
+    [AgentWorkspace] as ui_agentws
     [AgentCreateWizard] as ui_agentwiz
     [AgentInfoPopover] as ui_agentpop
     [AddAgentDialog] as ui_addagent

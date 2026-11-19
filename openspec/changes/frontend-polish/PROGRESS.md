@@ -3,6 +3,7 @@
 > 用户 2026-11-18 02:35 批准：全部改完、留好记录、不提交代码，明天验收再改细节。
 > 唯一事实来源：`proposal.md`（决策与改动）与 `tasks.md`（Phase 1–5）。
 > 铁律：不 commit、不 push、不部署、不碰 121.40.240.236；只改工作树。
+> 注（2026-11-19，batch5-cleanup W2）：本文提及的 `sidebar.tsx`、`agent-library.tsx`、`team-library.tsx`、`new-conversation-dialog.tsx`、`global-search-trigger.tsx`、`dir-picker-dialog.tsx` 已于 2026-11-18 batch4 §2 删除；现入口：侧栏→`app-workbench.tsx` 内联 `wb-sidebar`、Agent 库→`agent-workspace.tsx`、会话创建→新建任务视图。历史叙述保留原样。
 
 ## 基线
 
@@ -284,3 +285,44 @@ Phase 5：
 - W7 集中验证：tsc 0 错误、eslint 93 文件 0 错误 3 既存警告、全量 vitest **882 通过 / 4 跳过 / 0 失败**、干净生产构建 exit 0（BUILD_ID `sRfxgc8IwfRk0D319U6bP`）、Playwright 截图复核 **14 项全部 PASS**；最终数字见 `openspec/changes/batch3-leftovers/PROGRESS.md`「W7 集中验证」一节。
 - 遗留（非阻塞）：1200 字团队行余量 12.4px 偏紧；「需求到原型团队」chip 标签折两行；调试板图内节点行距在 lib 文件中未动；PageShell 注释未补 Agent 库一句；README alt 文案不准确；无 JS 时 `:root` 仍为 ink 浅色；500 字态 +10px 基线溢出。
 - 未 commit、未 push、未部署；HEAD 仍为 9618684。
+
+## 白色主题（white-themes，另开 change，2026-11-18 晚）
+
+- 用户 ~20:48 提出加白色主题并设为默认，~20:58 在三张白色效果图里选了 1、2、3（白·石墨 / 白·工程蓝 / 白·水墨），删除石墨琥珀 / 松柏深绿 / 曜石黑金，默认改为白·石墨；完整记录见 `openspec/changes/white-themes/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/white-themes/`。
+- 改动：注册表 `THEME_IDS` 改为 `['ink', 'terra', 'wine', 'white-graphite', 'white-blue', 'white-ink']`，默认 `white-graphite`；`globals.css` 删旧三套 6 个块、新增三套 6 个块（chart-3 金系改青色 `#2DD4BF`）；防闪脚本白名单 + 两处 fallback 同步新默认；设置外观区三套新文案 +「默认白·石墨」；头栏下拉注册表驱动，0 改动。
+- 对比度：24 组全部 ≥ 4.5:1（W1 实测 + W3 独立重算一致）；修了 3 处 accentInk——白·石墨浅 3.38 → **4.89**、白·工程蓝浅 3.59 → **4.55**（裕量仅 0.05，遗留）、白·水墨深 3.71 → **4.66**。
+- W3 集中验证：tsc 0 错误、eslint 0 错误、全量 vitest **886 通过 / 4 跳过 / 0 失败**、干净生产构建 exit 0（BUILD_ID `Xv8o20dAi30A-1zazzXhp`，首次构建因冷缓存字体拉取失败、未改代码重试成功）；Playwright 18 组截图（3 套 × 浅/深 × 首页/新任务页/设置）数值全过 + 头栏下拉/设置外观卡复核；默认/回落全过——清存首开白·石墨（浅/深）、非法值回落、预置 graphite/pine/obsidian 均回落白·石墨、预置 wine 仍为 wine；无闪烁（实际绘制帧判定，计算样式滞后读数为慢速 VM 伪影）。
+- 遗留（非阻塞）：白·工程蓝浅 accentInk 4.55 裕量薄；无 JS 时 `:root` 仍为 ink 浅色；`/home` 预览图仍是 graphite 旧图未重拍。
+- 未 commit、未 push、未部署；HEAD 仍为 `c383a4a`。
+
+## 第一批：响应式与可达性收尾（batch1-responsive，另开 change，2026-11-18 晚）
+
+- 用户 2026-11-18 ~20:22 拍板「三批按顺序都做」，本 change 只做第一批六项（D2、D3、D4、D5、H2、C4），不碰第二批与第三组；完整记录见 `openspec/changes/batch1-responsive/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/batch1-responsive/`。
+- 改动：D2 经验库 `<lg` 侧栏收进 Dialog 抽屉（新增 `useIsBelowLg`，侧栏 className 透传，`≥lg` 不变）；D3 0 代码改动（Top 5 的 flex-wrap 已解决，带 running Run 复核通过）；D4 分享按钮删除（URL 恒为 `/`、无深链恢复，复制链接会误导）；D5 `Cost -` 删除（无计价数据源）；H2 徽章 `text-white/20`→`text-white`，并修正了深色 pill 同样不可读的问题（深色 pill 改浅色）；C4 三处 confirm 换 `DIALOG_SIZE_CLASS.sm` Dialog（自动化删除、经验库删除、file-tab 编辑→浏览放弃修改）。
+- W5 集中验证（最终树状态重跑）：tsc 0 错误、eslint 0 错误、全量 vitest **888 通过 / 4 跳过 / 0 失败**（基线 886 + W1 新增 2 个 lg 测试；W1 曾报的 `agent-runner-debug-events` 并发超时本轮未再现）、干净生产构建 exit 0（BUILD_ID `qsb0rLVYe7dZR7BgnBm8Z`）；Playwright 六项复核：D2 390 主列 84→356、768 主列 202→474，抽屉开合可用，1366/1920 内联侧栏不变；D3 六场景 0 重叠 0 裁切；D4 分享 0 处；D5 元信息行无 Cost，完整态 2,100 Tokens 真实值；H2 浅 9.57:1、深 13.41:1；C4 三处 Dialog 全部 0 溢出、取消保留、确认执行，原生 confirm 全仓 0 处。
+- 遗留（非阻塞）：1366 下经验库主列 5px 溢出（统计卡趋势 svg 右沿超 5px，与 W1 改后值一致）；390 DetailsPanel Tab 折行、「0 次」换行、调试板空态边界（第三组）；I2 Run label 重复（第二批）；POST /api/automations 会顺带建同名会话。
+- 未 commit、未 push、未部署；HEAD 仍为 `c383a4a`。
+
+## 第二批：一致性收尾（batch2-consistency，另开 change，2026-11-18 晚）
+
+- 用户 2026-11-18 ~20:22 拍板「三批按顺序都做」，本 change 只做第二批十六项（G、B1、B2、B3、B4、C1、C2、C3、E3、E4、I1、I2、J1、F4、D6、D7），不碰第三组；完整记录见 `openspec/changes/batch2-consistency/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/batch2-consistency/`。
+- 改动：G 切换控件统一为两种（分段控件 + accent 胶囊，16 处收敛，并修掉深色激活胶囊 `text-white` 1.27:1 不可读）；B1 KPI gap 四处统一 17px；B2 侧栏行统一 `agenthub-card-interactive + px-3 py-2.5`；B3 统计条默认收起（列表首行 1366 下 445→328、390 下 773→495）；B4 删重复 `overflow-hidden`；C1 产物库加载补「重新加载」；C2 团队库与部署页空态改 `EmptyState`；C3 toast 加「查看全部通知」跳信息中心；E3 搜索弹窗走 `DIALOG_SIZE_CLASS.md`、错误态改「重新搜索」；E4 产物库删除确认补 sm 档；I1「Key 说明」固定为导航项；I2 面包屑去 Run 留元信息行；J1 向导改两步指示；F4 箭头改溢出驱动；D6 部署页加「← 返回工作台」；D7 0 代码改动（Top 5 迁移已解决）。
+- W6 集中验证（最终树状态重跑）：tsc 0 错误、eslint 0 错误、全量 vitest **888 通过 / 4 跳过 / 0 失败**（W4 曾报的 `agent-runner-debug-events` 并发超时本轮未再现）、干净生产构建 exit 0（BUILD_ID `sMLLe9kUw_UhD_zUpsRUF`）；Playwright 十六项复核：G 激活胶囊浅 11.6:1、深 13.43:1，分段浅 15.9:1、深 15.52:1；B1 四处 gap 17px；B2 产物行 h 65、padding 12.75/10.625；B3 首行提前 117px/278px；C1 点重试请求 1→2；C3 点入口落信息中心、6.5s 自动消失；E3 714px（390 下 356px）0 溢出、重试出 2 条结果；E4 476px/356px；I1/I2/J1/F4/D6/D7 1366/390 均过。最终数字见 `openspec/changes/batch2-consistency/PROGRESS.md`「W6 集中验证结果」一节。
+- 遗留（非阻塞）：Agent/团队行与团队库空态在死代码里（`sidebar.tsx` 全仓无引用，删或接回另行决策）；B3 展开态统计卡标签换行；G 范围外深色 `text-white` on accent 仍存多处；1366 经验库主列 5px 溢出（第一批遗留）；390 DetailsPanel Tab 折行、「0 次」换行、调试板空态边界（第三组）；搜索结果行 JSON 原文渲染；390 抽屉菜单导航后遮罩不自动关闭。
+- 未 commit、未 push、未部署；HEAD 仍为 `c383a4a`。
+
+## 第四组：零散遗留收尾（batch4-leftovers，另开 change，2026-11-18 晚）
+
+- 用户 2026-11-18 ~20:22 拍板「三批按顺序都做」，本 change 只做第三组八项（§1 页头吸顶、§2 F1 死代码、§3 ArtifactWorkspace hover-only、§4 DetailsPanel Tab、§5 统计卡换行、§6 调试板空态、§7 第三批验证遗留小项、§8 第二批探针新发现），不碰前三轮已落地的改动；完整记录见 `openspec/changes/batch4-leftovers/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/batch4-leftovers/`。
+- 改动：§1 决定不恢复吸顶（PageShell 不滚动，sticky 无祖先可依；B3 收起态已提前首行），只加 2 行 why 注释；§5 统计卡改两行式（值 nowrap、图标 40→32、px-4→px-3、迷你图 60×24→44×20）；§2 删 6 个死代码文件（sidebar / agent-library / team-library / new-conversation-dialog / global-search-trigger / dir-picker-dialog）+ 5 处随之失效的 import/注释/地图；§3 ArtifactWorkspace 三处按钮补 `focus-within` + 粗指针常显；§4 Tab 条改可横滑单行；§6 EmptyBoard 改三态 + `stageVisualState` 的 `unavailable → todo`；§7c 图内间距三常量收窄（rowGap 340→240、toolGridTopGap 260→200、summaryGap 300→220）；§7h 工具条内边距收 2~4px；§7a/§7g 新任务页 pt/pb 各省 16px；§7b 最近团队名加 `whitespace-nowrap`；§7e README 两处 alt 重写；§7f `:root`/`.dark` 兜底移到白·石墨块；§8b 390 抽屉嵌会话列表 + 顶栏条件放宽；§7d 与 §8a 为 0 改动（注释在 Top 5 提交 21a5561 里已写；遮罩关闭逻辑自 bae0d93 起就存在，batch2 记录源于探针自身状态问题）。
+- W6 集中验证（最终树状态重跑）：tsc 0 错误、eslint 0 错误、全量 vitest **890 通过 / 4 跳过 / 0 失败**（基线 888 + W4 新增 2 个 pin 测试；`agent-run-debug-board.test.ts` 52/52）、干净生产构建 exit 0（BUILD_ID `BiE4hqen5Xo1ZhAQoluQ7`）；Playwright 八项复核：统计卡「0 次」与「25 次」在 1366/390 下均单行、卡高统一 99.8、主列溢出 0、页头滚动时 y 不动；死代码回归五处全过、全仓 0 残留引用；ArtifactWorkspace 三处键盘 Tab 可见、触屏常显；调试板富图间距 200/220/240、390 下 6 Tab 单行同高逐个可点、三态空态正确、无转圈；1200 字团队行底边 724.8px、余量 43.2px，500 字态溢出归零；390 抽屉见对话历史、点会话收抽屉进聊天、导航后遮罩关闭；无 JS 首屏 `--background` `#fff`，有 JS 仍为 white-graphite，ink 预置不受影响。最终数字见 `openspec/changes/batch4-leftovers/PROGRESS.md`「W6 集中验证结果」一节。
+- 遗留（非阻塞）：CanvasToolbar 内部滚动未彻底消除（1366 下仍有 431px）；历史文档与 `skills/add-experience.md` 仍提及已删文件、`src/lib/api.ts` 两个孤儿 helper、`/agents` 与 `/settings` 斜杠命令成 no-op（均另立项）；团队详情对话框溢出风险（用户未定夺）；G 范围外深色 `text-white` on accent；搜索结果行 JSON 原文渲染；POST /api/automations 顺带建同名会话。
+- 未 commit、未 push、未部署；HEAD 仍为 `c383a4a`。
+
+## 第五批：零散遗留清理（batch5-cleanup，另开 change，2026-11-19 凌晨）
+
+- 用户 2026-11-19 ~01:00 问“还有未完成的优化任务吗”后批准顺手修掉剩下的小项、再各方面测试一下；完整记录见 `openspec/changes/batch5-cleanup/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/batch5-cleanup/`。
+- 改动：W1 调试板工具条改折行（`flex-wrap`，图标化「适配视野」「重置布局」，「展开/收起 Run」缩文案），1366/390 六条件 scrollX 全归零；W2 历史文档与 skill 里的已删文件引用改指当前入口（17 个 openspec 文件加删除注，spec 四处改写），`src/lib/api.ts` 删两个孤儿 helper（`listDirectory`、`getServerPlatform`），斜杠命令 `/settings`、`/agents` 改走 store 驱动（`openSettingsTarget()` / `setWorkbenchView('agents')`），`UiCommand` 仅剩 `'open-user-guide'`；W3 全仓扫修 31 处深色 accent 白字 → `text-[var(--primary-foreground)]`（19 文件）；W4 LIKE 兜底搜索 snippet 改 JS 生成 parts 纯文本（`[调用 执行命令]`、`[产物: id]` 等标签，命中词包 `<mark>`）；W5 0 改动（POST /api/automations 顺带建同名会话核实为预期行为，spec 08 §12 与 spec 01 明文写死）；W6 白·工程蓝浅 accentInk `#241b04` → `#1a1402`（accent `#a37f22` 未动），对比度 4.55 → 4.91:1；/home 预览图两处重拍白·石墨 3200×1600（md5 均 `1e85f504a3a0db84651cebf5192b9ef6`）。
+- W7 集中验证（最终树状态重跑）：tsc 0 错误、eslint 0 错误（本轮 26 文件）、全量 vitest **894 通过 / 4 跳过 / 0 失败**（104 文件，一次过）、干净生产构建 exit 0（BUILD_ID `Uj1B6GQ8PoWepS2jgOBEo`）；Playwright 回归：工具条六条件 scrollX 全 0（431 口径复核：431 在侧栏展开态，收起态 259，两种都归零）、斜杠命令均可用、搜索「渲染」/「bash」/「回归」无 JSON 原文且有 `<mark>`、建自动化会话 2→3 且同名会话与绑定一致、24 组对比度全 ≥4.5:1（最低 4.66 白·水墨深，白·工程蓝浅 4.91，经设置外观区真实点卡切换复核）、/home 新图在位 3200×1600、390/1366/1920 三档无溢出；深色 spot 调试板「重新运行」13.43:1。
+- 遗留（非阻塞）：wine 深 hover 3.82:1、capability violet 分支 4.23、debug-board 状态色圆点、agent-avatar 调色板、最近团队圆 `#3E7CB1` 槽 4.45、`/api/platform` 暂无前端调用方、删自动化不删绑定会话、点搜索结果停新任务首页（既有行为）、团队详情对话框溢出风险（用户未定夺）、GitHub PNG 补推待定。详见 `openspec/changes/batch5-cleanup/PROGRESS.md`「遗留清单」。
+- 未 commit、未 push、未部署；HEAD 仍为 `c383a4a`。

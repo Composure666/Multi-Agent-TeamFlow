@@ -95,7 +95,7 @@ export function AgentCreateWizard({
   if (draft) {
     return (
       <div className="flex min-h-0 flex-col gap-3">
-        <WizardSteps current={3} />
+        <WizardSteps current={2} />
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <AgentDraftPreview draft={draft} />
         </div>
@@ -189,9 +189,9 @@ export function AgentCreateWizard({
   )
 }
 
-/** 向导三步指示：1 描述信息 → 2 能力草稿 → 3 确认创建（草稿页即确认页）。 */
-function WizardSteps({ current }: { current: 1 | 3 }) {
-  const steps = ['描述信息', '能力草稿', '确认创建']
+/** 向导两步指示：1 描述信息 → 2 确认创建（草稿页即确认页，Q21 不拆屏，故无中间步）。 */
+function WizardSteps({ current }: { current: 1 | 2 }) {
+  const steps = ['描述信息', '确认创建']
   return (
     <ol className="flex shrink-0 items-center gap-1.5" aria-label="创建步骤">
       {steps.map((label, index) => {
@@ -203,7 +203,7 @@ function WizardSteps({ current }: { current: 1 | 3 }) {
             <span
               className={cn(
                 'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
-                done && 'bg-[var(--agenthub-accent)] text-white',
+                done && 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]',
                 active && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent-border)]',
                 !done && !active && 'bg-muted text-muted-foreground',
               )}

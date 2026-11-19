@@ -228,7 +228,7 @@ function AskUserBody({
         </span>
         <Button
           size="sm"
-          className="bg-[var(--agenthub-accent)] text-white hover:bg-[var(--agenthub-accent-hover)]"
+          className="bg-[var(--agenthub-accent)] text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)]"
           disabled={!allAnswered || busy}
           onClick={() => void handleSubmit()}
         >
@@ -298,7 +298,7 @@ function QuestionBlock({
                   isSel ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent)]' : 'border-muted-foreground/40',
                 )}
               >
-                {isSel && <span className="size-1 rounded-full bg-white" />}
+                {isSel && <span className="size-1 rounded-full bg-[var(--primary-foreground)]" />}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{opt.label}</div>

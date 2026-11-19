@@ -360,17 +360,17 @@ interface SearchState {
 ### 9.2 UI 组件
 
 ```
-src/components/global-search.tsx           // 弹窗主组件
-src/components/global-search-trigger.tsx   // 顶栏按钮 + ⌘K 监听
+src/components/global-search.tsx           // 弹窗主组件（挂在 layout.tsx；⌘K / Ctrl+K 监听在组件内，侧栏折叠时也生效）
 src/components/search-result-item.tsx      // 单条结果
 src/components/message-highlight-layer.tsx // 在 ChatWindow 监听 highlightedMessageId
 ```
+（原 `src/components/global-search-trigger.tsx` 是顶栏按钮 + ⌘K 监听，唯一挂载点是已删的 `sidebar.tsx:292`，已于 2026-11-18 随死代码清理删除；⌘K 入口现由 `global-search.tsx` 自带监听 + `layout.tsx` 挂载承担。）
 
 `<MessageList>` 渲染的每个 message 容器加 `id={`message-${msg.id}`}`，方便 `scrollIntoView` 定位；高亮通过临时 CSS class（2s 后移除）实现。
 
 ### 9.3 不动的东西
 
-- Sidebar 现有的"按标题过滤" input 不动（行为不变，UI 可与新搜索共存）
+- 会话列表现有的"按标题过滤" input 不动（行为不变，UI 可与新搜索共存；现位于 `app-workbench.tsx:1833`，placeholder「搜索对话」）
 - 任何 adapter / tool / orchestrator 路径不动
 - 任何流式事件协议不动（search 是查询功能，不在事件总线里）
 

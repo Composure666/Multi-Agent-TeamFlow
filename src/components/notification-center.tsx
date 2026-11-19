@@ -27,6 +27,7 @@ export function NotificationCenter() {
   const dismissNotification = useAppStore((state) => state.dismissNotification)
   const openNotificationTarget = useAppStore((state) => state.openNotificationTarget)
   const markNotificationReadLocal = useAppStore((state) => state.markNotificationReadLocal)
+  const setWorkbenchView = useAppStore((state) => state.setWorkbenchView)
 
   const markRead = useCallback((id: string) => {
     markNotificationReadLocal(id)
@@ -57,6 +58,15 @@ export function NotificationCenter() {
       urgent: notification.urgent,
     })
   }, [openNotificationPayload])
+
+  // 「查看全部通知」：收起本条 toast，跳信息中心（通知历史列表）。
+  // 与「打开」不冲突：「打开」跳通知指向的具体目标（会话/任务/产物/设置），
+  // 这里只跳列表本身，不标为已读（未读态留在信息中心里可见）。
+  const viewAllNotifications = useCallback((notification: AppNotification) => {
+    dismissNotification(notification.id)
+    if (notification.urgent) clearNativeUrgentNotification()
+    setWorkbenchView('information-center')
+  }, [dismissNotification, setWorkbenchView])
 
   useEffect(() => {
     for (const notification of notifications) showNativeNotification(notification)
@@ -100,6 +110,7 @@ export function NotificationCenter() {
           key={notification.id}
           notification={notification}
           onOpen={() => openNotification(notification)}
+          onViewAll={() => viewAllNotifications(notification)}
           onMarkRead={() => {
             markRead(notification.id)
             dismissNotification(notification.id)
@@ -118,11 +129,13 @@ export function NotificationCenter() {
 function NotificationToast({
   notification,
   onOpen,
+  onViewAll,
   onMarkRead,
   onClose,
 }: {
   notification: AppNotification
   onOpen: () => void
+  onViewAll: () => void
   onMarkRead: () => void
   onClose: () => void
 }) {
@@ -182,6 +195,18 @@ function NotificationToast({
               className="h-7 rounded-lg px-2 text-xs opacity-80"
             >
               标为已读
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={(event) => {
+                event.stopPropagation()
+                onViewAll()
+              }}
+              className="h-7 rounded-lg px-2 text-xs opacity-80"
+            >
+              查看全部通知
             </Button>
           </div>
         </div>

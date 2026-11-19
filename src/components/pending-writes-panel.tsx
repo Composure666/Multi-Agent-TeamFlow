@@ -170,7 +170,7 @@ function PendingWriteCard({
           size="sm"
           onClick={handleApprove}
           disabled={!!busy}
-          className="h-7 bg-[var(--agenthub-accent)] px-2.5 text-white hover:bg-[var(--agenthub-accent-hover)]"
+          className="h-7 bg-[var(--agenthub-accent)] px-2.5 text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)]"
           title="应用"
         >
           {busy === 'approve' ? (

@@ -26,7 +26,6 @@ import {
   RefreshCw,
   Scan,
   Search,
-  Share2,
   TerminalSquare,
   Wrench,
   X,
@@ -839,12 +838,6 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
               <span>运行调试</span>
               <span>/</span>
               <span className="max-w-[260px] truncate">{headerTitle}</span>
-              {selectedRun && (
-                <>
-                  <span>/</span>
-                  <span>{formatRunLabel(selectedRun.id)}</span>
-                </>
-              )}
             </div>
           }
           meta={
@@ -853,7 +846,6 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
               <span className="font-mono text-slate-700 dark:text-slate-200">{selectedRun ? formatRunLabel(selectedRun.id) : '暂无 Run'}</span>
               <span>{selectedRun ? formatRunDuration(selectedRun) : '-'}</span>
               <span>{totalTokens === null ? '-' : `${totalTokens.toLocaleString()} Tokens`}</span>
-              <span>Cost -</span>
               <span>{selectedRun?.modelId ?? currentDetail?.snapshot?.agent.modelId ?? '-'}</span>
               <span>{workerAgentCount ? `${workerAgentCount} Agents` : '-'}</span>
             </div>
@@ -887,7 +879,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             <Button
               type="button"
               size="sm"
-              className="gap-1.5 bg-[var(--agenthub-accent)] text-white hover:bg-[var(--agenthub-accent-hover)]"
+              className="gap-1.5 bg-[var(--agenthub-accent)] text-[var(--primary-foreground)] hover:bg-[var(--agenthub-accent-hover)]"
               disabled={!canRerunSelected || rerunningRun}
               title={
                 !canRerunSelected
@@ -933,9 +925,6 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             </Button>
             <Button type="button" size="icon-sm" variant="outline" title="复制 Run ID" aria-label="复制 Run ID" disabled={!selectedRun} onClick={() => selectedRun && void navigator.clipboard?.writeText(selectedRun.id)}>
               <Copy className="size-3.5" />
-            </Button>
-            <Button type="button" size="icon-sm" variant="outline" title="分享" aria-label="分享" disabled={!selectedRun}>
-              <Share2 className="size-3.5" />
             </Button>
             <Button
               type="button"
@@ -1104,7 +1093,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
                   )}
                 </div>
               ) : (
-                <EmptyBoard runs={runs} onBack={conversationId ? backToConversation : undefined} />
+                <EmptyBoard runs={runs} hasConversation={Boolean(conversationId)} onBack={conversationId ? backToConversation : undefined} />
               )}
             </div>
           </div>
@@ -1207,44 +1196,55 @@ function CanvasToolbar({
   ]
 
   return (
-    // 工具栏内容（范围切换 + 视图切换 + 适配/重置 + 4 个筛选）在 1366 宽度下、检查器
-    // 打开时约 910px，放不进 634px 的画布列：旧写法靠中间视图组的 min-w-0 把按钮
-    // 压到 34px 宽、标签折成两行，右侧整组还溢出卡片 441px。改为横向滚动收容：
-    // 所有按钮 shrink-0 + 不换行，窄了就滚、不再挤扁或溢出；提示语只在 2xl 才显示，
-    // 1366 不带检查器时工具栏刚好放得下、不滚动。
-    <div className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/95 px-2.5">
-      <div className="flex shrink-0 items-center gap-1 border-r border-[var(--agenthub-border)] pr-2">
-        {[
-          { id: 'session' as const, label: '全会话' },
-          { id: 'run' as const, label: '当前 Run' },
-        ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onGraphScopeChange(item.id)}
-            aria-pressed={graphScope === item.id && view === 'graph'}
-            className={cn(
-              'h-7 shrink-0 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition',
-              graphScope === item.id && view === 'graph'
-                ? 'bg-slate-900 text-white shadow-sm dark:bg-[var(--agenthub-surface-muted)] dark:text-slate-100'
-                : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
-            )}
-          >
-            {item.label}
-          </button>
-        ))}
+    // 工具栏内容（范围切换 + 展开/收起 + 视图切换 + 适配/重置 + 4 个筛选）单行约
+    // 855px，而检查器终端 Tab + 侧栏展开时 1366 下画布列只剩 424px、390 下只剩
+    // 337px，单行无论如何收边距都放不下（batch4 只收 2~4px，仍剩 431px 内部滚动）。
+    // batch5 W1 改为可换行收容 + 收按钮尺寸：外层 flex-wrap（窄了就折到下一行，
+    // 不再横向滚动）、「适配视野」「重置布局」改为纯图标按钮（title/aria-label 保留）、
+    // 「展开/收起当前 Run」缩为「展开/收起 Run」、分段按钮与筛选胶囊各收 2px 内边距。
+    // 单行总宽约 657px：1366 无检查器时仍单行；检查器打开时折两行；390 下折三行。
+    // overflow-x-auto 保留作兜底（未来标签变长时滚而不溢出卡片）。
+    <div
+      data-testid="canvas-toolbar"
+      className="flex min-h-11 shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/95 px-2 py-1"
+    >
+      <div className="flex shrink-0 items-center border-r border-[var(--agenthub-border)] pr-2">
+        {/* 范围切换：分段控件（与 Agent 库侧栏同款） */}
+        <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="图表范围">
+          {[
+            { id: 'session' as const, label: '全会话' },
+            { id: 'run' as const, label: '当前 Run' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onGraphScopeChange(item.id)}
+              aria-pressed={graphScope === item.id && view === 'graph'}
+              className={cn(
+                'h-7 shrink-0 whitespace-nowrap rounded px-1.5 text-xs font-medium transition',
+                graphScope === item.id && view === 'graph'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
       {graphScope === 'session' && view === 'graph' && (
         <button
           type="button"
           onClick={onToggleCurrentRunExpansion}
-          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
+          title={currentRunExpanded ? '收起当前 Run 的子图' : '展开当前 Run 的子图'}
+          className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-1.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
         >
           {currentRunExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-          {currentRunExpanded ? '收起当前 Run' : '展开当前 Run'}
+          {currentRunExpanded ? '收起 Run' : '展开 Run'}
         </button>
       )}
-      <div className="flex shrink-0 items-center gap-1">
+      {/* 视图切换：分段控件（与 Agent 库侧栏同款） */}
+      <div className="flex shrink-0 items-center rounded-md bg-muted p-0.5" role="group" aria-label="视图切换">
         {views.map((item) => (
           <button
             key={item.id}
@@ -1252,10 +1252,10 @@ function CanvasToolbar({
             onClick={() => onViewChange(item.id)}
             aria-pressed={view === item.id}
             className={cn(
-              'h-7 shrink-0 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition',
+              'h-7 shrink-0 whitespace-nowrap rounded px-1.5 text-xs font-medium transition',
               view === item.id
-                ? 'bg-[var(--agenthub-accent)] text-white shadow-sm'
-                : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {item.label}
@@ -1270,37 +1270,41 @@ function CanvasToolbar({
               type="button"
               onClick={onFitView}
               title="适配视野：把全部卡片放回可视区"
-              className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              aria-label="适配视野"
+              className="inline-flex size-7 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
             >
               <Scan className="size-3.5" />
-              适配视野
             </button>
             <button
               type="button"
               onClick={onResetLayout}
               title="重置布局"
-              className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
+              aria-label="重置布局"
+              className="inline-flex size-7 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-xs font-medium text-slate-500 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200"
             >
               <Maximize2 className="size-3.5" />
-              重置布局
             </button>
           </>
         )}
-        {TIMELINE_FILTER_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onFilterChange(option.id)}
-            className={cn(
-              'h-7 shrink-0 whitespace-nowrap rounded-md border px-2.5 text-xs font-medium transition',
-              filter === option.id
-                ? 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                : 'border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-500 hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5',
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
+        {/* 时间线筛选：accent 胶囊（与信息中心 / 自动化同款） */}
+        <div className="flex shrink-0 items-center gap-1" role="group" aria-label="时间线筛选">
+          {TIMELINE_FILTER_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onFilterChange(option.id)}
+              aria-pressed={filter === option.id}
+              className={cn(
+                'inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-full px-2 text-xs font-medium transition',
+                filter === option.id
+                  ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
+                  : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5',
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -1634,12 +1638,12 @@ function DetailsPanel({
   const inspectorView = buildAgentRunInspectorViewModel(detail, selectedNode, agentToolTrace)
   const toolInspectorView = buildAgentRunToolInspectorViewModel(detail, agentToolTrace, debugEvents, selectedToolCallId)
   const tabs: Array<{ id: InspectorTab; label: string; icon: React.ReactNode }> = [
-    { id: 'overview', label: '概览', icon: <Activity className="size-3" /> },
-    { id: 'terminal', label: '终端', icon: <TerminalSquare className="size-3" /> },
-    { id: 'logs', label: '日志', icon: <FileCode2 className="size-3" /> },
-    { id: 'trace', label: '工具', icon: <Activity className="size-3" /> },
-    { id: 'variables', label: '变量', icon: <GitBranch className="size-3" /> },
-    { id: 'artifacts', label: '产物', icon: <PackageOpen className="size-3" /> },
+    { id: 'overview', label: '概览', icon: <Activity className="size-3 shrink-0" /> },
+    { id: 'terminal', label: '终端', icon: <TerminalSquare className="size-3 shrink-0" /> },
+    { id: 'logs', label: '日志', icon: <FileCode2 className="size-3 shrink-0" /> },
+    { id: 'trace', label: '工具', icon: <Activity className="size-3 shrink-0" /> },
+    { id: 'variables', label: '变量', icon: <GitBranch className="size-3 shrink-0" /> },
+    { id: 'artifacts', label: '产物', icon: <PackageOpen className="size-3 shrink-0" /> },
   ]
 
   return (
@@ -1669,23 +1673,30 @@ function DetailsPanel({
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-nowrap items-center gap-0.5 border-b border-[var(--agenthub-border)] px-2 py-1.5">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onTabChange(item.id)}
-            className={cn(
-              'inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium transition',
-              tab === item.id
-                ? 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-                : 'text-slate-500 hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-800 dark:hover:bg-white/5 dark:hover:text-slate-200',
-            )}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
+      {/* 详情切换：分段控件（与 Agent 库侧栏同款）。390 下 6 个 Tab 各约 56px，
+          根字号 17px 时图标 + 两字标签刚好顶满，flex-1 收缩会把标签折成两行。
+          按钮加 shrink-0 + whitespace-nowrap 不折行，外层横向滚动收容窄屏余量；
+          宽屏下 w-max min-w-full 仍撑满整行，1366 表现不变。 */}
+      <div className="shrink-0 overflow-x-auto border-b border-[var(--agenthub-border)] px-2 py-1">
+        <div className="flex w-max min-w-full rounded-md bg-muted p-0.5" role="group" aria-label="详情切换">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onTabChange(item.id)}
+              aria-pressed={tab === item.id}
+              className={cn(
+                'inline-flex h-7 min-w-0 flex-1 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded px-1.5 text-xs font-medium transition',
+                tab === item.id
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 终端 / 日志自带滚动区，外层不能再套一层页面滚动（避免 页面→面板→内容 三层滚动） */}
@@ -1924,6 +1935,9 @@ function stageVisualState(
   stage: AgentRunBoardStage,
   runStatus: AgentRunDebugListItem['status'],
 ): StageVisualState {
+  // 无数据的阶段（旧 Run 无触发消息/快照）画空心点，不因 run 已完成就打绿勾——
+  // 否则空 Run 的阶段条会谎称触发/上下文都已完成（batch4 W4 空态核查发现）。
+  if (stage.status === 'unavailable') return 'todo'
   if (runStatus === 'complete') return 'done'
   if (stage.status === 'complete') return 'done'
   if (stage.status === 'running' || stage.status === 'failed' || stage.status === 'aborted') return 'current'
@@ -3331,17 +3345,38 @@ function ConversationRail({
   )
 }
 
-function EmptyBoard({ runs, onBack }: { runs: AgentRunDebugListItem[]; onBack?: () => void }) {
+function EmptyBoard({ runs, hasConversation, onBack }: { runs: AgentRunDebugListItem[]; hasConversation: boolean; onBack?: () => void }) {
+  // 三种边界态都是静态空态，不是加载中：加载态在上层已单独分支
+  //（loadingRuns/loadingDetail 时显示转圈的「正在加载会话任务图…」）。
+  // 旧写法在 runs.length > 0 但画布无节点时仍配转圈图标 +「正在准备流程展板」，
+  // 加载结束后也一直转，会让人以为页面卡住——改成静态空态。
+  const state = !hasConversation
+    ? {
+        icon: <Bot className="size-6" />,
+        title: '还没有可查看的会话',
+        hint: '新建会话并让 Agent 运行一次后，运行流程图会在这里展开。',
+      }
+    : runs.length === 0
+      ? {
+          icon: <Bot className="size-6" />,
+          title: '当前会话还没有可展示的 Run',
+          hint: '运行阶段会按触发、上下文、规划、执行和产出依次展开。',
+        }
+      : {
+          icon: <GitBranch className="size-6" />,
+          title: '暂无可展示的流程节点',
+          hint: '该会话的 Run 暂无可关联的消息节点，回到会话重新运行一次试试。',
+        }
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
       <div className="flex size-12 items-center justify-center rounded-2xl bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-        {runs.length === 0 ? <Bot className="size-6" /> : <Loader2 className="size-6 animate-spin" />}
+        {state.icon}
       </div>
       <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-        {runs.length === 0 ? '当前会话还没有可展示的 Run' : '正在准备流程展板'}
+        {state.title}
       </div>
-      <div className="max-w-xs text-sm leading-6 text-slate-500">运行阶段会按触发、上下文、规划、执行和产出依次展开。</div>
-      {runs.length === 0 && onBack && (
+      <div className="max-w-xs text-sm leading-6 text-slate-500">{state.hint}</div>
+      {onBack && (
         <Button type="button" variant="outline" size="sm" className="mt-1" onClick={onBack}>
           回到会话
         </Button>
@@ -3360,17 +3395,18 @@ function SegmentedFilter<T extends string>({
   onChange: (value: T) => void
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap gap-1">
+    <div className="flex min-w-0 flex-wrap gap-1" role="group" aria-label="时间线筛选">
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
+          aria-pressed={value === option.id}
           className={cn(
-            'h-6 rounded-md border px-2 text-xs font-medium transition',
+            'inline-flex h-6 shrink-0 items-center rounded-full px-3 text-xs font-medium transition',
             value === option.id
-              ? 'border-[var(--agenthub-accent)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]'
-              : 'border-[var(--agenthub-border)] text-slate-500 hover:bg-[var(--agenthub-surface-muted)] dark:hover:bg-white/5',
+              ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
+              : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5',
           )}
         >
           {option.label}

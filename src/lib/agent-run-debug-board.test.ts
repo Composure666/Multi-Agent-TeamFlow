@@ -589,7 +589,8 @@ describe('agent run debug board projection', () => {
     expect(orchestratorNode?.position.y).toBe(210)
     expect(workerNodes.map((node) => node.position.x)).toEqual([460, 820])
     expect(workerNodes.map((node) => node.position.y)).toEqual([600, 600])
-    expect(summaryNode?.position).toEqual({ x: 640, y: 1700 })
+    // batch4 W4：toolGridTopGap 260 → 200、summaryGap 300 → 220，汇总 y 1700 → 1560。
+    expect(summaryNode?.position).toEqual({ x: 640, y: 1560 })
   })
 
   it('uses a clean task title for the run summary instead of leading agent mentions', () => {
@@ -1245,5 +1246,48 @@ describe('agent run board canvas layout', () => {
     )
     expect(followup!.position.y).toBeGreaterThan(expandedBottom)
     expect(followup!.position.y - trigger!.position.y).toBeGreaterThanOrEqual(400)
+  })
+
+  it('会话图行距只留 240px 空白（batch4 W4：rowGap 340 → 240）', () => {
+    const messages: MessageRecord[] = [
+      { ...buildMessage('msg_trigger', [{ type: 'text', content: '执行任务' }]), role: 'user', createdAt: 1 },
+      { ...buildMessage('msg_followup', [{ type: 'text', content: '再来一次' }]), role: 'user', createdAt: 2 },
+    ]
+    const runs = [
+      buildRun({ id: 'run_1', triggerMessageId: 'msg_trigger' }),
+      buildRun({ id: 'run_2', triggerMessageId: 'msg_followup', startedAt: 2, status: 'complete' }),
+    ]
+
+    const graph = buildAgentRunSessionDebuggerGraph({
+      messages,
+      runs,
+      currentDetail: null,
+      expandedRunIds: [],
+    })
+
+    const trigger = graph.nodes.find((node) => node.id === 'message-msg_trigger')
+    const followup = graph.nodes.find((node) => node.id === 'message-msg_followup')
+    expect(trigger).toBeDefined()
+    expect(followup).toBeDefined()
+    // 第一行底边 = Run 卡片底边（260 + 130）；下一行消息顶边 = 底边 + rowGap。
+    expect(followup!.position.y - (trigger!.position.y + 260 + 130)).toBe(240)
+  })
+
+  it('工具网格顶距与汇总留白收紧到 200/220（batch4 W4）', () => {
+    const graph = buildAgentRunDebuggerGraph(buildDetail())
+    const workers = graph.nodes.filter((node) => node.data.kind === 'agent' && node.data.agent?.role === 'worker')
+    const tools = graph.nodes.filter((node) => node.data.kind === 'tool')
+    const summary = graph.nodes.find((node) => node.data.kind === 'summary')
+
+    expect(workers.length).toBeGreaterThan(0)
+    expect(tools.length).toBeGreaterThan(0)
+    expect(summary).toBeDefined()
+
+    // 工具网格顶边 − worker 行底边（按保守卡片高 320 算）= toolGridTopGap。
+    const workersBottom = Math.max(...workers.map((node) => node.position.y + CARD_HEIGHT.agent!))
+    expect(Math.min(...tools.map((node) => node.position.y)) - workersBottom).toBe(200)
+    // 汇总顶边 − 工具行底边（按保守卡片高 220 算）= summaryGap。
+    const toolsBottom = Math.max(...tools.map((node) => node.position.y + CARD_HEIGHT.tool!))
+    expect(summary!.position.y - toolsBottom).toBe(220)
   })
 })

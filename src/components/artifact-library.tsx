@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { EmptyState, InlineError } from '@/components/workbench-primitives'
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { useAppStore } from '@/stores/app-store'
 
 /**
- * ArtifactLibrary — 全局产物库视图，挂在 Sidebar 内（mode='artifacts' 时显示）。
+ * ArtifactLibrary — 全局产物库视图，挂在会话视图「本会话产物库」抽屉内（`chat-panel.tsx`）。
  *
  * 数据源是 /api/artifacts（轻量 meta），点击某项时按需 fetch 完整 content
  * 然后调用 openArtifactPreview 触发右侧预览。
@@ -179,6 +180,9 @@ export function ArtifactLibrary({
               </div>
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载产物…</div>
               <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在从产物库读取列表。</p>
+              <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => void refresh()}>
+                重新加载
+              </Button>
             </div>
           ) : filteredGroups.length === 0 ? (
             <EmptyState
@@ -209,7 +213,7 @@ export function ArtifactLibrary({
               return (
                 <div
                   key={group.rootId}
-                  className="group min-w-0 overflow-hidden rounded-md px-2 py-2 transition hover:bg-accent"
+                  className="agenthub-card-interactive group min-w-0 overflow-hidden px-3 py-2.5"
                 >
                   <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
                     <button
@@ -293,7 +297,7 @@ export function ArtifactLibrary({
 
       {/* 删除确认 */}
       <Dialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
-        <DialogContent>
+        <DialogContent className={DIALOG_SIZE_CLASS.sm}>
           <DialogHeader>
             <DialogTitle>删除产物</DialogTitle>
             <DialogDescription>

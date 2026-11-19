@@ -1022,7 +1022,7 @@ function TeamSteps({ current }: { current: 1 | 2 | 3 }) {
             <span
               className={cn(
                 'flex size-5 shrink-0 items-center justify-center rounded-full text-3xs font-semibold',
-                done && 'bg-[var(--agenthub-accent)] text-white',
+                done && 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]',
                 active && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)] ring-1 ring-[var(--agenthub-accent-border)]',
                 !done && !active && 'bg-muted text-muted-foreground',
               )}
