@@ -113,18 +113,21 @@ export function ChatPanel() {
 
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-      <header className="flex shrink-0 items-center gap-3 overflow-hidden border-b border-[var(--agenthub-border)] px-5 py-3">
+      <header className="flex shrink-0 items-center gap-3 overflow-hidden border-b border-[var(--agenthub-border)] px-3 py-2 sm:px-5 sm:py-3">
+        {/* 移动端汉堡按钮：打开 sidebar 抽屉。B0：汉堡必须是 header 的直接 shrink-0 子项，
+            不能塞进 flex-1 的左容器 —— 工具栏一宽，左容器被压到约 9px，汉堡跟着被裁到
+            看不见、点不到。对话页的唯一出口，宽度由 flex 布局保底，任何情况下不被压缩。 */}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => setMobileSidebarOpen(true)}
+          title="打开会话列表"
+          aria-label="打开会话列表"
+          className="shrink-0 md:hidden"
+        >
+          <Menu className="size-4" />
+        </Button>
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-          {/* 移动端汉堡按钮：打开 sidebar 抽屉 */}
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => setMobileSidebarOpen(true)}
-            title="打开会话列表"
-            className="md:hidden"
-          >
-            <Menu className="size-4" />
-          </Button>
           <ParticipantStack agents={participantAgents} total={participantCount} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
@@ -261,7 +264,8 @@ function ParticipantStack({ agents, total }: { agents: AgentRow[]; total?: numbe
   const title = agents.map((agent) => agent.name).join(' / ')
 
   return (
-    <div className="flex shrink-0 -space-x-2 overflow-hidden pr-1" title={title}>
+    // B0：头像组在小屏隐藏，给标题留出宽度（标题不可隐藏）。
+    <div className="hidden shrink-0 -space-x-2 overflow-hidden pr-1 sm:flex" title={title}>
       {visibleAgents.map((agent) => (
         <AgentInfoPopover
           key={agent.id}

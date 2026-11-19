@@ -17,7 +17,17 @@ import { useAppStore, useConversationUsageTotal } from '@/stores/app-store'
  *
  * 没用量时不渲染（首次进入会话之前没数据）。
  */
-export function UsageBadge({ conversationId }: { conversationId: string }) {
+export function UsageBadge({
+  conversationId,
+  triggerClassName,
+  triggerLabel,
+}: {
+  conversationId: string
+  /** 菜单行形态时透传给触发器的 className（如移动端「更多」菜单里的整行触发器） */
+  triggerClassName?: string
+  /** 菜单行形态时的前置文案（不传则只显示用量数字） */
+  triggerLabel?: string
+}) {
   const total = useConversationUsageTotal(conversationId)
   const agents = useAppStore((s) => s.agents)
   const conv = useAppStore((s) => s.conversations[conversationId])
@@ -57,11 +67,12 @@ export function UsageBadge({ conversationId }: { conversationId: string }) {
       <PopoverTrigger
         className={cn(
           'inline-flex shrink-0 items-center gap-1 rounded-md border bg-muted/30 px-2 py-1 font-mono text-3xs text-muted-foreground transition hover:border-foreground/30 hover:bg-muted hover:text-foreground',
+          triggerClassName,
         )}
         title="点击查看 token 用量明细"
       >
-        <Coins className="size-3" />
-        <span>{formatTok(total.totalTokens)}</span>
+        <Coins className="size-3 shrink-0" />
+        <span>{triggerLabel ? `${triggerLabel} ${formatTok(total.totalTokens)}` : formatTok(total.totalTokens)}</span>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-3 text-xs" align="end">
         <div className="mb-2 flex items-baseline justify-between border-b pb-2">
@@ -232,7 +243,7 @@ function RowWithHint({
 }
 
 /** 1234 → "1.2k"；1234567 → "1.23M"；< 1000 → 原样 */
-function formatTok(n: number): string {
+export function formatTok(n: number): string {
   if (n < 1000) return `${n}`
   if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 1)}k`
   return `${(n / 1_000_000).toFixed(2)}M`

@@ -26,7 +26,17 @@ import { useAppStore, useWorkspaceMemories } from '@/stores/app-store'
 
 const EMPTY_FORM = { title: '', content: '' }
 
-export function WorkspaceMemoryButton({ conversationId }: { conversationId: string }) {
+export function WorkspaceMemoryButton({
+  conversationId,
+  triggerClassName,
+  triggerLabel,
+}: {
+  conversationId: string
+  /** 菜单行形态时透传给触发器的 className（如移动端「更多」菜单里的整行触发器） */
+  triggerClassName?: string
+  /** 菜单行形态时的文案（不传则只显示图标） */
+  triggerLabel?: string
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -114,8 +124,9 @@ export function WorkspaceMemoryButton({ conversationId }: { conversationId: stri
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button size="icon-sm" variant="ghost" title="Workspace Memory" className="rounded-lg text-slate-500 transition hover:bg-slate-100" />}>
-        <BookOpenText className="size-4" />
+      <PopoverTrigger render={<Button size="icon-sm" variant="ghost" title="Workspace Memory" className={cn('rounded-lg text-slate-500 transition hover:bg-slate-100', triggerClassName)} />}>
+        <BookOpenText className="size-4 shrink-0" />
+        {triggerLabel != null && <span className="truncate text-xs">{triggerLabel}</span>}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[380px] gap-3 p-0">
         <PopoverHeader className="border-b px-4 py-3">

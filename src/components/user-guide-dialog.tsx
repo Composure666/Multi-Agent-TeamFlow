@@ -48,8 +48,10 @@ import { useAppStore, type AppWorkbenchView, type SettingsSection } from '@/stor
  * 指南说「已配置」，Agent 一启动却报 `<PROVIDER>_API_KEY not set`。
  * 这里直接复用运行时判定的同一份实现（`/api/setup-status`）。
  *
- * 常驻入口：工作台导航（桌面侧栏 + 移动端抽屉）的「使用指南」按钮发 `ui-command` 唤起，
- * 见 `app-workbench.tsx`。
+ * 常驻入口：设置里的「使用指南」页（`settings-dialog.tsx`，第 10 个 Tab），
+ * 复用下面导出的 `UserGuideContent`；首启自动弹仍由本弹窗负责。
+ * 旧侧栏入口（桌面侧栏 + 移动端抽屉）已随 mobile-workbench-cleanup 撤掉，
+ * `open-user-guide` 命令保留作兼容入口（见下方订阅）。
  *
  * 内容不在这里维护：条目数据住在 `user-guide-data.ts`，与项目主页的指南分区共用一份真源。
  */
@@ -72,7 +74,7 @@ export function UserGuideDialog() {
   }, [])
 
   // 首次进入自动弹出：`guideDismissed` 为 false（服务端从没记过关闭时间）才弹。
-  // 一旦用户关过一次，之后只能从侧栏「使用指南」主动打开。
+  // 一旦用户关过一次，之后从设置「使用指南」页打开。
   useEffect(() => {
     let cancelled = false
     void fetchSetupStatus()
@@ -89,7 +91,8 @@ export function UserGuideDialog() {
     }
   }, [])
 
-  // 常驻入口：侧栏按钮发 ui-command 唤起。
+  // 兼容入口：仍订阅 `open-user-guide` 命令（旧侧栏按钮已撤，设置指南页是现入口；
+  // 命令本身保留，供其它 surface 唤起本弹窗）。
   useEffect(
     () =>
       subscribeUiCommand((command) => {
@@ -229,9 +232,48 @@ export function UserGuideDialog() {
   )
 }
 
+// ─── 设置「使用指南」页共用：11 节单列通读 ──────────────────────────
+// 弹窗只显示当前选中那一节（左导航切换）；设置页把 11 节按顺序全铺开，
+// 每节自带标题与跳转按钮（去配置 / 打开「X」），由调用方把跳转映射到设置 Tab / 工作台视图。
+export function UserGuideContent({
+  status,
+  onGoSettings,
+  onGoView,
+}: {
+  status: SetupStatus | null
+  onGoSettings: (section: SettingsSection) => void
+  onGoView: (view: AppWorkbenchView) => void
+}) {
+  const start = findGuideItem(START_ID)
+  const llmReady = status?.llmConfigured ?? false
+  const ossReady = status?.ossConfigured ?? false
+  return (
+    <div className="flex flex-col gap-4 py-1">
+      <section aria-label={start.label}>
+        <h3 className="mb-2 text-sm font-semibold">{start.label}</h3>
+        <StartSection
+          status={status}
+          llmReady={llmReady}
+          ossReady={ossReady}
+          onGoSettings={onGoSettings}
+          summary={start.summary}
+          steps={start.steps}
+          notesTitle={start.notesTitle}
+          notes={start.notes}
+        />
+      </section>
+      {GUIDE_ITEMS.filter((item) => item.id !== START_ID).map((item) => (
+        <section key={item.id} aria-label={item.label} id={`guide-${item.id}`}>
+          <ModuleSection item={item} onGoView={onGoView} onGoSettings={onGoSettings} />
+        </section>
+      ))}
+    </div>
+  )
+}
+
 // ─── 「开始之前」 ────────────────────────────────────────
 
-function StartSection({
+export function StartSection({
   status,
   llmReady,
   ossReady,
@@ -323,7 +365,7 @@ function StartSection({
 
 // ─── 普通模块章节 ───────────────────────────────────────
 
-function ModuleSection({
+export function ModuleSection({
   item,
   onGoView,
   onGoSettings,

@@ -16,7 +16,8 @@ import { describe, expect, it } from 'vitest'
  *   ② 行高按窗口高度分档，单调不增，且落在可点击区间
  *   ③ 历史区**只在「对话」页渲染**，判据是既有的 `view`
  *   ④ 历史区的弹性尺寸在 CSS（`flex: 1 1 0%` + `min-height: 0`），组件里不重复写
- *   ⑤ 侧栏保留「使用指南」入口、不再有「官网」入口；无弹性占位元素，底部靠 `mt-auto` 贴底
+ *   ⑤ 侧栏**不再有**「使用指南」入口（已移入设置第 10 个 Tab）；不再有「官网」入口；
+ *       无弹性占位元素，底部靠 `mt-auto` 贴底
  *   ⑥ 底部 Workspace 行的尺寸/内边距是原始值，不许再压（压了会展示不全）
  *   ⑦ Workspace 详情通过 Popover.Portal 渲染为独立浮层；面板宽度 380px、有固定高度、
  *      不再内联挤压侧栏
@@ -26,6 +27,7 @@ const root = process.cwd()
 const css = readFileSync(path.join(root, 'src/app/globals.css'), 'utf8')
 const workbench = readFileSync(path.join(root, 'src/components/app-workbench.tsx'), 'utf8')
 const pageShell = readFileSync(path.join(root, 'src/app/page.tsx'), 'utf8')
+const settings = readFileSync(path.join(root, 'src/components/settings-dialog.tsx'), 'utf8')
 
 /** globals.css 里的 `@media (<kind>: Npx) { … }` 块 */
 function mediaBlocks(kind: 'max-height' | 'min-height') {
@@ -94,14 +96,15 @@ describe('工作台侧栏：垂直空间分配', () => {
     expect(/wb-history[^'"]*min-h-0/.test(workbench)).toBe(false)
   })
 
-  it('侧栏保留「使用指南」入口、不再有「官网」入口，底部靠 mt-auto 贴底', () => {
-    // 使用指南是**常驻入口**：首启自动弹一次，关掉之后只能靠它再打开 —— 必须存在。
-    // 桌面侧栏 + 移动端抽屉（同一个左侧栏的两种形态）各一个。
-    expect(
-      workbench.match(/emitUiCommand\('open-user-guide'\)/g)?.length ?? 0,
-      '桌面侧栏与移动端抽屉各要有一个使用指南入口',
-    ).toBeGreaterThanOrEqual(2)
-    expect(workbench).toContain('<CircleHelp')
+  it('侧栏不再有「使用指南」入口（已移入设置第 10 个 Tab），官网入口仍不在侧栏，底部靠 mt-auto 贴底', () => {
+    // 2026-11-19 mobile-workbench-cleanup：指南常驻入口从两侧栏移到设置「使用指南」页。
+    // 桌面侧栏 + 移动端抽屉都不再发 open-user-guide，也不再渲染 CircleHelp 按钮。
+    expect(workbench).not.toContain("emitUiCommand('open-user-guide')")
+    expect(workbench).not.toContain('<CircleHelp')
+    expect(workbench).not.toContain('使用指南')
+    // 设置里有指南 Tab：第 10 个分区，渲染 11 节共用内容
+    expect(settings).toContain("{ value: 'guide', label: '使用指南', icon: BookOpen }")
+    expect(settings).toContain('<UserGuideContent')
     // 官网入口不在侧栏 —— 设置里已有「官网」页，不重复添加
     expect(workbench).not.toContain('<OfficialSiteLink')
     expect(workbench).not.toContain("from '@/components/official-site-link'")

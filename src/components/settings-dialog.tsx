@@ -7,7 +7,6 @@ import { AlertTriangle,
   CloudUpload,
   FolderUp,
   Globe,
-  Info,
   KeyRound,
   Loader2,
   Monitor,
@@ -33,23 +32,25 @@ import {
 } from '@/components/ui/dialog'
 import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
 import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { AppSettingsRow } from '@/db/schema'
 import { BRAND_NAME } from '@/lib/brand'
 import {
   fetchAppSettings,
   fetchConnectionHints,
   fetchOssSettings,
+  fetchSetupStatus,
   fetchSiteLinks,
   regenerateMobileDeviceToken,
   updateAppSettings,
   type AppSettingsPatchBody,
   type ConnectionHint,
   type OssSettingsView,
+  type SetupStatus,
   type SiteLinksView,
 } from '@/lib/api'
 import { THEMES, type ThemeId, type ThemeMeta } from '@/lib/themes'
 import { useThemeChoice } from '@/components/theme-provider'
+import { UserGuideContent } from '@/components/user-guide-dialog'
 import { ProvidersPanel } from '@/components/settings/providers-panel'
 import { ProviderPriorityPanel } from '@/components/settings/provider-priority-panel'
 import { FailoverPanel } from '@/components/settings/failover-panel'
@@ -57,7 +58,7 @@ import { ModelAssignmentPanel } from '@/components/settings/model-assignment-pan
 import { InlineError } from '@/components/workbench-primitives'
 import { OssPanel, type OssFormValues, type OssSecretField } from '@/components/settings/oss-panel'
 import { SitePanel, type SiteFormValues } from '@/components/settings/site-panel'
-import { useAppStore } from '@/stores/app-store'
+import { useAppStore, type SettingsSection } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
 
 /** 左侧导航分区：与用户指南同一套纵向导航样式（小屏横向滚动）。 */
@@ -71,7 +72,17 @@ const SETTINGS_SECTIONS = [
   { value: 'publish', label: '发布', icon: FolderUp },
   { value: 'site', label: '官网', icon: Globe },
   { value: 'notifications', label: '通知', icon: Bell },
+  { value: 'guide', label: '使用指南', icon: BookOpen },
 ] as const
+
+/** 指南里的「去配置」跳设置分区：指南用的 `SettingsSection` 词表 → 本弹窗的 Tab。
+ * 指南实际只传 `api-keys` / `oss`；其余按弹窗既有的映射兜底（见 activeSettingsSection 的 effect）。 */
+const guideSettingsTab = (section: SettingsSection): string => {
+  if (section === 'oss') return 'oss'
+  if (section === 'notifications') return 'notifications'
+  if (section === 'site') return 'site'
+  return 'keys' // 'api-keys' / 'providers' / 'workspaces'
+}
 
 interface SettingsForm {
   anthropicBaseUrl: string
@@ -148,6 +159,22 @@ export function SettingsDialog({
     accessKeySecret: false,
   })
   const activeSettingsSection = useAppStore((s) => s.activeSettingsSection)
+  const setWorkbenchView = useAppStore((s) => s.setWorkbenchView)
+  // 指南页的状态卡要问服务端（配没配不能靠字段有没有值判断，见 user-guide-dialog 注释）；
+  // 只在切到指南 Tab 时懒取一次，不随弹窗常驻取。
+  const [guideStatus, setGuideStatus] = useState<SetupStatus | null>(null)
+  useEffect(() => {
+    if (!open || tab !== 'guide') return
+    let cancelled = false
+    void fetchSetupStatus()
+      .then((next) => {
+        if (!cancelled) setGuideStatus(next)
+      })
+      .catch((err) => console.error('[SettingsDialog] load guide status failed', err))
+    return () => {
+      cancelled = true
+    }
+  }, [open, tab])
   const [form, setForm] = useState<SettingsForm>({
     anthropicBaseUrl: '',
     defaultLlmProvider: 'auto',
@@ -472,30 +499,6 @@ export function SettingsDialog({
                   </button>
                 )
               })}
-              {/* Key 说明：固定导航项（不随 Tab 出现/消失），点它跳到「供应商」分区；说明内容见 Tooltip。 */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger
-                    type="button"
-                    onClick={() => setTab('keys')}
-                    aria-current={tab === 'keys' ? 'true' : undefined}
-                    className={cn(
-                      'flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition md:w-full',
-                      tab === 'keys'
-                        ? 'bg-[var(--agenthub-accent-soft)] font-medium text-[var(--agenthub-accent)]'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                    )}
-                    aria-label="供应商 Key 说明"
-                  >
-                    <Info className="size-4 shrink-0" />
-                    <span className="truncate">Key 说明</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" align="start" className="max-w-72 whitespace-normal text-left leading-5">
-                    填写常用供应商的 API Key。填写后将覆盖系统环境变量；留空则继续使用环境变量（如有）。
-                    Agent 设置中单独配置的 Key 仍然优先级最高。
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
             </nav>
 
             {/* ─── 右侧内容：每页一个主任务，分组卡片 ─── */}
@@ -508,6 +511,12 @@ export function SettingsDialog({
 
               {tab === 'keys' && (
                 <div className="flex flex-col gap-4 py-1">
+                  {/* 原固定导航项「Key 说明」的 Tooltip 原文落在这里（mobile-workbench-cleanup）：
+                      导航少一枚芯片，正好抵消指南 Tab 的新增。 */}
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    填写常用供应商的 API Key。填写后将覆盖系统环境变量；留空则继续使用环境变量（如有）。
+                    Agent 设置中单独配置的 Key 仍然优先级最高。
+                  </p>
                   <ProvidersPanel />
                   <div className="border-t border-[var(--agenthub-border)] pt-4">
                     <div className="mb-3 text-sm font-medium text-slate-900 dark:text-slate-100">供应商优先级</div>
@@ -596,6 +605,19 @@ export function SettingsDialog({
                     }}
                     links={siteLinks}
                     onChange={handleSiteChange}
+                  />
+                </div>
+              )}
+
+              {tab === 'guide' && (
+                <div className="py-1">
+                  <UserGuideContent
+                    status={guideStatus}
+                    onGoSettings={(section) => setTab(guideSettingsTab(section))}
+                    onGoView={(view) => {
+                      onOpenChange(false)
+                      setWorkbenchView(view)
+                    }}
                   />
                 </div>
               )}

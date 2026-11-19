@@ -9,7 +9,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  CircleHelp,
   Code,
   Coins,
   Copy,
@@ -88,7 +87,6 @@ import {
   type UsageSummary,
 } from '@/lib/api'
 import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
-import { emitUiCommand } from '@/lib/ui-command-events'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -455,21 +453,20 @@ function MobileWorkbenchTopBar({
 }) {
   const unreadNotificationCount = useAppStore((s) => s.unreadNotificationCount)
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-4 py-2.5 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:hidden">
+    <div className="flex shrink-0 items-center gap-3 border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-1 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex size-10 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-white/5 dark:active:bg-white/10"
+        className="flex size-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-white/5 dark:active:bg-white/10"
         title="打开菜单"
       >
-        <Menu className="size-5 stroke-[2.2]" />
+        <Menu className="size-4 stroke-[2.2]" />
       </button>
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-raised)]">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-slate-900 text-white dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface-raised)]">
         <Sparkles className="size-3.5" />
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">{BRAND_NAME}</div>
-        <div className="truncate text-xs text-slate-500 dark:text-slate-400">{currentLabel}</div>
+      <div className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+        {BRAND_NAME} <span className="font-normal text-slate-500 dark:text-slate-400">· {currentLabel}</span>
       </div>
       <button
         type="button"
@@ -564,20 +561,9 @@ function MobileWorkbenchDrawer({
               view === 'new-task' && 'border-[var(--agenthub-accent)] text-[var(--agenthub-accent)]',
             )}
           >
-            <Plus className="size-5" />
+            <Plus className="size-4" />
             <span className="min-w-0 flex-1 truncate">新建任务</span>
           </button>
-
-          {/* 390 下会话列表入口（batch4-leftovers §8b）：会话列表只在桌面侧栏里
-              （`hidden md:flex` 的 WorkbenchNav），移动端进对话页后无处切换会话；
-              抽屉在对话页时直接把同一份 ConversationListPanel 嵌在这里、放在导航上方，
-              打开抽屉即见，选中即收起抽屉。聊天区汉堡（title="打开会话列表"）开的正是
-              本抽屉，至此名实相符。 */}
-          {view === 'conversations' && (
-            <div className="mb-4 border-b border-[var(--agenthub-border)] pb-3 dark:border-[var(--agenthub-border)]">
-              <ConversationListPanel variant="embedded" onSelectConversation={onClose} />
-            </div>
-          )}
 
           <nav className="space-y-4" aria-label="工作台导航">
             {(['primary', 'workspace'] as const).map((group) => (
@@ -600,7 +586,7 @@ function MobileWorkbenchDrawer({
                           : 'text-slate-600 hover:bg-[var(--agenthub-accent-soft)] active:bg-slate-200 dark:text-slate-400 dark:hover:bg-white/5 dark:active:bg-white/10',
                       )}
                     >
-                      <Icon className="size-5 stroke-[2.1]" />
+                      <Icon className="size-4 stroke-[2.1]" />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.id === 'information-center' && unreadNotificationCount > 0 && (
                         <span className="rounded-full bg-[var(--agenthub-accent)] px-1.5 py-0.5 text-3xs font-semibold leading-none text-[var(--primary-foreground)]">
@@ -613,25 +599,23 @@ function MobileWorkbenchDrawer({
               </div>
             ))}
           </nav>
+
+          {/* 390 下会话列表入口（batch4-leftovers §8b）：会话列表只在桌面侧栏里
+              （`hidden md:flex` 的 WorkbenchNav），移动端进对话页后无处切换会话；
+              抽屉在对话页时直接把同一份 ConversationListPanel 嵌在这里，选中即收起抽屉。
+              mobile-workbench-cleanup B5：列表改放导航下方——导航是退出/切换视图的主路径，
+              打开抽屉先见导航，不必滚过会话列表；会话列表仍在同一滚动区内，下滑即见。 */}
+          {view === 'conversations' && (
+            <div className="mt-4 border-t border-[var(--agenthub-border)] pt-3 dark:border-[var(--agenthub-border)]">
+              <ConversationListPanel variant="embedded" onSelectConversation={onClose} />
+            </div>
+          )}
         </div>
 
         <div className="space-y-2 border-t border-[var(--agenthub-border)] p-3 dark:border-[var(--agenthub-border)]">
           {accountOpen && (
             <UserAccountOverview usage={usage} onReload={usage.reload} onOpenSettings={onOpenSettings} onClose={() => setAccountOpen(false)} />
           )}
-
-          {/* 使用指南常驻入口（桌面侧栏与本抽屉是同一个左侧栏的两种形态，入口保持一致）。
-              首次进入会自动弹一次，关掉之后靠这里再打开。
-              ❗ 官网入口不在这里：设置里已有「官网」页，按用户要求不重复添加
-              （`OfficialSiteLink` 组件本身保留，只是不再由侧栏承载入口）。 */}
-          <button
-            type="button"
-            onClick={() => emitUiCommand('open-user-guide')}
-            className="flex min-h-10 w-full items-center gap-3 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 text-left text-sm text-slate-600 transition active:scale-[0.99] hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5"
-          >
-            <CircleHelp className="size-5 stroke-[2.1]" />
-            <span className="min-w-0 flex-1 truncate">使用指南</span>
-          </button>
 
           <button
             type="button"
@@ -1024,26 +1008,10 @@ function WorkbenchNav({
 
           ❗ 内部的尺寸与间距保持改造前的原始值（`space-y-2 pt-3` / `p-2` / `size-9`）：
              这是用户明确要求「不要动」的区域。曾把它压成 `px-1.5 py-1` + `size-8`，
-             结果 Workspace 那一行连同 Local 徽章被挤到展示不全 —— 不要再压。 */}
+             结果 Workspace 那一行连同 Local 徽章被挤到展示不全 —— 不要再压。
+          ❗指南与「官网」入口都不在这里：前者已移入设置第 10 个 Tab，
+             后者本就在设置「官网」页，不重复添加。 */}
       <div className="mt-auto shrink-0 space-y-2 pt-3">
-        {/* 使用指南常驻入口。首次进入会自动弹一次，关掉之后靠这里再打开。
-            走 ui-command 而不是本地 state —— 指南弹窗挂在根布局（app/page.tsx），不在本组件树里。
-            ❗ 官网入口**不在这里**：设置里已有「官网」页，按用户要求不重复添加
-            （`OfficialSiteLink` 组件本身保留，只是不再由侧栏承载入口）。 */}
-        <button
-          type="button"
-          onClick={() => emitUiCommand('open-user-guide')}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-left text-slate-600 transition hover:border-slate-300 hover:bg-[var(--agenthub-accent-soft)] hover:text-slate-900 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5 dark:hover:text-slate-100',
-            compact ? 'justify-center px-2 py-2' : 'px-2 py-2',
-          )}
-          title="使用指南"
-          aria-label="使用指南"
-        >
-          <CircleHelp className="size-4 shrink-0" />
-          {!compact && <span className="text-xs font-medium">使用指南</span>}
-        </button>
-
         {/* Workspace 入口 + 详情弹出面板。
             面板通过 Popover.Portal 渲染到 body，因此可以跨出侧栏、不被 aside 的
             overflow-hidden 裁切；定位在入口上方（side="top"），左侧对齐触发器
@@ -1354,14 +1322,14 @@ function NewTaskView({
         style={{ top: NEWTASK_GLOW_TOP, height: NEWTASK_GLOW_HEIGHT, background: NEWTASK_GLOW_BACKGROUND, filter: 'blur(28px)' }}
       />
       {/* A 方案「聚焦型」：原版通栏宽度（1280px / 2xl 1440px）居中单列，文字居中；工作台外壳（侧栏）不动 */}
-      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-8 pb-8 pt-6 text-center md:pt-6 2xl:max-w-[1440px] 2xl:px-12">
+      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-4 pb-8 pt-4 text-center md:px-8 md:pt-6 2xl:max-w-[1440px] 2xl:px-12">
         <p className="text-[11px] font-bold tracking-[0.1em] text-[#9A958A] dark:text-slate-500">WORKBENCH — NEW TASK</p>
-        <h1 className="font-heading mt-4 text-[32px] font-black leading-[1.15] text-[#17181C] dark:text-[#EDE9E1] md:text-[44px]">
+        <h1 className="font-heading mt-4 text-[28px] font-black leading-[1.15] text-[#17181C] dark:text-[#EDE9E1] md:text-[44px]">
           一句话，<span className="text-[var(--agenthub-accent)]">组一支队</span>开工
         </h1>
         {/* 副文案照抄效果图。2026-11-18 batch 3 项 4：后半句原承诺“系统在你打字时
             就帮你配好”实时匹配，真实实现暂无该逻辑，已改成“创建后”才配好，不再承诺打字时匹配。 */}
-        <p className="mt-3 max-w-[480px] text-[13.5px] leading-[1.7] text-[#777268] dark:text-slate-400">
+        <p className="mt-2 max-w-[480px] text-[13.5px] leading-[1.7] text-[#777268] dark:text-slate-400 md:mt-3">
           把目标说清楚就行——选谁、怎么分工、产出什么，创建后系统帮你把人和分工配好。
         </p>
 
@@ -1369,7 +1337,7 @@ function NewTaskView({
             上限 28vh（标题层级轮：H1 44px + 两枚 H2 让页高 +80px，为保 1366×768 顶格放得下，
             容器 pt-10→pt-6、上限 32vh→28vh；batch 4 旧数字 245.8px/724.8px 已失效）。
             极限态（textarea 顶满 215px）最近团队行底约 755px，余量约 13px。 */}
-        <section className="relative mt-7 w-full rounded-[18px] border-[1.5px] border-[#D9DDE6] bg-white p-4 text-left shadow-[0_12px_32px_color-mix(in_srgb,var(--agenthub-accent)_10%,transparent)] dark:border-[#2E2A24] dark:bg-[#1C1A17] dark:shadow-none">
+        <section className="relative mt-5 w-full rounded-[18px] border-[1.5px] border-[#D9DDE6] bg-white p-4 text-left shadow-[0_12px_32px_color-mix(in_srgb,var(--agenthub-accent)_10%,transparent)] dark:border-[#2E2A24] dark:bg-[#1C1A17] dark:shadow-none md:mt-7">
           <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[1.5px] w-[38%] rounded-tl-[18px] bg-[linear-gradient(90deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
           <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[38%] w-[1.5px] rounded-tl-[18px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
           <PromptEnhanceModal
@@ -1400,7 +1368,7 @@ function NewTaskView({
               }}
               onPaste={handleTaskPaste}
               placeholder="帮我为「光影造像工坊」做一套小红书宣传：主图 1 张、详情长图 1 张，配一段 120 字以内的文案，风格温暖、电影感。"
-              className="min-h-[150px] max-h-[min(320px,28vh)] resize-none overflow-y-auto border-0 bg-transparent px-2 pb-3 pt-2 text-[15px] leading-[1.65] text-[#17181C] shadow-none placeholder:text-slate-400 focus-visible:ring-0 dark:text-[#EDE9E1]"
+              className="min-h-[120px] max-h-[min(320px,28vh)] resize-none overflow-y-auto border-0 bg-transparent px-2 pb-3 pt-2 text-[15px] leading-[1.65] text-[#17181C] shadow-none placeholder:text-slate-400 focus-visible:ring-0 dark:text-[#EDE9E1] md:min-h-[150px]"
             />
             {contentOverflow && (
               <span className="pointer-events-none absolute bottom-2 right-2 z-10 rounded-full bg-[var(--agenthub-surface)]/85 px-2 py-0.5 text-xs font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-[var(--agenthub-surface)]/85 dark:text-slate-400">
@@ -1661,7 +1629,7 @@ function NewTaskView({
         </section>
 
         {/* 示例 pills：点按填入输入框 */}
-        <h2 className="mt-9 text-[17px] font-bold text-[#17181C] dark:text-[#EDE9E1]">不知道怎么开头？试试这些</h2>
+        <h2 className="mt-6 text-[17px] font-bold text-[#17181C] dark:text-[#EDE9E1] md:mt-9">不知道怎么开头？试试这些</h2>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           {EXAMPLE_PILLS.map((pill) => {
             const PillIcon = pill.icon
@@ -1683,7 +1651,7 @@ function NewTaskView({
         </div>
 
         {/* 最近团队：真实可召唤团队 + 新建团队；与侧栏最近对话列表并存（后者在会话视图，不动） */}
-        <h2 className="mt-9 text-[17px] font-bold text-[#17181C] dark:text-[#EDE9E1]">最近的团队</h2>
+        <h2 className="mt-6 text-[17px] font-bold text-[#17181C] dark:text-[#EDE9E1] md:mt-9">最近的团队</h2>
         <div className="mt-3 flex items-start justify-center gap-[18px]">
           {recentTeams.map((team, index) => {
             const active = activeSubcategoryId === team.id
@@ -1696,7 +1664,7 @@ function NewTaskView({
                   title={team.description}
                   aria-pressed={active}
                   className={cn(
-                    'flex size-[38px] items-center justify-center rounded-full text-[15px] font-bold transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70',
+                    'flex size-[32px] items-center justify-center rounded-full text-[15px] font-bold transition hover:opacity-90 disabled:cursor-wait disabled:opacity-70 md:size-[38px]',
                     RECENT_TEAM_COLORS[index % RECENT_TEAM_COLORS.length] === 'var(--agenthub-accent)'
                       ? 'text-[var(--primary-foreground)]'
                       : 'text-white',
@@ -1715,7 +1683,7 @@ function NewTaskView({
               type="button"
               onClick={onOpenAgents}
               title="去 Agent 库新建团队"
-              className="flex size-[38px] items-center justify-center rounded-full text-white transition hover:opacity-90"
+              className="flex size-[32px] items-center justify-center rounded-full text-white transition hover:opacity-90 md:size-[38px]"
               style={{ backgroundColor: NEW_TEAM_COLOR }}
             >
               <Plus className="size-4" />

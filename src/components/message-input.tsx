@@ -51,6 +51,7 @@ import {
   deleteAttachment as deleteAttachmentAPI,
 } from '@/lib/api'
 import { getToolDisplayName } from '@/lib/tool-display'
+import { useMediaQuery } from '@/lib/use-media-query'
 import { cn } from '@/lib/utils'
 import { useAppStore, usePendingAttachments, usePendingPlanReviewForConversation, useTopLevelRunningRuns } from '@/stores/app-store'
 import type { PromptEnhanceContext } from '@/shared/prompt-enhance'
@@ -241,6 +242,8 @@ function safeFileName(value: string): string {
 
 export function MessageInput({ conversationId }: { conversationId: string }) {
   const [content, setContent] = useState('')
+  // 移动端 placeholder 缩短：默认提示在 390 宽输入框内会折 3 行（B6）
+  const isMobile = useMediaQuery('(max-width: 639px)')
   const [mentionedIds, setMentionedIds] = useState<string[]>([])
   const [trigger, setTrigger] = useState<MentionTrigger | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -861,7 +864,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   return (
     // 输入区不再是「四周 16px」的松散盒子：上 12px / 下 8px，让底边贴住会话面板底部
     // （用户两次反馈输入框下方留白过多）。
-    <div className="relative shrink-0 border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-4 pb-2 pt-3">
+    <div className="relative shrink-0 border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 pb-2 pt-2 sm:px-4 sm:pt-3">
       {/* 引用预览 */}
       {replyMessage && (
         <div className="mb-2">
@@ -1049,7 +1052,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
       {enhanceError && !enhanceOpen && <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">{enhanceError}</div>}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <Textarea
           ref={textareaRef}
           data-testid="composer-input"
@@ -1064,8 +1067,12 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
               : isRunning
                 ? '当前有 Agent 正在响应…'
                 : isGroup
-                  ? '输入消息，@ 指定 Agent，Enter 发送，Shift+Enter 换行'
-                  : '输入消息，Enter 发送，Shift+Enter 换行'
+                  ? isMobile
+                    ? '输入消息，@ 指定 Agent…'
+                    : '输入消息，@ 指定 Agent，Enter 发送，Shift+Enter 换行'
+                  : isMobile
+                    ? '输入消息，Enter 发送'
+                    : '输入消息，Enter 发送，Shift+Enter 换行'
           }
           className="min-h-[44px] max-h-40 resize-none"
           disabled={composerLocked}

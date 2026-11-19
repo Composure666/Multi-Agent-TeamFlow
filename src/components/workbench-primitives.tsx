@@ -79,21 +79,25 @@ export function PageHeader({
   compact?: boolean
 }) {
   return (
-    <PageCard className={compact ? 'p-3 sm:px-4 sm:py-3' : undefined}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
+    <PageCard className={compact ? 'p-3 sm:px-4 sm:py-3' : 'p-3 sm:p-5'}>
+      {/* 移动端标题行与 actions 同行、超宽时 actions 自动换行（B4）：
+          标题块 basis 180px 是可读底线——actions 再宽也不把标题压成 "A…"；
+          actions 小时同行紧凑（卡片约 87px），超宽时换到第二行、标题独占整行，
+          桌面端（sm+）与原来完全一致。 */}
+      <div className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 grow basis-[180px] items-start gap-3">
           {Icon != null && (
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]">
-              <Icon className="size-5 text-[var(--agenthub-accent)]" />
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)] sm:size-10">
+              <Icon className="size-4 text-[var(--agenthub-accent)] sm:size-5" />
             </div>
           )}
           <div className="min-w-0">
             {breadcrumb != null && <div className={compact ? 'mb-0.5' : 'mb-1'}>{breadcrumb}</div>}
-            <div className="font-heading text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            <div className="font-heading truncate text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
               {title}
             </div>
             {description != null && (
-              <p className={compact ? 'mt-0.5 text-sm leading-6 text-slate-500 dark:text-slate-400' : 'mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400'}>{description}</p>
+              <p className={cn(compact ? 'mt-0.5' : 'mt-0.5 sm:mt-1', 'line-clamp-1 text-sm leading-6 text-slate-500 dark:text-slate-400 sm:line-clamp-none')}>{description}</p>
             )}
             {meta != null && <div className={compact ? 'mt-0.5' : 'mt-1'}>{meta}</div>}
           </div>
