@@ -326,3 +326,31 @@ Phase 5：
 - W7 集中验证（最终树状态重跑）：tsc 0 错误、eslint 0 错误（本轮 26 文件）、全量 vitest **894 通过 / 4 跳过 / 0 失败**（104 文件，一次过）、干净生产构建 exit 0（BUILD_ID `Uj1B6GQ8PoWepS2jgOBEo`）；Playwright 回归：工具条六条件 scrollX 全 0（431 口径复核：431 在侧栏展开态，收起态 259，两种都归零）、斜杠命令均可用、搜索「渲染」/「bash」/「回归」无 JSON 原文且有 `<mark>`、建自动化会话 2→3 且同名会话与绑定一致、24 组对比度全 ≥4.5:1（最低 4.66 白·水墨深，白·工程蓝浅 4.91，经设置外观区真实点卡切换复核）、/home 新图在位 3200×1600、390/1366/1920 三档无溢出；深色 spot 调试板「重新运行」13.43:1。
 - 遗留（非阻塞）：wine 深 hover 3.82:1、capability violet 分支 4.23、debug-board 状态色圆点、agent-avatar 调色板、最近团队圆 `#3E7CB1` 槽 4.45、`/api/platform` 暂无前端调用方、删自动化不删绑定会话、点搜索结果停新任务首页（既有行为）、团队详情对话框溢出风险（用户未定夺）、GitHub PNG 补推待定。详见 `openspec/changes/batch5-cleanup/PROGRESS.md`「遗留清单」。
 - 未 commit、未 push、未部署；HEAD 仍为 `c383a4a`。
+
+## README demo 链接 + 团队详情对话框溢出（readme-demo-link-team-dialog，另开 change，2026-11-19）
+
+- 用户 2026-11-19 10:19 下令：README 放最新 demo 链接；团队详情对话框溢出风险修掉；安装包更新等他测试完再说。完整记录见 `openspec/changes/readme-demo-link-team-dialog/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/readme-demo-link-team-dialog/`。
+- 改动：两份 README 徽章行下方恢复 ecf4ed9 原样的顶部 demo 链接（http://121.40.240.236/demo），第 79 行引导语改掉过时的“once deployed / 部署后访问”；team-detail-dialog.tsx 按 create-team 同款改 grid-rows 三行结构（头行 / 滚动内容区 / 固定底部）。
+- 验证：复现确认 12 成员时 1366 下 footer 超出 462.7px、1920 下超出 166.3px 且无滚动；修后两档视口 footer 均可见（底边余量 17px），内容区可滚到底（12 名成员全可达），编辑态同样 0 溢出；tsc 0 错误、eslint 0 错误、全量 vitest 894 通过 / 4 跳过、干净构建 exit 0（BUILD_ID `9C80MJP-HZ4E6lVPC8CTh`，首轮构建遇白·主题轮同款字体拉取抖动，重试即成功）。
+- 遗留（非阻塞）：team-detail-dialog.tsx:116 与 provider-config-dialog.tsx:151 的删除确认是裸 `confirm()`（第一批 C4 只 grep 了 `window.confirm`，漏网）；安装包更新等用户测试完再说。
+- 未 commit、未 push、未部署；HEAD 仍为 `89a0ee7`。
+
+## 新建任务页标题层级（newtask-title-hierarchy，另开 change，2026-11-19）
+
+- 用户 2026-11-19 11:27 改主意：不要三个方案的重设计（效果图 `xin-jian-ren-wu-ye-chong-she-ji-fang-an` 作废），只要标题调大 + 多级标题。完整记录见 `openspec/changes/newtask-title-hierarchy/PROGRESS.md`，证据见 `~/workspace/frontend-polish-evidence/newtask-title-hierarchy/`。
+- 改动（只动 `src/components/app-workbench.tsx` 新建任务视图）：H1 `text-[27px] md:text-[34px]` → `text-[32px] md:text-[44px]`；“不知道怎么开头？试试这些”由灰色小字 `<p>` 升级为 `mt-9 text-[17px] font-bold` 的 `<h2>`；最近团队行上方新增 `<h2>最近的团队</h2>`，团队行 `mt-[26px]` → `mt-3`。其余一律不动。
+- 兜底：标题实际长高约 80px，极限态（textarea 顶满）初测溢出 35.8px；容器 `pt-10` → `pt-6`、textarea 上限 `min(320px,32vh)` → `min(320px,28vh)`，极限态余量 +11.9px。
+- 验证：tsc 0 错误、eslint 0 错误（1 条 `<img>` warning 既有）、全量 vitest 894 通过 / 4 跳过、干净构建 exit 0（BUILD_ID `4y7C7mRibhcGyomiVXX1g`）；Playwright：1366×768 空态团队行底 691.1（余量 76.9）、500 字态 709.5（余量 58.5）、极限态 756.1（余量 11.9）、1920 余量 388.9、深色同数，0 横向溢出。
+- 遗留（非阻塞）：390×844 下团队名标签在折叠线之下 27.3px（改前已存在，本轮改善 17px，未根治，需另立项）。
+- 未 commit、未 push、未部署；HEAD 仍为 `89a0ee7`。
+
+## 运行展板间距收紧 + 任务图 P1 修复（debug-board-spacing-graph，另开 change，2026-11-19）
+
+- 用户点名修运行展板顶部空白带，随后按顺序做任务图 P1 三项。完整记录见 `openspec/changes/debug-board-spacing-graph/PROGRESS.md`，分析报告见 `openspec/changes/debug-board-task-graph-analysis/analysis.md`，证据见 `~/workspace/frontend-polish-evidence/debug-board-spacing-graph/`。
+- P0（间距收紧）：标题卡 padding、阶段条 h-12→h-10、画布 wrapper p-2→p-1.5、工具栏 min-h-11→min-h-10、面包屑/meta 间距、model id 截断；1366 下画布 411.3→467.8px（+56.5）。
+- P1-D1：行高与间隙按实测折叠高收紧（worker 380→250、tool 260→190、toolGridTopGap 200→120、summaryGap 220→120、Run→Orchestrator 210→170、workerGridTopY 600→420；estimateNodeHeight agent 320→200、tool 220→150、message 200→190、run 130→135、summary 170→135）；图总高 2840→2075.5px，fitView @1366 0.142→0.195。
+- P1-D2：删 Orchestrator→汇总直连，worker→汇总只连无工具者，尾工具→汇总保留；汇总入边 7→3，逐像素边穿卡 0。
+- P1-D3/D5：工具按 agent 分块横排 + 组标签，链只在块内走；工具链跨行跳跃 0。
+- 验证：tsc 0 错误、eslint 0 错误、全量 vitest 896 通过 / 4 跳过（+2 为新增有意测试）、干净构建 exit 0（BUILD_ID `-6UcmBUP_Tk0Blx-fj2WT`）；390 下阶段条仍溢出 107px（D8，未恶化）。
+- 遗留（非阻塞）：展开态 Agent 卡超高压行（D4，P2）、无工具 worker→汇总边在特定几何下仍可穿工具卡、组内超 4 工具块内换行、图变宽。详见 `openspec/changes/debug-board-spacing-graph/PROGRESS.md`「已知取舍与残留」。
+- 未 commit、未 push、未部署；HEAD 仍为 `89a0ee7`。

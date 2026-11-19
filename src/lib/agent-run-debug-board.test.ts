@@ -355,7 +355,9 @@ describe('agent run debug board projection', () => {
       'agent-agent_1',
       'agent-designer',
       'agent-coder',
+      'group-coder',
       'tool-call_1',
+      'group-agent_1',
       'tool-call_2',
       'summary-output',
     ]))
@@ -394,9 +396,51 @@ describe('agent run debug board projection', () => {
       expect.objectContaining({ source: 'agent-coder', target: 'tool-call_1' }),
       expect.objectContaining({ source: 'agent-agent_1', target: 'tool-call_2' }),
       expect.objectContaining({ source: 'tool-call_2', target: 'summary-output' }),
+      expect.objectContaining({ source: 'tool-call_1', target: 'summary-output' }),
       expect.objectContaining({ source: 'agent-designer', target: 'summary-output' }),
+    ]))
+    // P1-D2：Orchestrator→汇总直连已删；有工具的 worker（coder）不再直连汇总，
+    // 改由其尾工具收口；无工具的 worker（designer）仍直连汇总。
+    expect(graph.edges).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'agent-agent_1', target: 'summary-output' }),
       expect.objectContaining({ source: 'agent-coder', target: 'summary-output' }),
     ]))
+  })
+
+  it('收口汇总时只保留无工具 worker 与尾工具的入边（P1-D2）', () => {
+    const graph = buildAgentRunDebuggerGraph(buildDetail())
+
+    const summaryInSources = graph.edges
+      .filter((edge) => edge.target === 'summary-output')
+      .map((edge) => edge.source)
+      .sort()
+    expect(summaryInSources).toEqual(['agent-designer', 'tool-call_1', 'tool-call_2'])
+  })
+
+  it('工具按 agent 分块排布，组标签在块顶、链只在块内走（P1-D3）', () => {
+    const graph = buildAgentRunDebuggerGraph(buildDetail())
+
+    const groups = graph.nodes.filter((node) => node.data.kind === 'group')
+    expect(groups.map((node) => node.id)).toEqual(['group-coder', 'group-agent_1'])
+    expect(groups.map((node) => node.data.label)).toEqual(['Coder', 'Agent'])
+    // 组标签不可拖、不可选，是画布内注释而非卡片。
+    expect(groups.every((node) => node.draggable === false && node.selectable === false)).toBe(true)
+
+    const coderTools = graph.nodes.filter((node) => node.data.kind === 'tool' && node.data.tool?.agentId === 'coder')
+    const orchTools = graph.nodes.filter((node) => node.data.kind === 'tool' && node.data.tool?.agentId === 'agent_1')
+    const coderLabel = groups.find((node) => node.id === 'group-coder')
+    const orchLabel = groups.find((node) => node.id === 'group-agent_1')
+    // 标签在块顶（比块内工具高 40px），x 与块内第一张工具卡对齐。
+    expect(coderLabel?.position).toEqual({ x: 435, y: 740 })
+    expect(orchLabel?.position).toEqual({ x: 845, y: 740 })
+    expect(coderTools.map((node) => node.position)).toEqual([{ x: 435, y: 780 }])
+    expect(orchTools.map((node) => node.position)).toEqual([{ x: 845, y: 780 }])
+    // 同 agent 的工具在同一行（无跨行跳跃）；不同 agent 的块横向分开。
+    expect(new Set(coderTools.map((node) => node.position.y)).size).toBe(1)
+    expect(new Set(orchTools.map((node) => node.position.y)).size).toBe(1)
+    expect(Math.min(...orchTools.map((node) => node.position.x))).toBeGreaterThan(
+      Math.max(...coderTools.map((node) => node.position.x)),
+    )
   })
 
   it('opens graph tool nodes as tool inspector selections', () => {
@@ -582,15 +626,18 @@ describe('agent run debug board projection', () => {
     const workerNodes = graph.nodes.filter((node) => node.data.kind === 'agent' && node.data.agent?.role === 'worker')
     const summaryNode = graph.nodes.find((node) => node.id === 'summary-output')
 
-    // 中轴 / 行列间距是「卡片不压盖」的契约（卡片宽 280~290，行距按保守高度留白）
+    // 中轴 / 行列间距是「卡片不压盖」的契约（卡片宽 280~290，行距按折叠实高留白）
     expect(runNode?.position.x).toBe(640)
     expect(runNode?.position.y).toBe(0)
     expect(orchestratorNode?.position.x).toBe(640)
-    expect(orchestratorNode?.position.y).toBe(210)
+    // P1-D1：Run→Orchestrator 210 → 170。
+    expect(orchestratorNode?.position.y).toBe(170)
     expect(workerNodes.map((node) => node.position.x)).toEqual([460, 820])
-    expect(workerNodes.map((node) => node.position.y)).toEqual([600, 600])
-    // batch4 W4：toolGridTopGap 260 → 200、summaryGap 300 → 220，汇总 y 1700 → 1560。
-    expect(summaryNode?.position).toEqual({ x: 640, y: 1560 })
+    // P1-D1：workerGridTopY 600 → 420（Orchestrator 卡底边约 356 + 约 64）。
+    expect(workerNodes.map((node) => node.position.y)).toEqual([420, 420])
+    // P1-D1/D2/D3：toolGridTopGap 200 → 120、summaryGap 220 → 120，
+    // 工具分块横排（标签 740 / 工具 780），汇总 y 1560 → 1050。
+    expect(summaryNode?.position).toEqual({ x: 640, y: 1050 })
   })
 
   it('uses a clean task title for the run summary instead of leading agent mentions', () => {
@@ -641,7 +688,7 @@ describe('agent run debug board projection', () => {
       ],
     }))
 
-    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 640, y: 600 })
+    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 640, y: 420 })
   })
 
   it('dims non-matching graph nodes for agent, tool, and error filters without removing context', () => {
@@ -866,7 +913,7 @@ describe('agent run debug board projection', () => {
       'agent-agent_1',
       'summary-output',
     ])
-    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 640, y: 600 })
+    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 640, y: 420 })
     expect(graph.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'agent-agent_1', target: 'summary-output' }),
     ]))
@@ -1147,10 +1194,13 @@ describe('mergeLiveRuns', () => {
   })
 })
 // ─── 画布布局：卡片可拖动 + 不堆叠（2026-09-16 用户反馈）───────────────
-/** 与 DebuggerNode 里的实际卡片尺寸一致。 */
-const CARD_WIDTH: Record<string, number> = { message: 310, run: 310, agent: 280, task: 270, tool: 290, summary: 270 }
-/** 保守上界高度：展开态最高，按它留白才不会压盖。 */
-const CARD_HEIGHT: Record<string, number> = { message: 200, run: 130, agent: 320, task: 190, tool: 220, summary: 170 }
+/** 与 DebuggerNode 里的实际卡片尺寸一致。group 是组标签芯片（约 28 高、至多约 300 宽）。 */
+const CARD_WIDTH: Record<string, number> = { message: 310, run: 310, agent: 280, task: 270, tool: 290, summary: 270, group: 300 }
+/** P1-D1：折叠实高 + 少量余量（agent 185.7→200、tool 138→150、message 182→190、
+ * run/summary 130.5→135；task 无实测值，沿用 190）。注意：这不再是展开态上界——
+ * 展开态 agent 卡（4 步约 340px）会超出 200 而压住下一行，这是 P2 的 D4，
+ * 本轮不修；「互不压盖」断言只对折叠态成立。 */
+const CARD_HEIGHT: Record<string, number> = { message: 190, run: 135, agent: 200, task: 190, tool: 150, summary: 135, group: 28 }
 
 function cardOf(node: { id: string; position: { x: number; y: number }; data: { kind: string } }) {
   return {
@@ -1182,7 +1232,9 @@ describe('agent run board canvas layout', () => {
     const graph = buildAgentRunDebuggerGraph(buildDetail())
 
     expect(graph.nodes.length).toBeGreaterThan(4)
-    expect(graph.nodes.every((node) => node.draggable === true)).toBe(true)
+    // 组标签是画布内注释，不可拖、不可选，不计入「卡片」。
+    expect(graph.nodes.filter((node) => node.data.kind !== 'group').every((node) => node.draggable === true)).toBe(true)
+    expect(graph.nodes.filter((node) => node.data.kind === 'group').every((node) => node.draggable === false)).toBe(true)
 
     const cards = graph.nodes.map(cardOf)
     for (let i = 0; i < cards.length; i += 1) {
@@ -1235,7 +1287,7 @@ describe('agent run board canvas layout', () => {
     expect(trigger).toBeDefined()
     expect(followup).toBeDefined()
 
-    expect(graph.nodes.every((node) => node.draggable === true)).toBe(true)
+    expect(graph.nodes.filter((node) => node.data.kind !== 'group').every((node) => node.draggable === true)).toBe(true)
 
     // 展开子图（含 worker / tool / summary）整段的底边必须在下一行消息之上。
     // 只算展开的那一段：排除两张消息卡片，以及第二行自己的 Run 卡片。
@@ -1269,25 +1321,29 @@ describe('agent run board canvas layout', () => {
     const followup = graph.nodes.find((node) => node.id === 'message-msg_followup')
     expect(trigger).toBeDefined()
     expect(followup).toBeDefined()
-    // 第一行底边 = Run 卡片底边（260 + 130）；下一行消息顶边 = 底边 + rowGap。
-    expect(followup!.position.y - (trigger!.position.y + 260 + 130)).toBe(240)
+    // 第一行底边 = Run 卡片底边（260 + 135，P1-D1：run 估计高 130 → 135）；下一行消息顶边 = 底边 + rowGap。
+    expect(followup!.position.y - (trigger!.position.y + 260 + 135)).toBe(240)
   })
 
-  it('工具网格顶距与汇总留白收紧到 200/220（batch4 W4）', () => {
+  it('工具网格顶距与汇总留白收紧到 120/120（P1-D1），组标签占 40px（P1-D3）', () => {
     const graph = buildAgentRunDebuggerGraph(buildDetail())
     const workers = graph.nodes.filter((node) => node.data.kind === 'agent' && node.data.agent?.role === 'worker')
     const tools = graph.nodes.filter((node) => node.data.kind === 'tool')
+    const groups = graph.nodes.filter((node) => node.data.kind === 'group')
     const summary = graph.nodes.find((node) => node.data.kind === 'summary')
 
     expect(workers.length).toBeGreaterThan(0)
     expect(tools.length).toBeGreaterThan(0)
+    expect(groups.length).toBeGreaterThan(0)
     expect(summary).toBeDefined()
 
-    // 工具网格顶边 − worker 行底边（按保守卡片高 320 算）= toolGridTopGap。
+    // 组标签顶边 − worker 行底边（按折叠卡片高 200 算）= toolGridTopGap。
     const workersBottom = Math.max(...workers.map((node) => node.position.y + CARD_HEIGHT.agent!))
-    expect(Math.min(...tools.map((node) => node.position.y)) - workersBottom).toBe(200)
-    // 汇总顶边 − 工具行底边（按保守卡片高 220 算）= summaryGap。
+    expect(Math.min(...groups.map((node) => node.position.y)) - workersBottom).toBe(120)
+    // 工具顶边比组标签顶边低 40px（标签高约 28 + 12 间距）。
+    expect(Math.min(...tools.map((node) => node.position.y)) - workersBottom).toBe(160)
+    // 汇总顶边 − 工具行底边（按折叠卡片高 150 算）= summaryGap。
     const toolsBottom = Math.max(...tools.map((node) => node.position.y + CARD_HEIGHT.tool!))
-    expect(summary!.position.y - toolsBottom).toBe(220)
+    expect(summary!.position.y - toolsBottom).toBe(120)
   })
 })

@@ -65,6 +65,8 @@ export function PageHeader({
   actions,
   breadcrumb,
   meta,
+  /** 仅运行调试板用：收紧卡片 padding 与行间距（P0 间距收紧），其他调用处保持默认 */
+  compact = false,
 }: {
   icon?: LucideIcon
   title: string
@@ -74,9 +76,10 @@ export function PageHeader({
   breadcrumb?: ReactNode
   /** 标题行下方：元信息行（运行调试板页头用） */
   meta?: ReactNode
+  compact?: boolean
 }) {
   return (
-    <PageCard>
+    <PageCard className={compact ? 'p-3 sm:px-4 sm:py-3' : undefined}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           {Icon != null && (
@@ -85,14 +88,14 @@ export function PageHeader({
             </div>
           )}
           <div className="min-w-0">
-            {breadcrumb != null && <div className="mb-1">{breadcrumb}</div>}
+            {breadcrumb != null && <div className={compact ? 'mb-0.5' : 'mb-1'}>{breadcrumb}</div>}
             <div className="font-heading text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
               {title}
             </div>
             {description != null && (
-              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>
+              <p className={compact ? 'mt-0.5 text-sm leading-6 text-slate-500 dark:text-slate-400' : 'mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400'}>{description}</p>
             )}
-            {meta != null && <div className="mt-1">{meta}</div>}
+            {meta != null && <div className={compact ? 'mt-0.5' : 'mt-1'}>{meta}</div>}
           </div>
         </div>
         {actions != null && <div className="flex w-fit shrink-0 flex-wrap items-center gap-2">{actions}</div>}

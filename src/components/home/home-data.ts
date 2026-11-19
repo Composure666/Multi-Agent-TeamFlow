@@ -31,7 +31,7 @@ import {
 export const REPO_URL = 'https://github.com/Composure666/Multi-Agent-TeamFlow'
 
 /** 版本号 —— 与仓库根 `VERSION`、`package.json#version` 保持三处一致，改版本时同步。 */
-export const APP_VERSION = 'v0.2.0-rc.1'
+export const APP_VERSION = 'v0.2.0-rc.2'
 
 export const HOME_NAV: { href: string; label: string }[] = [
   { href: '#preview', label: '界面预览' },

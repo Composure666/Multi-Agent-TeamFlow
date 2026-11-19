@@ -12,6 +12,10 @@
 </p>
 
 <p align="center">
+  <b>🌐 Live demo — no login needed: <a href="http://121.40.240.236/demo">http://121.40.240.236/demo</a></b>
+</p>
+
+<p align="center">
   <b>English</b> · <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
@@ -21,7 +25,7 @@
 
 Instead of juggling one prompt window per task, you get a group chat: a dispatcher agent breaks your goal into subtasks, assigns them to specialist agents, and collects their deliverables as first-class objects you can preview, keep, and reuse. Everything — conversations, agents, artifacts, approvals, workspace files, and the SQLite database — lives on your own machine. **No account, no cloud round-trip.**
 
-> **Current release: v0.2.0-rc.1** — see [`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md).
+> **Current release: v0.2.0-rc.2** — see [`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -34,7 +38,7 @@ The desktop app is the **recommended way to use it**: it bundles its own Node ru
 | GitHub Releases | <https://github.com/Composure666/Multi-Agent-TeamFlow/releases> | Every release ships the installer plus its SHA-256; older versions stay available |
 | China mirror (OSS direct) | <https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/Multi-Agent-TeamFlow-Setup.exe> | Faster download, **always the latest build** (the object name carries no version, new releases overwrite the same key) |
 
-Current release `v0.2.0-rc.1`: `Multi-Agent-TeamFlow-Setup.exe`, 570,549,147 bytes (~544 MB), Windows only.
+Current release `v0.2.0-rc.2`: `Multi-Agent-TeamFlow-Setup.exe`, 570,549,147 bytes (~544 MB), Windows only.
 
 - SHA-256: `4bef19742e631983859e42fd0295b00113b497a6d48c37dcec1eab696d31df77`
 - Verify: `certutil -hashfile Multi-Agent-TeamFlow-Setup.exe SHA256`
@@ -76,7 +80,7 @@ The installer never phones home and uploads nothing. Desktop and web are the sam
 
 ### What this repo adds
 
-- **Public demo mode (`/demo`).** The workbench itself is local-first and behind a login wall, so guests get a separate read-only demo: a scripted replay of a full multi-agent run (the 「光影造像工坊」 showcase — PRD → design guide → web page → review) rendered in the real chat/artifact UI. No account, no API key, no database access, no terminal. The `MockAdapter` scripted flow serves it, and nginx exempts exactly `/demo`, the same way it exempts `/home`. Live demo once deployed: http://121.40.240.236/demo.
+- **Public demo mode (`/demo`).** The workbench itself is local-first and behind a login wall, so guests get a separate read-only demo: a scripted replay of a full multi-agent run (the 「光影造像工坊」 showcase — PRD → design guide → web page → review) rendered in the real chat/artifact UI. No account, no API key, no database access, no terminal. The `MockAdapter` scripted flow serves it, and nginx exempts exactly `/demo`, the same way it exempts `/home`. Live demo: http://121.40.240.236/demo.
 - **Self-hosting.** One-command deploy scripts, nginx config, a systemd service, and a demo checklist live in [`deploy/`](./deploy/) — the public demo above ships with the same setup.
 - **Public homepage (`/home`).** Screenshots, the architecture diagram above, and the desktop download, all public with no login.
 

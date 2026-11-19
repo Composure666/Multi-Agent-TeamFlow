@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-rc.2] - 2026-11-19
+
+前端大改版：`/home`、`/demo`、工作台与次要界面全面重做；新增 6 套主题切换（含 3 套白色主题，默认白·石墨）；新建任务页标题层级加大；运行展板间距收紧、任务图布局收紧；团队详情对话框溢出修复；README 顶部恢复在线演示链接。
+
+### Changed
+
+- 前端五阶段重设计 + 主题切换器 + 白色主题 + 一致性/响应式收尾（详见 `openspec/changes/frontend-polish/` 各轮记录）。
+- 新建任务页：主标题 34px → 44px，新增两个 17px 二级标题。
+- 运行展板：页头区纵向收紧约 56.5px（@1366）；任务图行距按实高收紧，fitView 0.125 → 0.195；汇总入边 7 → 3，工具按 Agent 分块横排。
+
+### Fixed
+
+- 团队详情对话框在成员多时页脚溢出视口（462.7px @1366），改用 grid-rows 布局，内容区可滚动。
+
 ## [0.2.0-rc.1] - 2026-09-12
 
 首个 release-candidate 版本。从 0.1.0 的 prototype 收敛到 ship-ready：完成一次完整上线前全检，封堵 2 个 🟠 安全 High，新增一组核心单测，补全 release metadata。

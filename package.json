@@ -1,6 +1,6 @@
 {
   "name": "multi-agent-teamflow",
-  "version": "0.2.0-rc.1",
+  "version": "0.2.0-rc.2",
   "description": "Local-first multi-agent workspace with IM-style collaboration, artifacts, approvals, and Electron desktop support.",
   "author": {
     "name": "Multi-Agent TeamFlow",

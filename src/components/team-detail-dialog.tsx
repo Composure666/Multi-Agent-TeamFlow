@@ -203,19 +203,23 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("max-h-[90vh] w-[calc(100vw-2rem)] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="size-4" />
-            {editing ? '编辑团队' : '团队详情'}
-          </DialogTitle>
-          <DialogDescription>
-            {team ? `${team.members.length} 名成员` : '加载中…'}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className={cn("grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden", DIALOG_SIZE_CLASS.lg)}>
+        {/* 头部为 grid 第一行，中间内容区滚动、底部按钮固定可见（与 create-team-dialog 同款） */}
+        <div>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="size-4" />
+              {editing ? '编辑团队' : '团队详情'}
+            </DialogTitle>
+            <DialogDescription>
+              {team ? `${team.members.length} 名成员` : '加载中…'}
+            </DialogDescription>
+          </DialogHeader>
 
-        {error && <InlineError message={error} onRetry={() => setRetryKey((k) => k + 1)} />}
+          {error && <InlineError message={error} onRetry={() => setRetryKey((k) => k + 1)} />}
+        </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 py-14">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -225,7 +229,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
             </Button>
           </div>
         ) : team ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-0.5 py-1">
+          <div className="flex min-h-0 flex-col gap-5 px-0.5 py-1">
             {/* 基本信息 */}
             {editing ? (
               <div className="flex flex-col gap-3.5">
@@ -345,6 +349,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
             </div>
           </div>
         ) : null}
+        </div>
 
         <DialogFooter>
           <Button

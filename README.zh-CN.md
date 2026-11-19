@@ -12,6 +12,10 @@
 </p>
 
 <p align="center">
+  <b>🌐 在线演示，无需登录：<a href="http://121.40.240.236/demo">http://121.40.240.236/demo</a></b>
+</p>
+
+<p align="center">
   <a href="./README.md">English</a> · <b>简体中文</b>
 </p>
 
@@ -21,7 +25,7 @@
 
 你不必为每个任务单开一个提示词窗口。这里有一个「调度 Agent」负责把目标拆成子任务、派发给不同专长的 Agent，再把它们的交付物收拢成一等公民对象 —— 可预览、可留存、可复用。所有东西（会话、Agent、产物、审批记录、工作区文件、SQLite 数据库）都在你自己的机器上：**无需注册账号，也不经过任何云端中转**。
 
-> **当前版本：v0.2.0-rc.1** —— 版本号与变更明细见 [`VERSION`](./VERSION) 与 [`CHANGELOG.md`](./CHANGELOG.md)。
+> **当前版本：v0.2.0-rc.2** —— 版本号与变更明细见 [`VERSION`](./VERSION) 与 [`CHANGELOG.md`](./CHANGELOG.md)。
 
 ---
 
@@ -34,7 +38,7 @@
 | GitHub Releases | <https://github.com/Composure666/Multi-Agent-TeamFlow/releases> | 每个版本都附安装包与 SHA-256 校验值，历史版本可回溯 |
 | 国内镜像（OSS 直连） | <https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/Multi-Agent-TeamFlow-Setup.exe> | 下载更快，**永远指向最新版**（对象名不带版本号，发新版覆盖同名文件） |
 
-当前版本 `v0.2.0-rc.1`：`Multi-Agent-TeamFlow-Setup.exe`，570,549,147 字节（约 544 MB），仅 Windows。
+当前版本 `v0.2.0-rc.2`：`Multi-Agent-TeamFlow-Setup.exe`，570,549,147 字节（约 544 MB），仅 Windows。
 
 - SHA-256：`4bef19742e631983859e42fd0295b00113b497a6d48c37dcec1eab696d31df77`
 - 校验：`certutil -hashfile Multi-Agent-TeamFlow-Setup.exe SHA256`
@@ -76,7 +80,7 @@
 
 ### 本仓库的扩展
 
-- **公开演示模式（`/demo`）。** 工作台本身是本地单租户、登录墙后的应用，所以访客走一条单独的只读演示：用 MockAdapter 脚本回放一次完整的多智能体协作（「光影造像工坊」展示：PRD → 设计稿 → 网页 → 评审），在真实的聊天/产物界面里呈现。无需注册、无需 API key、不读数据库、不碰终端；nginx 只放行精确的 `/demo`，与 `/home` 同款。部署后访问：http://121.40.240.236/demo。
+- **公开演示模式（`/demo`）。** 工作台本身是本地单租户、登录墙后的应用，所以访客走一条单独的只读演示：用 MockAdapter 脚本回放一次完整的多智能体协作（「光影造像工坊」展示：PRD → 设计稿 → 网页 → 评审），在真实的聊天/产物界面里呈现。无需注册、无需 API key、不读数据库、不碰终端；nginx 只放行精确的 `/demo`，与 `/home` 同款。在线演示：http://121.40.240.236/demo。
 - **自托管部署。** [`deploy/`](./deploy/) 里有一键部署脚本、nginx 配置、systemd 服务与演示检查清单，公开演示也用这套配置上线。
 - **公共主页（`/home`）。** 截图、上面的架构图与桌面端下载入口，全部公开、无需登录。
 

@@ -1354,9 +1354,9 @@ function NewTaskView({
         style={{ top: NEWTASK_GLOW_TOP, height: NEWTASK_GLOW_HEIGHT, background: NEWTASK_GLOW_BACKGROUND, filter: 'blur(28px)' }}
       />
       {/* A 方案「聚焦型」：原版通栏宽度（1280px / 2xl 1440px）居中单列，文字居中；工作台外壳（侧栏）不动 */}
-      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-8 pb-8 pt-10 text-center md:pt-10 2xl:max-w-[1440px] 2xl:px-12">
+      <div className="relative mx-auto flex w-full max-w-[1280px] flex-1 flex-col items-center px-8 pb-8 pt-6 text-center md:pt-6 2xl:max-w-[1440px] 2xl:px-12">
         <p className="text-[11px] font-bold tracking-[0.1em] text-[#9A958A] dark:text-slate-500">WORKBENCH — NEW TASK</p>
-        <h1 className="font-heading mt-4 text-[27px] font-black leading-[1.15] text-[#17181C] dark:text-[#EDE9E1] md:text-[34px]">
+        <h1 className="font-heading mt-4 text-[32px] font-black leading-[1.15] text-[#17181C] dark:text-[#EDE9E1] md:text-[44px]">
           一句话，<span className="text-[var(--agenthub-accent)]">组一支队</span>开工
         </h1>
         {/* 副文案照抄效果图。2026-11-18 batch 3 项 4：后半句原承诺“系统在你打字时
@@ -1366,10 +1366,9 @@ function NewTaskView({
         </p>
 
         {/* 大输入框 composer：白底卡片；金色只在左上一角（两条 38% 渐变描边），非整圈金框。
-            增高上限 32vh（batch 3 项 6，选了降上限而非压间距）；batch4 W5 再压容器
-            上下边距（md:pt-14→pt-10、pb-12→pb-8）并把最近团队行标签改为单行：
-            1366×768 顶格时 textarea 245.8px、最近团队行底 724.8px（余量 43.2px），
-            500 字态页内不再溢出（batch 3 的 +10px 已清零）。 */}
+            上限 28vh（标题层级轮：H1 44px + 两枚 H2 让页高 +80px，为保 1366×768 顶格放得下，
+            容器 pt-10→pt-6、上限 32vh→28vh；batch 4 旧数字 245.8px/724.8px 已失效）。
+            极限态（textarea 顶满 215px）最近团队行底约 755px，余量约 13px。 */}
         <section className="relative mt-7 w-full rounded-[18px] border-[1.5px] border-[#D9DDE6] bg-white p-4 text-left shadow-[0_12px_32px_color-mix(in_srgb,var(--agenthub-accent)_10%,transparent)] dark:border-[#2E2A24] dark:bg-[#1C1A17] dark:shadow-none">
           <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[1.5px] w-[38%] rounded-tl-[18px] bg-[linear-gradient(90deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
           <span aria-hidden className="pointer-events-none absolute left-0 top-0 h-[38%] w-[1.5px] rounded-tl-[18px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--agenthub-gold)_55%,transparent),transparent)]" />
@@ -1401,7 +1400,7 @@ function NewTaskView({
               }}
               onPaste={handleTaskPaste}
               placeholder="帮我为「光影造像工坊」做一套小红书宣传：主图 1 张、详情长图 1 张，配一段 120 字以内的文案，风格温暖、电影感。"
-              className="min-h-[150px] max-h-[min(320px,32vh)] resize-none overflow-y-auto border-0 bg-transparent px-2 pb-3 pt-2 text-[15px] leading-[1.65] text-[#17181C] shadow-none placeholder:text-slate-400 focus-visible:ring-0 dark:text-[#EDE9E1]"
+              className="min-h-[150px] max-h-[min(320px,28vh)] resize-none overflow-y-auto border-0 bg-transparent px-2 pb-3 pt-2 text-[15px] leading-[1.65] text-[#17181C] shadow-none placeholder:text-slate-400 focus-visible:ring-0 dark:text-[#EDE9E1]"
             />
             {contentOverflow && (
               <span className="pointer-events-none absolute bottom-2 right-2 z-10 rounded-full bg-[var(--agenthub-surface)]/85 px-2 py-0.5 text-xs font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-[var(--agenthub-surface)]/85 dark:text-slate-400">
@@ -1662,7 +1661,7 @@ function NewTaskView({
         </section>
 
         {/* 示例 pills：点按填入输入框 */}
-        <p className="mt-7 text-xs text-[#9A958A] dark:text-slate-500">不知道怎么开头？试试这些</p>
+        <h2 className="mt-9 text-[17px] font-bold text-[#17181C] dark:text-[#EDE9E1]">不知道怎么开头？试试这些</h2>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           {EXAMPLE_PILLS.map((pill) => {
             const PillIcon = pill.icon
@@ -1684,7 +1683,8 @@ function NewTaskView({
         </div>
 
         {/* 最近团队：真实可召唤团队 + 新建团队；与侧栏最近对话列表并存（后者在会话视图，不动） */}
-        <div className="mt-[26px] flex items-start justify-center gap-[18px]">
+        <h2 className="mt-9 text-[17px] font-bold text-[#17181C] dark:text-[#EDE9E1]">最近的团队</h2>
+        <div className="mt-3 flex items-start justify-center gap-[18px]">
           {recentTeams.map((team, index) => {
             const active = activeSubcategoryId === team.id
             return (

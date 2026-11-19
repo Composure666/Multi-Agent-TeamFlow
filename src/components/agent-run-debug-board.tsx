@@ -831,6 +831,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
       <PageHeader
         icon={GitBranch}
         title={headerTitle}
+        compact
         breadcrumb={
           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <span>分析</span>
@@ -846,7 +847,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
               <span className="font-mono text-slate-700 dark:text-slate-200">{selectedRun ? formatRunLabel(selectedRun.id) : '暂无 Run'}</span>
               <span>{selectedRun ? formatRunDuration(selectedRun) : '-'}</span>
               <span>{totalTokens === null ? '-' : `${totalTokens.toLocaleString()} Tokens`}</span>
-              <span>{selectedRun?.modelId ?? currentDetail?.snapshot?.agent.modelId ?? '-'}</span>
+              <span className="max-w-[220px] truncate">{selectedRun?.modelId ?? currentDetail?.snapshot?.agent.modelId ?? '-'}</span>
               <span>{workerAgentCount ? `${workerAgentCount} Agents` : '-'}</span>
             </div>
           }
@@ -940,7 +941,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
           }
         />
         {!focusMode && currentDetail && (
-          <PageCard className="flex h-12 shrink-0 items-center px-4 py-0">
+          <PageCard className="flex h-10 shrink-0 items-center px-4">
             <RunStageProgress
               stages={stages}
               runStatus={currentDetail.agentRun.status}
@@ -1011,7 +1012,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             </div>
           </div>
 
-          <div className="min-h-[360px] flex-1 p-2">
+          <div className="min-h-[360px] flex-1 p-1.5">
             <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] shadow-sm">
               {conversationId && (
                 <CanvasToolbar
@@ -1206,7 +1207,7 @@ function CanvasToolbar({
     // overflow-x-auto 保留作兜底（未来标签变长时滚而不溢出卡片）。
     <div
       data-testid="canvas-toolbar"
-      className="flex min-h-11 shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/95 px-2 py-1"
+      className="flex min-h-10 shrink-0 flex-wrap items-center gap-1 overflow-x-auto border-b border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/95 px-2 py-1"
     >
       <div className="flex shrink-0 items-center border-r border-[var(--agenthub-border)] pr-2">
         {/* 范围切换：分段控件（与 Agent 库侧栏同款） */}
@@ -1312,6 +1313,17 @@ function CanvasToolbar({
 
 function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
   const [expanded, setExpanded] = useState(false)
+  // P1-D3：工具组标签是画布内注释（无卡片、无 Handle、不进 Inspector），
+  // 只在块顶标出工具归属。节点本身由 lib 设为不可拖、不可选。
+  if (data.kind === 'group') {
+    return (
+      <div className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:text-slate-300">
+        <span className="size-1.5 shrink-0 rounded-full bg-[var(--agenthub-accent)]" />
+        <span className="max-w-[220px] truncate">{data.label}</span>
+        <span className="shrink-0 font-normal text-slate-400 dark:text-slate-500">工具组</span>
+      </div>
+    )
+  }
   const muted = data.status === 'pending' || data.status === 'cancelled'
   const focusMuted = data.emphasis === 'muted'
   const isRunning = data.status === 'running'

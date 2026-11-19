@@ -54,7 +54,7 @@ export interface AgentRunBoardGraph {
   edges: Edge[]
 }
 
-export type AgentRunDebuggerNodeKind = 'message' | 'run' | 'agent' | 'task' | 'tool' | 'summary'
+export type AgentRunDebuggerNodeKind = 'message' | 'run' | 'agent' | 'task' | 'tool' | 'summary' | 'group'
 export type AgentRunDebuggerGraphFocus = 'all' | 'agent' | 'tools' | 'errors'
 export type AgentRunDebuggerStatus =
   | 'pending'
@@ -402,17 +402,21 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   // 卡片高度由内容决定（agent 展开后最高），这里统一按 estimateNodeHeight 的保守值留白。
   const workerMaxCols = 4
   const workerColWidth = 360
-  const workerRowHeight = 380
-  const workerGridTopY = 600
-  // 纵向三处留白（batch4 W4：340/260/300 → 240/200/220）都是「上一行底边到下一行
-  // 顶边」的纯空白：行底边已按 estimateNodeHeight 的保守高度算过，收窄只减空白，
-  // 不会让卡片压盖。workerRowHeight 380（行内留白 60）与 toolRowHeight 260
-  //（行内留白 40）已够紧，runRowOffsetY 260（消息卡片底边到 Run 顶边 60）也不动。
-  const toolGridTopGap = 200
+  // P1-D1：worker 行高 380 → 250（折叠态 agent 卡实高 185.7 + 约 64 间距）。
+  const workerRowHeight = 250
+  // P1-D1：Orchestrator 卡底边约 356（y 170 + 实高 185.7），worker 网格顶 = 底边 + 约 64。
+  const workerGridTopY = 420
+  // 纵向三处留白（P1-D1：toolGridTopGap 200 → 120、summaryGap 220 → 120）都是
+  // 「上一行底边到下一行顶边」的纯空白：行底边已按 estimateNodeHeight 的折叠实高
+  // 算过，收窄只减空白，不会让折叠态卡片压盖。展开态 agent 卡（4 步约 340px）
+  // 超出 200 估计高时会压住下一行——这是 P2 的 D4，本轮不修，见 PROGRESS。
+  // workerRowHeight 250（行内留白约 64）与 toolRowHeight 190（行内留白约 52）
+  // 已够紧，runRowOffsetY 260（消息卡片底边到 Run 顶边 60）也不动。
+  const toolGridTopGap = 120
   const toolColWidth = 350
-  const toolRowHeight = 260
+  const toolRowHeight = 190
   const toolMaxCols = 4
-  const summaryGap = 220
+  const summaryGap = 120
   const hasOutputEvidence = detail.outputMessages.length > 0
     || projectAgentRunArtifacts(detail).length > 0
     || projectAgentRunTaskResults(toolTrace).length > 0
@@ -442,7 +446,8 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   nodes.push({
     id: orchestratorNodeId,
     type: 'runDebuggerNode',
-    position: { x: centerX, y: 210 },
+    // P1-D1：Run→Orchestrator 210 → 170（Run 卡实高 130.5 + 约 40 间距）。
+    position: { x: centerX, y: 170 },
     draggable: true,
     selectable: true,
     data: {
@@ -467,7 +472,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       },
     },
   })
-  agentNodePositions.set(currentAgentId, { x: centerX, y: 210 })
+  agentNodePositions.set(currentAgentId, { x: centerX, y: 170 })
   edges.push(buildDebuggerEdge(runNodeId, orchestratorNodeId, mapRunStatus(detail.agentRun.status)))
 
   if (workerAgentIds.length === 0) {
@@ -565,8 +570,15 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
     : Math.max(toolGridOriginY, toolLayout.maxY + estimateNodeHeight('tool') + summaryGap)
   const outputStatus = getOutputNodeStatus(detail.agentRun, hasOutputEvidence || toolLayout.nodes.length > 0)
   nodes.push(buildSummaryNode(summaryNodeId, detail, outputStatus, { x: centerX, y: summaryPositionY }))
-  edges.push(buildDebuggerEdge(orchestratorNodeId, summaryNodeId, outputStatus))
+  // P1-D2：汇总只由「无工具的 worker」与「各 agent 的尾工具」收口。
+  // Orchestrator→汇总直连边已删（语义冗余：汇总已由 worker 与尾工具收口），
+  // 该边原来是一条穿过 worker 行与工具行的跨层竖线，是 8 处穿卡的主因之一。
+  // 注意：无工具的 worker→汇总边仍可能横穿工具行（smoothstep 水平段走中点 y，
+  // 无工具 worker 的卡中心与汇总中心之间若有工具卡即会穿过）——只在「存在无工具
+  // worker 且其 x 介于工具卡与汇总中轴之间」时出现，P1 实测夹具里没有这类 worker，
+  // 残留见 PROGRESS。
   for (const agentId of workerAgentIds) {
+    if (toolLayout.agentsWithTools.includes(agentId)) continue
     edges.push(buildDebuggerEdge(`agent-${agentId}`, summaryNodeId, outputStatus))
   }
   for (const tailNodeId of toolLayout.tailNodeIds) {
@@ -589,9 +601,9 @@ function buildAgentRunToolDebuggerGraph(args: {
   toolColWidth: number
   toolRowHeight: number
   toolMaxCols: number
-}): { nodes: AgentRunDebuggerNode[]; edges: Edge[]; tailNodeIds: string[]; maxY: number | null } {
+}): { nodes: AgentRunDebuggerNode[]; edges: Edge[]; tailNodeIds: string[]; maxY: number | null; agentsWithTools: string[] } {
   if (args.toolTrace.length === 0) {
-    return { nodes: [], edges: [], tailNodeIds: [], maxY: null }
+    return { nodes: [], edges: [], tailNodeIds: [], maxY: null, agentsWithTools: [] }
   }
 
   const nodes: AgentRunDebuggerNode[] = []
@@ -618,51 +630,79 @@ function buildAgentRunToolDebuggerGraph(args: {
     nodesByAgent.set(agentId, ownerList)
   }
 
-  // 将所有 tool 按「每个 agent 的 owner 节点 + 该 agent 下全部 tool」扁平化为一个
-  // 顺序列表，在 worker 行下方用统一网格（maxCols=6）展开，避免单列纵向堆积。
-  // 每个 tool 节点仍连回所属 agent 节点（横向第一条线是 owner → 第一行第一个 tool），
-  // 同 agent 的后续 tool 串接成水平网格（同行右→左移动），不再纵向堆叠。
-  const flattened: Array<{ toolNode: AgentRunDebuggerToolNode; ownerNodeId: string; ownerPosition: { x: number; y: number } }> = []
-  for (const [agentId, items] of nodesByAgent) {
-    const ownerNodeId = `agent-${agentId}`
-    const ownerPosition = args.agentNodePositions.get(agentId) ?? { x: args.centerX, y: args.toolGridOriginY }
-    for (const toolNode of items) {
-      flattened.push({ toolNode, ownerNodeId, ownerPosition })
-    }
-  }
-
+  // P1-D3/D5：工具网格按 agent 分块排布，不再扁平化成一个统一网格。
+  // 每 agent 一块：块顶一条组标签（kind 'group' 的展示节点，无边、不参与
+  // Inspector），块内是最多 toolMaxCols 列的小网格，链只在块内走。
+  // 块横向排成一行（不纵向堆叠——纵向堆 4 块会把图总高推回约 2950px，
+  // fitView 反而比改前更小；横排单行块的总高只比扁平网格多 40px 标签位，
+  // 实测 fitView @1366 约 0.19，见 PROGRESS）。块间留 60px 空。
+  // 组内工具超过 toolMaxCols 时块内换行，链仍在块内，但会出现块内跨行跳跃
+  // （P1 实测夹具每 agent 最多 3 个工具，均为单行，跳跃 0；超 4 工具的组
+  // 是已知残留，见 PROGRESS）。
+  // 块行整体按扁平网格同款公式居中（startX = centerX - (总宽 - 列宽) / 2），
+  // 行视觉中心仍落在 centerX + 140 附近，与 Run / 汇总卡对齐。
   const toolMaxCols = Math.max(1, args.toolMaxCols)
-  const totalToolCols = Math.min(toolMaxCols, Math.max(1, flattened.length))
-  const toolRowTotalWidth = totalToolCols * args.toolColWidth
-  const toolRowStartX = Math.round(args.centerX - (toolRowTotalWidth - args.toolColWidth) / 2)
+  const toolBlockGap = 60
+  const groupLabelOffsetY = 40 // 组标签高约 28 + 到工具顶 12 间距
+  const groups = [...nodesByAgent.entries()].map(([agentId, items]) => {
+    const blockCols = Math.min(toolMaxCols, Math.max(1, items.length))
+    return {
+      agentId,
+      agentName: items[0]?.agentName ?? agentId,
+      items,
+      blockCols,
+      blockWidth: blockCols * args.toolColWidth,
+    }
+  })
+  const totalBlockWidth = groups.reduce((sum, group) => sum + group.blockWidth, 0)
+    + Math.max(0, groups.length - 1) * toolBlockGap
+  const toolRowStartX = Math.round(args.centerX - (totalBlockWidth - args.toolColWidth) / 2)
 
   const previousNodeIdByAgent = new Map<string, string>()
-  flattened.forEach((entry, index) => {
-    const toolNode = entry.toolNode
-    const nodeId = `tool-${toolNode.callId}`
-    const col = index % toolMaxCols
-    const row = Math.floor(index / toolMaxCols)
-    const x = toolRowStartX + col * args.toolColWidth
-    const y = args.toolGridOriginY + row * args.toolRowHeight
+  let blockX = toolRowStartX
+  for (const group of groups) {
+    const ownerNodeId = `agent-${group.agentId}`
     nodes.push({
-      id: nodeId,
+      id: `group-${group.agentId}`,
       type: 'runDebuggerNode',
-      position: { x, y },
-      draggable: true,
-      selectable: true,
+      position: { x: blockX, y: args.toolGridOriginY },
+      // 组标签是画布内注释，不可拖、不可选，不进 Inspector。
+      draggable: false,
+      selectable: false,
       data: {
-        kind: 'tool',
-        label: toolNode.toolName,
-        status: toolNode.status,
-        tone: toneForDebuggerStatus(toolNode.status),
-        tool: toolNode,
+        kind: 'group',
+        label: group.agentName,
+        status: 'completed',
+        tone: 'neutral',
       },
     })
-    const prev = previousNodeIdByAgent.get(entry.ownerNodeId) ?? entry.ownerNodeId
-    edges.push(buildDebuggerEdge(prev, nodeId, toolNode.status))
-    previousNodeIdByAgent.set(entry.ownerNodeId, nodeId)
-    maxY = maxY === null ? y : Math.max(maxY, y)
-  })
+    group.items.forEach((toolNode, indexInGroup) => {
+      const nodeId = `tool-${toolNode.callId}`
+      const col = indexInGroup % group.blockCols
+      const row = Math.floor(indexInGroup / group.blockCols)
+      const x = blockX + col * args.toolColWidth
+      const y = args.toolGridOriginY + groupLabelOffsetY + row * args.toolRowHeight
+      nodes.push({
+        id: nodeId,
+        type: 'runDebuggerNode',
+        position: { x, y },
+        draggable: true,
+        selectable: true,
+        data: {
+          kind: 'tool',
+          label: toolNode.toolName,
+          status: toolNode.status,
+          tone: toneForDebuggerStatus(toolNode.status),
+          tool: toolNode,
+        },
+      })
+      const prev = previousNodeIdByAgent.get(ownerNodeId) ?? ownerNodeId
+      edges.push(buildDebuggerEdge(prev, nodeId, toolNode.status))
+      previousNodeIdByAgent.set(ownerNodeId, nodeId)
+      maxY = maxY === null ? y : Math.max(maxY, y)
+    })
+    blockX += group.blockWidth + toolBlockGap
+  }
 
   // tail 节点：每个 agent 的最后一个 tool 节点
   // （若该 agent 只有 1 个 tool，则连接回 agent 自身节点也合理，
@@ -675,25 +715,32 @@ function buildAgentRunToolDebuggerGraph(args: {
     tailNodeIds.push(lastToolNodeId)
   }
 
-  return { nodes, edges, tailNodeIds, maxY }
+  return { nodes, edges, tailNodeIds, maxY, agentsWithTools: [...nodesByAgent.keys()] }
 }
 
 /**
- * 卡片高度估算。卡片实际高度由内容决定，这里给的是「保守上界」，
- * 只用于自动布局留白 —— 宁可多留一点，也不要让下一行压上来（用户反馈的卡片堆叠）。
+ * 卡片高度估算。P1-D1：从「保守上界」改为「实测折叠高 + 少量余量」，
+ * 只用于自动布局留白。实测折叠高（2026-11-19 分析报告 §1 D1）：
+ * agent 185.7、tool 138、message 160–182、run 130.5、summary 130.5；
+ * task 无实测值，沿用 190。展开态 agent 卡（4 步约 340px）超出 200 的
+ * 估计高时会压住下一行——这是 P2 的 D4，本轮不修，见 PROGRESS。
  */
 function estimateNodeHeight(kind: AgentRunDebuggerNodeKind): number {
   switch (kind) {
     case 'agent':
-      return 320
+      return 200
     case 'tool':
-      return 220
+      return 150
     case 'task':
       return 190
     case 'message':
-      return 200
+      return 190
     case 'run':
-      return 130
+      return 135
+    case 'summary':
+      return 135
+    case 'group':
+      return 28
     default:
       return 170
   }
