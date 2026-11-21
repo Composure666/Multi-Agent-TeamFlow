@@ -38,9 +38,9 @@
 | GitHub Releases | <https://github.com/Composure666/Multi-Agent-TeamFlow/releases> | 每个版本都附安装包与 SHA-256 校验值，历史版本可回溯 |
 | 国内镜像（OSS 直连） | <https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/Multi-Agent-TeamFlow-Setup.exe> | 下载更快，**永远指向最新版**（对象名不带版本号，发新版覆盖同名文件） |
 
-当前版本 `v0.2.0-rc.2`：`Multi-Agent-TeamFlow-Setup.exe`，570,549,147 字节（约 544 MB），仅 Windows。
+当前版本 `v0.2.0-rc.2`：`Multi-Agent-TeamFlow-Setup.exe`，583,502,874 字节（约 556 MB），仅 Windows。
 
-- SHA-256：`4bef19742e631983859e42fd0295b00113b497a6d48c37dcec1eab696d31df77`
+- SHA-256：`de3f9ae737f8d4c01e00c1871d39ef37d898cf38f725262c4fca8726d5588d2c`
 - 校验：`certutil -hashfile Multi-Agent-TeamFlow-Setup.exe SHA256`
 
 安装过程不联网、不上传任何数据；桌面端与网页端是同一个应用，只是外壳不同。

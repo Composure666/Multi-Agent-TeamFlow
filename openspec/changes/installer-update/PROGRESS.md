@@ -95,3 +95,11 @@
 - 新增 `.github/workflows/build-installer.yml`（手动触发 workflow_dispatch，不在 push/PR 上自动跑）：windows-latest，Node 24 + pnpm 11.9.0（与现有 ci.yml 同款配置），构建链与 `pnpm electron:build` 一致（build 失败重试一次，CI 同款 SQLite 抖动处理）→ prebuild → tsc → electron-builder；产物 `release/Multi-Agent-TeamFlow-Setup.exe` 以 artifact `Multi-Agent-TeamFlow-Setup-rc2` 保留 7 天。
 - 构建脚本本身已是 Windows 就绪：`run-electron-node.mjs` 跨平台（Electron 内嵌 Node），`electron-prebuild.mjs` 含 win32 分支（SYMLINKD、win32-x64-msvc 后缀）；electron-builder 配置为 win nsis x64、未签名。
 - 流程：提交 workflow 文件 → 推 Gitee + GitHub → 手动触发 run → 下载 artifact → 回到步骤 3（OSS 上传）继续。
+
+## 步骤 2 结果 — Actions 构建成功，exe 已验证（2026-11-21）
+
+- 首次 run 44860591163 失败（11:31，10分51秒）：electron-builder 在 CI 下隐式触发发布，缺 GH_TOKEN，exe 与 blockmap 已生成后才失败。修法：workflow 加 `--publish never`（发布走 OSS/手动 release），本地提交 72f394c；GitHub 上经云端浏览器同改提交 ebb9175（逐字节一致）。
+- 第二次 run 44862316675 成功（11:51，11分23秒，全绿）。Artifact `Multi-Agent-TeamFlow-Setup-rc2`（581,221,920 字节，保留至约 2026-11-28）。
+- exe 已验证：583,502,874 字节，SHA-256 `de3f9ae737f8d4c01e00c1871d39ef37d898cf38f725262c4fca8726d5588d2c`，与 CI 日志第 7 步打印值一致；本地副本 `~/workspace/installer-rc2/Multi-Agent-TeamFlow-Setup.exe`。
+- GitHub release v0.2.0-rc.2 由用户本人在其 Chrome 发布（12:41，Latest，exe 附件已核对）；云端浏览器打不开文件选择框、且 exe 路径是本机虚拟机路径，无法代传附件——以后 release 附件须由用户在自己电脑上操作。
+- OSS 上传进行中（子代理，scp + 服务器端 oss-upload.cjs）；Gitee release 与 README 待做。

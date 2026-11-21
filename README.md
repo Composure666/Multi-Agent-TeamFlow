@@ -38,9 +38,9 @@ The desktop app is the **recommended way to use it**: it bundles its own Node ru
 | GitHub Releases | <https://github.com/Composure666/Multi-Agent-TeamFlow/releases> | Every release ships the installer plus its SHA-256; older versions stay available |
 | China mirror (OSS direct) | <https://nexora-studio.oss-cn-beijing.aliyuncs.com/downloads/Multi-Agent-TeamFlow-Setup.exe> | Faster download, **always the latest build** (the object name carries no version, new releases overwrite the same key) |
 
-Current release `v0.2.0-rc.2`: `Multi-Agent-TeamFlow-Setup.exe`, 570,549,147 bytes (~544 MB), Windows only.
+Current release `v0.2.0-rc.2`: `Multi-Agent-TeamFlow-Setup.exe`, 583,502,874 bytes (~556 MB), Windows only.
 
-- SHA-256: `4bef19742e631983859e42fd0295b00113b497a6d48c37dcec1eab696d31df77`
+- SHA-256: `de3f9ae737f8d4c01e00c1871d39ef37d898cf38f725262c4fca8726d5588d2c`
 - Verify: `certutil -hashfile Multi-Agent-TeamFlow-Setup.exe SHA256`
 
 The installer never phones home and uploads nothing. Desktop and web are the same app with a different shell.
