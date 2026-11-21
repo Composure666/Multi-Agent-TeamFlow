@@ -1,0 +1,75 @@
+# 桌面安装包手动构建（Windows）
+#
+# 背景：本机 Linux VM 的 makensis（NSIS 3.0.4.1）无法嵌入超过约 512 MB 的
+# 单个 File，而安装包的 7z 载荷约 575 MB，构建在本机确定性失败（见
+# openspec/changes/installer-update/PROGRESS.md）。rc.1 当年是在 Windows 上建成的。
+# 本 workflow 让 GitHub 的 Windows runner 代劳，用户不用自己跑终端命令。
+#
+# 触发：只在 Actions 页手动 Run workflow（workflow_dispatch），不在 push / PR 上自动跑，
+# 避免每次提交都白白构建一个 600 MB 的安装包。
+# 产物：release/Multi-Agent-TeamFlow-Setup.exe（约 600 MB），以 artifact 保留 7 天；
+# 拿到产物后走 OSS 上传 + GitHub/Gitee release + README 大小/SHA（见 installer-update/PLAN.md §6 步骤 3–7）。
+name: Build installer (Windows)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-installer
+  cancel-in-progress: false
+
+jobs:
+  build-installer:
+    name: 构建 Windows 安装包
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: 安装 Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建安装包
+        # 与 pnpm electron:build 同链：build → prebuild → tsc → electron-builder。
+        # Next 构建失败重试一次：与 CI 同款处理——next build 在「Collecting page data」
+        # 阶段多进程并发写同一个 WAL 库，偶发 SqliteError，重跑一次必过。
+        shell: pwsh
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { pnpm build }
+          if ($LASTEXITCODE -ne 0) { throw "pnpm build failed" }
+          pnpm electron:prebuild
+          if ($LASTEXITCODE -ne 0) { throw "electron:prebuild failed" }
+          pnpm electron:tsc
+          if ($LASTEXITCODE -ne 0) { throw "electron:tsc failed" }
+          pnpm exec electron-builder
+          if ($LASTEXITCODE -ne 0) { throw "electron-builder failed" }
+
+      - name: 校验产物
+        shell: pwsh
+        run: |
+          $exe = Get-Item release\Multi-Agent-TeamFlow-Setup.exe
+          Write-Host "size bytes: $($exe.Length)"
+          Write-Host "sha256: $((Get-FileHash $exe -Algorithm SHA256).Hash)"
+
+      - name: 上传安装包产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: Multi-Agent-TeamFlow-Setup-rc2
+          path: release/Multi-Agent-TeamFlow-Setup.exe
+          retention-days: 7
+          if-no-files-found: error
