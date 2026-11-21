@@ -56,7 +56,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "electron:prebuild failed" }
           pnpm electron:tsc
           if ($LASTEXITCODE -ne 0) { throw "electron:tsc failed" }
-          pnpm exec electron-builder
+          pnpm exec electron-builder --publish never
           if ($LASTEXITCODE -ne 0) { throw "electron-builder failed" }
 
       - name: 校验产物
