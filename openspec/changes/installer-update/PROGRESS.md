@@ -110,3 +110,9 @@
 - 过程曲折：VM 直传 scp 仅约 18KB/s，1.5 小时传 107MB 后被运行环境重启掐断；服务器直下 GitHub 约 11KB/s；ghproxy 镜像超时；ghfast 镜像快（服务器国内测速 3MB/s），4 分钟传 247MB 后 SSH 连接被掐断，断点续传（curl -C -）后完成，SHA-256 与 CI 一致。
 - 教训：pkill -f 匹配自身命令行会自杀（2026-11-21 13:43 两次 255），以后用 `pkill -x curl`；运行环境重启会清 /root/.ssh/known_hosts，每次 SSH 前先确认，失败就重做 keyscan。
 - 备用的用户直传方案未用上：OSS 预签名 PUT 链接已生成（2 小时有效），如再需传大文件可让用户从电脑直传。
+
+## 步骤 4 结果 — 本站 /downloads/ 已修好（2026-11-21 14:08）
+
+- exe 已同步到服务器 `/opt/agenthub/src/public/downloads/` 与 `.next/standalone/public/downloads/`（两份 SHA-256 均与 CI 一致，属主 agenthub）。
+- 光拷文件不够：旧 404 被 Next.js 缓存（x-nextjs-cache: HIT），重启 agenthub 服务后才生效；重启后本地与公网 curl -I 均 200，Content-Length 583502874；/home、/demo 仍 200。
+- 注意：下次 deploy 重建 standalone 会从 public/ 重新生成——src/public/downloads/ 里的 exe 会带进去（tarball 不删文件，服务器上的副本也会保留），不用再手动同步。
