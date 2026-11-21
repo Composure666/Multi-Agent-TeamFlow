@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -39,6 +39,39 @@ describe('skill service', () => {
     expect(disabled.enabled).toBe(false)
     expect(item?.status).toBe('disabled')
     expect(item?.compatibility.custom).toBe('unsupported')
+  })
+
+  it('refresh does not rewrite updatedAt when nothing changed (no more "just now" on every open)', async () => {
+    const first = await service.refreshSkillsFromDisk()
+    const firstById = new Map(first.map((skill) => [skill.id, skill.updatedAt]))
+    const second = await service.refreshSkillsFromDisk()
+
+    expect(second.length).toBe(first.length)
+    for (const skill of second) {
+      expect(skill.updatedAt).toBe(firstById.get(skill.id))
+    }
+  })
+
+  it('updatedAt follows the file mtime, not the scan time', async () => {
+    const skills = await service.refreshSkillsFromDisk()
+    const addTool = skills.find((skill) => skill.id === 'skill_add_tool')
+    expect(addTool).toBeDefined()
+
+    const mtimeMs = Math.floor(statSync(path.resolve('skills/add-tool.md')).mtimeMs)
+    expect(addTool?.updatedAt).toBe(mtimeMs)
+    // createdAt 同样回填 mtime（旧值是当初入库时刻），否则“本周新增”会把老文件算作新增
+    expect(addTool?.createdAt).toBe(mtimeMs)
+  })
+
+  it('toggling enabled does not touch updatedAt', async () => {
+    await service.refreshSkillsFromDisk()
+    const before = (await service.listSkills()).find((skill) => skill.id === 'skill_add_tool')
+    expect(before).toBeDefined()
+
+    const toggled = await service.updateSkill('skill_add_tool', { enabled: !before!.enabled })
+    expect(toggled.updatedAt).toBe(before!.updatedAt)
+    // 恢复原状态，避免影响其他测试对 enabled 的断言
+    await service.updateSkill('skill_add_tool', { enabled: before!.enabled })
   })
 
   it('discovers nested workspace skills with distinct ids and rules content', async () => {

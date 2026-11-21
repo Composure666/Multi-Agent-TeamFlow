@@ -94,18 +94,18 @@ export function DemoShowcase() {
           {status === 'playing' ? (
             <Button type="button" variant="outline" size="sm" onClick={skip}>
               <SkipForward className="size-3.5" />
-              跳过播放
+              <span className="hidden sm:inline">跳过播放</span>
             </Button>
           ) : (
             <Button type="button" variant="outline" size="sm" onClick={replay}>
               <RotateCcw className="size-3.5" />
-              重新播放
+              <span className="hidden sm:inline">重新播放</span>
             </Button>
           )}
           <Button type="button" variant="ghost" size="sm" asChild>
             <a href="/home">
               <ArrowLeft className="size-3.5" />
-              返回主页
+              <span className="hidden sm:inline">返回主页</span>
             </a>
           </Button>
         </div>

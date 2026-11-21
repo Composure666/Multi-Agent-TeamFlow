@@ -42,7 +42,7 @@ import {
   type ArtifactTabId,
 } from '@/components/artifact-workspace-view'
 import { DetailSection, HistoryRow, Meta, SavedState } from '@/components/workbench-detail-primitives'
-import { EmptyState } from '@/components/workbench-primitives'
+import { EmptyState, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -213,6 +213,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   const openArtifactPreview = useAppStore((s) => s.openArtifactPreview)
   const previewArtifactId = useAppStore((s) => s.previewArtifactId)
   const setActiveConversation = useAppStore((s) => s.setActiveConversation)
+  const setWorkbenchView = useAppStore((s) => s.setWorkbenchView)
   const agents = useAppStore((s) => s.agents)
 
   const showFeedback = useCallback((next: ArtifactFeedback) => {
@@ -423,24 +424,21 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
     <div
       ref={artifactWorkspaceScrollRef}
       className={cn(
-        'agenthub-hide-scrollbar flex min-w-0 gap-4 bg-[var(--agenthub-surface-muted)] p-4 xl:p-5',
+        'agenthub-hide-scrollbar bg-[var(--agenthub-surface-muted)]',
         previewOnly
-          ? 'h-full items-stretch overflow-hidden'
-          : 'h-full min-h-0 items-start overflow-y-auto',
+          ? 'flex h-full min-w-0 items-stretch gap-4 overflow-hidden p-4 lg:p-6'
+          : 'h-full min-h-0 overflow-y-auto',
       )}
     >
       {!previewOpen && (
-        <section className="agenthub-card min-w-0 flex-1">
-          {/* Header row: title + search + actions */}
-          <div className="shrink-0 border-b border-[var(--agenthub-border)] p-4 dark:border-[var(--agenthub-border)] xl:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:truncate dark:text-slate-50">产物库</h1>
-                <p className="mt-1 text-sm leading-5 text-slate-500 sm:truncate dark:text-slate-400">
-                  集中管理文档、原型、PPT、图片、项目和历史版本
-                </p>
-              </div>
-              <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+        // 外层滚动容器保留 artifactWorkspaceScrollRef（无限滚动监听）；PageShell 只提供 gutter，自身不滚动。
+        <PageShell className="h-auto overflow-y-visible" contentClassName="w-full max-w-none">
+          <PageHeader
+            icon={Layers}
+            title="产物库"
+            description="集中管理文档、原型、PPT、图片、项目和历史版本"
+            actions={(
+              <>
                 <div className="relative w-full sm:w-64">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
                   <Input
@@ -476,154 +474,160 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
                   onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
                   className={cn(viewMode === 'grid' && 'border-[var(--agenthub-accent-border)] bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
                   title={viewMode === 'grid' ? '切换列表视图' : '切换网格视图'}
+                  aria-label={viewMode === 'grid' ? '切换列表视图' : '切换网格视图'}
                 >
                   <Grid2X2 className="size-4" />
                 </Button>
-              </div>
-            </div>
-
-            {/* Segmented tab pills with counts */}
-            <div className="mt-4 -mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex min-w-max items-center gap-1.5">
-                {ARTIFACT_TABS.map((item) => {
-                  const active = tab === item.id
-                  const count = tabCounts[item.id]
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setTab(item.id)}
-                      className={cn(
-                        'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
-                        active
-                          ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
-                          : 'border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
-                      )}
-                    >
-                      {item.label}
-                      <span className={cn('rounded-full px-1.5 py-0.5 text-3xs tabular-nums', active ? 'bg-white/15 dark:bg-black/15' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400')}>
-                        {count}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {feedback && (
-              <div className={cn('mt-3 rounded-lg border px-3 py-2 text-xs', feedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300')}>
-                {feedback.message}
-              </div>
+              </>
             )}
-          </div>
+          />
+          <div className="flex min-w-0 items-start gap-4">
+            <PageCard className="min-w-0 flex-1">
+              {/* Segmented tab pills with counts */}
+              <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex min-w-max items-center gap-1.5">
+                  {ARTIFACT_TABS.map((item) => {
+                    const active = tab === item.id
+                    const count = tabCounts[item.id]
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setTab(item.id)}
+                        className={cn(
+                          'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
+                          active
+                            ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]'
+                            : 'border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] dark:text-slate-300 dark:hover:border-white/15 dark:hover:bg-white/5',
+                        )}
+                      >
+                        {item.label}
+                        <span className={cn('rounded-full px-1.5 py-0.5 text-3xs tabular-nums', active ? 'bg-white/15 dark:bg-black/15' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400')}>
+                          {count}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
-          <div className="min-h-[320px] space-y-4 p-4 xl:p-5">
-            {/* Recent access strip */}
-            {!loading && !loadError && recentGroups.length >= 3 && (
-              <RecentStrip
-                groups={recentGroups}
-                onSelect={(id) => { setSelectedId(id); setArtifactDetailOpen(true) }}
+              <p className="mt-2 text-right text-xs text-slate-400 dark:text-slate-500">共 {filteredGroups.length} 组 · 滚动加载，每批 {ARTIFACT_GROUP_PAGE_SIZE} 条</p>
+
+              {feedback && (
+                <div className={cn('mt-3 rounded-lg border px-3 py-2 text-xs', feedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300')}>
+                  {feedback.message}
+                </div>
+              )}
+
+              <div className="mt-4 min-h-[320px] space-y-4">
+                {/* Recent creation strip */}
+                {!loading && !loadError && recentGroups.length >= 3 && (
+                  <RecentStrip
+                    groups={recentGroups}
+                    onSelect={(id) => { setSelectedId(id); setArtifactDetailOpen(true) }}
+                    onPreview={(id) => void openPreview(id)}
+                  />
+                )}
+
+                {loading ? (
+                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                    <Loader2 className="size-4 animate-spin" />
+                    加载中…
+                  </div>
+                ) : loadError ? (
+                  <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-6 py-12 text-center text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                    <div>产物加载失败</div>
+                    <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => void loadArtifacts()}>重试</Button>
+                  </div>
+                ) : groupByConversation ? (
+                  <div className="space-y-6">
+                    {conversationGroups.map((conversation) => (
+                      <div key={conversation.conversationId} className="space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Layers className="size-3.5 shrink-0 text-slate-400" />
+                            <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                              {conversation.conversationTitle}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                              {conversation.groups.length}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 shrink-0 text-xs"
+                            onClick={() => { setActiveConversation(conversation.conversationId); onOpenConversations() }}
+                          >
+                            打开会话
+                          </Button>
+                        </div>
+                        <div
+                          className={cn(
+                            viewMode === 'grid'
+                              ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+                              : 'space-y-2',
+                          )}
+                        >
+                          {conversation.groups.map((group) => renderArtifactCard(group))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    className={cn(
+                      viewMode === 'grid'
+                        ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
+                        : 'space-y-2',
+                    )}
+                  >
+                    {visibleGroups.map((group) => renderArtifactCard(group))}
+                  </div>
+                )}
+
+                {!loading && !loadError && filteredGroups.length > 0 && !hasMoreArtifacts && (
+                  <div className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">已经到底了</div>
+                )}
+                {!loading && !loadError && filteredGroups.length === 0 && (
+                  items.length === 0 ? (
+                    <EmptyState
+                      icon={PackageOpen}
+                      title="暂无产物"
+                      description="完成一次对话任务后，产物会出现在这里。"
+                      action={{ label: '新建任务', onClick: () => setWorkbenchView('new-task') }}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={Search}
+                      title="暂无匹配产物"
+                      description="换个关键词或类型试试，也可以清空筛选查看全部产物。"
+                      action={{ label: '清除搜索与筛选', onClick: () => { setQuery(''); setTab('all') } }}
+                    />
+                  )
+                )}
+              </div>
+            </PageCard>
+            {showArtifactDetailPanel && selected && (
+              <ArtifactDetailPanel
+                item={selected}
+                previewOpen={previewOpen}
+                copied={copiedArtifactId === selected?.id}
+                exporting={Boolean(selected && exportingId === selected.id)}
+                deleting={Boolean(selected && deletingIds.has(selected.id))}
                 onPreview={(id) => void openPreview(id)}
+                onCopyReference={(item) => void copyArtifactReference(item)}
+                onExport={exportArtifactSource}
+                onDelete={(id) => setDeleteTargetIds([id])}
+                onOpenConversation={(id) => { setActiveConversation(id); onOpenConversations() }}
+                onClose={() => {
+                  setSelectedId(null)
+                  setArtifactDetailOpen(false)
+                }}
               />
             )}
-
-            {loading ? (
-              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                <Loader2 className="size-4 animate-spin" />
-                加载中…
-              </div>
-            ) : loadError ? (
-              <div className="rounded-xl border border-dashed border-red-200 bg-red-50 px-6 py-12 text-center text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                <div>产物加载失败</div>
-                <Button variant="outline" size="sm" className="mt-3 rounded-lg" onClick={() => void loadArtifacts()}>重试</Button>
-              </div>
-            ) : groupByConversation ? (
-              <div className="space-y-6">
-                {conversationGroups.map((conversation) => (
-                  <div key={conversation.conversationId} className="space-y-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <Layers className="size-3.5 shrink-0 text-slate-400" />
-                        <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
-                          {conversation.conversationTitle}
-                        </span>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                          {conversation.groups.length}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 shrink-0 text-xs"
-                        onClick={() => { setActiveConversation(conversation.conversationId); onOpenConversations() }}
-                      >
-                        打开会话
-                      </Button>
-                    </div>
-                    <div
-                      className={cn(
-                        viewMode === 'grid'
-                          ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
-                          : 'space-y-2',
-                      )}
-                    >
-                      {conversation.groups.map((group) => renderArtifactCard(group))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div
-                className={cn(
-                  viewMode === 'grid'
-                    ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
-                    : 'space-y-2',
-                )}
-              >
-                {visibleGroups.map((group) => renderArtifactCard(group))}
-              </div>
-            )}
-
-            {!loading && !loadError && filteredGroups.length > 0 && !hasMoreArtifacts && (
-              <div className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">已经到底了</div>
-            )}
-            {!loading && !loadError && filteredGroups.length === 0 && (
-              items.length === 0 ? (
-                <EmptyState
-                  icon={PackageOpen}
-                  title="暂无产物"
-                  description="完成一次对话任务后，产物会出现在这里。"
-                  action={{ label: '新建任务', onClick: onOpenConversations }}
-                />
-              ) : (
-                <EmptyState
-                  icon={Search}
-                  title="暂无匹配产物"
-                  description="换个关键词或类型试试，也可以清空筛选查看全部产物。"
-                  action={{ label: '清除搜索与筛选', onClick: () => { setQuery(''); setTab('all') } }}
-                />
-              )
-            )}
           </div>
-        </section>
-      )}
-      {showArtifactDetailPanel && selected && (
-        <ArtifactDetailPanel
-          item={selected}
-          previewOpen={previewOpen}
-          copied={copiedArtifactId === selected?.id}
-          exporting={Boolean(selected && exportingId === selected.id)}
-          deleting={Boolean(selected && deletingIds.has(selected.id))}
-          onPreview={(id) => void openPreview(id)}
-          onCopyReference={(item) => void copyArtifactReference(item)}
-          onExport={exportArtifactSource}
-          onDelete={(id) => setDeleteTargetIds([id])}
-          onOpenConversation={(id) => { setActiveConversation(id); onOpenConversations() }}
-          onClose={() => {
-            setSelectedId(null)
-            setArtifactDetailOpen(false)
-          }}
-        />
+        </PageShell>
       )}
       <ArtifactPreviewPanel fullHeight={previewOpen} />
       <Dialog open={Boolean(deleteTargetIds)} onOpenChange={(open) => { if (!open && pendingAction !== 'delete') setDeleteTargetIds(null) }}>
@@ -642,7 +646,7 @@ export function ArtifactWorkspace({ onOpenConversations }: { onOpenConversations
   )
 }
 
-// ─── Recent access strip ──────────────────────────────────────────────
+// ─── Recent creation strip ──────────────────────────────────────────────
 function RecentStrip({
   groups,
   onSelect,
@@ -656,7 +660,7 @@ function RecentStrip({
     <div className="rounded-xl bg-slate-50/70 px-3 py-2.5 dark:bg-white/[0.02]">
       <div className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
         <Sparkles className="size-3.5 text-amber-500" />
-        最近访问
+        最近创建
       </div>
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {groups.map((g) => {
@@ -774,8 +778,8 @@ function ArtifactCard({
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <AgentAvatar agent={agentObj} size="xs" />
             <span className="truncate">{agentName}</span>
-            <span aria-hidden>·</span>
-            <span className="shrink-0">{formatRelativeTime(item.createdAt)}</span>
+            <span aria-hidden className="hidden sm:inline">·</span>
+            <span className="hidden shrink-0 sm:inline">{formatRelativeTime(item.createdAt)}</span>
             <span className="ml-auto shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-3xs text-slate-500 dark:bg-white/10 dark:text-slate-300">v{item.version}</span>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNotNull, isNull, lt, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type { AppSettingsRow, NotificationRow } from '@/db/schema'
@@ -22,13 +22,25 @@ export interface ListNotificationsOptions {
   status?: 'all' | 'unread' | 'read'
   category?: AppNotificationCategory
   limit?: number
-  cursor?: number
+  // Opaque paging cursor: `<createdAt>:<id>` composite, or a legacy bare
+  // createdAt millisecond value (digits only, id tiebreak skipped).
+  cursor?: string
+}
+
+export interface NotificationCategoryCounts {
+  all: number
+  unread: number
+  error: number
+  task: number
+  system: number
+  configuration: number
 }
 
 export interface ListNotificationsResult {
   notifications: AppNotification[]
-  nextCursor: number | null
+  nextCursor: string | null
   unreadCount: number
+  categoryCounts: NotificationCategoryCounts
 }
 
 export interface MarkNotificationsReadInput {
@@ -99,22 +111,71 @@ export async function listNotifications(options: ListNotificationsOptions = {}):
   if (options.status === 'unread') filters.push(isNull(schema.notifications.readAt))
   if (options.status === 'read') filters.push(isNotNull(schema.notifications.readAt))
   if (options.category) filters.push(eq(schema.notifications.category, options.category))
-  if (typeof options.cursor === 'number') filters.push(lt(schema.notifications.createdAt, options.cursor))
+  if (options.cursor) filters.push(buildCursorFilter(options.cursor))
 
   const rows = await db
     .select()
     .from(schema.notifications)
     .where(and(...filters))
-    .orderBy(desc(schema.notifications.createdAt))
+    .orderBy(desc(schema.notifications.createdAt), desc(schema.notifications.id))
     .limit(limit + 1)
 
   const hasMore = rows.length > limit
   const pageRows = hasMore ? rows.slice(0, limit) : rows
+  const categoryCounts = await getNotificationCategoryCounts()
+  const lastRow = hasMore ? pageRows[pageRows.length - 1] : undefined
   return {
     notifications: pageRows.map(mapNotificationRow),
-    nextCursor: hasMore ? pageRows[pageRows.length - 1]?.createdAt ?? null : null,
-    unreadCount: await getUnreadNotificationCount(),
+    nextCursor: lastRow ? `${lastRow.createdAt}:${lastRow.id}` : null,
+    unreadCount: categoryCounts.unread,
+    categoryCounts,
   }
+}
+
+// Cursor is `<createdAt>:<id>`; rows sharing a millisecond sort by id, so
+// the tiebreak keeps a same-millisecond row from being skipped or repeated
+// across pages. A bare digit cursor is the pre-composite format and keeps
+// the old createdAt-only behaviour for already-open pages.
+function buildCursorFilter(cursor: string): SQL {
+  const separator = cursor.indexOf(':')
+  const createdAtText = separator === -1 ? cursor : cursor.slice(0, separator)
+  const createdAt = Number(createdAtText)
+  if (!Number.isInteger(createdAt) || createdAt <= 0) {
+    throw new Error(`Invalid notification cursor: ${cursor}`)
+  }
+  if (separator === -1) return lt(schema.notifications.createdAt, createdAt)
+  const id = cursor.slice(separator + 1)
+  if (!id) throw new Error(`Invalid notification cursor: ${cursor}`)
+  // or() is typed as possibly undefined, but both branches are defined here.
+  const tiebreak = or(
+    lt(schema.notifications.createdAt, createdAt),
+    and(eq(schema.notifications.createdAt, createdAt), lt(schema.notifications.id, id)),
+  )
+  if (!tiebreak) throw new Error(`Invalid notification cursor: ${cursor}`)
+  return tiebreak
+}
+
+// Full-library counts for the filter pills: aggregated server-side so the
+// pills never depend on how many rows the current page fetched.
+export async function getNotificationCategoryCounts(): Promise<NotificationCategoryCounts> {
+  const rows = await db
+    .select({ category: schema.notifications.category, value: count() })
+    .from(schema.notifications)
+    .where(isNull(schema.notifications.deletedAt))
+    .groupBy(schema.notifications.category)
+  const counts: NotificationCategoryCounts = {
+    all: 0,
+    unread: await getUnreadNotificationCount(),
+    error: 0,
+    task: 0,
+    system: 0,
+    configuration: 0,
+  }
+  for (const row of rows) {
+    counts[row.category] = row.value
+    counts.all += row.value
+  }
+  return counts
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {

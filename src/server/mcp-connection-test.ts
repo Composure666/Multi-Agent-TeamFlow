@@ -26,7 +26,6 @@ export async function testMcpServerConnection(serverId: string): Promise<McpConn
     const result = failedResult('MCP server is disabled', checkedAt)
     await recordMcpServerHealth(serverId, {
       status: result.status,
-      message: result.message,
       toolCount: 0,
       checkedAt,
     })
@@ -64,7 +63,6 @@ export async function testMcpServerConnection(serverId: string): Promise<McpConn
     }
     await recordMcpServerHealth(serverId, {
       status: result.status,
-      message: result.message,
       toolCount: tools.length,
       checkedAt,
     })
@@ -74,7 +72,6 @@ export async function testMcpServerConnection(serverId: string): Promise<McpConn
     const result = failedResult(message, checkedAt)
     await recordMcpServerHealth(serverId, {
       status: result.status,
-      message: result.message,
       toolCount: null,
       checkedAt,
     })

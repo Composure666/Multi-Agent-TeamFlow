@@ -64,6 +64,7 @@ import { SelectionPopover } from '@/components/selection-popover'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
+import { InlineError } from '@/components/workbench-primitives'
 import { WorkbenchViewRouter } from '@/components/workbench-view-router'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -86,7 +87,7 @@ import {
   uploadAttachment,
   type UsageSummary,
 } from '@/lib/api'
-import { BRAND_NAME, BRAND_TAGLINE_EN, BRAND_TAGLINE_ZH } from '@/lib/brand'
+import { BRAND_NAME, BRAND_TAGLINE_ZH } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { useAgentList, useAppStore, useConversationList, type AppWorkbenchView } from '@/stores/app-store'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -106,6 +107,7 @@ export function AppWorkbench() {
   const [selectedTeam, setSelectedTeam] = useState<SummonableTeam | null>(null)
   const [teamDialogOpen, setTeamDialogOpen] = useState(false)
   const [summoningTeamId, setSummoningTeamId] = useState<string | null>(null)
+  const [summonError, setSummonError] = useState<string | null>(null)
   const [analyticsFocusMode, setAnalyticsFocusMode] = useState(false)
   const agents = useAgentList()
   const setConversations = useAppStore((s) => s.setConversations)
@@ -134,10 +136,14 @@ export function AppWorkbench() {
   const handleSummonTeam = async (team: SummonableTeam) => {
     if (summoningTeamId) return
     setSummoningTeamId(team.id)
+    setSummonError(null)
     try {
       const teamAgents = includeOrchestrator(await resolveOrCreateTeamAgents(team, agents, upsertAgent), agents)
       const uniqueAgentIds = teamAgents.map((agent) => agent.id)
-      if (uniqueAgentIds.length === 0) return
+      if (uniqueAgentIds.length === 0) {
+        setSummonError('该团队暂无可用 Agent，无法创建会话。')
+        return
+      }
 
       const conv = await createConversation({
         title: team.name,
@@ -151,6 +157,7 @@ export function AppWorkbench() {
       setView('conversations')
     } catch (err) {
       console.error('[AppWorkbench] summon team failed', err)
+      setSummonError('召唤团队失败，请稍后重试。')
     } finally {
       setSummoningTeamId(null)
     }
@@ -209,10 +216,14 @@ export function AppWorkbench() {
         open={teamDialogOpen}
         onOpenChange={(open) => {
           setTeamDialogOpen(open)
-          if (!open) setSelectedTeam(null)
+          if (!open) {
+            setSelectedTeam(null)
+            setSummonError(null)
+          }
         }}
         onSummon={handleSummonTeam}
         summoning={Boolean(summoningTeamId)}
+        error={summonError}
       />
       <SelectionPopover />
       <MessageHighlightLayer />
@@ -226,12 +237,14 @@ function TeamSummonDialog({
   onOpenChange,
   onSummon,
   summoning,
+  error,
 }: {
   team: SummonableTeam | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSummon: (team: SummonableTeam) => Promise<void>
   summoning: boolean
+  error: string | null
 }) {
   const [workflowOpen, setWorkflowOpen] = useState(false)
   const [workflowDraft, setWorkflowDraft] = useState('')
@@ -391,6 +404,12 @@ function TeamSummonDialog({
           </div>
         </ScrollArea>
 
+        {error && (
+          <div className="shrink-0 px-5 pt-4">
+            <InlineError message={error} />
+          </div>
+        )}
+
         <DialogFooter className="sticky bottom-0 z-10 m-0 shrink-0 flex-row items-center justify-between rounded-none border-t border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] p-4 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex -space-x-2">
@@ -459,6 +478,7 @@ function MobileWorkbenchTopBar({
         onClick={onOpen}
         className="flex size-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-white/5 dark:active:bg-white/10"
         title="打开菜单"
+        aria-label="打开菜单"
       >
         <Menu className="size-4 stroke-[2.2]" />
       </button>
@@ -466,7 +486,7 @@ function MobileWorkbenchTopBar({
         <Sparkles className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
-        {BRAND_NAME} <span className="font-normal text-slate-500 dark:text-slate-400">· {currentLabel}</span>
+        <span className="hidden sm:inline">{BRAND_NAME} </span><span className="font-normal text-slate-500 dark:text-slate-400"><span className="hidden sm:inline">· </span>{currentLabel}</span>
       </div>
       <button
         type="button"
@@ -851,7 +871,7 @@ function WorkbenchNav({
       // 会让底部「Workspace」溢出到容器外，再被 page.tsx 的 overflow-hidden 裁掉
       // —— 表现就是「底部那块不见了 / 被遮挡」。配合 `.wb-history` 的 min-height:0，
       // 高度不足时是历史区收缩，而不是固定区块被挤出去。
-      className={cn('wb-sidebar hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2.5 transition-[width] duration-200 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:flex', compact ? 'w-[72px]' : view === 'conversations' || view === 'new-task' ? 'w-[288px]' : 'w-[260px]')}
+      className={cn('wb-sidebar hidden h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2.5 transition-[width] duration-200 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)] md:flex', compact ? 'w-[72px]' : 'w-[288px]')}
     >
       {/* ① 品牌区（shrink-0） */}
       <div className={cn('flex shrink-0 items-center gap-2 px-2 pb-1.5', compact && 'flex-col gap-2 px-0 pb-1')}>
@@ -875,16 +895,15 @@ function WorkbenchNav({
           )}
           {!compact && (
             <div className="min-w-0">
-              {/* Q15：非 compact 品牌名也折成两行（与 72px 窄轨同一规范），去掉该行 truncate；
-                  否则 288px 侧栏可用宽约 104px，14px 的 "Multi-Agent TeamFlow" 必然被裁成 "Multi-Age…"。
-                  副标题改换行显示（batch 3 项 5）：同一 104px 宽度下 12px 的
-                  "Multi-Agent Collaboration & Workflow" 单行必然截成 "Multi-Agent…"，
-                  换行 3 行完整显示，不只缩字号。 */}
+              {/* 品牌名折成两行（与 72px 窄轨同一规范），不加 truncate。
+                  宽度账（288px 侧栏）：288 − px-3 24 − 品牌区 px-2 16 − logo 32
+                  − gap 8 − 右侧 3 图标约 104 ＝ 文字约 104px，14.9px 的
+                  "Multi-Agent" 约 90px 一行放得下。英文副标题已删：同一宽度下它要断
+                  成 5 行、与名字叠成 8 行（2026-11-20 品牌区拥挤反馈）；副标题只留在 /home。 */}
               <div className="text-sm font-semibold leading-tight tracking-tight dark:text-slate-50">
                 <span className="block">Multi-Agent</span>
                 <span className="block">TeamFlow</span>
               </div>
-              <div className="text-xs leading-snug text-slate-500/60 dark:text-slate-400/60">{BRAND_TAGLINE_EN}</div>
             </div>
           )}
         </button>
@@ -896,6 +915,7 @@ function WorkbenchNav({
               onClick={onOpenSettings}
               className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
               title="设置"
+              aria-label="设置"
             >
               <Settings className="size-4 stroke-[2.2]" />
             </button>
@@ -904,6 +924,7 @@ function WorkbenchNav({
               onClick={() => setCollapsed(true)}
               className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
               title="收起侧边栏"
+              aria-label="收起侧边栏"
             >
               <Menu className="size-4 stroke-[2.2]" />
             </button>
@@ -915,6 +936,7 @@ function WorkbenchNav({
             onClick={() => setCollapsed(false)}
             className="flex size-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
             title="展开侧边栏"
+            aria-label="展开侧边栏"
           >
             <Menu className="size-4 stroke-[2.2]" />
           </button>
@@ -1674,7 +1696,7 @@ function NewTaskView({
                 >
                   {selectingTeamId === team.id ? '…' : team.name.charAt(0)}
                 </button>
-                <span className="whitespace-nowrap text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">{team.name}</span>
+                <span className="max-w-[72px] truncate whitespace-nowrap text-center text-[11px] leading-tight text-[#8A857B] dark:text-slate-500">{team.name}</span>
               </div>
             )
           })}
@@ -1683,6 +1705,7 @@ function NewTaskView({
               type="button"
               onClick={onOpenAgents}
               title="去 Agent 库新建团队"
+              aria-label="新建团队"
               className="flex size-[32px] items-center justify-center rounded-full text-white transition hover:opacity-90 md:size-[38px]"
               style={{ backgroundColor: NEW_TEAM_COLOR }}
             >
@@ -1720,24 +1743,29 @@ function ConversationListPanel({ variant = 'standalone', onSelectConversation }:
   const [contextMenu, setContextMenu] = useState<{ convId: string; x: number; y: number } | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
 
   const handleTogglePin = async (convId: string) => {
+    setListError(null)
     try {
       const updated = await togglePinConversation(convId)
       upsertConversation(updated)
     } catch (err) {
       console.error('[ConversationListPanel] toggle pin failed', err)
+      setListError('置顶失败，请稍后重试。')
     }
   }
 
   const handleToggleArchive = async (convId: string) => {
+    setListError(null)
     try {
       const updated = await toggleArchiveConversation(convId)
       upsertConversation(updated)
     } catch (err) {
       console.error('[ConversationListPanel] toggle archive failed', err)
+      setListError('归档失败，请稍后重试。')
     }
   }
 
@@ -1745,23 +1773,27 @@ function ConversationListPanel({ variant = 'standalone', onSelectConversation }:
     const trimmed = next.trim()
     setRenamingId(null)
     if (!trimmed || trimmed === currentTitle) return
+    setListError(null)
     try {
       const updated = await renameConversation(convId, trimmed)
       upsertConversation(updated)
     } catch (err) {
       console.error('[ConversationListPanel] rename failed', err)
+      setListError('重命名失败，请稍后重试。')
     }
   }
 
   const confirmDelete = async () => {
     if (!deleteTargetId) return
     setDeleting(true)
+    setListError(null)
     try {
       await deleteConversation(deleteTargetId)
       removeConversation(deleteTargetId)
       setDeleteTargetId(null)
     } catch (err) {
       console.error('[ConversationListPanel] delete failed', err)
+      setListError('删除会话失败，请稍后重试。')
     } finally {
       setDeleting(false)
     }
@@ -1801,6 +1833,11 @@ function ConversationListPanel({ variant = 'standalone', onSelectConversation }:
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索对话" className="h-8 rounded-lg border-0 bg-slate-100 pl-9 text-xs shadow-none transition placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[var(--agenthub-accent-border)]" />
         </div>
       </div>
+      {listError && (
+        <div className="shrink-0 px-3 pt-2">
+          <InlineError message={listError} />
+        </div>
+      )}
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-0.5 py-2">
           <div className="px-2 pb-1 text-3xs font-medium uppercase tracking-wider text-slate-400">最近对话</div>
@@ -1962,6 +1999,7 @@ function ConversationListPanel({ variant = 'standalone', onSelectConversation }:
               确定要删除「{deleteTarget?.title}」吗？该会话的所有消息、产物和工作区都会一并清除，无法恢复。
             </DialogDescription>
           </DialogHeader>
+          {listError && <InlineError message={listError} />}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTargetId(null)}>
               取消

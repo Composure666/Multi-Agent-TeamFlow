@@ -431,10 +431,11 @@ describe('agent run debug board projection', () => {
     const coderLabel = groups.find((node) => node.id === 'group-coder')
     const orchLabel = groups.find((node) => node.id === 'group-agent_1')
     // 标签在块顶（比块内工具高 40px），x 与块内第一张工具卡对齐。
-    expect(coderLabel?.position).toEqual({ x: 435, y: 740 })
-    expect(orchLabel?.position).toEqual({ x: 845, y: 740 })
-    expect(coderTools.map((node) => node.position)).toEqual([{ x: 435, y: 780 }])
-    expect(orchTools.map((node) => node.position)).toEqual([{ x: 845, y: 780 }])
+    // G1-L-P2-3：worker 网格下移 45px（Run 卡 135 → 180），标签 740 → 785、工具 780 → 825。
+    expect(coderLabel?.position).toEqual({ x: 435, y: 785 })
+    expect(orchLabel?.position).toEqual({ x: 845, y: 785 })
+    expect(coderTools.map((node) => node.position)).toEqual([{ x: 435, y: 825 }])
+    expect(orchTools.map((node) => node.position)).toEqual([{ x: 845, y: 825 }])
     // 同 agent 的工具在同一行（无跨行跳跃）；不同 agent 的块横向分开。
     expect(new Set(coderTools.map((node) => node.position.y)).size).toBe(1)
     expect(new Set(orchTools.map((node) => node.position.y)).size).toBe(1)
@@ -630,14 +631,14 @@ describe('agent run debug board projection', () => {
     expect(runNode?.position.x).toBe(640)
     expect(runNode?.position.y).toBe(0)
     expect(orchestratorNode?.position.x).toBe(640)
-    // P1-D1：Run→Orchestrator 210 → 170。
-    expect(orchestratorNode?.position.y).toBe(170)
+    // G1-L-P2-3：Run→Orchestrator 170 → 215（Run 卡实高 175 + 约 40 间距）。
+    expect(orchestratorNode?.position.y).toBe(215)
     expect(workerNodes.map((node) => node.position.x)).toEqual([460, 820])
-    // P1-D1：workerGridTopY 600 → 420（Orchestrator 卡底边约 356 + 约 64）。
-    expect(workerNodes.map((node) => node.position.y)).toEqual([420, 420])
+    // G1-L-P2-3：workerGridTopY 420 → 465（Orchestrator 卡底边约 400.7 + 约 64）。
+    expect(workerNodes.map((node) => node.position.y)).toEqual([465, 465])
     // P1-D1/D2/D3：toolGridTopGap 200 → 120、summaryGap 220 → 120，
-    // 工具分块横排（标签 740 / 工具 780），汇总 y 1560 → 1050。
-    expect(summaryNode?.position).toEqual({ x: 640, y: 1050 })
+    // 工具分块横排（标签 785 / 工具 825），汇总 y 1050 → 1095。
+    expect(summaryNode?.position).toEqual({ x: 640, y: 1095 })
   })
 
   it('uses a clean task title for the run summary instead of leading agent mentions', () => {
@@ -688,7 +689,7 @@ describe('agent run debug board projection', () => {
       ],
     }))
 
-    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 640, y: 420 })
+    expect(graph.nodes.find((node) => node.id === 'agent-reviewer')?.position).toEqual({ x: 640, y: 465 })
   })
 
   it('dims non-matching graph nodes for agent, tool, and error filters without removing context', () => {
@@ -913,7 +914,8 @@ describe('agent run debug board projection', () => {
       'agent-agent_1',
       'summary-output',
     ])
-    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 640, y: 420 })
+    // G1-L-P2-3：无 worker 时汇总顶边 = workerGridTopY 420 → 465。
+    expect(graph.nodes.find((node) => node.id === 'summary-output')?.position).toEqual({ x: 640, y: 465 })
     expect(graph.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({ source: 'agent-agent_1', target: 'summary-output' }),
     ]))
@@ -1197,10 +1199,10 @@ describe('mergeLiveRuns', () => {
 /** 与 DebuggerNode 里的实际卡片尺寸一致。group 是组标签芯片（约 28 高、至多约 300 宽）。 */
 const CARD_WIDTH: Record<string, number> = { message: 310, run: 310, agent: 280, task: 270, tool: 290, summary: 270, group: 300 }
 /** P1-D1：折叠实高 + 少量余量（agent 185.7→200、tool 138→150、message 182→190、
- * run/summary 130.5→135；task 无实测值，沿用 190）。注意：这不再是展开态上界——
- * 展开态 agent 卡（4 步约 340px）会超出 200 而压住下一行，这是 P2 的 D4，
- * 本轮不修；「互不压盖」断言只对折叠态成立。 */
-const CARD_HEIGHT: Record<string, number> = { message: 190, run: 135, agent: 200, task: 190, tool: 150, summary: 135, group: 28 }
+ * run/summary 175→180（L-P2-3 模型独占一行后实测 175）；task 无实测值，沿用 190）。
+ * 展开态 agent 卡的步骤 + 工具区封顶在 92px 滚动区内（G1-D4 已修），展开态总高约 222px < 250px 行距，
+ * 不压盖（探针复核）；「互不压盖」断言仍按折叠估计高算，展开态由组件内滚动区兜底。 */
+const CARD_HEIGHT: Record<string, number> = { message: 190, run: 180, agent: 200, task: 190, tool: 150, summary: 180, group: 28 }
 
 function cardOf(node: { id: string; position: { x: number; y: number }; data: { kind: string } }) {
   return {
@@ -1321,8 +1323,8 @@ describe('agent run board canvas layout', () => {
     const followup = graph.nodes.find((node) => node.id === 'message-msg_followup')
     expect(trigger).toBeDefined()
     expect(followup).toBeDefined()
-    // 第一行底边 = Run 卡片底边（260 + 135，P1-D1：run 估计高 130 → 135）；下一行消息顶边 = 底边 + rowGap。
-    expect(followup!.position.y - (trigger!.position.y + 260 + 135)).toBe(240)
+    // 第一行底边 = Run 卡片底边（260 + 180，G1-L-P2-3：run 估计高 135 → 180）；下一行消息顶边 = 底边 + rowGap。
+    expect(followup!.position.y - (trigger!.position.y + 260 + 180)).toBe(240)
   })
 
   it('工具网格顶距与汇总留白收紧到 120/120（P1-D1），组标签占 40px（P1-D3）', () => {

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lt, lte } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type {
@@ -10,6 +10,7 @@ import type {
   AutomationStatus,
 } from '@/db/schema'
 import { cadenceFromSchedule, calculateNextRunAt, deserializeScheduleConfig, parseScheduleConfig, serializeScheduleConfig } from '@/server/automation-schedule'
+import { resolveTzShift, startOfDay } from '@/server/analytics-service'
 import { addAgentsToConversation, createConversation, sendMessage } from '@/server/conversation-service'
 import { newAutomationId, newAutomationRunId, newAutomationRunLogId } from '@/server/ids'
 import { publishNotification } from '@/server/notification-service'
@@ -75,6 +76,12 @@ export interface AutomationStats {
   previousRunCount: number
   previousSuccessRate: number
   previousFailCount: number
+  /**
+   * 昨日同时段运行数：昨日 00:00 起、到与此刻相同的时钟时间为止（客户端时区）。
+   * 与 todayRunCount 配对，供「今日较昨日」按同一时刻点比较；不要拿它跟完整昨日的
+   * 趋势桶直接相减——未过完的今天跟完整昨天比，白天恒为负。
+   */
+  yesterdaySameTimeRunCount: number
 }
 
 export interface AutomationTrendPoint {
@@ -120,45 +127,56 @@ export class AutomationServiceError extends Error {
 const DAY_MS = 24 * 60 * 60 * 1000
 const TREND_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
-function startOfDay(value: number): number {
-  const date = new Date(value)
-  date.setHours(0, 0, 0, 0)
-  return date.getTime()
-}
-
 export const TREND_RANGE_OPTIONS = [7, 30, 90] as const
 
 export type AutomationTrendRange = (typeof TREND_RANGE_OPTIONS)[number]
 
 export const TREND_DEFAULT_DAYS: AutomationTrendRange = 7
 
-function buildTrend(runs: Array<{ startedAt: number; status: string }>, now = Date.now(), days: number = TREND_DEFAULT_DAYS): AutomationTrendPoint[] {
-  const todayStart = startOfDay(now)
+function buildTrend(
+  runs: Array<{ startedAt: number; status: string }>,
+  now = Date.now(),
+  days: number = TREND_DEFAULT_DAYS,
+  tzShift = -new Date().getTimezoneOffset() * 60_000,
+): AutomationTrendPoint[] {
+  const todayStart = startOfDay(now, tzShift)
   return Array.from({ length: days }, (_, index) => {
     const dayStart = todayStart - (days - 1 - index) * DAY_MS
     const dayEnd = dayStart + DAY_MS
-    const date = new Date(dayStart)
+    const date = new Date(dayStart + tzShift)
     // 长区间下只标注部分刻度，避免横轴标签互相重叠
+    // date 是「客户端墙钟当作 UTC」的时间戳，取星期/月日必须用 UTC 口径
     const label =
       days > TREND_DEFAULT_DAYS
         ? index % 5 === 0 || index === days - 1
-          ? `${date.getMonth() + 1}/${date.getDate()}`
+          ? `${date.getUTCMonth() + 1}/${date.getUTCDate()}`
           : ''
-        : TREND_LABELS[date.getDay()]
+        : TREND_LABELS[date.getUTCDay()]
     const value = runs.filter((run) => run.startedAt >= dayStart && run.startedAt < dayEnd).length
     const completed = runs.filter((run) => run.startedAt >= dayStart && run.startedAt < dayEnd && run.status === 'success').length
     return { label, value, completed }
   })
 }
 
-export async function getAutomationDashboard(range?: { start?: number; end?: number; days?: number }): Promise<AutomationDashboard> {
+export async function getAutomationDashboard(range?: {
+  start?: number
+  end?: number
+  days?: number
+  /**
+   * 客户端时区偏移，语义同 `Date.getTimezoneOffset()`（UTC+8 → -480）。
+   * 服务端（尤其容器里 TZ=UTC）必须靠它才能把「今天」和按天分桶算在用户所在的时区上。
+   */
+  tzOffsetMinutes?: number
+}): Promise<AutomationDashboard> {
   const now = Date.now()
-  const todayStart = startOfDay(now)
+  const tzShift = resolveTzShift(range?.tzOffsetMinutes)
+  const todayStart = startOfDay(now, tzShift)
   const end = range?.end ?? now
   const days = range?.days ?? 7
-  const rangeStart = range?.start ? startOfDay(range.start) : startOfDay(end - (days - 1) * DAY_MS)
-  const rangeDuration = end - rangeStart
-  const prevStart = rangeStart - rangeDuration
+  const rangeStart = range?.start ? startOfDay(range.start, tzShift) : startOfDay(end - (days - 1) * DAY_MS, tzShift)
+  // 环比窗口与趋势窗口等长：都是 `days` 个日历日。旧口径用 end - rangeStart
+  // （今天未过完，约 6.x 天）当上一周期长度，两窗口不等长，环比带同方向偏差。
+  const prevStart = rangeStart - days * DAY_MS
   const prevEnd = rangeStart
 
   const automations = await db
@@ -204,6 +222,20 @@ export async function getAutomationDashboard(range?: { start?: number; end?: num
     .from(schema.automationRuns)
     .where(gte(schema.automationRuns.startedAt, todayStart))
 
+  // 「今日较昨日」同一时刻点比较：昨日 00:00 到昨日此刻（与 now 相同的时钟时间）。
+  // 直接用趋势桶的「完整昨天」去减未过完的今天，白天恒为负，所以单算这一口径。
+  const yesterdayStart = todayStart - DAY_MS
+  const yesterdaySameTimeEnd = yesterdayStart + (now - todayStart)
+  const [{ value: yesterdaySameTimeRunCount }] = await db
+    .select({ value: count() })
+    .from(schema.automationRuns)
+    .where(
+      and(
+        gte(schema.automationRuns.startedAt, yesterdayStart),
+        lt(schema.automationRuns.startedAt, yesterdaySameTimeEnd),
+      ),
+    )
+
   const successfulRuns = runsForRange.filter((run) => run.status === 'success').length
   const completedRuns = runsForRange.filter((run) => run.status !== 'running').length
   const failCount = runsForRange.filter((run) => run.status === 'failed').length
@@ -227,10 +259,11 @@ export async function getAutomationDashboard(range?: { start?: number; end?: num
       previousRunCount: runsForPrev.length,
       previousSuccessRate,
       previousFailCount: runsForPrev.filter((run) => run.status === 'failed').length,
+      yesterdaySameTimeRunCount,
     },
     automations: automations.map(mapAutomationRow),
     recentRuns,
-    trend: buildTrend(runsForRange, end, days),
+    trend: buildTrend(runsForRange, end, days, tzShift),
     trendRange: days,
   }
 }

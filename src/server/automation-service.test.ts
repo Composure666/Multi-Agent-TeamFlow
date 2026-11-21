@@ -413,6 +413,146 @@ describe('automation service bindings and notifications', () => {
     expect(run.status).toBe('success')
   })
 
+describe('automation dashboard · D-P1-5 时区与 D-P1-7 同时段/等长窗口', () => {
+  const TZ_CST = -480
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const HOUR_MS = 60 * 60 * 1000
+  const CST_SHIFT_MS = 8 * HOUR_MS
+
+  function cstStartOfDay(ts: number): number {
+    const d = new Date(ts + CST_SHIFT_MS)
+    d.setUTCHours(0, 0, 0, 0)
+    return d.getTime() - CST_SHIFT_MS
+  }
+
+  function trendTotal(dashboard: Awaited<ReturnType<typeof service.getAutomationDashboard>>): number {
+    return dashboard.trend.reduce((sum, point) => sum + point.value, 0)
+  }
+
+  async function insertRun(
+    automationId: string,
+    conversationId: string | null,
+    id: string,
+    startedAt: number,
+    status: 'success' | 'failed' | 'running' = 'success',
+  ): Promise<void> {
+    await dbClient.db.insert(dbClient.schema.automationRuns).values({
+      id,
+      automationId,
+      status,
+      trigger: 'manual',
+      agentRunId: null,
+      conversationId,
+      attempt: 1,
+      durationMs: 1000,
+      startedAt,
+      finishedAt: startedAt + 1000,
+      error: null,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    })
+  }
+
+  it('D-P1-5：CST 02:00 的运行计入「今日」，而不是昨天', async () => {
+    const automation = await service.createAutomation({
+      title: '时区回归自动化测试',
+      prompt: '时区回归',
+      scheduleType: 'manual',
+    })
+    const now = Date.now()
+    const todayStartCst = cstStartOfDay(now)
+    // 种子取“今天 02:00 与此刻”的较早者：00:00–02:00 时段固定 02:00 还在未来，
+    // 仪表盘只计已发生的运行，会导致断言挂掉；取区间中点则恒在过去、恒在今天 CST、
+    // 且恒在 08:00 CST 之前（UTC 对照的期望值才成立）
+    const elapsed = now - todayStartCst
+    const seedAt = todayStartCst + Math.min(2 * HOUR_MS, elapsed / 2)
+
+    const before = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    await insertRun(automation.id, automation.conversationId, 'arun_tz_cst_today_0200', seedAt)
+    await insertRun(automation.id, automation.conversationId, 'arun_tz_cst_yesterday_0200', todayStartCst - DAY_MS + 2 * HOUR_MS)
+    const after = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+
+    expect(after.stats.todayRunCount - before.stats.todayRunCount).toBe(1)
+    expect(after.trend[after.trend.length - 1]!.value - before.trend[before.trend.length - 1]!.value).toBe(1)
+    expect(after.trend[after.trend.length - 2]!.value - before.trend[before.trend.length - 2]!.value).toBe(1)
+
+    // 对照：同一条 CST 02:00 的运行在 UTC 口径下是否计入「今日」，取决于现在几点
+    // （UTC 午夜 = CST 08:00；CST 08:00 之后它已是昨天，之前它还在 UTC 的今天里）。
+    const cstHour = new Date(now + CST_SHIFT_MS).getUTCHours()
+    const beforeUtc = await service.getAutomationDashboard({ tzOffsetMinutes: 0 })
+    await insertRun(automation.id, automation.conversationId, 'arun_tz_utc_control', seedAt)
+    const afterUtc = await service.getAutomationDashboard({ tzOffsetMinutes: 0 })
+    expect(afterUtc.stats.todayRunCount - beforeUtc.stats.todayRunCount).toBe(cstHour >= 8 ? 0 : 1)
+  })
+
+  it('D-P1-7：今日 delta 用「截至此时 vs 昨日同时段」，不拿未过完的今天跟完整昨天比', async () => {
+    const automation = await service.createAutomation({
+      title: '同时段比较自动化测试',
+      prompt: '同时段比较',
+      scheduleType: 'manual',
+    })
+    const now = Date.now()
+    const todayStartCst = cstStartOfDay(now)
+    const elapsed = now - todayStartCst
+    const yesterdayStart = todayStartCst - DAY_MS
+    const insideSameTime = yesterdayStart + elapsed / 2
+    // 昨日同时段截止点与昨天午夜的中点：23:00 后 elapsed + 1h 会溢出到今天，
+    // 故不用固定 +1h，取截止点到午夜的中点，保证恒在昨天内且在同时段之后
+    const afterSameTime = yesterdayStart + elapsed + (DAY_MS - elapsed) / 2
+
+    const before = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    await insertRun(automation.id, automation.conversationId, 'arun_same_time_inside', insideSameTime)
+    const afterInside = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    expect(afterInside.stats.yesterdaySameTimeRunCount - before.stats.yesterdaySameTimeRunCount).toBe(1)
+    // 落在昨日同时段内的运行不属于今天
+    expect(afterInside.stats.todayRunCount - before.stats.todayRunCount).toBe(0)
+
+    await insertRun(automation.id, automation.conversationId, 'arun_same_time_outside', afterSameTime)
+    const afterOutside = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    // 昨日同时段之后、但仍在昨天内的运行，不计入同时段口径，但计入昨日整天桶
+    expect(afterOutside.stats.yesterdaySameTimeRunCount - afterInside.stats.yesterdaySameTimeRunCount).toBe(0)
+    expect(afterOutside.trend[afterOutside.trend.length - 2]!.value - afterInside.trend[afterInside.trend.length - 2]!.value).toBe(1)
+  })
+
+  it('D-P1-7：环比窗口与趋势窗口等长（7 个日历日 vs 前 7 个日历日）', async () => {
+    const automation = await service.createAutomation({
+      title: '等长窗口自动化测试',
+      prompt: '等长窗口',
+      scheduleType: 'manual',
+    })
+    const now = Date.now()
+    const rangeStart = cstStartOfDay(now - 6 * DAY_MS)
+
+    const before = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+
+    // 上一周期内（rangeStart 前 3 天）：只进 previousRunCount，不进趋势合计
+    await insertRun(automation.id, automation.conversationId, 'arun_prev_inside', rangeStart - 3 * DAY_MS)
+    const afterPrev = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    expect(afterPrev.stats.previousRunCount - before.stats.previousRunCount).toBe(1)
+    expect(trendTotal(afterPrev) - trendTotal(before)).toBe(0)
+
+    // 上一周期外（rangeStart 前 8 天）：两边都不进
+    await insertRun(automation.id, automation.conversationId, 'arun_prev_outside', rangeStart - 8 * DAY_MS)
+    const afterOutside = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    expect(afterOutside.stats.previousRunCount - afterPrev.stats.previousRunCount).toBe(0)
+    expect(trendTotal(afterOutside) - trendTotal(afterPrev)).toBe(0)
+
+    // 边界：上一周期起点当天（含）进，起点前 1ms 不进
+    await insertRun(automation.id, automation.conversationId, 'arun_prev_edge_in', rangeStart - 7 * DAY_MS)
+    const afterEdgeIn = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    expect(afterEdgeIn.stats.previousRunCount - afterOutside.stats.previousRunCount).toBe(1)
+    await insertRun(automation.id, automation.conversationId, 'arun_prev_edge_out', rangeStart - 7 * DAY_MS - 1)
+    const afterEdgeOut = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    expect(afterEdgeOut.stats.previousRunCount - afterEdgeIn.stats.previousRunCount).toBe(0)
+
+    // 趋势窗口内（rangeStart 后 1 小时）：只进趋势合计，不进上一周期
+    await insertRun(automation.id, automation.conversationId, 'arun_trend_inside', rangeStart + HOUR_MS)
+    const afterTrend = await service.getAutomationDashboard({ tzOffsetMinutes: TZ_CST })
+    expect(trendTotal(afterTrend) - trendTotal(afterEdgeOut)).toBe(1)
+    expect(afterTrend.stats.previousRunCount - afterEdgeOut.stats.previousRunCount).toBe(0)
+  })
+})
+
   it('maxAgeMs=0 时把所有 running 记录都当作僵尸（进程启动收尾）', async () => {
     const automation = await service.createAutomation({
       title: '启动收尾测试',

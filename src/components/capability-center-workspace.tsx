@@ -1,8 +1,6 @@
 'use client'
 
 import {
-  ArrowDownRight,
-  ArrowUpRight,
   BookOpen,
   Bot,
   Boxes,
@@ -50,7 +48,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
-import { InlineError, PageHeader, PageShell } from '@/components/workbench-primitives'
+import { EmptyState, InlineError, KpiCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import {
   createMcpServer,
   deleteMcpServer,
@@ -256,84 +254,63 @@ export function CapabilityCenterWorkspace() {
   const safePageIndex = Math.min(pageIndex, pageCount - 1)
   const pagedRows = filteredRows.slice(safePageIndex * pageSize, safePageIndex * pageSize + pageSize)
 
-  // 顶部 KPI 卡 —— 数据全部走真实接口；能力调用量 = usage.week.totalTokens/100；
-  // 趋势值根据 today/本周/上周的差异动态计算。
+  // 顶部 KPI 卡 —— 数据全部走真实接口；无上一周期数据，趋势统一为 0（渲染为“—”）。
   const kpis = useMemo<KpiDescriptor[]>(() => {
     const weekTokens = usage?.week.totalTokens ?? 0
     const todayTokens = usage?.today.totalTokens ?? 0
-    const weekRuns = usage?.week.runs ?? 0
-    const allRuns = usage?.allTime.runs ?? 0
-    const callVolume = Math.max(1, Math.round((weekTokens + todayTokens) / 100) || weekRuns)
     const enabledSkills = skills.filter((s) => s.enabled).length
     const enabledServers = mcpServers.filter((s) => s.enabled).length
     const newSkillsThisWeek = skills.filter((s) => nowMs - s.createdAt < 7 * DAY_MS).length
-
-    // today 与全时相比的比例作为趋势
-    const trendPercent = (current: number, baseline: number): number => {
-      if (baseline <= 0) return current > 0 ? 100 : 0
-      return Math.round(((current - baseline) / baseline) * 100)
-    }
-
-    // 火花线：用 7 个点表示，按真实累计 runs 平滑生成
-    const usageSpark = buildUsageSparkline(weekRuns, usage?.today.runs ?? 0, 'up')
-    const skillSpark = buildUsageSparkline(counts.skills + allRuns * 0.0001, counts.skills, 'flat')
-    const mcpSpark = buildUsageSparkline(counts.mcp + 1, enabledServers, 'up')
-    const boundSpark = buildUsageSparkline(boundAgentIds.size + totalBindings, boundAgentIds.size, 'up')
 
     return [
       {
         id: 'skills',
         label: 'Skills',
         value: `${counts.skills}`,
-        trend: counts.skills > 0 ? Math.round((enabledSkills / counts.skills) * 100 - 100) + 100 : 0,
+        trend: 0,
         trendLabel: counts.skills > 0 ? `${enabledSkills}/${counts.skills} 启用` : '无 Skill',
         caption: counts.skills > 0 ? `${enabledSkills}/${counts.skills} 已启用 · 本周新增 ${newSkillsThisWeek}` : '尚无本地 Skill',
         icon: BookOpen,
         tone: 'violet',
-        sparkline: skillSpark,
       },
       {
         id: 'mcp',
         label: 'MCP Servers',
         value: `${counts.mcp}`,
-        trend: enabledServers - counts.mcp,
+        trend: 0,
         trendLabel: `${enabledServers} 个启用`,
-        caption: counts.mcp > 0 ? `${enabledServers}/${counts.mcp} 已启用 · ${weekRuns} 次调用` : '尚无 MCP Server',
+        caption: counts.mcp > 0 ? `${enabledServers}/${counts.mcp} 已启用` : '尚无 MCP Server',
         icon: Workflow,
         tone: 'blue',
-        sparkline: mcpSpark,
       },
       {
         id: 'bound',
         label: '已绑定 Agent',
         value: `${boundAgentIds.size}`,
-        trend: totalBindings > 0 ? trendPercent(boundAgentIds.size, Math.max(1, totalBindings - boundAgentIds.size)) : 0,
+        trend: 0,
         trendLabel: `${totalBindings} 条能力绑定`,
         caption: totalBindings > 0
           ? `${totalBindings} 条能力绑定 · ${boundAgentIds.size} 个 Agent`
           : '尚无绑定关系',
         icon: Bot,
         tone: 'emerald',
-        sparkline: boundSpark,
       },
       {
         id: 'volume',
-        label: '能力调用量',
-        value: formatK(callVolume),
-        trend: todayTokens > 0 && weekTokens > 0
-          ? Math.round(((todayTokens * 7) - weekTokens) / Math.max(1, weekTokens) * 100)
-          : 0,
+        label: 'Token 用量',
+        value: formatK(weekTokens),
+        trend: 0,
         trendLabel: `今日 ${formatK(todayTokens)}`,
-        caption: `今日 ${formatK(todayTokens)} · 本周 ${formatK(weekTokens)} · 累计 ${allRuns} 次`,
+        caption: `今日 ${formatK(todayTokens)} · 本周 ${formatK(weekTokens)} Token`,
         icon: TrendingUp,
         tone: 'amber',
-        sparkline: usageSpark,
       },
     ]
   }, [counts, usage, boundAgentIds, totalBindings, skills, mcpServers, nowMs])
 
   const hotCapabilities = useMemo(() => {
-    // 真实数据：按被绑定的 Agent 数量降序，再按更新时间新到旧
+    // 真实数据：按被绑定的 Agent 数量降序，再按更新时间新到旧；
+    // 展示的就是绑定数，不再包装成千次引用（仓库内无调用次数数据源）。
     return [...rows]
       .filter((row) => row.bindingCount > 0)
       .sort(
@@ -346,18 +323,21 @@ export function CapabilityCenterWorkspace() {
         rank: idx + 1,
         name: row.name,
         kind: row.kind,
-        calls: Math.max(0.1, row.bindingCount + (5 - idx) * 0.1),
+        bindings: row.bindingCount,
       }))
   }, [rows])
 
   const recentUpdates = useMemo(() => {
-    return rows.slice(0, 5).map((row) => ({
-      id: row.id,
-      name: row.name,
-      kind: row.kind,
-      action: row.enabled ? '启用了能力' : '停用了能力',
-      at: row.updatedAt,
-    }))
+    // 按更新时间倒序取前 5；仓库内无变更事件记录，动作栏只写当前状态，不编造“启用/停用”事件。
+    return sortRows(rows, 'updated')
+      .slice(0, 5)
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        action: row.enabled ? '已启用' : '已停用',
+        at: row.updatedAt,
+      }))
   }, [rows])
 
   // ───── 操作 handler ─────
@@ -604,7 +584,6 @@ export function CapabilityCenterWorkspace() {
     return [...skillBindings, ...mcpBindings]
       .filter((b) => b.agents.length > 0)
       .sort((a, b) => b.agents.length - a.agents.length)
-      .slice(0, 4)
       .map((b) => ({
         ...b,
         target: b.agents[0]?.name ?? '—',
@@ -626,15 +605,28 @@ export function CapabilityCenterWorkspace() {
 
       {error && <InlineError message={error} onRetry={() => void load()} />}
 
-      {/* KPI 卡片区 */}
+      {/* KPI 卡片区（火花线已删：能力中心没有按天真实序列数据，之前是 sin() 合成的假线） */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {kpis.map((kpi) => (
-          <KpiCard key={kpi.id} {...kpi} />
+          <KpiCard
+            key={kpi.id}
+            icon={kpi.icon}
+            label={kpi.label}
+            value={kpi.value}
+            tone={kpi.tone}
+            iconSize="sm"
+            valueWeight="bold"
+            labelClassName="text-xs font-medium text-slate-600 dark:text-slate-300"
+            valueClassName="text-slate-900 dark:text-slate-50"
+            trend={{ kind: 'badge', value: kpi.trend }}
+            caption={kpi.caption || kpi.trendLabel}
+            className="flex h-[140px] items-stretch"
+          />
         ))}
       </section>
 
       {/* 三栏主内容 */}
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,2.1fr)_minmax(280px,1fr)]">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2.1fr)_minmax(280px,1fr)]">
         {/* 左侧：能力管理表格 */}
         <CapabilityCard className="overflow-hidden p-0">
           <div className="flex flex-col gap-3 border-b border-[var(--agenthub-border)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -644,7 +636,7 @@ export function CapabilityCenterWorkspace() {
                 维护已导入或本地创建的 Skills、MCP Servers 与外部资源。
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => void refreshIndex()}
@@ -710,7 +702,7 @@ export function CapabilityCenterWorkspace() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
                 <Input
@@ -799,7 +791,7 @@ export function CapabilityCenterWorkspace() {
           </div>
 
           {/* 底部分页 */}
-          <div className="flex items-center justify-between border-t border-[var(--agenthub-border)] px-6 py-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center justify-between border-t border-[var(--agenthub-border)] px-6 py-3 text-xs text-slate-500 dark:text-slate-400">
             <span>共 {filteredRows.length} 个能力</span>
             <div className="flex items-center gap-2">
               <button
@@ -858,8 +850,9 @@ export function CapabilityCenterWorkspace() {
             onViewAll={() => setShowAllSection('hot')}
           />
           <BindingRelationsCard
-            items={bindingRelations}
+            items={bindingRelations.slice(0, 4)}
             onOpenAgent={(id) => jumpToAgent(id)}
+            onViewAll={() => setShowAllSection('bindings')}
           />
           <RecentUpdatesCard items={recentUpdates} onViewAll={() => setShowAllSection('recent')} />
         </div>
@@ -906,11 +899,11 @@ export function CapabilityCenterWorkspace() {
       {showAllSection === 'recent' && (
         <ShowAllDialog
           title="最近更新"
-          description="按更新时间倒序展示所有能力变更"
+          description="按更新时间倒序展示能力变更"
           onClose={() => setShowAllSection(null)}
         >
           <ul className="flex flex-col divide-y divide-[var(--agenthub-border)]">
-            {rows.slice(0, 50).map((row) => {
+            {sortRows(rows, 'updated').slice(0, 50).map((row) => {
               const KindIcon = KIND_META[row.kind].icon
               return (
                 <li key={row.id} className="flex items-center gap-2.5 py-2.5">
@@ -930,7 +923,7 @@ export function CapabilityCenterWorkspace() {
                         {row.name}
                       </span>
                       <span className="truncate text-xs text-slate-500 dark:text-slate-400">
-                        {row.enabled ? '启用了能力' : '停用了能力'}
+                        {row.enabled ? '已启用' : '已停用'}
                       </span>
                     </div>
                   </div>
@@ -938,8 +931,9 @@ export function CapabilityCenterWorkspace() {
                 </li>
               )
             })}
-            {rows.length === 0 && <EmptyHint message="暂无更新" />}
+            {rows.length === 0 && <EmptyState compact title="暂无更新" />}
           </ul>
+          {rows.length > 0 && <p className="pt-3 text-center text-xs text-slate-400">共 {rows.length} 条</p>}
         </ShowAllDialog>
       )}
 
@@ -952,6 +946,7 @@ export function CapabilityCenterWorkspace() {
           <ul className="flex flex-col divide-y divide-[var(--agenthub-border)]">
             {[...rows]
               .sort((a, b) => b.bindingCount - a.bindingCount || b.updatedAt - a.updatedAt)
+              .slice(0, 50)
               .map((row) => {
                 const KindIcon = KIND_META[row.kind].icon
                 return (
@@ -979,8 +974,58 @@ export function CapabilityCenterWorkspace() {
                   </li>
                 )
               })}
-            {rows.length === 0 && <EmptyHint message="暂无能力" />}
+            {rows.length === 0 && <EmptyState compact title="暂无能力" />}
           </ul>
+          {rows.length > 0 && <p className="pt-3 text-center text-xs text-slate-400">共 {rows.length} 条</p>}
+        </ShowAllDialog>
+      )}
+
+      {showAllSection === 'bindings' && (
+        <ShowAllDialog
+          title="绑定关系"
+          description="按绑定 Agent 数量排序"
+          onClose={() => setShowAllSection(null)}
+        >
+          <ul className="flex flex-col gap-3">
+            {bindingRelations.slice(0, 50).map((item) => {
+              const firstAgentId = item.agentIds[0]
+              return (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => firstAgentId && jumpToAgent(firstAgentId)}
+                    disabled={!firstAgentId}
+                    title={firstAgentId ? '查看绑定的 Agent' : '暂无绑定 Agent'}
+                    className="flex min-w-0 items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <AgentAvatar name={item.name.charAt(0).toUpperCase()} tone="blue" />
+                    <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{item.name}</span>
+                  </button>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span>→</span>
+                    <span
+                      className={cn(
+                        'inline-flex h-5 max-w-[120px] items-center truncate rounded px-2 text-xs font-medium',
+                        'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]',
+                      )}
+                    >
+                      {item.target}
+                    </span>
+                    <span className="ml-1 shrink-0 text-xs text-slate-400">
+                      {item.agents.length} 个 Agent
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+            {bindingRelations.length === 0 && <EmptyState compact title="暂无绑定关系" />}
+          </ul>
+          {bindingRelations.length > 0 && (
+            <p className="pt-3 text-center text-xs text-slate-400">共 {bindingRelations.length} 条</p>
+          )}
         </ShowAllDialog>
       )}
     </PageShell>
@@ -989,7 +1034,7 @@ export function CapabilityCenterWorkspace() {
 
 /* ──────────────────────── Types ──────────────────────── */
 
-type CapabilityRow = {
+export type CapabilityRow = {
   id: string
   kind: CapabilityRowKind
   name: string
@@ -1012,11 +1057,10 @@ type KpiDescriptor = {
   caption: string
   icon: ComponentType<{ className?: string }>
   tone: 'violet' | 'blue' | 'emerald' | 'amber'
-  sparkline: number[]
 }
 
 type SortMode = 'updated' | 'name' | 'enabled'
-type ShowAllSection = 'recent' | 'hot'
+type ShowAllSection = 'recent' | 'hot' | 'bindings'
 
 type McpForm = {
   name: string
@@ -1060,88 +1104,6 @@ function CapabilityCard({
     >
       {children}
     </section>
-  )
-}
-
-function KpiCard({ label, value, trend, trendLabel, caption, icon: Icon, tone, sparkline }: KpiDescriptor) {
-  const toneStyles: Record<KpiDescriptor['tone'], { bg: string; fg: string; spark: string; badgeBg: string; badgeFg: string }> = {
-    violet: { bg: 'bg-violet-50 dark:bg-violet-500/10', fg: 'text-violet-600 dark:text-violet-400', spark: '#7C3AED', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
-    blue: { bg: 'bg-blue-50 dark:bg-blue-500/10', fg: 'text-blue-600 dark:text-blue-400', spark: 'var(--primary)', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
-    emerald: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', fg: 'text-emerald-600 dark:text-emerald-400', spark: '#10B981', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
-    amber: { bg: 'bg-amber-50 dark:bg-amber-500/10', fg: 'text-amber-600 dark:text-amber-400', spark: '#F59E0B', badgeBg: 'bg-emerald-50 dark:bg-emerald-500/10', badgeFg: 'text-emerald-600 dark:text-emerald-400' },
-  }
-  const t = toneStyles[tone]
-  const trendUp = trend > 0
-  const trendFlat = trend === 0
-
-  return (
-    <article className="flex h-[140px] items-stretch agenthub-card p-5">
-      <div className="flex flex-1 flex-col justify-between">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'flex size-7 items-center justify-center rounded-lg',
-              t.bg,
-              t.fg,
-            )}
-          >
-            <Icon className="size-3.5" />
-          </span>
-          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{label}</span>
-        </div>
-        <div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[36px] font-bold leading-none tracking-tight text-slate-900 dark:text-slate-50">
-              {value}
-            </span>
-            {trendFlat ? (
-              <span className={cn('inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium', t.badgeBg, t.badgeFg)}>
-                —
-              </span>
-            ) : (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-semibold',
-                  trendUp ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400',
-                )}
-              >
-                {trendUp ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                {trendUp ? `+${trend}` : trend}
-                {Math.abs(trend) > 0 ? '%' : ''}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{caption || trendLabel}</p>
-        </div>
-      </div>
-      <div className="flex w-[30%] items-center justify-end">
-        <Sparkline data={sparkline} color={t.spark} />
-      </div>
-    </article>
-  )
-}
-
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const w = 88
-  const h = 44
-  const max = Math.max(...data, 1)
-  const min = Math.min(...data, 0)
-  const range = max - min || 1
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * (h - 6) - 3}`)
-  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p}`).join(' ')
-  const areaD = `${pathD} L${w},${h} L0,${h} Z`
-  const gid = `sp-${color.replace(/[^a-zA-Z0-9]/g, '')}`
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" style={{ stopColor: color }} stopOpacity="0.22" />
-          <stop offset="100%" style={{ stopColor: color }} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaD} fill={`url(#${gid})`} />
-      <path d={pathD} fill="none" style={{ stroke: color }} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   )
 }
 
@@ -1410,7 +1372,7 @@ function BindingRelationsCard({
         )}
       </div>
       {items.length === 0 ? (
-        <EmptyHint message="暂无绑定关系" />
+        <EmptyState compact title="暂无绑定关系" />
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((item) => {
@@ -1424,6 +1386,7 @@ function BindingRelationsCard({
                   type="button"
                   onClick={() => firstAgentId && onOpenAgent(firstAgentId)}
                   disabled={!firstAgentId}
+                  title={firstAgentId ? '查看绑定的 Agent' : '暂无绑定 Agent'}
                   className="flex min-w-0 items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <AgentAvatar name={item.name.charAt(0).toUpperCase()} tone="blue" />
@@ -1477,7 +1440,7 @@ function RecentUpdatesCard({
         )}
       </div>
       {items.length === 0 ? (
-        <EmptyHint message="暂无更新" />
+        <EmptyState compact title="暂无更新" />
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((item) => {
@@ -1514,7 +1477,7 @@ function HotCapabilitiesCard({
   items,
   onViewAll,
 }: {
-  items: Array<{ id: string; rank: number; name: string; kind: CapabilityRowKind; calls: number }>
+  items: Array<{ id: string; rank: number; name: string; kind: CapabilityRowKind; bindings: number }>
   onViewAll?: () => void
 }) {
   if (items.length === 0) {
@@ -1523,14 +1486,14 @@ function HotCapabilitiesCard({
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-medium text-slate-900 dark:text-slate-50">热门能力</h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">调用频次 TOP 5</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">绑定 Agent 数 TOP 5</p>
           </div>
         </div>
-        <EmptyHint message="尚无被引用的能力" />
+        <EmptyState compact title="尚无被引用的能力" />
       </CapabilityCard>
     )
   }
-  const max = Math.max(...items.map((i) => i.calls), 1)
+  const max = Math.max(...items.map((i) => i.bindings), 1)
   return (
     <CapabilityCard className="p-5">
       <div className="mb-4 flex items-center justify-between">
@@ -1551,7 +1514,7 @@ function HotCapabilitiesCard({
       <ul className="flex flex-col gap-3">
         {items.map((item) => {
           const KindIcon = KIND_META[item.kind].icon
-          const width = `${Math.max(8, (item.calls / max) * 100)}%`
+          const width = `${Math.max(8, (item.bindings / max) * 100)}%`
           return (
             <li key={item.id} className="flex items-center gap-2.5">
               <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--agenthub-surface-muted)] text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -1571,7 +1534,7 @@ function HotCapabilitiesCard({
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{item.name}</span>
                   <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                    {item.calls >= 1 ? item.calls.toFixed(1) : item.calls.toFixed(2)}k 引用
+                    {item.bindings} 个 Agent 绑定
                   </span>
                 </div>
                 <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-[var(--agenthub-surface-muted)]">
@@ -1586,17 +1549,6 @@ function HotCapabilitiesCard({
         })}
       </ul>
     </CapabilityCard>
-  )
-}
-
-function EmptyHint({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-      <div className="flex size-9 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-        <Inbox className="size-4" />
-      </div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{message}</div>
-    </div>
   )
 }
 
@@ -1625,7 +1577,7 @@ function isResourcePath(path: string): boolean {
   return /[/\\]resources?[/\\]/.test(lower) || /\bresources?[-_.]/.test(lower)
 }
 
-function sortRows(rows: CapabilityRow[], mode: SortMode): CapabilityRow[] {
+export function sortRows(rows: CapabilityRow[], mode: SortMode): CapabilityRow[] {
   const copy = [...rows]
   if (mode === 'updated') {
     copy.sort((a, b) => b.updatedAt - a.updatedAt)
@@ -1650,33 +1602,6 @@ function parseEnvText(text: string): Record<string, string> {
     env[trimmed.slice(0, idx).trim()] = trimmed.slice(idx + 1).trim()
   }
   return env
-}
-
-/**
- * 基于真实累计 runs 生成 7 点 sparkline：
- * - total=累计 runs（驱动趋势斜率）
- * - today=今日增量（驱动最近点）
- * - mode=up|flat|down 决定整体走势
- */
-function buildUsageSparkline(total: number, today: number, mode: 'up' | 'flat' | 'down'): number[] {
-  const safeTotal = Math.max(1, total)
-  const safeToday = Math.max(0, today)
-  const avg = Math.max(0, (safeTotal - safeToday) / 6)
-  const arr: number[] = []
-  for (let i = 0; i < 7; i++) {
-    const t = i / 6
-    let v: number
-    if (mode === 'up') {
-      v = avg + (safeToday - avg) * t + Math.sin((i + (safeTotal % 5)) * 0.9) * 0.1 * avg
-    } else if (mode === 'flat') {
-      v = avg + Math.sin((i + (safeTotal % 4)) * 0.7) * 0.15 * avg
-    } else {
-      const peak = avg + (safeToday - avg) * (1 - t)
-      v = peak + Math.sin((i + (safeTotal % 6)) * 0.8) * 0.1 * avg
-    }
-    arr.push(Math.max(0.5, v))
-  }
-  return arr
 }
 
 /* ──────────────────────── Dialogs ──────────────────────── */

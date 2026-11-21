@@ -33,12 +33,26 @@ interface ProviderForm {
 
 const EMPTY_FORM: ProviderForm = { displayName: '', apiKey: '', baseUrl: '', models: '' }
 
+export async function deleteProviderRequest(providerId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/providers/${encodeURIComponent(providerId)}`, { method: 'DELETE' })
+    if (res.ok) return null
+    const data = (await res.json().catch(() => null)) as { error?: unknown } | null
+    return typeof data?.error === 'string' && data.error ? data.error : `删除失败（HTTP ${res.status}）`
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err)
+  }
+}
+
 export function ProviderConfigDialog({ open, onOpenChange, providerId }: ProviderConfigDialogProps) {
   const [form, setForm] = useState<ProviderForm>(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ connected: boolean; error?: string; models?: string[] } | null>(null)
   const [fetchingModels, setFetchingModels] = useState(false)
@@ -58,6 +72,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
     let cancelled = false
     setLoading(true)
     setLoadError(null)
+    setDeleteError(null)
     setTestResult(null)
     fetch(`/api/providers/${encodeURIComponent(providerId)}`)
       .then(async (r) => {
@@ -148,13 +163,17 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
 
   const handleDelete = async () => {
     if (!providerId || isBuiltin) return
-    if (!confirm(`确定删除供应商「${form.displayName || providerId}」？`)) return
-    try {
-      await fetch(`/api/providers/${encodeURIComponent(providerId)}`, { method: 'DELETE' })
-      onOpenChange(false)
-    } catch (err) {
-      console.error('[ProviderConfigDialog] delete failed', err)
+    setDeleting(true)
+    setDeleteError(null)
+    const failure = await deleteProviderRequest(providerId)
+    setDeleting(false)
+    if (failure) {
+      setDeleteError(failure)
+      setDeleteConfirmOpen(false)
+      return
     }
+    setDeleteConfirmOpen(false)
+    onOpenChange(false)
   }
   const handleFetchModels = async () => {
     if (!providerId) return
@@ -175,6 +194,7 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={DIALOG_SIZE_CLASS.md}>
         <DialogHeader>
@@ -277,10 +297,12 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
           </div>
         )}
 
-        <DialogFooter className="flex items-center justify-between gap-2">
+        {deleteError && <InlineError message={deleteError} />}
+
+        <DialogFooter className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {!isNew && !isBuiltin && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => void handleDelete()} disabled={!!loadError} className="text-red-600 hover:text-red-700">
+              <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteConfirmOpen(true)} disabled={!!loadError || deleting} className="text-red-600 hover:text-red-700">
                 <Trash2 className="size-4" />
                 删除
               </Button>
@@ -304,5 +326,22 @@ export function ProviderConfigDialog({ open, onOpenChange, providerId }: Provide
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { if (!open && !deleting) setDeleteConfirmOpen(false) }}>
+      <DialogContent className={DIALOG_SIZE_CLASS.sm}>
+        <DialogHeader>
+          <DialogTitle>确认删除供应商</DialogTitle>
+          <DialogDescription>
+            确定删除供应商「{form.displayName || providerId}」吗？此操作不可撤销。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>取消</Button>
+          <Button type="button" onClick={() => void handleDelete()} disabled={deleting} className="bg-red-600 text-white hover:bg-red-700">
+            {deleting ? '删除中…' : '确认删除'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

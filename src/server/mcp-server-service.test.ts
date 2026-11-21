@@ -144,7 +144,6 @@ describe('mcp server service', () => {
 
     const updated = await service.recordMcpServerHealth(server.id, {
       status: 'ok',
-      message: 'Connected; discovered 2 tools',
       toolCount: 2,
       checkedAt: 123,
     })
@@ -161,5 +160,25 @@ describe('mcp server service', () => {
     })
     expect(item?.compatibility.codex).toBe('supported')
     expect(JSON.stringify(item)).not.toContain('secret-token-value')
+  })
+
+  it('keeps updatedAt unchanged when recording health', async () => {
+    const server = await service.createMcpServer({ name: 'health_updated_at_test', command: 'node' })
+    const before = await service.getMcpServer(server.id)
+    expect(before).not.toBeNull()
+
+    await service.recordMcpServerHealth(server.id, {
+      status: 'ok',
+      toolCount: 1,
+      checkedAt: (before?.updatedAt ?? 0) + 100_000,
+    })
+
+    const after = await service.getMcpServer(server.id)
+    expect(after?.updatedAt).toBe(before?.updatedAt)
+    expect(after?.lastCheckedAt).toBe((before?.updatedAt ?? 0) + 100_000)
+    expect(after?.lastCheckStatus).toBe('ok')
+    expect(after?.lastToolCount).toBe(1)
+    // 健康检查只写三列：lastCheckMessage 不再写入，保持新建时的 null
+    expect(after?.lastCheckMessage).toBeNull()
   })
 })

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 
@@ -73,14 +73,18 @@ export async function listSkillCatalogItems(): Promise<SkillCatalogItem[]> {
   }))
 }
 
+// updatedAt 的语义是磁盘文件内容最后修改时间（见 refreshSkillsFromDisk），
+// 启用/停用只是状态变化，不计入更新时间，否则下一次 refresh 会把它覆写回 mtime。
 export async function updateSkill(id: string, patch: SkillPatch): Promise<SkillListItem> {
   const existing = await db.query.skills.findFirst({ where: eq(schema.skills.id, id) })
   if (!existing) throw new Error(`Skill not found: ${id}`)
 
-  const updates: Partial<typeof schema.skills.$inferInsert> = { updatedAt: Date.now() }
+  const updates: Partial<typeof schema.skills.$inferInsert> = {}
   if (patch.enabled !== undefined) updates.enabled = patch.enabled
 
-  await db.update(schema.skills).set(updates).where(eq(schema.skills.id, id))
+  if (Object.keys(updates).length > 0) {
+    await db.update(schema.skills).set(updates).where(eq(schema.skills.id, id))
+  }
   const updated = await db.query.skills.findFirst({ where: eq(schema.skills.id, id) })
   if (!updated) throw new Error(`Skill update succeeded but row missing: ${id}`)
   return toSkillListItem(updated)
@@ -166,9 +170,12 @@ function findMdFilesRecursive(dir: string): string[] {
   return results
 }
 
+// updatedAt / createdAt 取磁盘文件 mtime（内容最后修改时间），而不是扫描时刻：
+// 旧实现每次扫描都把全部 skill 的 updatedAt 写成 Date.now()，能力中心每次打开
+// 就全显示“刚刚”。内容不变时不写库（只在 mtime 与库里不一致时回填一次，
+// 修复此前被旧实现写坏的值，此后幂等）；内容变了才更新字段并跟到新 mtime。
 export async function refreshSkillsFromDisk(): Promise<SkillListItem[]> {
   if (!existsSync(SKILLS_DIR)) return []
-  const now = Date.now()
   const files = findMdFilesRecursive(SKILLS_DIR)
 
   for (const filePath of files) {
@@ -177,27 +184,42 @@ export async function refreshSkillsFromDisk(): Promise<SkillListItem[]> {
     const id = path.dirname(relative) === '.'
       ? parsed.id
       : `skill_${workspaceSkillId(SKILLS_DIR, filePath)}`
+    const mtimeMs = Math.floor(statSync(filePath).mtimeMs)
     const existing = await db.query.skills.findFirst({ where: eq(schema.skills.id, id) })
     if (existing) {
-      await db
-        .update(schema.skills)
-        .set({
-          id,
-          name: parsed.name,
-          description: parsed.description,
-          content: parsed.content,
-          sourcePath: parsed.sourcePath,
-          tags: parsed.tags,
-          updatedAt: now,
-        })
-        .where(eq(schema.skills.id, existing.id))
+      const contentChanged =
+        existing.name !== parsed.name ||
+        existing.description !== parsed.description ||
+        existing.content !== parsed.content ||
+        existing.sourcePath !== parsed.sourcePath ||
+        JSON.stringify(existing.tags) !== JSON.stringify(parsed.tags)
+      if (contentChanged) {
+        await db
+          .update(schema.skills)
+          .set({
+            name: parsed.name,
+            description: parsed.description,
+            content: parsed.content,
+            sourcePath: parsed.sourcePath,
+            tags: parsed.tags,
+            updatedAt: mtimeMs,
+          })
+          .where(eq(schema.skills.id, existing.id))
+      } else if (existing.updatedAt !== mtimeMs || existing.createdAt !== mtimeMs) {
+        // 一次性修复此前被旧实现写坏的时间戳：createdAt 也是当初入库（扫描）时刻，
+        // 不是文件创建时间；回填 mtime 后“本周新增”才不再把几个月前的文件算作新增。
+        await db
+          .update(schema.skills)
+          .set({ updatedAt: mtimeMs, createdAt: mtimeMs })
+          .where(eq(schema.skills.id, existing.id))
+      }
     } else {
       await db.insert(schema.skills).values({
         ...parsed,
         id,
         enabled: true,
-        createdAt: now,
-        updatedAt: now,
+        createdAt: mtimeMs,
+        updatedAt: mtimeMs,
       })
     }
   }

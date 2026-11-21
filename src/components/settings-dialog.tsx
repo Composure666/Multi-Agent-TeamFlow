@@ -142,6 +142,7 @@ export function SettingsDialog({
   const [ossLoadError, setOssLoadError] = useState<string | null>(null)
   const [ossRetryKey, setOssRetryKey] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [hintsLoading, setHintsLoading] = useState(false)
   const [tokenBusy, setTokenBusy] = useState(false)
   const [restartRequired, setRestartRequired] = useState(false)
@@ -293,9 +294,14 @@ export function SettingsDialog({
     }
   }, [open])
 
+  useEffect(() => {
+    if (open) setSaveError(null)
+  }, [open])
+
   const handleSave = async () => {
     if (busy) return
     setBusy(true)
+    setSaveError(null)
     try {
       // 空串归一 null，明确「清空」语义
       const patch: AppSettingsPatchBody = {
@@ -349,6 +355,7 @@ export function SettingsDialog({
       }
     } catch (err) {
       console.error('[SettingsDialog] save failed', err)
+      setSaveError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
     }
@@ -646,13 +653,16 @@ export function SettingsDialog({
           </div>
         )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            取消
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={busy || loading || !!loadError}>
-            {busy ? '保存中…' : '保存'}
-          </Button>
+        <DialogFooter className="flex-col items-stretch sm:flex-col">
+          {saveError && <InlineError message={`保存失败：${saveError}`} onRetry={() => void handleSave()} />}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+              取消
+            </Button>
+            <Button onClick={() => void handleSave()} disabled={busy || loading || !!loadError}>
+              {busy ? '保存中…' : '保存'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -872,7 +882,7 @@ function MobileConnectionHints({
               )}
             </div>
             {mobileDeviceToken && (
-              <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
+              <p className="mt-2 truncate font-mono text-xs text-muted-foreground" title={mobileDeviceToken}>
                 {mobileDeviceToken}
               </p>
             )}
@@ -904,7 +914,7 @@ function MobileConnectionHints({
                     <span className="text-3xs text-muted-foreground">{hint.interfaceName}</span>
                   )}
                 </div>
-                <p className="truncate font-mono text-xs text-muted-foreground">{hint.url}</p>
+                <p className="truncate font-mono text-xs text-muted-foreground" title={hint.url}>{hint.url}</p>
               </div>
               <Button
                 type="button"

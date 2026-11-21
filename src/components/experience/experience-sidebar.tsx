@@ -74,7 +74,7 @@ export function ExperienceSidebar({ items, onOpen, className }: ExperienceSideba
           了解如何在合适的时机注入经验资产，提升 Agent 表现。
         </p>
         <Button variant="outline" size="sm" className="mt-3 w-full text-xs" onClick={() => setGuideOpen(true)}>
-          查看文档 <ArrowRight className="ml-1 size-3" />
+          经验使用说明 <ArrowRight className="ml-1 size-3" />
         </Button>
       </div>
 
@@ -90,7 +90,7 @@ export function ExperienceSidebar({ items, onOpen, className }: ExperienceSideba
               className="text-xs text-[var(--agenthub-accent)] hover:underline"
               onClick={() => setShowAllHot((v) => !v)}
             >
-              {showAllHot ? '收起' : `查看更多 (${hotSorted.length})`}
+              {showAllHot ? '收起' : `展开全部 (${hotSorted.length})`}
             </button>
           </div>
           <div className="mt-3 space-y-2">
@@ -132,7 +132,7 @@ export function ExperienceSidebar({ items, onOpen, className }: ExperienceSideba
               className="text-xs text-[var(--agenthub-accent)] hover:underline"
               onClick={() => setShowAllRecent((v) => !v)}
             >
-              {showAllRecent ? '收起' : `查看更多 (${recentSorted.length})`}
+              {showAllRecent ? '收起' : `展开全部 (${recentSorted.length})`}
             </button>
           </div>
           <div className="mt-3 space-y-2">

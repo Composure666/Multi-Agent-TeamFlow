@@ -32,6 +32,17 @@ interface TeamDetailDialogProps {
   onStartChat?: (conversation: ConversationWithMeta) => void | Promise<void>
 }
 
+export async function deleteTeamRequest(teamId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/teams/${teamId}`, { method: 'DELETE' })
+    if (res.ok) return null
+    const data = (await res.json().catch(() => null)) as { error?: unknown } | null
+    return typeof data?.error === 'string' && data.error ? data.error : `删除失败（HTTP ${res.status}）`
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err)
+  }
+}
+
 /**
  * 团队详情对话框。展示团队信息和成员列表，支持编辑基本信息和删除成员。
  */
@@ -42,6 +53,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [startingChat, setStartingChat] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -113,14 +125,18 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
 
   const handleDelete = async () => {
     if (!teamId) return
-    if (!confirm(`确定删除团队「${team?.name ?? ''}」？成员 Agent 不会被删除。`)) return
     setDeleting(true)
+    setError(null)
     try {
-      await fetch(`/api/teams/${teamId}`, { method: 'DELETE' })
+      const failure = await deleteTeamRequest(teamId)
+      if (failure) {
+        setError(failure)
+        setDeleteConfirmOpen(false)
+        return
+      }
+      setDeleteConfirmOpen(false)
       onDeleted?.()
       onOpenChange(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
     } finally {
       setDeleting(false)
     }
@@ -355,7 +371,7 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
           <Button
             variant="outline"
             className="text-red-600 hover:text-red-700 sm:mr-auto"
-            onClick={() => void handleDelete()}
+            onClick={() => setDeleteConfirmOpen(true)}
             disabled={saving || deleting || loading || !team}
           >
             {deleting ? <LoadingIndicator variant="spinner" size="sm" inheritColor /> : <Trash2 className="size-3.5" />}
@@ -386,6 +402,22 @@ export function TeamDetailDialog({ teamId, open, onOpenChange, onDeleted, onUpda
               </Button>
             </>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { if (!open && !deleting) setDeleteConfirmOpen(false) }}>
+      <DialogContent className={DIALOG_SIZE_CLASS.sm}>
+        <DialogHeader>
+          <DialogTitle>确认删除团队</DialogTitle>
+          <DialogDescription>
+            确定删除团队「{team?.name ?? ''}」吗？成员 Agent 不会被删除。此操作不可撤销。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>取消</Button>
+          <Button onClick={() => void handleDelete()} disabled={deleting} className="bg-red-600 text-white hover:bg-red-700">
+            {deleting ? '删除中…' : '确认删除'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

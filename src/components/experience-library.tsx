@@ -231,7 +231,7 @@ export function ExperienceLibrary({ agents = [] }: ExperienceLibraryProps) {
                 <StatCard icon={CheckCircle2} label="已启用" value={stats.active} trend={calcTrend(stats.weeklyNew)} iconBg="bg-emerald-500/10" iconColor="text-emerald-500" />
                 <StatCard icon={FileText} label="草稿" value={stats.drafts} iconBg="bg-slate-500/10" iconColor="text-slate-500" />
                 <StatCard icon={Snowflake} label="冷资产" value={stats.cold} iconBg="bg-amber-500/10" iconColor="text-amber-500" />
-                <StatCard icon={TrendingUp} label="累计使用" value={`${stats.totalUsage} 次`} trend={calcTrend(stats.weeklyUsage)} sparkline={stats.weeklyUsage} iconBg="bg-purple-500/10" iconColor="text-purple-500" />
+                <StatCard icon={TrendingUp} label="累计使用" value={`${stats.totalUsage} 次`} trend={calcTrend(stats.weeklyUsage)} sparkline={stats.weeklyUsage} iconBg="bg-purple-500/10" iconColor="text-purple-500" className="max-sm:col-span-2" />
               </div>
               <div className="flex shrink-0 justify-end border-b border-[var(--agenthub-border)] px-4 py-1.5 lg:px-6">
                 <button type="button" onClick={() => setStatsOpen(false)} aria-expanded className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground">

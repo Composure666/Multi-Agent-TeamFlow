@@ -60,6 +60,7 @@ Skill metadata 至少包含：
 3. 工作区内由 Agent 下载的 Skill 文件也可在运行时递归发现：匹配任意 `SKILL.md`，以及 `skills/` 目录下的 markdown 文件；发现结果按相对路径生成稳定 id，避免多个嵌套 `SKILL.md` 冲突。
 4. 不读取 `.env.local`、密钥文件、隐藏凭据目录或 workspace 外敏感目录。
 5. 刷新索引只更新 metadata/content，不执行 Skill 内容。
+6. 时间戳语义（2026-11-20 修）：`updatedAt` / `createdAt` 取磁盘文件 mtime（内容最后修改时间），不是扫描时刻；内容不变时刷新不写库（幂等）；启用/停用只是状态变化，不碰 `updatedAt`。能力中心“最近更新”按 `updatedAt` 倒序展示。
 
 ---
 

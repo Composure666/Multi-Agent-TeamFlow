@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ChevronDown,
   Info,
-  Loader2,
   MoreHorizontal,
   Package,
   Search,
@@ -27,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { InlineError, PageHeader, PageShell, EmptyState } from "@/components/workbench-primitives"
+import { InlineError, PageHeader, PageShell, EmptyState, WorkspaceStateView } from "@/components/workbench-primitives"
 import {
   getNotificationGroup,
   getNotificationOpenLabel,
@@ -42,6 +41,7 @@ import {
   markNotificationsRead,
 } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import type { NotificationCategoryCounts } from "@/server/notification-service"
 import type {
   AppNotification,
   AppNotificationCategory,
@@ -86,6 +86,33 @@ const SOURCE_ICON_LABEL: Record<AppNotificationSource, string> = {
   system: "系统",
 }
 
+// Unknown enum values can arrive from the database (a source added by a
+// newer server, or a hand-written seed): a single bad row must never crash
+// the whole page (React #130 from rendering an undefined component).
+// Degrade that row to a generic icon/label instead.
+export function resolveNotificationSourceIcon(source: AppNotificationSource) {
+  return SOURCE_ICON[source] ?? Bell
+}
+
+export function resolveNotificationSourceLabel(source: AppNotificationSource) {
+  return NOTIFICATION_SOURCE_LABEL[source] ?? "其他"
+}
+
+export function resolveNotificationSourceIconLabel(source: AppNotificationSource) {
+  return SOURCE_ICON_LABEL[source] ?? "其他"
+}
+
+export function resolveNotificationCategoryLabel(category: AppNotificationCategory) {
+  return NOTIFICATION_CATEGORY_LABEL[category] ?? "其他"
+}
+
+// Module-level wrapper so the resolved icon (a prop, not a value created
+// during render) can be used as JSX — the static-components lint rule
+// forbids assigning a component from a function call inside a render.
+function NotificationSourceIcon({ icon: Icon, className }: { icon: typeof Bot; className?: string }) {
+  return <Icon className={className} />
+}
+
 // Left color bar by level — bold color so severity reads without text
 const LEVEL_BAR: Record<AppNotificationLevel, string> = {
   error: "bg-rose-500",
@@ -110,15 +137,20 @@ const CATEGORY_LEVEL: Record<AppNotificationCategory, AppNotificationLevel> = {
   system: "info",
 }
 
-function resolveLevel(notification: AppNotification): AppNotificationLevel {
+export function resolveLevel(notification: AppNotification): AppNotificationLevel {
   if (notification.level) return notification.level
-  return CATEGORY_LEVEL[notification.category ?? "system"]
+  return CATEGORY_LEVEL[notification.category ?? "system"] ?? "info"
 }
+
+const NOTIFICATION_PAGE_SIZE = 80
 
 export function InformationCenterWorkspace() {
   const [filter, setFilter] = useState<Filter>("all")
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [categoryCounts, setCategoryCounts] = useState<NotificationCategoryCounts | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ title: string; description: string; action: () => Promise<void> } | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupId>>(() => new Set())
@@ -126,22 +158,26 @@ export function InformationCenterWorkspace() {
   const notifications = useAppStore((s) => s.persistentNotifications)
   const unreadCount = useAppStore((s) => s.unreadNotificationCount)
   const setPersistentNotifications = useAppStore((s) => s.setPersistentNotifications)
+  const setUnreadNotificationCount = useAppStore((s) => s.setUnreadNotificationCount)
   const markNotificationReadLocal = useAppStore((s) => s.markNotificationReadLocal)
   const deleteNotificationLocal = useAppStore((s) => s.deleteNotificationLocal)
   const openNotificationTarget = useAppStore((s) => s.openNotificationTarget)
   const openSettingsTarget = useAppStore((s) => s.openSettingsTarget)
 
-  // Counts must come from the full, unfiltered dataset: fetching with the
-  // active pill filter here used to replace the store list with a filtered
-  // subset, so every pill count was derived from that subset and changed
-  // whenever the filter changed (e.g. all pills read 0 under "unread" when
-  // nothing was unread). Filtering stays client-side in visibleNotifications.
+  // Counts come from the server, never from the fetched page: fetching with
+  // the active pill filter here used to replace the store list with a
+  // filtered subset, so every pill count was derived from that subset and
+  // changed whenever the filter changed (e.g. all pills read 0 under
+  // "unread" when nothing was unread). Filtering stays client-side in
+  // visibleNotifications; the list itself is loaded with cursor pagination.
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const result = await fetchNotifications({ limit: 80 })
+      const result = await fetchNotifications({ limit: NOTIFICATION_PAGE_SIZE })
       setPersistentNotifications(result.notifications, result.unreadCount)
+      setCategoryCounts(result.categoryCounts)
+      setNextCursor(result.nextCursor)
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载通知失败")
     } finally {
@@ -149,12 +185,52 @@ export function InformationCenterWorkspace() {
     }
   }, [setPersistentNotifications])
 
+  const loadMore = useCallback(async () => {
+    if (loadingMore || nextCursor === null) return
+    setLoadingMore(true)
+    setError(null)
+    try {
+      const result = await fetchNotifications({ limit: NOTIFICATION_PAGE_SIZE, cursor: nextCursor })
+      setPersistentNotifications(appendNotificationPage(notifications, result.notifications), result.unreadCount)
+      setCategoryCounts(result.categoryCounts)
+      setNextCursor(result.nextCursor)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载更多失败")
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, nextCursor, notifications, setPersistentNotifications])
+
+  // Pill counts are server aggregates; local mutations adjust them the same
+  // way the store adjusts unreadCount, so the pills stay in sync until the
+  // next reload.
+  const markReadLocal = useCallback((notification: AppNotification) => {
+    if (notification.readAt) return
+    markNotificationReadLocal(notification.id)
+    setCategoryCounts((current) => (current ? { ...current, unread: Math.max(0, current.unread - 1) } : current))
+  }, [markNotificationReadLocal])
+
+  const decrementCountsForDeleted = useCallback((items: AppNotification[]) => {
+    if (items.length === 0) return
+    setCategoryCounts((current) => {
+      if (!current) return current
+      const next = { ...current }
+      for (const item of items) {
+        next.all = Math.max(0, next.all - 1)
+        if (!item.readAt) next.unread = Math.max(0, next.unread - 1)
+        const category = item.category ?? "system"
+        next[category] = Math.max(0, next[category] - 1)
+      }
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     void load()
   }, [load])
 
-  // Pill counts are derived from the full unfiltered list, never from the
-  // filtered/search view: switching pills only changes what is listed.
+  // Fallback pill counts from the loaded list, used only until the server
+  // aggregate arrives: switching pills only changes what is listed.
   const countableNotifications = useMemo(
     () => notifications.filter((item) => !item.deletedAt),
     [notifications],
@@ -175,7 +251,7 @@ export function InformationCenterWorkspace() {
     const target = notification.target ?? (notification.conversationId ? { type: "conversation" as const, conversationId: notification.conversationId } : undefined)
     if (target) openNotificationTarget(target)
     if (!notification.readAt) {
-      markNotificationReadLocal(notification.id)
+      markReadLocal(notification)
       try {
         await markNotificationRead(notification.id)
       } catch (err) {
@@ -185,7 +261,7 @@ export function InformationCenterWorkspace() {
   }
 
   const markRead = async (notification: AppNotification) => {
-    markNotificationReadLocal(notification.id)
+    markReadLocal(notification)
     try {
       await markNotificationRead(notification.id)
     } catch (err) {
@@ -195,6 +271,7 @@ export function InformationCenterWorkspace() {
 
   const remove = async (notification: AppNotification) => {
     deleteNotificationLocal(notification.id)
+    decrementCountsForDeleted([notification])
     try {
       await deleteNotification(notification.id)
     } catch (err) {
@@ -204,11 +281,16 @@ export function InformationCenterWorkspace() {
   }
 
   const markAllRead = async () => {
+    // Server marks every unread notification, including pages not loaded
+    // yet, so the local state must zero the unread counts too — not just
+    // the rows visible here — or the button would stay enabled.
+    if (unreadCount === 0) return
     const unreadIds = visibleNotifications.filter((item) => !item.readAt).map((item) => item.id)
-    if (unreadIds.length === 0) return
     for (const id of unreadIds) markNotificationReadLocal(id)
+    setUnreadNotificationCount(0)
+    setCategoryCounts((current) => (current ? { ...current, unread: 0 } : current))
     try {
-      await markNotificationsRead({ ids: unreadIds })
+      await markNotificationsRead({ all: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : "批量已读失败")
       await load()
@@ -218,6 +300,7 @@ export function InformationCenterWorkspace() {
   const removeNotifications = async (items: AppNotification[], fallbackMessage: string) => {
     if (items.length === 0) return
     for (const item of items) deleteNotificationLocal(item.id)
+    decrementCountsForDeleted(items)
     try {
       await Promise.all(items.map((item) => deleteNotification(item.id)))
     } catch (err) {
@@ -293,7 +376,7 @@ export function InformationCenterWorkspace() {
         description={`集中处理任务结果、异常告警和系统消息。未读 ${unreadCount} 条。`}
         actions={(
           <div className="flex flex-wrap items-center gap-1.5">
-            <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()} disabled={unreadCount === 0}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void markAllRead()} disabled={unreadCount === 0} title={unreadCount === 0 ? "暂无未读通知" : undefined}>
               {markReadLabel}
             </Button>
             <DropdownMenu>
@@ -325,7 +408,7 @@ export function InformationCenterWorkspace() {
         <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-center gap-1">
             {FILTERS.map((item) => {
-              const count = countForFilter(countableNotifications, item.id)
+              const count = countForFilterWithCounts(categoryCounts, countableNotifications, item.id)
               const active = filter === item.id
               return (
                 <button
@@ -377,16 +460,7 @@ export function InformationCenterWorkspace() {
 
       <ScrollArea className="max-h-[calc(100vh-220px)] min-h-[260px]">
         {loading && visibleNotifications.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">正在加载通知…</div>
-            <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">正在汇总任务结果、异常告警和系统消息。</p>
-            <Button type="button" variant="outline" size="sm" className="mt-1" onClick={() => void load()}>
-              重新加载
-            </Button>
-          </div>
+          <WorkspaceStateView state="loading" onRetry={() => void load()} />
         )}
         {!loading && visibleNotifications.length === 0 && (
           <EmptyState
@@ -442,7 +516,14 @@ export function InformationCenterWorkspace() {
             </section>
           )
         })}
-        {!loading && groupedNotifications.length > 0 && <ListEndMarker hasUnread={unreadCount > 0} />}
+        {groupedNotifications.length > 0 && (
+          <ListEndMarker
+            hasUnread={unreadCount > 0}
+            hasMore={nextCursor !== null}
+            loadingMore={loadingMore}
+            onLoadMore={() => void loadMore()}
+          />
+        )}
       </ScrollArea>
 
       <Dialog open={deleteConfirm !== null} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
@@ -473,7 +554,6 @@ function NotificationRow({
   onDelete: (notification: AppNotification) => void
 }) {
   const level = resolveLevel(notification)
-  const SourceIcon = SOURCE_ICON[notification.source]
   const category = notification.category ?? "system"
   const urgent = notification.priority === "urgent" || notification.urgent
   const unread = !notification.readAt
@@ -502,7 +582,7 @@ function NotificationRow({
 
       {/* Icon */}
       <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg", LEVEL_TINT[level])}>
-        <SourceIcon className="size-4" />
+        <NotificationSourceIcon icon={resolveNotificationSourceIcon(notification.source)} className="size-4" />
       </div>
 
       {/* Main content — takes the full remaining width */}
@@ -535,13 +615,13 @@ function NotificationRow({
         )}
 
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-400">
-          <span>{NOTIFICATION_SOURCE_LABEL[notification.source]}</span>
+          <span>{resolveNotificationSourceLabel(notification.source)}</span>
           <span aria-hidden>·</span>
           <span>{formatRelativeTime(notification.createdAt)}</span>
           {notification.target && (
             <>
               <span aria-hidden>·</span>
-              <span className="max-w-[220px] truncate">{getNotificationTargetLabel(notification)}</span>
+              <span className="max-w-[160px] truncate">{getNotificationTargetLabel(notification)}</span>
             </>
           )}
         </div>
@@ -625,16 +705,32 @@ function CategoryTag({ category, level }: { category: AppNotificationCategory; l
         level === "info" && "bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]",
       )}
     >
-      {NOTIFICATION_CATEGORY_LABEL[category]}
+      {resolveNotificationCategoryLabel(category)}
     </span>
   )
 }
 
-function ListEndMarker({ hasUnread }: { hasUnread: boolean }) {
+function ListEndMarker({
+  hasUnread,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+}: {
+  hasUnread: boolean
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
+}) {
   return (
     <div className="flex items-center justify-center gap-3 py-5 text-xs text-slate-400 dark:text-slate-500">
       <span className="h-px w-20 bg-[var(--agenthub-border)]" aria-hidden />
-      <span>{hasUnread ? "没有更多通知" : "今日通知已全部处理 ✓"}</span>
+      {hasMore ? (
+        <Button type="button" variant="outline" size="sm" onClick={onLoadMore} disabled={loadingMore}>
+          {loadingMore ? "正在加载…" : "加载更多"}
+        </Button>
+      ) : (
+        <span>{hasUnread ? "没有更多通知" : "今日通知已全部处理 ✓"}</span>
+      )}
       <span className="h-px w-20 bg-[var(--agenthub-border)]" aria-hidden />
     </div>
   )
@@ -651,15 +747,36 @@ function countForFilter(items: AppNotification[], filter: Filter): number {
   return 0
 }
 
+// Pill counts prefer the server aggregate; the local list is only a fallback
+// until the first page loads.
+export function countForFilterWithCounts(
+  counts: NotificationCategoryCounts | null,
+  fallbackItems: AppNotification[],
+  filter: Filter,
+): number {
+  if (!counts) return countForFilter(fallbackItems, filter)
+  if (filter === "all") return counts.all
+  if (filter === "unread") return counts.unread
+  return counts[filter]
+}
+
+// Appends a cursor page without duplicating rows that arrived through SSE
+// while the page was in flight.
+export function appendNotificationPage(existing: AppNotification[], page: AppNotification[]): AppNotification[] {
+  const seen = new Set(existing.map((item) => item.id))
+  const fresh = page.filter((item) => !seen.has(item.id))
+  return fresh.length === 0 ? existing : [...existing, ...fresh]
+}
+
 function getEmptyState(filter: Filter, query: string, totalCount: number): { title: string; description: string; action?: string } {
   if (query.trim()) {
-    return { title: "未找到相关通知", description: "换个关键词，或清除搜索与筛选条件后再查看。", action: "查看全部" }
+    return { title: "未找到相关通知", description: "换个关键词，或清除搜索与筛选条件后再查看。", action: "清除搜索与筛选" }
   }
   if (filter === "unread") {
-    return { title: "没有未读通知", description: "需要处理的新消息会显示在这里。", action: totalCount > 0 ? "查看全部" : undefined }
+    return { title: "没有未读通知", description: "需要处理的新消息会显示在这里。", action: totalCount > 0 ? "清除搜索与筛选" : undefined }
   }
   if (isCategory(filter)) {
-    return { title: `暂无${NOTIFICATION_CATEGORY_LABEL[filter]}通知`, description: "该分类下暂时没有需要处理的消息。", action: totalCount > 0 ? "查看全部" : undefined }
+    return { title: `暂无${NOTIFICATION_CATEGORY_LABEL[filter]}通知`, description: "该分类下暂时没有需要处理的消息。", action: totalCount > 0 ? "清除搜索与筛选" : undefined }
   }
   return { title: "暂无通知", description: "任务完成、异常告警和系统消息会出现在这里。" }
 }
@@ -679,7 +796,7 @@ function getSearchText(notification: AppNotification): string {
     .toLowerCase()
 }
 
-function formatRelativeTime(value: number): string {
+export function formatRelativeTime(value: number): string {
   const diff = Math.max(0, Date.now() - value)
   const minutes = Math.floor(diff / 60_000)
   if (minutes < 1) return "刚刚"
@@ -690,7 +807,7 @@ function formatRelativeTime(value: number): string {
   if (days === 1) return "昨天"
   if (days < 7) return `${days} 天前`
   const weeks = Math.floor(days / 7)
-  if (weeks < 4) return `${weeks} 周前`
+  if (weeks < 5) return `${weeks} 周前`
   const months = Math.floor(days / 30)
   return `${months} 个月前`
 }

@@ -231,13 +231,13 @@ function MemoryCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="icon-xs" variant="ghost" title={memory.pinned ? '取消 pin' : 'Pin'} onClick={onTogglePinned}>
+          <Button size="icon-xs" variant="ghost" title={memory.pinned ? '取消 pin' : 'Pin'} aria-label={memory.pinned ? '取消 pin' : 'Pin'} onClick={onTogglePinned}>
             {memory.pinned ? <PinOff className="size-3" /> : <Pin className="size-3" />}
           </Button>
-          <Button size="icon-xs" variant="ghost" title="编辑" onClick={onEdit}>
+          <Button size="icon-xs" variant="ghost" title="编辑" aria-label="编辑" onClick={onEdit}>
             <Pencil className="size-3" />
           </Button>
-          <Button size="icon-xs" variant="ghost" title="删除" onClick={onDelete}>
+          <Button size="icon-xs" variant="ghost" title="删除" aria-label="删除" onClick={onDelete}>
             <Trash2 className="size-3" />
           </Button>
         </div>

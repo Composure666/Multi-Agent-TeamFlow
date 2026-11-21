@@ -31,6 +31,7 @@ import type { AgentDraftRequest, AgentDraftResponse } from '@/shared/agent-build
 import type { ResolvedDesktopDownload } from '@/lib/site-links'
 import type { PromptEnhanceContext, PromptEnhanceResponse } from '@/shared/prompt-enhance'
 import type { AgentModality } from '@/lib/llm-shared'
+import type { NotificationCategoryCounts } from '@/server/notification-service'
 
 export interface ArtifactListItem {
   id: string
@@ -121,6 +122,8 @@ export interface AutomationStats {
   previousRunCount: number
   previousSuccessRate: number
   previousFailCount: number
+  /** 昨日同时段运行数（昨日 00:00 至昨日此刻，客户端时区），与 todayRunCount 配对比较 */
+  yesterdaySameTimeRunCount: number
 }
 
 export interface AutomationTrendPoint {
@@ -611,6 +614,8 @@ export async function fetchAutomationDashboard(range?: { days?: number; start?: 
   if (range?.days) params.set('days', String(range.days))
   if (range?.start) params.set('start', String(range.start))
   if (range?.end) params.set('end', String(range.end))
+  // 服务端容器通常是 UTC，必须把浏览器时区一起发过去，否则「今天」和按天分桶会差 8 小时
+  params.set('tzOffsetMinutes', String(new Date().getTimezoneOffset()))
   const query = params.toString() ? `?${params.toString()}` : ''
   const { dashboard } = await json<{ dashboard: AutomationDashboard }>(fetch(`/api/automations${query}`))
   return dashboard
@@ -756,21 +761,22 @@ export async function fetchAutomationRuns(automationId: string): Promise<Automat
 
 export interface NotificationListResult {
   notifications: AppNotification[]
-  nextCursor: number | null
+  nextCursor: string | null
   unreadCount: number
+  categoryCounts: NotificationCategoryCounts
 }
 
 export async function fetchNotifications(opts: {
   status?: 'all' | 'unread' | 'read'
   category?: AppNotificationCategory
   limit?: number
-  cursor?: number
+  cursor?: string
 } = {}): Promise<NotificationListResult> {
   const params = new URLSearchParams()
   if (opts.status) params.set('status', opts.status)
   if (opts.category) params.set('category', opts.category)
   if (opts.limit) params.set('limit', String(opts.limit))
-  if (opts.cursor) params.set('cursor', String(opts.cursor))
+  if (opts.cursor) params.set('cursor', opts.cursor)
   const qs = params.toString()
   return json<NotificationListResult>(fetch(`/api/notifications${qs ? `?${qs}` : ''}`))
 }
@@ -1711,6 +1717,8 @@ export async function fetchUsageSummary(range?: { start?: number; end?: number }
   const params = new URLSearchParams()
   if (range?.start) params.set('start', String(range.start))
   if (range?.end) params.set('end', String(range.end))
+  // 服务端容器通常是 UTC，必须把浏览器时区一起发过去，否则「今日」会差 8 小时
+  params.set('tzOffsetMinutes', String(new Date().getTimezoneOffset()))
   const query = params.toString() ? `?${params.toString()}` : ''
   return json<UsageSummary>(fetch(`/api/usage/summary${query}`))
 }

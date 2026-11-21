@@ -3,17 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { db, schema } from '@/db/client'
 import type { RunUsage } from '@/db/schema'
+import { resolveTzShift, startOfDay } from '@/server/analytics-service'
 
 /** GET /api/usage/summary —— 全局 token 用量聚合（今日 / 本周 / 全部 + per-agent / per-model / per-conversation top）。 */
 
 const DAY_MS = 24 * 60 * 60 * 1000
-
-/** 当日 00:00 —— 「今日」口径必须与数据概览页的「今日 X 次」一致，不能用滚动 24 小时。 */
-function startOfDay(value: number): number {
-  const date = new Date(value)
-  date.setHours(0, 0, 0, 0)
-  return date.getTime()
-}
 
 export interface UsageBucket {
   inputTokens: number
@@ -67,14 +61,21 @@ export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams
   const rangeStart = params.get('start') ? Number(params.get('start')) : undefined
   const rangeEnd = params.get('end') ? Number(params.get('end')) : undefined
+  const tzOffset = params.get('tzOffsetMinutes')
 
   const runs = await db.query.agentRuns.findMany({
     where: isNotNull(schema.agentRuns.usage),
   })
 
   const now = Date.now()
-  const todayStart = startOfDay(now)
-  const weekStart = now - 7 * DAY_MS
+  // 「今日」口径必须与数据概览页的「今日 X 次」一致：按客户端时区切分，不能用
+  // 服务端本地时区（容器为 UTC 时，UTC 午夜 = 北京时间 08:00，0–8 点的数据会被划到昨天）。
+  const tzShift = resolveTzShift(
+    tzOffset !== null && Number.isFinite(Number(tzOffset)) ? Number(tzOffset) : undefined,
+  )
+  const todayStart = startOfDay(now, tzShift)
+  // 「本周」= 今天 + 之前 6 个日历日（与数据概览 7 天口径一致），同样按客户端时区切分。
+  const weekStart = startOfDay(now - 6 * DAY_MS, tzShift)
 
   const today = empty()
   const week = empty()

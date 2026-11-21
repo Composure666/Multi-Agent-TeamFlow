@@ -54,7 +54,6 @@ export interface ResolvedMcpStdioServer {
 
 export interface McpServerHealthInput {
   status: McpCheckStatus
-  message: string
   toolCount: number | null
   checkedAt?: number
 }
@@ -138,9 +137,7 @@ export async function recordMcpServerHealth(id: string, input: McpServerHealthIn
     .set({
       lastCheckedAt: checkedAt,
       lastCheckStatus: input.status,
-      lastCheckMessage: input.message.slice(0, 500),
       lastToolCount: input.toolCount,
-      updatedAt: checkedAt,
     })
     .where(eq(schema.mcpServers.id, id))
 

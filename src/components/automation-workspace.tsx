@@ -6,6 +6,7 @@ import {
   ArrowUpDown,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Clock4,
@@ -30,14 +31,13 @@ import {
   Sparkles,
   Star,
   Trash2,
-  TrendingUp,
   User,
   Video,
   XIcon,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 
 import { mapAutomationRun } from '@/components/analytics-workspace'
 import {
@@ -59,13 +59,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { DIALOG_SIZE_CLASS } from '@/components/dialog-sizes'
-import { EmptyState, InlineError, PageHeader, PageShell } from '@/components/workbench-primitives'
+import { EmptyState, InlineError, KpiCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import { Meta } from '@/components/workbench-detail-primitives'
 import {
   AUTOMATION_TREND_RANGES,
@@ -94,47 +94,6 @@ import { useAgentList, useAppStore, useConversationList } from '@/stores/app-sto
 // ────────────────────────────────────────────────────────────────────────────
 // Constants & types
 // ────────────────────────────────────────────────────────────────────────────
-
-type StatPill = {
-  id: 'enabled' | 'today' | 'success' | 'failed'
-  label: string
-  icon: LucideIcon
-  tone: 'sky' | 'violet' | 'emerald' | 'rose'
-}
-
-const STAT_TILES: StatPill[] = [
-  { id: 'enabled', label: '启用任务', icon: Play, tone: 'sky' },
-  { id: 'today', label: '今日运行', icon: Activity, tone: 'violet' },
-  { id: 'success', label: '成功率', icon: CheckCircle2, tone: 'emerald' },
-  { id: 'failed', label: '异常任务', icon: CircleAlert, tone: 'rose' },
-]
-
-const TONE_CLASS: Record<StatPill['tone'], { wrap: string; chip: string; text: string; bar: string }> = {
-  sky: {
-    wrap: 'bg-sky-50 dark:bg-sky-500/10',
-    chip: 'bg-white/80 text-sky-700 dark:text-sky-300',
-    text: 'text-sky-600 dark:text-sky-300',
-    bar: 'bg-sky-500/30 dark:bg-sky-500/40',
-  },
-  violet: {
-    wrap: 'bg-violet-50 dark:bg-violet-500/10',
-    chip: 'bg-white/80 text-violet-700 dark:text-violet-300',
-    text: 'text-violet-600 dark:text-violet-300',
-    bar: 'bg-violet-500/30 dark:bg-violet-500/40',
-  },
-  emerald: {
-    wrap: 'bg-emerald-50 dark:bg-emerald-500/10',
-    chip: 'bg-white/80 text-emerald-700 dark:text-emerald-300',
-    text: 'text-emerald-600 dark:text-emerald-300',
-    bar: 'bg-emerald-500/30 dark:bg-emerald-500/40',
-  },
-  rose: {
-    wrap: 'bg-rose-50 dark:bg-rose-500/10',
-    chip: 'bg-white/80 text-rose-700 dark:text-rose-300',
-    text: 'text-rose-600 dark:text-rose-300',
-    bar: 'bg-rose-500/30 dark:bg-rose-500/40',
-  },
-}
 
 type TabKey = 'all' | 'enabled' | 'paused' | 'failed' | 'recent' | 'favorite'
 
@@ -376,7 +335,7 @@ function formatAbsoluteClock(value: number, nowMs: number): string {
   return target.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + clock
 }
 
-function formatSyncTime(value: number | null, nowMs: number): string {
+export function formatSyncTime(value: number | null, nowMs: number): string {
   if (value === null) return '尚未同步'
   const diff = Math.max(0, nowMs - value)
   const minutes = Math.round(diff / 60_000)
@@ -385,7 +344,17 @@ function formatSyncTime(value: number | null, nowMs: number): string {
   const hours = Math.round(minutes / 60)
   if (hours < 24) return `${hours} 小时前同步`
   const date = new Date(value)
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) + ' 同步'
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${month}-${day} ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 同步`
+}
+
+// 今日运行 delta 只比同一时刻点：今天 00:00 至今 vs 昨日 00:00 至昨日此刻
+export function computeTodayRunDelta(todayRunCount: number, yesterdaySameTimeRunCount: number): { delta: number; show: boolean } {
+  return {
+    delta: todayRunCount - yesterdaySameTimeRunCount,
+    show: todayRunCount > 0 || yesterdaySameTimeRunCount > 0,
+  }
 }
 
 function formatDateTime(value: number | null): string {
@@ -514,71 +483,6 @@ function RatioBar({ ratio, className }: { ratio: number; className: string }) {
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--agenthub-surface-muted)]" aria-hidden>
       <div className={cn('h-full rounded-full transition-all', className)} style={{ width: `${pct}%` }} />
-    </div>
-  )
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Dashboard tile (KPI with real trend visual + action)
-// ────────────────────────────────────────────────────────────────────────────
-
-function DashboardTile({
-  stat,
-  value,
-  delta,
-  deltaLabel,
-  hint,
-  onAction,
-  actionLabel,
-  children,
-}: {
-  stat: StatPill
-  value: string
-  delta: string | null
-  deltaLabel: string
-  hint: string
-  onAction?: () => void
-  actionLabel?: string
-  children?: ReactNode
-}) {
-  const Icon = stat.icon
-  const tone = TONE_CLASS[stat.tone]
-  return (
-    <div className={cn('agenthub-card group relative flex min-h-[128px] flex-col gap-3 p-4', tone.wrap)}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-xl', tone.chip)}>
-            <Icon className={cn('size-4', tone.text)} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{stat.label}</div>
-            <div className="mt-0.5 flex items-baseline gap-1.5">
-              <span className="text-xl font-semibold tracking-tight tabular-nums text-slate-950 dark:text-slate-50">{value}</span>
-              {delta && (
-                <span className={cn('inline-flex items-center gap-0.5 text-xs font-medium', delta.startsWith('-') ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
-                  <TrendingUp className={cn('size-3', delta.startsWith('-') && 'rotate-180')} />
-                  {delta}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-        {actionLabel && onAction && (
-          <button
-            type="button"
-            onClick={onAction}
-            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-white/90 px-2 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-[var(--agenthub-surface)] hover:text-[var(--agenthub-accent)] dark:text-slate-200 dark:hover:bg-white/10"
-          >
-            {actionLabel}
-            <ChevronRight className="size-3" />
-          </button>
-        )}
-      </div>
-      {children}
-      <div className="mt-auto flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-        <span>{hint}</span>
-        {delta && <span className="font-medium text-slate-600 dark:text-slate-300">{deltaLabel}</span>}
-      </div>
     </div>
   )
 }
@@ -719,7 +623,7 @@ function AutomationCard({
             </>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100">
           <button
             type="button"
             onClick={(e) => {
@@ -797,7 +701,7 @@ function AutomationRow({
         {tone.label}
       </span>
       <span className="hidden w-24 shrink-0 text-right text-xs text-slate-400 lg:block">{task.latestRun}</span>
-      <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100">
         <button
           type="button"
           onClick={(e) => {
@@ -838,31 +742,27 @@ function AutomationRow({
 
 const RUN_ROW_LIMIT = 4
 
-/* ── 面板内空态：图标 + 一句话 + 说明，与 EmptyState 同一视觉语言 ── */
-function MiniEmpty({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: LucideIcon
-  title: string
-  description?: string
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
-      <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-        <Icon className="size-5" />
-      </div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
-      {description && <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
-    </div>
-  )
+const TASK_PAGE_SIZE = 10
+
+/** 页码序列：首页 + 当前页附近 + 末页，中间用省略号（与数据概览 TaskTable 同款） */
+function buildPageNumbers(current: number, total: number): Array<number | '…'> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = new Set<number>([1, total, current, current - 1, current + 1])
+  const sorted = Array.from(pages).filter((p) => p >= 1 && p <= total).sort((a, b) => a - b)
+  const out: Array<number | '…'> = []
+  let prev = 0
+  for (const p of sorted) {
+    if (prev && p - prev > 1) out.push('…')
+    out.push(p)
+    prev = p
+  }
+  return out
 }
 
 function ActivityRunList({ runs, nowMs }: { runs: ReturnType<typeof mapAutomationRun>[]; nowMs: number }) {
   if (runs.length === 0) {
     return (
-      <MiniEmpty icon={Activity} title="暂无运行记录" description="任务运行后，记录会出现在这里。" />
+      <EmptyState compact icon={Activity} title="暂无运行记录" description="任务运行后，记录会出现在这里。" />
     )
   }
   const visible = runs.slice(0, RUN_ROW_LIMIT)
@@ -994,9 +894,9 @@ function DetailPanel({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="space-y-5 px-7 pb-6 pt-4">
+          <div className="space-y-5 px-4 pb-6 pt-4 sm:px-7">
             {/* 4 个 Meta — 分类 / 触发节奏 / 下次运行 / 最近运行 */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Meta label="分类 / Category" value={task.category.trim() || '—'} sublabel="用户自定义标签" />
               <Meta
                 label="触发节奏 / Cadence"
@@ -1196,7 +1096,7 @@ function DetailPanel({
                       onClick={() => setHistoryExpanded((v) => !v)}
                       className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                     >
-                      {historyExpanded ? '收起' : '查看全部'}
+                      {historyExpanded ? '收起' : '展开运行历史'}
                       <ChevronRight className={cn('size-3 transition-transform', historyExpanded && '-rotate-90')} />
                     </button>
                   )}
@@ -1266,7 +1166,7 @@ function DetailPanel({
                   )
                 })}
                 {!runHistoryLoading && runHistory.length === 0 && (
-                  <MiniEmpty icon={History} title="暂无运行历史" description="该任务运行后，历史记录会出现在这里。" />
+                  <EmptyState compact icon={History} title="暂无运行历史" description="该任务运行后，历史记录会出现在这里。" />
                 )}
               </div>
             </section>
@@ -1336,7 +1236,7 @@ function UpcomingList({
   )
   if (upcoming.length === 0) {
     return (
-      <MiniEmpty icon={Clock4} title="暂无即将执行的任务" description="启用定时任务后，下一次触发时间会出现在这里。" />
+      <EmptyState compact icon={Clock4} title="暂无即将执行的任务" description="启用定时任务后，下一次触发时间会出现在这里。" />
     )
   }
   return (
@@ -1502,7 +1402,7 @@ function TaskFormDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="space-y-6 px-7 pb-6 pt-4">
+          <div className="space-y-6 px-4 pb-6 pt-4 sm:px-7">
             {/* 错误提示条 — 窗口内展示（AI 优化失败 / 校验失败 / 保存失败） */}
             {dialogError && (
               <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
@@ -1528,7 +1428,7 @@ function TaskFormDialog({
                 </h3>
                 <span className="text-xs text-slate-400 dark:text-slate-500">必填 · 1 项</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block space-y-1.5">
                   <span className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
                     <span>标题 / Title</span>
@@ -1606,7 +1506,7 @@ function TaskFormDialog({
                 </h3>
                 <span className="text-xs text-slate-400 dark:text-slate-500">未指定则自动选择</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block space-y-1.5">
                   <span className="text-xs font-medium text-slate-700 dark:text-slate-300">目标 Agent</span>
                   <select value={form.agentId} onChange={(event) => onFormChange({ agentId: event.target.value })} className={cn(SELECT_CLASS, 'cursor-pointer')}>
@@ -1792,6 +1692,7 @@ export function AutomationWorkspace({
   const [sortKey, setSortKey] = useState<SortKey>('next')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchQuery, setSearchQuery] = useState('')
+  const [taskPage, setTaskPage] = useState(1)
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>()
     try {
@@ -1930,12 +1831,11 @@ export function AutomationWorkspace({
   const hasRunData = trendTotal > 0 || (dashboard?.stats?.todayRunCount ?? 0) > 0
   const recentFailCount = dashboard?.stats.failCount ?? 0
   const initialLoading = loading && !dashboard
-  // Trend-derived KPI inputs (today vs yesterday for the delta badge)
+  // Trend-derived KPI inputs (today vs yesterday-same-time for the delta badge)
   const trendValues = trend.map((point) => point.value)
-  const todayTrendRuns = trend.length > 0 ? trend[trend.length - 1].value : 0
-  const yesterdayTrendRuns = trend.length > 1 ? trend[trend.length - 2].value : 0
-  const todayDelta = todayTrendRuns - yesterdayTrendRuns
-  const showTodayDelta = trend.length > 1 && (todayTrendRuns > 0 || yesterdayTrendRuns > 0)
+  const todayRunCount = dashboard?.stats.todayRunCount ?? 0
+  const yesterdaySameTimeRunCount = dashboard?.stats.yesterdaySameTimeRunCount ?? 0
+  const { delta: todayDelta, show: showTodayDelta } = computeTodayRunDelta(todayRunCount, yesterdaySameTimeRunCount)
 
   // 环比：本周运行次数 vs 上一周期
   const prevRunCount = dashboard?.stats.previousRunCount ?? 0
@@ -2031,6 +1931,15 @@ export function AutomationWorkspace({
     }
     return list
   }, [filteredTasks, sortKey])
+
+  // 任务列表分页：10 条/页（数据概览 TaskTable 同款）；筛选/排序/搜索变化后回第一页
+  const taskTotalPages = Math.max(1, Math.ceil(displayTasks.length / TASK_PAGE_SIZE))
+  const taskCurrentPage = Math.min(taskPage, taskTotalPages)
+  const pagedTasks = displayTasks.slice((taskCurrentPage - 1) * TASK_PAGE_SIZE, taskCurrentPage * TASK_PAGE_SIZE)
+  // 任意条件变化时回到第一页
+  useEffect(() => {
+    setTaskPage(1)
+  }, [activeTab, sortKey, searchQuery, tasks.length])
 
   const openCreateDialog = () => {
     setForm(automationFormFromTask())
@@ -2191,6 +2100,7 @@ export function AutomationWorkspace({
         {/* Header — 仍在卡片内，迁为 PageHeader 变体 */}
         <PageHeader
           title="自动化"
+          icon={Zap}
           description="让 Agent 按计划自动执行任务，解放重复劳动，提升工作效率。"
           actions={
             <>
@@ -2216,46 +2126,69 @@ export function AutomationWorkspace({
 
             {/* Stat tiles — real KPI visuals: ratio bar / sparkline / ring */}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-              <DashboardTile
-                stat={STAT_TILES[0]}
+              <KpiCard
+                icon={Play}
+                label="启用任务"
                 value={initialLoading ? '—' : `${statValues.enabled} / ${tasks.length}`}
-                delta={null}
-                deltaLabel=""
+                tone="sky"
+                valueSize="xl"
+                iconSize="md"
+                chip="white"
+                valueBesideIcon
+                tintBackground
+                labelClassName="text-xs font-medium text-slate-500 dark:text-slate-400"
+                valueClassName="text-slate-950 dark:text-slate-50"
                 hint={`共 ${tasks.length} 个任务`}
-              >
-                <RatioBar ratio={tasks.length > 0 ? tabCounts.enabled / tasks.length : 0} className="bg-sky-500 dark:bg-sky-400" />
-              </DashboardTile>
-              <DashboardTile
-                stat={STAT_TILES[1]}
+                visual={<RatioBar ratio={tasks.length > 0 ? tabCounts.enabled / tasks.length : 0} className="bg-sky-500 dark:bg-sky-400" />}
+              />
+              <KpiCard
+                icon={Activity}
+                label="今日运行"
                 value={initialLoading ? '—' : statValues.today}
-                delta={showTodayDelta ? `${todayDelta > 0 ? '+' : ''}${todayDelta}` : null}
-                deltaLabel="较昨日"
+                tone="violet"
+                valueSize="xl"
+                iconSize="md"
+                chip="white"
+                valueBesideIcon
+                tintBackground
+                labelClassName="text-xs font-medium text-slate-500 dark:text-slate-400"
+                valueClassName="text-slate-950 dark:text-slate-50"
+                trend={{ kind: 'delta', text: showTodayDelta ? `${todayDelta > 0 ? '+' : ''}${todayDelta}` : null, label: '较昨日同时段' }}
                 hint={`近 7 天合计 ${trendTotal} 次`}
-                actionLabel="查看"
-                onAction={() => setActiveTab('recent')}
-              >
-                <TrendSparkline values={trendValues} stroke="stroke-violet-500 dark:stroke-violet-300" fill="fill-violet-500/15 dark:fill-violet-400/10" />
-              </DashboardTile>
-              <DashboardTile
-                stat={STAT_TILES[2]}
+                action={{ label: '查看', onClick: () => setActiveTab('recent') }}
+                visual={<TrendSparkline values={trendValues} stroke="stroke-violet-500 dark:stroke-violet-300" fill="fill-violet-500/15 dark:fill-violet-400/10" />}
+              />
+              <KpiCard
+                icon={CheckCircle2}
+                label="成功率"
                 value={initialLoading || !hasRunData ? '—' : statValues.success}
-                delta={null}
-                deltaLabel=""
+                tone="emerald"
+                valueSize="xl"
+                iconSize="md"
+                chip="white"
+                valueBesideIcon
+                tintBackground
+                labelClassName="text-xs font-medium text-slate-500 dark:text-slate-400"
+                valueClassName="text-slate-950 dark:text-slate-50"
                 hint={hasRunData ? '全部任务运行统计' : '暂无运行数据'}
-              >
-                <RateRing rate={dashboard?.stats.successRate ?? 0} invalid={!hasRunData || initialLoading} />
-              </DashboardTile>
-              <DashboardTile
-                stat={STAT_TILES[3]}
+                visual={<RateRing rate={dashboard?.stats.successRate ?? 0} invalid={!hasRunData || initialLoading} />}
+              />
+              <KpiCard
+                icon={CircleAlert}
+                label="异常任务"
                 value={initialLoading ? '—' : String(tabCounts.failed)}
-                delta={null}
-                deltaLabel=""
+                tone="rose"
+                valueSize="xl"
+                iconSize="md"
+                chip="white"
+                valueBesideIcon
+                tintBackground
+                labelClassName="text-xs font-medium text-slate-500 dark:text-slate-400"
+                valueClassName="text-slate-950 dark:text-slate-50"
                 hint={tabCounts.failed > 0 ? '失败或最近出错的任务' : '当前没有异常任务'}
-                actionLabel={tabCounts.failed > 0 ? '立即处理' : undefined}
-                onAction={() => setActiveTab('failed')}
-              >
-                <RatioBar ratio={tasks.length > 0 ? tabCounts.failed / tasks.length : 0} className="bg-rose-500 dark:bg-rose-400" />
-              </DashboardTile>
+                action={tabCounts.failed > 0 ? { label: '立即处理', onClick: () => setActiveTab('failed') } : undefined}
+                visual={<RatioBar ratio={tasks.length > 0 ? tabCounts.failed / tasks.length : 0} className="bg-rose-500 dark:bg-rose-400" />}
+              />
             </div>
 
             {/* Filters — row 1: search + sort + view toggle; row 2: category tabs */}
@@ -2276,11 +2209,13 @@ export function AutomationWorkspace({
                     {SORT_OPTIONS.find((option) => option.value === sortKey)?.label}
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[150px]">
+                    <DropdownMenuLabel>排序方式</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
                     {SORT_OPTIONS.map((option) => (
                       <DropdownMenuItem
                         key={option.value}
                         onClick={() => setSortKey(option.value)}
-                        className={cn(sortKey === option.value && 'text-[var(--agenthub-accent)]')}
+                        className={cn(sortKey === option.value && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
                       >
                         {option.label}
                       </DropdownMenuItem>
@@ -2353,7 +2288,7 @@ export function AutomationWorkspace({
             {/* Automation list — grid or compact rows */}
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {displayTasks.map((task) => (
+                {pagedTasks.map((task) => (
                   <AutomationCard
                     key={task.id}
                     task={task}
@@ -2372,7 +2307,7 @@ export function AutomationWorkspace({
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {displayTasks.map((task) => (
+                {pagedTasks.map((task) => (
                   <AutomationRow
                     key={task.id}
                     task={task}
@@ -2388,6 +2323,49 @@ export function AutomationWorkspace({
                 {initialLoading && Array.from({ length: 6 }, (_, index) => (
                   <div key={index} className="h-16 rounded-xl border border-[var(--agenthub-border)] bg-[var(--agenthub-surface-muted)]" />
                 ))}
+              </div>
+            )}
+            {/* 分页控件：独立成行，窄屏只留上一页/当前/下一页（数据概览 TaskTable 同款） */}
+            {!initialLoading && taskTotalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--agenthub-border)] px-5 py-3">
+                <span className="text-sm text-slate-400">共 {displayTasks.length} 条，第 {taskCurrentPage}/{taskTotalPages} 页</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTaskPage((p) => Math.max(1, p - 1))}
+                    disabled={taskCurrentPage <= 1}
+                    className="flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] px-2.5 text-sm text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-3.5" />上一页
+                  </button>
+                  <span className="hidden items-center gap-1 sm:flex">
+                    {buildPageNumbers(taskCurrentPage, taskTotalPages).map((p, i) =>
+                      p === '…' ? (
+                        <span key={`gap-${i}`} className="px-1 text-sm text-slate-400">…</span>
+                      ) : (
+                        <button
+                          key={`page-${p}`}
+                          type="button"
+                          onClick={() => setTaskPage(p as number)}
+                          className={cn(
+                            'flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition',
+                            p === taskCurrentPage ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)]',
+                          )}
+                        >
+                          {p}
+                        </button>
+                      ),
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTaskPage((p) => Math.min(taskTotalPages, p + 1))}
+                    disabled={taskCurrentPage >= taskTotalPages}
+                    className="flex h-7 items-center gap-1 rounded-md border border-[var(--agenthub-border)] px-2.5 text-sm text-slate-600 transition hover:bg-[var(--agenthub-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    下一页<ChevronRight className="size-3.5" />
+                  </button>
+                </div>
               </div>
             )}
             {!initialLoading && displayTasks.length === 0 && (
@@ -2426,7 +2404,7 @@ export function AutomationWorkspace({
                     }}
                     className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                   >
-                    查看全部
+                    查看全部记录
                     <ChevronRight className="size-3" />
                   </button>
                 </div>
@@ -2442,16 +2420,27 @@ export function AutomationWorkspace({
                     <h2 className="font-heading text-sm font-semibold text-slate-950 dark:text-slate-50">运行概览</h2>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">最近 {trendRange} 天运行趋势</p>
                   </div>
-                  <select
-                    value={trendRange}
-                    onChange={(event) => changeTrendRange(Number(event.target.value) as AutomationTrendRange)}
-                    aria-label="趋势时间范围"
-                    className="h-7 cursor-pointer rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 text-xs font-medium text-slate-500 transition hover:border-[var(--agenthub-accent-border)] hover:text-slate-700 dark:text-slate-300"
-                  >
-                    {AUTOMATION_TREND_RANGES.map((range) => (
-                      <option key={range} value={range}>最近 {range} 天</option>
-                    ))}
-                  </select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      aria-label="趋势时间范围"
+                      className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-2 text-xs font-medium text-slate-500 transition hover:border-[var(--agenthub-accent-border)] hover:text-slate-700 dark:text-slate-300"
+                    >
+                      最近 {trendRange} 天
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[150px]">
+                      <DropdownMenuLabel>趋势时间范围</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {AUTOMATION_TREND_RANGES.map((range) => (
+                        <DropdownMenuItem
+                          key={range}
+                          onClick={() => changeTrendRange(range)}
+                          className={cn(trendRange === range && 'bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]')}
+                        >
+                          最近 {range} 天
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <div className="mt-3">
                   <TrendAreaChart
@@ -2481,7 +2470,7 @@ export function AutomationWorkspace({
                       </span>
                       {hasRunData ? (
                         <span className={cn('text-xs', successRateDelta > 0 ? 'text-emerald-500' : successRateDelta < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400')}>
-                          {successRateDelta > 0 ? `↑ ${successRateDelta}%` : successRateDelta < 0 ? `↓ ${Math.abs(successRateDelta)}%` : '持平'}
+                          {successRateDelta > 0 ? `↑ ${successRateDelta} 个百分点` : successRateDelta < 0 ? `↓ ${Math.abs(successRateDelta)} 个百分点` : '持平'}
                         </span>
                       ) : (
                         <span className="text-xs text-slate-400">暂无数据</span>
@@ -2519,7 +2508,7 @@ export function AutomationWorkspace({
                     }}
                     className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--agenthub-accent)] hover:underline"
                   >
-                    查看全部
+                    查看全部任务
                     <ChevronRight className="size-3" />
                   </button>
                 </div>

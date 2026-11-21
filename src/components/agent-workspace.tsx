@@ -168,6 +168,7 @@ export function AgentWorkspace({
   const [unifiedCreateOpen, setUnifiedCreateOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<AgentRow | undefined>(undefined)
   const [startingPresetId, setStartingPresetId] = useState<string | null>(null)
+  const [startingConversationId, setStartingConversationId] = useState<string | null>(null)
   const [deleteTargetAgentId, setDeleteTargetAgentId] = useState<string | null>(null)
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [agentFeedback, setAgentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -298,12 +299,16 @@ export function AgentWorkspace({
       onOpenConversations()
     } catch (err) {
       console.error('[AgentWorkspace] start preset conversation failed', err)
+      setAgentFeedback({ type: 'error', message: '开始对话失败，请稍后重试。' })
     } finally {
       setStartingPresetId(null)
     }
   }
 
   const startConversation = async (agent: AgentRow) => {
+    if (startingConversationId) return
+    setStartingConversationId(`agent:${agent.id}`)
+    setAgentFeedback(null)
     try {
       const conv = await createConversation({ mode: 'single', agentIds: [agent.id] })
       upsertConversation(conv)
@@ -311,6 +316,9 @@ export function AgentWorkspace({
       onOpenConversations()
     } catch (err) {
       console.error('[AgentWorkspace] start conversation failed', err)
+      setAgentFeedback({ type: 'error', message: '开始对话失败，请稍后重试。' })
+    } finally {
+      setStartingConversationId(null)
     }
   }
 
@@ -327,18 +335,28 @@ export function AgentWorkspace({
       onOpenConversations()
     } catch (err) {
       console.error('[AgentWorkspace] start team conversation failed', err)
+      setAgentFeedback({ type: 'error', message: '开始团队对话失败，请稍后重试。' })
     }
   }
 
   /** 只知道 teamId 时的入口（创建团队成功后直接开聊）。 */
   const startTeamConversationById = async (teamId: string) => {
+    if (startingConversationId) return
+    setStartingConversationId(`team:${teamId}`)
+    setAgentFeedback(null)
     try {
       const res = await fetch(`/api/teams/${teamId}`)
       const data = (await res.json()) as { team?: TeamWithMembers }
-      if (!data.team) return
+      if (!data.team) {
+        setAgentFeedback({ type: 'error', message: '未找到该团队，请刷新后重试。' })
+        return
+      }
       await startTeamConversation(data.team)
     } catch (err) {
       console.error('[AgentWorkspace] start team conversation by id failed', err)
+      setAgentFeedback({ type: 'error', message: '开始团队对话失败，请稍后重试。' })
+    } finally {
+      setStartingConversationId(null)
     }
   }
 
@@ -465,6 +483,7 @@ export function AgentWorkspace({
     <div ref={agentWorkspaceScrollRef} className="h-full min-h-0 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <PageShell className="h-auto overflow-y-visible" contentClassName="w-full max-w-none">
         <PageHeader
+          icon={Bot}
           title="Agent 库"
           description="发现、配置和复用你的协作 Agent"
           actions={
@@ -525,6 +544,17 @@ export function AgentWorkspace({
             </>
           }
         />
+        {agentFeedback && (
+          <div className={cn(
+            'flex items-center justify-between rounded-lg border px-3 py-2 text-xs',
+            agentFeedback.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-600',
+          )}>
+            <span>{agentFeedback.message}</span>
+            <button onClick={() => setAgentFeedback(null)} className="ml-2 opacity-60 hover:opacity-100">✕</button>
+          </div>
+        )}
         <div className="flex min-w-0 items-start gap-3">
         <section className="agenthub-card-container min-w-0 flex-1">
         <div className="border-b border-[var(--agenthub-border)] p-4">
@@ -571,7 +601,7 @@ export function AgentWorkspace({
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-slate-100">精选 Agent</h2>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">选择一个预设 Agent，直接开始对话 · 共 {filteredPresets.length} 个，滚动加载，每批 {FEATURED_AGENT_PAGE_SIZE} 条</p>
                   </div>
                 </div>
                 <div className="min-h-[280px] pr-1">
@@ -631,17 +661,6 @@ export function AgentWorkspace({
                     ))}
                   </div>
                 </div>
-                {agentFeedback && (
-                  <div className={cn(
-                    'mb-3 flex items-center justify-between rounded-lg border px-3 py-2 text-xs',
-                    agentFeedback.type === 'success'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-red-200 bg-red-50 text-red-600',
-                  )}>
-                    <span>{agentFeedback.message}</span>
-                    <button onClick={() => setAgentFeedback(null)} className="ml-2 opacity-60 hover:opacity-100">✕</button>
-                  </div>
-                )}
                 {(mineFilter === 'all' || mineFilter === 'team') && teams.length > 0 && (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
@@ -1082,11 +1101,11 @@ function FeaturedPresetDetailPanel({
             </DetailSection>
 
             <DetailSection icon={<History className="size-4" />} title="最近会话">
-              <HistoryRow icon={<MessageCircle className="size-4" />} title="精选 Agent 可直接开始" description="点击开始对话后会自动进入单 Agent 会话" time="刚刚" />
+              <HistoryRow icon={<MessageCircle className="size-4" />} title="精选 Agent 可直接开始" description="点击开始对话后会自动进入单 Agent 会话" time="—" />
             </DetailSection>
 
             <DetailSection icon={<FileCode2 className="size-4" />} title="最近产物">
-              <HistoryRow icon={<FileText className="size-4" />} title={`${getPresetDisplayName(preset)} preset`} description="开始对话时会复用或创建对应 Agent 配置" time="预设" />
+              <HistoryRow icon={<FileText className="size-4" />} title={`${getPresetDisplayName(preset)} preset`} description="开始对话时会复用或创建对应 Agent 配置" time="—" />
             </DetailSection>
         </div>
       </div>
@@ -1346,11 +1365,11 @@ function AgentDetailPanel({
             </DetailSection>
 
             <DetailSection icon={<History className="size-4" />} title="最近会话">
-              <HistoryRow icon={<MessageCircle className="size-4" />} title="新建单聊入口" description="已接入原有会话创建和消息流" time="可用" />
+              <HistoryRow icon={<MessageCircle className="size-4" />} title="新建单聊入口" description="已接入原有会话创建和消息流" time="—" />
             </DetailSection>
 
             <DetailSection icon={<FileCode2 className="size-4" />} title="最近产物">
-              <HistoryRow icon={<FileText className="size-4" />} title="产物库联动" description="按 Agent 过滤待后端聚合字段补充" time="已接入" />
+              <HistoryRow icon={<FileText className="size-4" />} title="产物库联动" description="按 Agent 过滤待后端聚合字段补充" time="—" />
             </DetailSection>
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, ChevronDown, FilePenLine, Layers, Menu, MessagesSquare, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, FilePenLine, Layers, Menu, MessagesSquare, Plus, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { AddAgentDialog } from '@/components/add-agent-dialog'
@@ -48,6 +48,7 @@ export function ChatPanel() {
   const closeFile = useAppStore((s) => s.closeFile)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const setMobileSidebarOpen = useAppStore((s) => s.setMobileSidebarOpen)
+  const setWorkbenchView = useAppStore((s) => s.setWorkbenchView)
   const setPendingDispatchPlansForConversation = useAppStore(
     (s) => s.setPendingDispatchPlansForConversation,
   )
@@ -101,6 +102,16 @@ export function ChatPanel() {
               从左侧选择一个会话继续聊天，或点击「+ 新建任务」选择一个或多个 Agent 开始
             </p>
           </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button type="button" variant="outline" onClick={() => setMobileSidebarOpen(true)}>
+              <Menu className="size-3.5" />
+              打开会话列表
+            </Button>
+            <Button type="button" onClick={() => setWorkbenchView('new-task')}>
+              <Plus className="size-3.5" />
+              新建任务
+            </Button>
+          </div>
         </div>
       </main>
     )
@@ -136,7 +147,7 @@ export function ChatPanel() {
                 agents={participantAgents}
                 total={participantCount}
               >
-                <span className="min-w-0 truncate text-base font-semibold text-slate-900">
+                <span title={conv.title} className="min-w-0 truncate text-base font-semibold text-slate-900">
                   {conv.title}
                 </span>
                 <ChevronDown className="size-3.5 shrink-0 text-slate-400 transition group-hover:text-slate-600" />
@@ -151,7 +162,7 @@ export function ChatPanel() {
                 </span>
               )}
             </div>
-            <div className="mt-0.5 min-w-0 truncate text-xs text-slate-500">
+            <div className="mt-0.5 hidden min-w-0 truncate text-xs text-slate-500 sm:block">
               {conv.mode === 'single' ? '单聊' : '群聊'} · {participantCount} 位 Agent
             </div>
           </div>
@@ -328,6 +339,7 @@ function TabButton({
           }}
           className="rounded p-0.5 opacity-50 transition hover:bg-slate-100 hover:opacity-100"
           title="关闭"
+          aria-label="关闭"
         >
           <X className="size-3" />
         </button>

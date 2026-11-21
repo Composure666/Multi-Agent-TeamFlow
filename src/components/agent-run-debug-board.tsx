@@ -828,6 +828,19 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
 
   return (
     <PageShell className="flex flex-col bg-[var(--agenthub-surface-muted)]" contentClassName="w-full max-w-none flex-1 min-h-0">
+      {/* 全屏时移动顶栏已隐藏，固定退出条是唯一带文字的出口。 */}
+      {focusMode && (
+        <button
+          type="button"
+          onClick={toggleFocusMode}
+          title="退出全屏"
+          aria-label="退出全屏"
+          className="fixed left-3 top-3 z-50 inline-flex items-center gap-1.5 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2 text-xs font-medium text-slate-700 shadow-lg dark:text-slate-200"
+        >
+          <Minimize2 className="size-3.5" />
+          退出全屏
+        </button>
+      )}
       <PageHeader
         icon={GitBranch}
         title={headerTitle}
@@ -924,7 +937,7 @@ export function AgentRunDebugBoard({ onFocusChange }: { onFocusChange?: (focused
             >
               <RefreshCw className={cn('size-3.5', loadingRuns && 'animate-spin')} />
             </Button>
-            <Button type="button" size="icon-sm" variant="outline" title="复制 Run ID" aria-label="复制 Run ID" disabled={!selectedRun} onClick={() => selectedRun && void navigator.clipboard?.writeText(selectedRun.id)}>
+            <Button type="button" size="icon-sm" variant="outline" title={selectedRun ? '复制 Run ID' : '复制 Run ID（请先选择一个 Run）'} aria-label="复制 Run ID" disabled={!selectedRun} onClick={() => selectedRun && void navigator.clipboard?.writeText(selectedRun.id)}>
               <Copy className="size-3.5" />
             </Button>
             <Button
@@ -1327,6 +1340,15 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
   const muted = data.status === 'pending' || data.status === 'cancelled'
   const focusMuted = data.emphasis === 'muted'
   const isRunning = data.status === 'running'
+  // G1-D4：展开态的步骤 + 工具区。展开时不直接堆高卡片（4 步 + 工具芯片
+  // 实测约 461px，会压住下一行），而是放进定高滚动区，见下方 agent 分支。
+  const agentStepsAndTools =
+    data.kind === 'agent' && data.agent ? (
+      <>
+        <NodeAgentCurrentStep steps={data.agent.steps} fallbackItems={data.agent.taskTitles} status={data.status} expanded={expanded} />
+        <NodeToolSummary tools={data.agent.toolNames} toolCount={data.agent.toolCallCount} expanded={expanded} />
+      </>
+    ) : null
   return (
     <>
       <Handle type="target" position={Position.Top} className="!size-2 !border-0 !bg-slate-300" />
@@ -1396,7 +1418,7 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
           <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--agenthub-border)] pt-3 text-xs">
             <NodeMetric label="耗时" value={data.run?.durationMs === null || data.run?.durationMs === undefined ? '-' : formatDurationMs(data.run.durationMs)} />
             <NodeMetric label="Token" value={data.run?.tokenTotal === null || data.run?.tokenTotal === undefined ? '-' : formatCompactNumber(data.run.tokenTotal)} />
-            <NodeMetric label="模型" value={compactModelName(data.run?.modelId ?? '-')} />
+            <NodeMetric label="模型" value={compactModelName(data.run?.modelId ?? '-')} className="col-span-2" />
           </div>
         )}
 
@@ -1407,8 +1429,21 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
               <NodeMetric label="Token" value={data.agent.tokenTotal === null ? '-' : formatCompactNumber(data.agent.tokenTotal)} />
               <NodeMetric label="工具" value={String(data.agent.toolCallCount)} />
             </div>
-            <NodeAgentCurrentStep steps={data.agent.steps} fallbackItems={data.agent.taskTitles} status={data.status} expanded={expanded} />
-            <NodeToolSummary tools={data.agent.toolNames} toolCount={data.agent.toolCallCount} expanded={expanded} />
+            {expanded ? (
+              // G1-D4：展开态步骤 + 工具芯片放进定高滚动区，不直接堆高卡片。
+              // 行距按折叠实高留白（agent 行 250px）：卡片头 + 指标约 130px，
+              // 滚动区封顶 92px，展开态卡片总高约 222px < 250px，不再压住
+              // 下一行；步骤与工具全部保留，区内滚动查看。92px 的取数：
+              // 边按 smoothstep 走（@xyflow offset 20px），卡片底边到下行
+              // 顶边须留 > 20px，222px 卡片留约 28px，边的水平段才不会
+              // 落进下一行卡片。nodrag/nowheel 让区内滚动不触发节点
+              // 拖拽与画布缩放。
+              <div className="nodrag nowheel mt-3 max-h-[92px] overflow-y-auto">
+                {agentStepsAndTools}
+              </div>
+            ) : (
+              agentStepsAndTools
+            )}
           </>
         )}
 
@@ -1436,9 +1471,9 @@ function DebuggerNode({ data, selected }: NodeProps<AgentRunDebuggerNode>) {
   )
 }
 
-function NodeMetric({ label, value }: { label: string; value: string }) {
+function NodeMetric({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className="min-w-0">
+    <div className={cn('min-w-0', className)}>
       <div className="truncate text-slate-400">{label}</div>
       <div className="mt-0.5 truncate font-semibold text-slate-800 dark:text-slate-100">{value}</div>
     </div>
@@ -1883,6 +1918,11 @@ function ToolInspectorSummary({
   )
 }
 
+export function currentTaskProgress(task: AgentRunInspectorTask): number {
+  if (task.stepTotal > 0) return Math.round((task.stepIndex / task.stepTotal) * 100)
+  return task.status === 'completed' ? 100 : 0
+}
+
 function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
   if (!task) {
     return (
@@ -1895,7 +1935,7 @@ function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
     )
   }
 
-  const progress = task.stepTotal > 0 ? Math.round((task.stepIndex / task.stepTotal) * 100) : task.status === 'completed' ? 100 : 20
+  const progress = currentTaskProgress(task)
   return (
     <section className="rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)] px-3 py-2">
       <div className="flex items-center justify-between gap-2 text-xs">
@@ -1914,7 +1954,7 @@ function CurrentTaskSummary({ task }: { task: AgentRunInspectorTask | null }) {
             'h-full rounded-full',
             task.status === 'completed' ? 'bg-emerald-500' : task.status === 'running' ? 'bg-[var(--agenthub-accent)]' : task.status === 'failed' ? 'bg-rose-500' : 'bg-amber-400',
           )}
-          style={{ width: `${Math.min(100, Math.max(8, progress))}%` }}
+          style={{ width: `${Math.min(100, progress)}%` }}
         />
       </div>
     </section>
@@ -2798,7 +2838,7 @@ function ToolTracePanel({
                 onClick={() => onSelectToolCall?.(item.callId)}
               >
                 <span className="font-mono text-xs text-slate-400">{String(index + 1).padStart(2, '0')}</span>
-                <span className="truncate font-mono text-xs text-slate-700 dark:text-slate-200" title={item.toolName}>
+                <span className="line-clamp-2 break-all font-mono text-xs text-slate-700 dark:text-slate-200" title={item.toolName}>
                   {item.toolName}
                 </span>
                 <span className="shrink-0 font-mono text-xs text-slate-400">
@@ -3315,7 +3355,7 @@ function ConversationRail({
             const selected = conversation.id === selectedId
             const currentRuns = selected ? selectedConversationRuns : []
             const runCount = currentRuns.length || conversation.runCount || 0
-            const latestRunAt = currentRuns[0]?.startedAt ?? conversation.latestRunAt ?? conversation.updatedAt
+            const latestRunAt = currentRuns[0]?.startedAt ?? conversation.latestRunAt ?? null
             const latestRunStatus = currentRuns[0]?.status ?? conversation.latestRunStatus ?? null
             return (
               <button
@@ -3336,7 +3376,7 @@ function ConversationRail({
                 </div>
                 <div className="mt-1 flex items-center gap-2 pl-4 text-xs text-slate-500">
                   <span className="whitespace-nowrap">{latestRunStatus ? statusLabel(latestRunStatus) : '暂无运行'}</span>
-                  <span className="ml-auto shrink-0 whitespace-nowrap">{relativeTime(latestRunAt)}</span>
+                  <span className="ml-auto shrink-0 whitespace-nowrap">{latestRunAt === null ? '暂无运行' : relativeTime(latestRunAt)}</span>
                 </div>
                 {selected && (
                   // 允许整项换行、不允许词内断行：窄栏下 "N 轮消息关联 + Run #…" 一行放不下时，
@@ -3581,14 +3621,14 @@ function numberPayload(event: AgentRunDebugEventRecord, key: string): number | n
   return typeof value === 'number' ? value : null
 }
 
-function relativeTime(value: number): string {
+export function relativeTime(value: number): string {
   const diff = Math.max(0, Date.now() - value)
   const minutes = Math.floor(diff / 60000)
   if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟`
+  if (minutes < 60) return `${minutes} 分钟前`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时`
-  return `${Math.floor(hours / 24)} 天`
+  if (hours < 24) return `${hours} 小时前`
+  return `${Math.floor(hours / 24)} 天前`
 }
 
 function formatRunDuration(run: Pick<AgentRunDebugListItem, 'startedAt' | 'finishedAt'>): string {

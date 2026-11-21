@@ -17,13 +17,11 @@ import {
   Coins,
   Download,
   Filter,
-  Inbox,
   Loader2,
   LogIn,
   MoreHorizontal,
   RefreshCw,
   Search,
-  TrendingUp,
   Workflow,
 } from 'lucide-react'
 
@@ -38,7 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { EmptyState, InlineError, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
+import { EmptyState, InlineError, KpiCard, PageCard, PageHeader, PageShell } from '@/components/workbench-primitives'
 import {
   fetchAutomationDashboard,
   fetchRunAnalytics,
@@ -206,6 +204,11 @@ export function AnalyticsWorkspace() {
   const statusDistribution = useMemo(() => analytics?.statusDistribution ?? [], [analytics])
   const successRate = stats?.successRate ?? 0
   const totalRuns = stats?.total ?? 0
+  // 环形图占比用最大余数法取整到 0.1%，弧线与图例共用同一份份额，总和恒为 100.0%（D-P2-3）
+  const distributionShares = useMemo(
+    () => largestRemainderShares(agentDistribution.map((item) => (totalRuns > 0 ? item.count / totalRuns : 0))),
+    [agentDistribution, totalRuns],
+  )
   const todayRuns = stats?.todayCount ?? 0
   const allTimeRuns = stats?.allTimeTotal ?? 0
   const selectedTokens = usageData?.selected.totalTokens ?? 0
@@ -219,7 +222,8 @@ export function AnalyticsWorkspace() {
   const runsTrend = !isAllTime && stats && stats.prevTotal > 0
     ? Math.round(((stats.total - stats.prevTotal) / stats.prevTotal) * 100)
     : null
-  const tokensTrend = prevSelectedTokens > 0 ? Math.round(((selectedTokens - prevSelectedTokens) / prevSelectedTokens) * 1000) / 10 : 0
+  const tokensTrend = computeTokensTrend(selectedTokens, prevSelectedTokens)
+  const successTone = (stats?.failed ?? 0) > 0 ? 'rose' : 'emerald'
 
   const openRunTarget = useCallback((run: AnalyticsRunRecord) => {
     openRunBoardTarget({ conversationId: run.conversationId, runId: run.id })
@@ -258,6 +262,7 @@ export function AnalyticsWorkspace() {
       exportedAt: new Date().toISOString(),
       dateRange: { preset: datePreset, start: dateStart, end: dateEnd },
       source: 'agent_runs (真实运行记录)',
+      ...(analytics?.truncated === true ? { truncated: true } : {}),
       summary: {
         totalRuns, todayRuns, allTimeRuns,
         successRate, success: stats?.success ?? 0, running: stats?.running ?? 0,
@@ -283,7 +288,7 @@ export function AnalyticsWorkspace() {
     const a = document.createElement('a')
     a.href = url; a.download = `agenthub-analytics-${dateStart}_${dateEnd}.json`; a.click()
     URL.revokeObjectURL(url)
-  }, [datePreset, dateStart, dateEnd, totalRuns, todayRuns, allTimeRuns, successRate, stats, selectedTokens, todayTokens, allTokens, automationCount, usageData, dashboard, trend, agentDistribution, statusDistribution, runs])
+  }, [datePreset, dateStart, dateEnd, totalRuns, todayRuns, allTimeRuns, successRate, stats, selectedTokens, todayTokens, allTokens, automationCount, usageData, dashboard, trend, agentDistribution, statusDistribution, runs, analytics?.truncated])
 
   const rangeLabel = isAllTime
     ? '全部时间'
@@ -292,6 +297,7 @@ export function AnalyticsWorkspace() {
   return (
     <PageShell contentClassName="w-full max-w-none">
       <PageHeader
+        icon={BarChart3}
         title="数据概览"
         description="多维度了解 Agent 的运行情况、任务效率与资源使用"
         actions={
@@ -356,45 +362,47 @@ export function AnalyticsWorkspace() {
               icon={Bot}
               label="Agent 运行数"
               value={`${totalRuns}`}
-              trend={runsTrend}
-              caption={isAllTime ? '全部时间累计' : `较上周期 ${stats?.prevTotal ?? 0}`}
-              subCaption={`今日 ${todayRuns} 次 · 全部 ${allTimeRuns} 次`}
-              sparkline={trend.map((p) => p.value)}
               tone="blue"
+              labelClassName="text-sm font-medium text-slate-700"
+              valueClassName="text-slate-900"
+              trend={{ kind: 'row', value: runsTrend, text: runsTrend === null ? undefined : formatTrendPercent(runsTrend), caption: isAllTime ? '全部时间累计' : `较上周期 ${stats?.prevTotal ?? 0}` }}
+              sparkline={{ data: trend.map((p) => p.value), color: sparkColorForTone('blue') }}
+              hint={`今日 ${todayRuns} 次 · 全部 ${allTimeRuns} 次`}
             />
             <KpiCard
               icon={Coins}
               label="Token 用量"
               value={formatTok(selectedTokens)}
-              trend={tokensTrend}
-              caption={`较上周期 ${formatTok(prevSelectedTokens)}`}
-              subCaption={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`}
-              sparkline={trend.map((p) => p.value)}
               tone="purple"
+              labelClassName="text-sm font-medium text-slate-700"
+              valueClassName="text-slate-900"
+              trend={{ kind: 'row', value: tokensTrend, text: tokensTrend === null ? undefined : formatTrendPercent(tokensTrend), caption: `较上周期 ${formatTok(prevSelectedTokens)}` }}
+              hint={`今日 ${formatTok(todayTokens)} · 全部 ${formatTok(allTokens)}`}
             />
             <KpiCard
               icon={Workflow}
               label="自动化任务"
               value={`${automationCount}`}
-              trend={null}
-              caption={`${activeAutomationCount} 个任务进行中`}
-              subCaption={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`}
-              sparkline={trend.map((p) => p.completed)}
               tone="emerald"
+              labelClassName="text-sm font-medium text-slate-700"
+              valueClassName="text-slate-900"
+              trend={{ kind: 'row', value: null, caption: `${activeAutomationCount} 个任务进行中` }}
+              hint={`启用 ${dashboard?.automations.filter((a) => a.status === 'enabled').length ?? 0} · 运行中 ${dashboard?.automations.filter((a) => a.status === 'running').length ?? 0}`}
             />
             <KpiCard
               icon={CheckCircle2}
               label="任务成功率"
               value={`${successRate}%`}
-              trend={null}
-              caption={`成功 ${stats?.success ?? 0} / 已结束 ${(stats?.success ?? 0) + (stats?.failed ?? 0) + (stats?.aborted ?? 0)}`}
-              subCaption={
+              tone={successTone}
+              labelClassName="text-sm font-medium text-slate-700"
+              valueClassName="text-slate-900"
+              trend={{ kind: 'row', value: null, caption: `成功 ${stats?.success ?? 0} / 已结束 ${(stats?.success ?? 0) + (stats?.failed ?? 0) + (stats?.aborted ?? 0)}` }}
+              sparkline={{ data: trend.map((p) => (p.value > 0 ? Math.round((p.completed / p.value) * 100) : 0)), color: sparkColorForTone(successTone) }}
+              hint={
                 (stats?.failed ?? 0) + (stats?.aborted ?? 0) > 0
                   ? `失败 ${stats?.failed ?? 0} · 中止 ${stats?.aborted ?? 0} · 平均耗时 ${formatDuration(stats?.avgDurationMs ?? null)}`
                   : `全部成功 · 平均耗时 ${formatDuration(stats?.avgDurationMs ?? null)}`
               }
-              sparkline={trend.map((p) => (p.value > 0 ? Math.round((p.completed / p.value) * 100) : 0))}
-              tone={(stats?.failed ?? 0) > 0 ? 'rose' : 'emerald'}
             />
           </div>
 
@@ -416,7 +424,7 @@ export function AnalyticsWorkspace() {
                 <span className="flex items-center gap-2"><span className="inline-block size-2 rounded-full bg-[var(--agenthub-success)]" />成功次数</span>
               </div>
               {trend.length === 0 ? (
-                <PanelEmpty icon={BarChart3} title="该时间段内没有运行记录" description="调整时间范围后，运行趋势会出现在这里。" />
+                <EmptyState compact icon={BarChart3} title="该时间段内没有运行记录" description="调整时间范围后，运行趋势会出现在这里。" />
               ) : (
                 <TrendChart data={trend} maxTrend={maxTrend} hoveredBar={hoveredBar} hoveredLine={hoveredLine} onHoverBar={setHoveredBar} onHoverLine={setHoveredLine} />
               )}
@@ -425,7 +433,7 @@ export function AnalyticsWorkspace() {
             {/* Middle: Agent Distribution Donut */}
             <div className="agenthub-card p-5">
               <div className="flex items-center justify-between"><h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">Agent 运行分布</h2></div>
-              <DonutChart items={agentDistribution} total={totalRuns} />
+              <DonutChart items={agentDistribution} total={totalRuns} shares={distributionShares} />
               <div className="mt-3 space-y-2">
                 {agentDistribution.map((item, i) => (
                   <div key={`dist-${item.label}-${i}`} className="flex items-center justify-between text-sm">
@@ -433,10 +441,10 @@ export function AnalyticsWorkspace() {
                       <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                       <span className="truncate text-slate-600">{item.label}</span>
                     </span>
-                    <span className="shrink-0 text-slate-500">{item.value}% <span className="ml-1.5 text-slate-400">{item.count}</span></span>
+                    <span className="shrink-0 text-slate-500">{distributionShares[i] ?? item.value}% <span className="ml-1.5 text-slate-400">{item.count}</span></span>
                   </div>
                 ))}
-                {agentDistribution.length === 0 && <PanelEmpty title="暂无分布数据" description="有 Agent 运行记录后，这里会显示各 Agent 的占比。" />}
+                {agentDistribution.length === 0 && <EmptyState compact title="暂无分布数据" description="有 Agent 运行记录后，这里会显示各 Agent 的占比。" />}
               </div>
             </div>
 
@@ -446,11 +454,10 @@ export function AnalyticsWorkspace() {
               <div className="agenthub-card p-5">
                 <div className="flex items-center justify-between">
                   <h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">最近运行动态</h2>
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"><span className="size-1.5 rounded-full bg-emerald-500" />LIVE</span>
                 </div>
                 <div className="mt-3 space-y-0">
                   {liveActivities.length === 0 ? (
-                    <PanelEmpty title="暂无运行动态" description="新的运行开始或结束时会出现在这里。" />
+                    <EmptyState compact title="暂无运行动态" description="新的运行开始或结束时会出现在这里。" />
                   ) : liveActivities.map((item, i) => {
                     const dotColor = item.status === '成功' ? 'bg-emerald-500' : item.status === '运行中' ? 'bg-[var(--agenthub-accent)]' : item.status === '已中止' ? 'bg-slate-400' : 'bg-rose-500'
                     const prevStatus = i > 0 ? liveActivities[i - 1].status : item.status
@@ -488,7 +495,7 @@ export function AnalyticsWorkspace() {
                       <div className="h-1.5 rounded-full bg-[var(--agenthub-surface-muted)]"><div className="h-full rounded-full transition-all" style={{ width: `${item.value}%`, backgroundColor: STATUS_COLORS[item.label as RunStatus] ?? '#94A3B8' }} /></div>
                     </div>
                   ))}
-                  {statusDistribution.length === 0 && <PanelEmpty title="暂无分布数据" description="有运行记录后，这里会显示各状态的占比。" />}
+                  {statusDistribution.length === 0 && <EmptyState compact title="暂无分布数据" description="有运行记录后，这里会显示各状态的占比。" />}
                 </div>
               </div>
             </div>
@@ -499,7 +506,7 @@ export function AnalyticsWorkspace() {
                 <div className="min-w-0">
                   <h2 className="font-heading text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">任务列表</h2>
                   <p className="mt-0.5 text-xs text-slate-400">
-                    数据源 agent_runs · 范围内共 {totalRuns} 条
+                    数据源 agent_runs · 范围内共 {totalRuns} 条（含子任务）
                     {analytics?.truncated && `（列表展示最近 ${analytics.items.length} 条）`}
                   </p>
                 </div>
@@ -552,7 +559,7 @@ export function AnalyticsWorkspace() {
               {/* 任务状态筛选：accent 胶囊（与信息中心 / 自动化同款） */}
               <div className="flex items-center gap-1 overflow-x-auto px-5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(['全部', '运行中', '成功', '失败', '已中止'] as TaskListTab[]).map((tab) => {
-                  const count = tab === '全部' ? runs.length : runs.filter((r) => r.status === tab).length
+                  const count = tab === '全部' ? totalRuns : runs.filter((r) => r.status === tab).length
                   const active = taskTab === tab
                   return (
                     <button key={`tab-${tab}`} type="button" onClick={() => setTaskTab(tab)} aria-pressed={active} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition', active ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)] dark:text-slate-300 dark:hover:bg-white/5')}>
@@ -571,82 +578,35 @@ export function AnalyticsWorkspace() {
   )
 }
 
-/* ── 卡片内空态：图标 + 一句话 + 说明，与 EmptyState 同一视觉语言 ── */
-function PanelEmpty({
-  icon: Icon = Inbox,
-  title,
-  description,
-}: {
-  icon?: React.ComponentType<{ className?: string }>
-  title: string
-  description?: string
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2 py-8 text-center">
-      <div className="flex size-10 items-center justify-center rounded-full bg-[var(--agenthub-accent-soft)] text-[var(--agenthub-accent)]">
-        <Icon className="size-5" />
-      </div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
-      {description && <p className="max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">{description}</p>}
-    </div>
-  )
+/** 环比显示值：trend 单位已是 %，直接渲染；旧代码在 >100 时又除了一次，把 +200% 显示成 +2%（D-P0-1）。 */
+export function formatTrendPercent(trend: number): string {
+  return `${trend >= 0 ? '+' : ''}${trend}%`
 }
 
-/* ── KPI Card with sparkline, trend arrow ── */
-function KpiCard({ icon: Icon, label, value, trend, caption, subCaption, sparkline, tone }: {
-  icon: React.ComponentType<{ className?: string }>; label: string; value: string;
-  trend: number | null; caption: string; subCaption: string; sparkline: number[];
-  tone: 'blue' | 'purple' | 'emerald' | 'rose'
-}) {
-  const tones: Record<string, string> = {
-    blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400', purple: 'bg-purple-50 text-purple-600',
-    emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600',
-  }
-  const sparkColor = tone === 'blue' ? 'var(--primary)' : tone === 'purple' ? '#7C3AED' : tone === 'emerald' ? 'var(--agenthub-success)' : 'var(--agenthub-error)'
-  const trendUp = (trend ?? 0) >= 0
-  return (
-    <article className="agenthub-card p-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className={cn('flex size-9 items-center justify-center rounded-lg', tones[tone])}><Icon className="size-4" /></div>
-          <span className="text-sm font-medium text-slate-700">{label}</span>
-        </div>
-      </div>
-      <div className="mt-3.5 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[28px] font-semibold leading-none tracking-tight text-slate-900">{value}</div>
-          {trend === null ? (
-            <div className="mt-2 text-sm text-slate-400">{caption}</div>
-          ) : (
-            <div className={cn('mt-2 flex items-center gap-1 text-sm font-medium', trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400')}>
-              <TrendingUp className={cn('size-3.5', !trendUp && 'rotate-180')} />
-              <span>{trendUp ? '+' : ''}{trend > 100 ? `${Math.round(trend / 10) / 10}%` : `${trend}%`}</span>
-              <span className="ml-1 font-normal text-slate-400">{caption}</span>
-            </div>
-          )}
-        </div>
-        <Sparkline data={sparkline} color={sparkColor} />
-      </div>
-      <div className="mt-3 text-xs text-slate-400">{subCaption}</div>
-    </article>
-  )
+/** 火花线颜色按 tone 换算（原 KpiCard 内联逻辑，共享 KpiCard 的 sparkline prop 只收现成的 color）。 */
+function sparkColorForTone(tone: 'blue' | 'purple' | 'emerald' | 'rose'): string {
+  return tone === 'blue' ? 'var(--primary)' : tone === 'purple' ? '#7C3AED' : tone === 'emerald' ? 'var(--agenthub-success)' : 'var(--agenthub-error)'
 }
 
-/* ── Sparkline SVG ── */
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const w = 80, h = 32
-  const max = Math.max(...data, 1), min = Math.min(...data, 0), range = max - min || 1
-  const pts = data.map((v, i) => `${data.length > 1 ? (i / (data.length - 1)) * w : 0},${h - ((v - min) / range) * (h - 4) - 2}`)
-  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p}`).join(' ')
-  const areaD = `${pathD} L${w},${h} L0,${h} Z`
-  const gid = `sp-${color.replace(/[^a-zA-Z0-9]/g, '')}`
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
-      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style={{ stopColor: color }} stopOpacity="0.2" /><stop offset="100%" style={{ stopColor: color }} stopOpacity="0" /></linearGradient></defs>
-      <path d={areaD} fill={`url(#${gid})`} />
-      <path d={pathD} fill="none" style={{ stroke: color }} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+/** Token 环比：无上一周期数据时返回 null（与 runsTrend 一致），不伪装成 +0%（D-P1-3）。 */
+export function computeTokensTrend(selectedTokens: number, prevSelectedTokens: number): number | null {
+  if (prevSelectedTokens <= 0) return null
+  return Math.round(((selectedTokens - prevSelectedTokens) / prevSelectedTokens) * 1000) / 10
+}
+
+/** 环形图占比：最大余数法取整到 0.1%，各片之和恒为 100.0%（D-P2-3）。 */
+export function largestRemainderShares(fractions: number[]): number[] {
+  const units = fractions.map((f) => Math.floor(f * 1000))
+  // 余数量化到 1e-9 再比较：浮点误差会让数学上相等的余数差出 ~1e-13（如 2/3 与 1/6），量化后余数相同才按片大小 tiebreak
+  const remainderKeys = fractions.map((f, i) => Math.round((f * 1000 - units[i]) * 1e9))
+  const residual = 1000 - units.reduce((sum, u) => sum + u, 0)
+  const order = fractions.map((_, i) => i).sort((a, b) => {
+    if (remainderKeys[b] !== remainderKeys[a]) return remainderKeys[b] - remainderKeys[a]
+    if (fractions[b] !== fractions[a]) return fractions[b] - fractions[a]
+    return a - b
+  })
+  for (let k = 0; k < residual && k < order.length; k++) units[order[k]] += 1
+  return units.map((u) => u / 10)
 }
 
 /* ─ Trend Chart: bars + area line, HTML tooltip that never overflows ── */
@@ -684,7 +644,7 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
 
   return (
     <div className="relative mt-4 w-full">
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-auto max-h-[300px] min-w-[440px] w-full" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-auto max-h-[300px] w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="trend-area" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" style={{ stopColor: 'var(--agenthub-success)' }} stopOpacity="0.15" />
@@ -753,12 +713,12 @@ function TrendChart({ data, maxTrend, hoveredBar, hoveredLine, onHoverBar, onHov
 }
 
 /* ─ Donut Chart ── */
-function DonutChart({ items, total }: { items: DistributionItem[]; total: number }) {
+function DonutChart({ items, total, shares }: { items: DistributionItem[]; total: number; shares: number[] }) {
   const size = 120, sw = 20, r = (size - sw) / 2, circ = 2 * Math.PI * r
   // 预计算每段的弧长与起始偏移（不可在 render 中就地累加）
   const segments = items.map((item, i) => {
-    const dl = (item.value / 100) * circ
-    const prev = items.slice(0, i).reduce((sum, it) => sum + (it.value / 100) * circ, 0)
+    const dl = ((shares[i] ?? item.value) / 100) * circ
+    const prev = items.slice(0, i).reduce((sum, it, j) => sum + ((shares[j] ?? it.value) / 100) * circ, 0)
     return { item, i, dl, doff: -prev }
   })
   return (
@@ -812,67 +772,69 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-[var(--agenthub-border)] text-sm font-medium text-slate-400">
-            <th className="px-5 py-2.5">任务名称</th>
-            <th className="px-5 py-2.5">Agent</th>
-            <th className="px-5 py-2.5">开始时间</th>
-            <th className="px-5 py-2.5">运行时长</th>
-            <th className="px-5 py-2.5">Token</th>
-            <th className="px-5 py-2.5">状态</th>
-            <th className="px-5 py-2.5 text-right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pagedTasks.map((run) => (
-            <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-[var(--agenthub-surface-muted)]">
-              <td className="max-w-[280px] px-5 py-3">
-                <div className="truncate font-medium text-slate-800" title={run.title}>{run.title}</div>
-                {run.isSubRun && <span className="text-xs text-slate-400">子任务</span>}
-              </td>
-              <td className="px-5 py-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="max-w-[120px] truncate text-slate-700" title={run.agentName}>{run.agentName}</span>
-                  <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-xs text-slate-500">{run.category}</span>
-                </div>
-              </td>
-              <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.createdAt}</td>
-              <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.duration}</td>
-              <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.totalTokens > 0 ? formatTok(run.totalTokens) : '—'}</td>
-              <td className="px-5 py-3"><StatusBadge status={run.status} /></td>
-              <td className="px-5 py-3 text-right">
-                <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-sm font-medium text-[var(--agenthub-accent)] hover:text-[var(--agenthub-accent-hover)]">查看</button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={`任务「${run.title}」的操作`}
-                      className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-600"
-                    >
-                      <MoreHorizontal className="size-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={() => onOpenRun(run)}>
-                      <Search className="size-3.5" />
-                      运行详情
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onOpenConversation(run.conversationId)}>
-                      <LogIn className="size-3.5" />
-                      打开会话
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </td>
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-[var(--agenthub-border)] text-sm font-medium text-slate-400">
+              <th className="px-5 py-2.5">任务名称</th>
+              <th className="px-5 py-2.5">Agent</th>
+              <th className="px-5 py-2.5">开始时间</th>
+              <th className="px-5 py-2.5">运行时长</th>
+              <th className="px-5 py-2.5">Token</th>
+              <th className="px-5 py-2.5">状态</th>
+              <th className="px-5 py-2.5 text-right">操作</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {/* 分页控件 */}
+          </thead>
+          <tbody>
+            {pagedTasks.map((run) => (
+              <tr key={`row-${run.id}`} className="border-b border-slate-50 transition hover:bg-[var(--agenthub-surface-muted)]">
+                <td className="max-w-[280px] px-5 py-3">
+                  <div className="truncate font-medium text-slate-800" title={run.title}>{run.title}</div>
+                  {run.isSubRun && <span className="text-xs text-slate-400">子任务</span>}
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="max-w-[120px] truncate text-slate-700" title={run.agentName}>{run.agentName}</span>
+                    <span className="shrink-0 rounded bg-[var(--agenthub-surface-muted)] px-1.5 py-0.5 text-xs text-slate-500">{run.category}</span>
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.createdAt}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.duration}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-slate-500">{run.totalTokens > 0 ? formatTok(run.totalTokens) : '—'}</td>
+                <td className="px-5 py-3"><StatusBadge status={run.status} /></td>
+                <td className="px-5 py-3 text-right">
+                  <button type="button" onClick={() => onOpenRun(run)} className="mr-3 text-sm font-medium text-[var(--agenthub-accent)] hover:text-[var(--agenthub-accent-hover)]">查看</button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`任务「${run.title}」的操作`}
+                        className="inline-flex size-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--agenthub-surface-muted)] hover:text-slate-600"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onClick={() => onOpenRun(run)}>
+                        <Search className="size-3.5" />
+                        运行详情
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onOpenConversation(run.conversationId)}>
+                        <LogIn className="size-3.5" />
+                        打开会话
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* 分页控件：独立成行（不在横向滚动容器内），窄屏只留上一页/当前/下一页 */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-[var(--agenthub-border)] px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--agenthub-border)] px-5 py-3">
           <span className="text-sm text-slate-400">共 {tasks.length} 条，第 {currentPage}/{totalPages} 页</span>
           <div className="flex items-center gap-1">
             <button
@@ -883,23 +845,25 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
             >
               <ChevronLeft className="size-3.5" />上一页
             </button>
-            {buildPageNumbers(currentPage, totalPages).map((p, i) =>
-              p === '…' ? (
-                <span key={`gap-${i}`} className="px-1 text-sm text-slate-400">…</span>
-              ) : (
-                <button
-                  key={`page-${p}`}
-                  type="button"
-                  onClick={() => setPage(p as number)}
-                  className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition',
-                    p === currentPage ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)]',
-                  )}
-                >
-                  {p}
-                </button>
-              ),
-            )}
+            <span className="hidden items-center gap-1 sm:flex">
+              {buildPageNumbers(currentPage, totalPages).map((p, i) =>
+                p === '…' ? (
+                  <span key={`gap-${i}`} className="px-1 text-sm text-slate-400">…</span>
+                ) : (
+                  <button
+                    key={`page-${p}`}
+                    type="button"
+                    onClick={() => setPage(p as number)}
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-md text-sm font-medium transition',
+                      p === currentPage ? 'bg-[var(--agenthub-accent)] text-[var(--primary-foreground)]' : 'text-slate-600 hover:bg-[var(--agenthub-surface-muted)]',
+                    )}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+            </span>
             <button
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -911,7 +875,7 @@ function TaskTable({ tasks, onOpenRun, onOpenConversation }: {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 

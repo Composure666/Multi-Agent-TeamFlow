@@ -218,7 +218,7 @@ export const BUILTIN_AGENTS: { name: string; role: string; icon: LucideIcon; dut
 
 /** 数字证明：全部是真实值，不写没验证过的数字。 */
 export const PROOF_STATS: { value: string; label: string }[] = [
-  { value: '868', label: '测试通过' },
+  { value: '987', label: '测试通过' },
   { value: '5', label: '个内置 Agent' },
   { value: '8', label: '种产物类型' },
   { value: '3', label: '端：Web · 桌面 · 移动' },

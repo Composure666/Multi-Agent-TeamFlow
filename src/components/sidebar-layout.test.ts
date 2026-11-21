@@ -153,6 +153,18 @@ describe('工作台侧栏：垂直空间分配', () => {
     expect(workbench).toContain('aria-label="关闭账户概览"')
   })
 
+  it('品牌区：侧栏统一 288px、英文副标题不在侧栏，名字两行不断词', () => {
+    // 2026-11-20 品牌区拥挤反馈：260px 侧栏里名字只剩约 76px，"Multi-Agent"
+    // 在连字符处断成三行，英文副标题又断成 5 行。修法：非 compact 侧栏统一 288px
+    // （对话/新任务视图本来就是 288px），文字可用宽约 104px，"Multi-Agent" 一行放得下；
+    // 英文副标题从侧栏删掉，只留在 /home。
+    expect(workbench).not.toContain('w-[260px]')
+    expect(/compact \? 'w-\[72px\]' : 'w-\[288px\]'/.test(workbench)).toBe(true)
+    expect(workbench).not.toContain('BRAND_TAGLINE_EN')
+    expect(workbench).toContain('<span className="block">Multi-Agent</span>')
+    expect(workbench).toContain('<span className="block">TeamFlow</span>')
+  })
+
   it('只移除侧栏入口，两个功能本体没有被删除', () => {
     // 「不要删除官网页面、使用指南页面或其相关功能」
     expect(existsSync(path.join(root, 'src/components/official-site-link.tsx'))).toBe(true)

@@ -69,7 +69,7 @@ describe('notification service', () => {
 
     const listed = await service.listNotifications({ status: 'all', limit: 1 })
     expect(listed.notifications.map((item) => item.id)).toEqual(['ntf_second'])
-    expect(listed.nextCursor).toBe(2)
+    expect(listed.nextCursor).toBe('2:ntf_second')
     expect(listed.unreadCount).toBe(2)
 
     await service.markNotificationRead('ntf_first')
@@ -78,6 +78,114 @@ describe('notification service', () => {
 
     await service.deleteNotification('ntf_second')
     expect((await service.listNotifications()).notifications.map((item) => item.id)).toEqual(['ntf_first'])
+  })
+
+  it('pages past 80 notifications with a cursor and aggregates pill counts server-side', async () => {
+    const categoryForIndex = (index: number): 'system' | 'task' | 'error' | 'configuration' => {
+      if (index < 40) return 'system'
+      if (index < 60) return 'task'
+      if (index < 75) return 'error'
+      return 'configuration'
+    }
+    for (let i = 0; i < 85; i++) {
+      await service.publishNotification({
+        id: `ntf_${i}`,
+        title: `通知 ${i}`,
+        level: 'info',
+        source: 'system',
+        category: categoryForIndex(i),
+        createdAt: 1000 + i,
+      })
+    }
+    await service.markNotificationRead('ntf_0')
+    await service.markNotificationRead('ntf_40')
+    await service.markNotificationRead('ntf_60')
+    await service.deleteNotification('ntf_1')
+
+    const firstPage = await service.listNotifications({ status: 'all', limit: 80 })
+    expect(firstPage.notifications).toHaveLength(80)
+    expect(firstPage.nextCursor).not.toBeNull()
+    expect(firstPage.unreadCount).toBe(81)
+    expect(firstPage.categoryCounts).toEqual({
+      all: 84,
+      unread: 81,
+      error: 15,
+      task: 20,
+      system: 39,
+      configuration: 10,
+    })
+
+    const secondPage = await service.listNotifications({ status: 'all', limit: 80, cursor: firstPage.nextCursor ?? undefined })
+    expect(secondPage.notifications).toHaveLength(4)
+    expect(secondPage.nextCursor).toBeNull()
+    expect(secondPage.categoryCounts).toEqual(firstPage.categoryCounts)
+
+    const allIds = [...firstPage.notifications, ...secondPage.notifications].map((item) => item.id)
+    expect(new Set(allIds).size).toBe(84)
+    expect(allIds).not.toContain('ntf_1')
+  })
+
+  it('pages same-millisecond notifications without loss or duplication (G2)', async () => {
+    for (const id of ['ntf_same_a', 'ntf_same_b']) {
+      await service.publishNotification({
+        id,
+        title: `通知 ${id}`,
+        level: 'info',
+        source: 'system',
+        category: 'system',
+        createdAt: 5000,
+      })
+    }
+
+    const firstPage = await service.listNotifications({ status: 'all', limit: 1 })
+    expect(firstPage.notifications.map((item) => item.id)).toEqual(['ntf_same_b'])
+    expect(firstPage.nextCursor).toBe('5000:ntf_same_b')
+
+    const secondPage = await service.listNotifications({ status: 'all', limit: 1, cursor: firstPage.nextCursor ?? undefined })
+    expect(secondPage.notifications.map((item) => item.id)).toEqual(['ntf_same_a'])
+    expect(secondPage.nextCursor).toBeNull()
+
+    const allIds = [...firstPage.notifications, ...secondPage.notifications].map((item) => item.id)
+    expect(new Set(allIds).size).toBe(2)
+  })
+
+  it('still pages with a legacy bare-millisecond cursor (G2)', async () => {
+    for (let i = 0; i < 3; i++) {
+      await service.publishNotification({
+        id: `ntf_legacy_${i}`,
+        title: `通知 ${i}`,
+        level: 'info',
+        source: 'system',
+        category: 'system',
+        createdAt: 1000 + i,
+      })
+    }
+
+    const firstPage = await service.listNotifications({ status: 'all', limit: 1, cursor: '1002' })
+    expect(firstPage.notifications.map((item) => item.id)).toEqual(['ntf_legacy_1'])
+    const secondPage = await service.listNotifications({ status: 'all', limit: 1, cursor: firstPage.nextCursor ?? undefined })
+    expect(secondPage.notifications.map((item) => item.id)).toEqual(['ntf_legacy_0'])
+    expect(secondPage.nextCursor).toBeNull()
+  })
+
+  it('marks unread notifications on unloaded pages as read with all: true (G5)', async () => {
+    for (const [id, createdAt] of [['ntf_page_a', 7000], ['ntf_page_b', 8000]] as const) {
+      await service.publishNotification({
+        id,
+        title: `通知 ${id}`,
+        level: 'info',
+        source: 'system',
+        category: 'system',
+        createdAt,
+      })
+    }
+
+    const firstPage = await service.listNotifications({ status: 'all', limit: 1 })
+    expect(firstPage.notifications).toHaveLength(1)
+
+    expect((await service.markNotificationsRead({ all: true })).updated).toBe(2)
+    expect((await service.listNotifications({ status: 'unread' })).notifications).toHaveLength(0)
+    expect((await service.listNotifications({ status: 'all' })).notifications.every((item) => item.readAt !== null)).toBe(true)
   })
 
   it('validates settings targets', async () => {

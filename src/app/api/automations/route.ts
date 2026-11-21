@@ -30,7 +30,9 @@ export async function GET(req: NextRequest) {
   const days = Number(params.get('days')) || Number(params.get('trendRange')) || undefined
   const start = params.get('start') ? Number(params.get('start')) : undefined
   const end = params.get('end') ? Number(params.get('end')) : undefined
-  const range = days || start || end ? { days, start, end } : undefined
+  const tzOffset = params.get('tzOffsetMinutes')
+  const tzOffsetMinutes = tzOffset !== null && Number.isFinite(Number(tzOffset)) ? Number(tzOffset) : undefined
+  const range = days || start || end || tzOffsetMinutes !== undefined ? { days, start, end, tzOffsetMinutes } : undefined
   const dashboard = await getAutomationDashboard(range)
   return NextResponse.json({ dashboard })
 }

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lt, min } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, isNotNull, lt, min, sql } from 'drizzle-orm'
 
 import { db, schema } from '@/db/client'
 import type { RunUsage } from '@/db/schema'
@@ -81,7 +81,7 @@ export interface RunAnalyticsStats {
   running: number
   failed: number
   aborted: number
-  /** 成功率：success / 已结束（success+failed+aborted），运行中不计入分母 */
+  /** 成功率：success / 已结束且 finishedAt 非 null（与 avgDurationMs 同口径），运行中不计入分母 */
   successRate: number
   /** 已结束 run 的平均耗时 */
   avgDurationMs: number
@@ -122,8 +122,10 @@ export interface RunAnalyticsRange {
  *
  * `Date.getTimezoneOffset()` 的语义是「本地时间减 UTC 的分钟数」——UTC+8 返回 -480，
  * 所以 shift = -offsetMinutes * 60000。不传（或非法）时退化为服务端本地时区。
+ *
+ * usage/summary 与 automation dashboard 共用同一口径，勿另写切分。
  */
-function resolveTzShift(offsetMinutes?: number): number {
+export function resolveTzShift(offsetMinutes?: number): number {
   if (
     typeof offsetMinutes === 'number' &&
     Number.isFinite(offsetMinutes) &&
@@ -135,7 +137,7 @@ function resolveTzShift(offsetMinutes?: number): number {
 }
 
 /** 某一天 00:00（客户端时区）对应的 UTC 毫秒时间戳。 */
-function startOfDay(value: number, shift: number): number {
+export function startOfDay(value: number, shift: number): number {
   const local = new Date(value + shift)
   local.setUTCHours(0, 0, 0, 0)
   return local.getTime() - shift
@@ -238,6 +240,19 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
     .where(gte(schema.agentRuns.startedAt, todayStart))
   const [{ value: allTimeTotal }] = await db.select({ value: count() }).from(schema.agentRuns)
 
+  // 平均耗时与成功率同口径：对范围内全部已结束 run 做服务端聚合，不取明细样本
+  // （明细上限 2000 条，截断时样本均值会系统性偏向最近的 run）。
+  const [{ value: avgDurationRaw }] = await db
+    .select({ value: sql<number | null>`avg(${schema.agentRuns.finishedAt} - ${schema.agentRuns.startedAt})` })
+    .from(schema.agentRuns)
+    .where(
+      and(
+        inRange,
+        inArray(schema.agentRuns.status, ['complete', 'failed', 'aborted']),
+        isNotNull(schema.agentRuns.finishedAt),
+      ),
+    )
+
   // ── 趋势：只取轻量两列，按天分桶 ──
   const trendRows = await db
     .select({ status: schema.agentRuns.status, startedAt: schema.agentRuns.startedAt })
@@ -280,6 +295,25 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
     .where(inRange)
     .groupBy(schema.agentRuns.status)
 
+  // 成功率分母与 avgDurationMs 同口径：只计「已结束且 finishedAt 非 null」的行。
+  // statusRows 含「已结束但 finishedAt 为 null」的脏行（至多差 1 行），不能直接做分母；
+  // 分子也不能用未过滤的 successTotal，否则一条脏的 complete 行会让成功率超过 100%。
+  const finishedStatusRows = await db
+    .select({ status: schema.agentRuns.status, value: count() })
+    .from(schema.agentRuns)
+    .where(
+      and(
+        inRange,
+        inArray(schema.agentRuns.status, ['complete', 'failed', 'aborted']),
+        isNotNull(schema.agentRuns.finishedAt),
+      ),
+    )
+    .groupBy(schema.agentRuns.status)
+  const finishedStatusTotals = new Map<string, number>()
+  for (const row of finishedStatusRows) finishedStatusTotals.set(row.status, row.value)
+  const finishedSuccessTotal = finishedStatusTotals.get('complete') ?? 0
+  const finishedTotal = finishedSuccessTotal + (finishedStatusTotals.get('failed') ?? 0) + (finishedStatusTotals.get('aborted') ?? 0)
+
   const statusLabel = (s: RunAnalyticsStatus): string =>
     s === 'success' ? '成功' : s === 'running' ? '运行中' : s === 'aborted' ? '已中止' : '失败'
 
@@ -305,10 +339,6 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
   const running = items.filter((i) => i.status === 'running').length
   const failed = items.filter((i) => i.status === 'failed').length
   const aborted = items.filter((i) => i.status === 'aborted').length
-  const finished = success + failed + aborted
-  const durationSum = items
-    .filter((i) => i.durationMs !== null)
-    .reduce((sum, i) => sum + (i.durationMs ?? 0), 0)
 
   // 明细被截断时，KPI 计数改用聚合查询的结果，避免低估
   const statusTotals = new Map<string, number>()
@@ -320,7 +350,6 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
   const runningTotal = pick('running', 'queued')
   const failedTotal = pick('failed')
   const abortedTotal = pick('aborted')
-  const finishedTotal = successTotal + failedTotal + abortedTotal
 
   const agentDistribution = agentRows.map((row) => ({
     label: row.name,
@@ -346,8 +375,8 @@ export async function getRunAnalytics(range?: RunAnalyticsRange): Promise<RunAna
       running: items.length === total ? running : runningTotal,
       failed: items.length === total ? failed : failedTotal,
       aborted: items.length === total ? aborted : abortedTotal,
-      successRate: ratio(successTotal, finishedTotal),
-      avgDurationMs: finished > 0 ? Math.round(durationSum / finished) : 0,
+      successRate: ratio(finishedSuccessTotal, finishedTotal),
+      avgDurationMs: avgDurationRaw !== null ? Math.round(avgDurationRaw) : 0,
       todayCount,
       allTimeTotal,
       prevTotal,

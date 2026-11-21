@@ -1,4 +1,4 @@
-import { count, min } from 'drizzle-orm'
+import { and, count, gte, inArray, isNotNull, lt, min, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { db, schema } from '@/db/client'
@@ -144,6 +144,23 @@ describe('analytics-service · 数据概览数据完整性', () => {
     const serverTz = await getRunAnalytics({ start: end - 6 * 86400000, end, days: 7 })
     expect(new Date(serverTz.range.start).getHours()).toBe(0)
     expect(serverTz.trend.reduce((sum, p) => sum + p.value, 0)).toBe(serverTz.total)
+  })
+
+  it('D-P2-1：平均耗时是服务端全量聚合（与成功率同一批已结束 run），不是明细样本均值', async () => {
+    const a = await getRunAnalytics({ start: 0 })
+    const [row] = await db
+      .select({ value: sql<number | null>`avg(${schema.agentRuns.finishedAt} - ${schema.agentRuns.startedAt})` })
+      .from(schema.agentRuns)
+      .where(
+        and(
+          gte(schema.agentRuns.startedAt, a.range.start),
+          lt(schema.agentRuns.startedAt, a.range.end),
+          inArray(schema.agentRuns.status, ['complete', 'failed', 'aborted']),
+          isNotNull(schema.agentRuns.finishedAt),
+        ),
+      )
+    const expected = row.value !== null ? Math.round(row.value) : 0
+    expect(a.stats.avgDurationMs).toBe(expected)
   })
 
   it('modalityLabel 覆盖四种业务模态并保留未知值', () => {

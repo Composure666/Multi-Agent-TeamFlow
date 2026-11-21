@@ -404,12 +404,14 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   const workerColWidth = 360
   // P1-D1：worker 行高 380 → 250（折叠态 agent 卡实高 185.7 + 约 64 间距）。
   const workerRowHeight = 250
-  // P1-D1：Orchestrator 卡底边约 356（y 170 + 实高 185.7），worker 网格顶 = 底边 + 约 64。
-  const workerGridTopY = 420
+  // G1-L-P2-3：Orchestrator 卡底边约 400.7（y 215 + 实高 185.7），worker 网格顶 = 底边 + 约 64。
+  const workerGridTopY = 465
   // 纵向三处留白（P1-D1：toolGridTopGap 200 → 120、summaryGap 220 → 120）都是
   // 「上一行底边到下一行顶边」的纯空白：行底边已按 estimateNodeHeight 的折叠实高
-  // 算过，收窄只减空白，不会让折叠态卡片压盖。展开态 agent 卡（4 步约 340px）
-  // 超出 200 估计高时会压住下一行——这是 P2 的 D4，本轮不修，见 PROGRESS。
+  // 算过，收窄只减空白，不会让折叠态卡片压盖。展开态 agent 卡的步骤 + 工具区
+  // 封顶在 92px 滚动区内（G1-D4 已修，见 DebuggerNode），展开态卡片总高约
+  // 222px < 250px 行距，且卡片底边到下行顶边留约 28px（> 边 smoothstep 的
+  // 20px offset），出边水平段不落进下一行；估计高仍按折叠态。
   // workerRowHeight 250（行内留白约 64）与 toolRowHeight 190（行内留白约 52）
   // 已够紧，runRowOffsetY 260（消息卡片底边到 Run 顶边 60）也不动。
   const toolGridTopGap = 120
@@ -446,8 +448,8 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
   nodes.push({
     id: orchestratorNodeId,
     type: 'runDebuggerNode',
-    // P1-D1：Run→Orchestrator 210 → 170（Run 卡实高 130.5 + 约 40 间距）。
-    position: { x: centerX, y: 170 },
+    // G1-L-P2-3：Run→Orchestrator 170 → 215（Run 卡实高 175 + 约 40 间距）。
+    position: { x: centerX, y: 215 },
     draggable: true,
     selectable: true,
     data: {
@@ -472,7 +474,7 @@ export function buildAgentRunDebuggerGraph(detail: AgentRunDebugDetail): AgentRu
       },
     },
   })
-  agentNodePositions.set(currentAgentId, { x: centerX, y: 170 })
+  agentNodePositions.set(currentAgentId, { x: centerX, y: 215 })
   edges.push(buildDebuggerEdge(runNodeId, orchestratorNodeId, mapRunStatus(detail.agentRun.status)))
 
   if (workerAgentIds.length === 0) {
@@ -721,9 +723,11 @@ function buildAgentRunToolDebuggerGraph(args: {
 /**
  * 卡片高度估算。P1-D1：从「保守上界」改为「实测折叠高 + 少量余量」，
  * 只用于自动布局留白。实测折叠高（2026-11-19 分析报告 §1 D1）：
- * agent 185.7、tool 138、message 160–182、run 130.5、summary 130.5；
- * task 无实测值，沿用 190。展开态 agent 卡（4 步约 340px）超出 200 的
- * 估计高时会压住下一行——这是 P2 的 D4，本轮不修，见 PROGRESS。
+ * agent 185.7、tool 138、message 160–182；run/summary 原为 130.5，
+ * L-P2-3 让模型独占一行后实测 175，估计高同步改为 180；
+ * task 无实测值，沿用 190。展开态 agent 卡的步骤 + 工具区封顶在 92px
+ * 滚动区内（G1-D4 已修，见 DebuggerNode），展开态卡片总高约 222px，
+ * 仍在 250px 行距内，不压盖；估计高仍按折叠态。
  */
 function estimateNodeHeight(kind: AgentRunDebuggerNodeKind): number {
   switch (kind) {
@@ -736,9 +740,9 @@ function estimateNodeHeight(kind: AgentRunDebuggerNodeKind): number {
     case 'message':
       return 190
     case 'run':
-      return 135
+      return 180
     case 'summary':
-      return 135
+      return 180
     case 'group':
       return 28
     default:

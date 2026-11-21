@@ -36,9 +36,11 @@ export function ChatToolbar({
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-1.5">
       <div className="flex items-center gap-1 rounded-lg border border-[var(--agenthub-border)] bg-[var(--agenthub-surface)]/80 p-0.5 dark:border-[var(--agenthub-border)] dark:bg-[var(--agenthub-surface)]/70">
-        <ToolbarButton active={fileExplorerOpen} label={fileExplorerOpen ? '关闭工作区' : '打开工作区'} onClick={onToggleFileExplorer}>
-          <FolderTree className="size-4" />
-        </ToolbarButton>
+        <span className="hidden lg:flex">
+          <ToolbarButton active={fileExplorerOpen} label={fileExplorerOpen ? '关闭工作区' : '打开工作区'} onClick={onToggleFileExplorer}>
+            <FolderTree className="size-4" />
+          </ToolbarButton>
+        </span>
         <ToolbarButton active={artifactsOpen || Boolean(previewArtifactId)} label="本会话产物库" onClick={onOpenArtifacts}>
           <Layers className="size-4" />
         </ToolbarButton>

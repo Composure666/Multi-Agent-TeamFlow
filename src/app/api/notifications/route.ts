@@ -10,7 +10,11 @@ const Query = z.object({
   status: Status.optional(),
   category: Category.optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
-  cursor: z.coerce.number().int().positive().optional(),
+  cursor: z
+    .string()
+    .trim()
+    .regex(/^\d+(:[0-9A-Za-z_-]+)?$/, 'Invalid cursor')
+    .optional(),
 })
 
 export async function GET(req: NextRequest) {
