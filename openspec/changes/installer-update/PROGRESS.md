@@ -103,3 +103,10 @@
 - exe 已验证：583,502,874 字节，SHA-256 `de3f9ae737f8d4c01e00c1871d39ef37d898cf38f725262c4fca8726d5588d2c`，与 CI 日志第 7 步打印值一致；本地副本 `~/workspace/installer-rc2/Multi-Agent-TeamFlow-Setup.exe`。
 - GitHub release v0.2.0-rc.2 由用户本人在其 Chrome 发布（12:41，Latest，exe 附件已核对）；云端浏览器打不开文件选择框、且 exe 路径是本机虚拟机路径，无法代传附件——以后 release 附件须由用户在自己电脑上操作。
 - OSS 上传进行中（子代理，scp + 服务器端 oss-upload.cjs）；Gitee release 与 README 待做。
+
+## 步骤 3 结果 — OSS 上传完成（2026-11-21 13:55）
+
+- OSS 对象 `downloads/Multi-Agent-TeamFlow-Setup.exe` 已覆盖为 rc.2：583,502,874 字节，ETag 与本地 MD5 一致，curl -I 验 200。
+- 过程曲折：VM 直传 scp 仅约 18KB/s，1.5 小时传 107MB 后被运行环境重启掐断；服务器直下 GitHub 约 11KB/s；ghproxy 镜像超时；ghfast 镜像快（服务器国内测速 3MB/s），4 分钟传 247MB 后 SSH 连接被掐断，断点续传（curl -C -）后完成，SHA-256 与 CI 一致。
+- 教训：pkill -f 匹配自身命令行会自杀（2026-11-21 13:43 两次 255），以后用 `pkill -x curl`；运行环境重启会清 /root/.ssh/known_hosts，每次 SSH 前先确认，失败就重做 keyscan。
+- 备用的用户直传方案未用上：OSS 预签名 PUT 链接已生成（2 小时有效），如再需传大文件可让用户从电脑直传。
